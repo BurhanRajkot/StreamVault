@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamVault: The Ultimate Streaming Hub</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div id="disclaimer-modal" class="disclaimer-modal">
+      <div class="disclaimer-content">
+        <h2 class="disclaimer-title">
+          <i class="fas fa-exclamation-triangle"></i> Important Disclosure
+        </h2>
+        <p class="disclaimer-text">
+          This website is built solely for
+          <strong>educational and portfolio demonstration purposes</strong>. It
+          uses public APIs (TMDB) and embeds publicly available, third-party
+          streaming sources.
+        </p>
+        <p class="disclaimer-warning">
+          We do not host any content. All media is embedded from external,
+          third-party providers. Use responsibly.
+        </p>
+        <p class="disclaimer-tip">
+          <i class="fas fa-shield-alt"></i> <strong>Pro Tip:</strong> For a
+          stable and uninterrupted viewing experience, it is highly recommended
+          to use a reliable ad-blocker (like uBlock Origin).
+        </p>
+        <button id="accept-disclaimer-btn" class="primary-btn">
+          I Understand and Accept
+        </button>
+      </div>
+    </div>
+    <header>
+      <div class="logo">
+        <i class="fas fa-video"></i>
+        <h1>StreamVault</h1>
+      </div>
+
+      <div class="header-controls">
+        <div class="mode-selector">
+          <button id="mode-movie" class="active">
+            <i class="fas fa-film"></i> Movies
+          </button>
+          <button id="mode-tv"><i class="fas fa-tv"></i> TV Shows</button>
+        </div>
+
+        <form id="form">
+          <input
+            type="text"
+            id="search"
+            placeholder="Search titles..."
+            class="search-input"
+          />
+          <button type="submit" class="search-btn">
+            <i class="fas fa-search"></i>
+          </button>
+        </form>
+      </div>
+    </header>
+
+    <main id="main"></main>
+
+    <div id="modal" class="modal">
+      <div class="modal-content">
+        <span id="close" class="close-btn">&times;</span>
+        <h2 id="media-title"></h2>
+
+        <div id="playback-controls">
+          <div class="input-group">
+            <label for="playerSelect" class="select-label">
+              <i class="fas fa-server"></i> Choose Player Source:
+            </label>
+            <select id="playerSelect">
+              <option value="autoembed">GOATED (Best Quality)</option>
+              <option value="vidlink">Better Public</option>
+              <option value="vidsrc">Public Source</option>
+            </select>
+          </div>
+
+          <p id="episode-instruction" class="modal-instruction">
+            Select Episode:
+          </p>
+          <div
+            id="season-episode-controls"
+            class="input-group compact-tv-inputs"
+          >
+            <label>
+              Season:
+              <input type="number" id="seasonInput" min="1" value="1" />
+            </label>
+            <label>
+              Episode:
+              <input type="number" id="episodeInput" min="1" value="1" />
+            </label>
+          </div>
+
+          <button id="playBtn" class="primary-btn">
+            <i class="fas fa-play"></i> Start Playback
+          </button>
+        </div>
+
+        <div id="player" class="player-container"></div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-content">
+        <div class="footer-inline-links">
+          <span class="footer-item contact-email">
+            <i class="fas fa-envelope"></i>
+            <a href="mailto:brocks0520@gmail.com">brocks0520@gmail.com</a>
+          </span>
+
+          <span class="footer-item social-links-container">
+            <a
+              href="https://github.com/brock520"
+              target="_blank"
+              class="social-icon"
+            >
+              <i class="fab fa-github"></i> GitHub
+            </a>
+            <a
+              href="https://www.linkedin.com/in/burhanuddin-rajkotwala-84722b326/"
+              target="_blank"
+              class="social-icon"
+            >
+              <i class="fab fa-linkedin"></i> LinkedIn
+            </a>
+          </span>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>
+          &copy; 2025 StreamVault. All rights reserved. | Powered by TMDB API.
+        </p>
+        <p>Developed by Burhanuddin Rajkotwala.</p>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
