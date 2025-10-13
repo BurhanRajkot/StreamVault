@@ -52,6 +52,7 @@
             <i class="fas fa-film"></i> Movies
           </button>
           <button id="mode-tv"><i class="fas fa-tv"></i> TV Shows</button>
+          <button id="mode-anime"><i class="fas fa-mask"></i> Anime</button>
         </div>
 
         <form id="form">
@@ -81,9 +82,10 @@
               <i class="fas fa-server"></i> Choose Player Source:
             </label>
             <select id="playerSelect">
-              <option value="autoembed">GOATED (Best Quality)</option>
-              <option value="vidlink">Better Public</option>
-              <option value="vidsrc">Public Source</option>
+              <option value="vidsrc_icu">New Source</option>
+              <option value="vidlink_pro">Better</option>
+              <option value="vidsrc_cc">Public</option>
+              <option value="autoembed">GOATED</option>
             </select>
           </div>
 
@@ -104,6 +106,39 @@
             </label>
           </div>
 
+          <p
+            id="anime-instruction"
+            class="modal-instruction"
+            style="display: none"
+          >
+            Enter MAL ID and Stream Type:
+          </p>
+          <div
+            id="anime-controls"
+            class="input-group compact-tv-inputs"
+            style="display: none"
+          >
+            <label>
+              MAL ID:
+              <input
+                type="number"
+                id="malIdInput"
+                min="1"
+                placeholder="e.g., 5"
+              />
+            </label>
+            <label>
+              Episode Num:
+              <input type="number" id="animeEpisodeInput" min="1" value="1" />
+            </label>
+            <label>
+              Type:
+              <select id="animeTypeSelect">
+                <option value="sub">Subtitled</option>
+                <option value="dub">Dubbed</option>
+              </select>
+            </label>
+          </div>
           <button id="playBtn" class="primary-btn">
             <i class="fas fa-play"></i> Start Playback
           </button>
