@@ -1,6 +1,6 @@
 // =====================================================================
 // Configuration: TMDB API Key and Streaming Provider URLs
-// NOTE: 4 Player Choices implemented as requested.
+// NOTE: Final 6 Player Choices implemented as requested.
 // =====================================================================
 const CONFIG = {
   TMDB_API_KEY: "668a0dd95d2a554867a2c610467fb934",
@@ -8,25 +8,38 @@ const CONFIG = {
   MAL_BASE_URL: "https://api.jikan.moe/v4", // Conceptual MAL API
   IMG_BASE_URL: "https://image.tmdb.org/t/p/w500",
 
-  // STREAM PROVIDER TEMPLATES (4 Choices for each media type)
+  // STREAM PROVIDER TEMPLATES (6 Choices for each media type)
   STREAM_PROVIDERS: {
-    // --- TV/Show Embed Templates (Used for TV mode) ---
+    // --- TV/Show Embed Templates ---
+    // 1. GOATED 1 (vidfast.pro) - NEW
+    vidfast_pro: `https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true`,
+    // 2. GOATED 2 (vidpop.xyz) - NEW
+    vidpop_xyz: `https://www.vidpop.xyz/embed/?id={tmdbId}&season={season}&episode={episode}`,
+    // 3. New Source (vidsrc.icu) - ORIGINAL KEPT
     vidsrc_icu: `https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}`,
+    // 4. Better (vidlink.pro) - ORIGINAL KEPT
     vidlink_pro: `https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true`,
+    // 5. Public (vidsrc.cc) - ORIGINAL KEPT
     vidsrc_cc: `https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=true`,
+    // 6. Legacy GOATED (autoembed) - ORIGINAL KEPT
     autoembed: `https://player.autoembed.cc/embed/tv/{tmdbId}/{season}/{episode}`,
 
-    // --- Movie Embed Templates (Used for Movie mode) ---
+    // --- Movie Embed Templates ---
+    vidfast_pro_movie: `https://vidfast.pro/movie/{tmdbId}?autoPlay=true`,
+    vidpop_xyz_movie: `https://www.vidpop.xyz/embed/?id={tmdbId}`,
     vidsrc_icu_movie: `https://vidsrc.icu/embed/movie/{tmdbId}`,
-    vidlink_pro_movie: `https://vidlink.pro/movie/{tmdbId}?primaryColor=ff4747&autoplay=true`,
+    vidlink_pro_movie: `https://vidlink.pro/movie/{tmdbId}?autoPlay=true`,
     vidsrc_cc_movie: `https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=true`,
     autoembed_movie: `https://player.autoembed.cc/embed/movie/{tmdbId}`,
 
-    // --- Anime Embed Templates (Used for Anime mode) ---
+    // --- Anime Embed Templates ---
+    // Slots filled by Anime-capable providers for consistency
+    vidfast_pro_anime: `https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true`, // Using Vidlink template
+    vidpop_xyz_anime: `https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true`, // Using Vidlink template
     vidsrc_icu_anime: `https://vidsrc.icu/embed/anime/{MALid}/{number}/{subOrDub}`,
     vidlink_pro_anime: `https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true`,
     vidsrc_cc_anime: `https://vidsrc.cc/v2/embed/anime/{MALid}/{number}/{subOrDub}?autoPlay=true`,
-    autoembed_anime: `https://player.autoembed.cc/embed/anime/{MALid}/{number}/{subOrDub}`,
+    autoembed_anime: `https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true`, // Using Vidlink template
   },
 };
 
@@ -199,7 +212,7 @@ function openModal(title) {
   }
 
   modal.style.display = "flex";
-  playerSelect.value = "vidsrc_icu"; // Set default to the new top source
+  playerSelect.value = "vidfast_pro"; // Set default to the top source
 }
 
 closeBtn.addEventListener("click", () => {
