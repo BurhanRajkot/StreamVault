@@ -1,0 +1,57 @@
+:root {
+  --color-primary: #00bcd4; /* Teal Accent */
+  --color-secondary: #007985;
+  --color-background: #0a0a0a;
+  --color-card-bg: #1c1c1c;
+  --color-text-light: #f0f0f0;
+  --color-text-muted: #999;
+  --color-border: #333;
+  --color-highlight: #ffc107; /* Gold for ratings */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  background: var(--color-background);
+  color: var(--color-text-light);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Global Transitions (Minimal Smoothness) --- */
+button,
+input,
+select,
+.media-card,
+.modal-content,
+a {
+  transition: all 0.2s ease-in-out;
+}
+
+main {
+  flex-grow: 1;
+}
+
+/* Primary Button (used in modal) */
+.primary-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 10px;
+}
+.primary-btn:hover,
+.primary-btn:focus {
+  background: var(--color-secondary);
+  transform: translateY(-1px);
+  outline: none;
+}

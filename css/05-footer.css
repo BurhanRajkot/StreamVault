@@ -1,0 +1,76 @@
+/* --- FOOTER STYLES --- */
+footer {
+  background: #000;
+  color: var(--color-text-muted);
+  padding: 20px 40px 10px;
+  border-top: 1px solid #111;
+  text-align: center;
+}
+.footer-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.footer-inline-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.footer-item {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.footer-item a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  margin-left: 5px;
+}
+
+.footer-item a:hover,
+.footer-item a:focus {
+  color: var(--color-primary);
+  text-decoration: underline;
+  outline: none;
+}
+
+.footer-item i {
+  color: var(--color-primary);
+  margin-right: 5px;
+  font-size: 1rem;
+}
+
+/* Social Icons */
+.social-links-container a {
+  color: var(--color-text-light);
+  margin: 0 5px;
+}
+.social-links-container a:hover,
+.social-links-container a:focus {
+  color: var(--color-highlight);
+  text-decoration: none;
+  transform: scale(1.1);
+}
+.social-links-container a:hover i,
+.social-links-container a:focus i {
+  color: var(--color-highlight);
+}
+
+.footer-bottom {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #444;
+}
+.footer-bottom p {
+  margin: 5px 0;
+}

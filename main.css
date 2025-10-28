@@ -1,0 +1,7 @@
+/* Import all your CSS pieces in logical order */
+@import url('css/01-base.css'); /* Renamed for clarity */
+@import url('css/02-header.css');
+@import url('css/03-grid.css');
+@import url('css/04-modals.css');
+@import url('css/05-footer.css');
+@import url('css/06-responsive.css');
