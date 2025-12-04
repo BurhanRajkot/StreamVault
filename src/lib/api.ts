@@ -6,7 +6,7 @@ export async function fetchPopular(mode: MediaMode, page = 1): Promise<{ results
   }
 
   const url = `${CONFIG.TMDB_BASE_URL}/discover/${mode}?sort_by=popularity.desc&api_key=${CONFIG.TMDB_API_KEY}&page=${page}`;
-  
+
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -24,7 +24,7 @@ export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   if (mode === 'anime') return [];
 
   const url = `${CONFIG.TMDB_BASE_URL}/trending/${mode}/week?api_key=${CONFIG.TMDB_API_KEY}`;
-  
+
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -41,7 +41,7 @@ export async function searchMedia(mode: MediaMode, query: string, page = 1): Pro
   }
 
   const url = `${CONFIG.TMDB_BASE_URL}/search/${mode}?api_key=${CONFIG.TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=${page}`;
-  
+
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -59,7 +59,7 @@ export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Me
   if (mode === 'anime') return null;
 
   const url = `${CONFIG.TMDB_BASE_URL}/${mode}/${id}?api_key=${CONFIG.TMDB_API_KEY}`;
-  
+
   try {
     const res = await fetch(url);
     return await res.json();
@@ -71,7 +71,7 @@ export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Me
 
 export async function fetchTVSeasons(tvId: number): Promise<{ season_number: number; episode_count: number; name: string }[]> {
   const url = `${CONFIG.TMDB_BASE_URL}/tv/${tvId}?api_key=${CONFIG.TMDB_API_KEY}`;
-  
+
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -87,34 +87,51 @@ export function getImageUrl(path: string | null, size: 'poster' | 'backdrop' | '
   return `${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES[size]}${path}`;
 }
 
+/**
+ * Build embed URL based on mode, provider, and media ID.
+ * Matches the exact logic from the working JavaScript version.
+ */
 export function buildEmbedUrl(
   mode: MediaMode,
   provider: string,
   mediaId: number,
   options: { season?: number; episode?: number; malId?: string; subOrDub?: string }
 ): string {
-  const { season = 1, episode = 1, malId, subOrDub = 'sub' } = options;
+  const { season = 1, episode = 1, malId = '', subOrDub = 'sub' } = options;
 
-  if (mode === 'movie') {
-    const template = CONFIG.STREAM_PROVIDERS[`${provider}_movie`];
-    return template?.replace(/{tmdbId}/g, String(mediaId)) || '';
-  }
+  let template = '';
 
+  // Handle TV mode
   if (mode === 'tv') {
-    const template = CONFIG.STREAM_PROVIDERS[provider];
+    template = CONFIG.STREAM_PROVIDERS[provider];
+    if (!template) return '';
+
     return template
-      ?.replace(/{tmdbId}/g, String(mediaId))
-      .replace(/{season}/g, String(season))
-      .replace(/{episode}/g, String(episode)) || '';
+      .replace(/\{tmdbId\}/g, String(mediaId))
+      .replace(/\{season\}/g, String(season))
+      .replace(/\{episode\}/g, String(episode));
   }
 
+  // Handle Movie mode
+  if (mode === 'movie') {
+    const movieProvider = `${provider}_movie`;
+    template = CONFIG.STREAM_PROVIDERS[movieProvider];
+    if (!template) return '';
+
+    return template.replace(/\{tmdbId\}/g, String(mediaId));
+  }
+
+  // Handle Anime mode
   if (mode === 'anime') {
-    const template = CONFIG.STREAM_PROVIDERS[`${provider}_anime`];
+    const animeProvider = `${provider}_anime`;
+    template = CONFIG.STREAM_PROVIDERS[animeProvider];
+    if (!template) return '';
+
     return template
-      ?.replace(/{MALid}/g, malId || '')
-      .replace(/{tmdbId}/g, String(mediaId))
-      .replace(/{number}/g, String(episode))
-      .replace(/{subOrDub}/g, subOrDub) || '';
+      .replace(/\{MALid\}/g, malId)
+      .replace(/\{tmdbId\}/g, String(mediaId))
+      .replace(/\{number\}/g, String(episode))
+      .replace(/\{subOrDub\}/g, subOrDub);
   }
 
   return '';

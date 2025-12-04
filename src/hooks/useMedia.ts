@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { fetchPopular, fetchTrending, searchMedia } from '@/lib/api';
-import { Media, MediaMode } from '@/lib/config';
+import { useState, useEffect, useCallback } from "react";
+import { fetchPopular, fetchTrending, searchMedia } from "@/lib/api";
+import { Media, MediaMode } from "@/lib/config";
 
 interface UseMediaReturn {
   media: Media[];
@@ -17,84 +17,142 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
   const [media, setMedia] = useState<Media[]>([]);
   const [trending, setTrending] = useState<Media[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSearchMode, setIsSearchMode] = useState(false);
 
-  const loadMedia = useCallback(async (reset = false) => {
-    if (mode === 'anime') {
-      setIsLoading(false);
+  // -----------------------------
+  // MAIN LOADER (Popular or Search)
+  // -----------------------------
+  const loadMedia = useCallback(
+    async (reset = false) => {
+      if (mode === "anime") {
+        setMedia([]);
+        setTrending([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        const nextPage = reset ? 1 : page;
+
+        let mediaResult;
+        if (isSearchMode && searchQuery.length > 0) {
+          mediaResult = await searchMedia(mode, searchQuery, nextPage);
+        } else {
+          mediaResult = await fetchPopular(mode, nextPage);
+        }
+
+        setTotalPages(mediaResult.total_pages || 1);
+
+        if (reset) {
+          setMedia(mediaResult.results);
+        } else {
+          setMedia((prev) => [...prev, ...mediaResult.results]);
+        }
+      } catch (err) {
+        console.error("Media load error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [mode, page, searchQuery, isSearchMode]
+  );
+
+  // -----------------------------
+  // LOAD TRENDING (only once per mode change)
+  // -----------------------------
+  const loadTrending = useCallback(async () => {
+    if (mode === "anime") {
+      setTrending([]);
       return;
     }
 
-    setIsLoading(true);
-    const currentPage = reset ? 1 : page;
-
     try {
-      const [mediaData, trendingData] = await Promise.all([
-        isSearchMode
-          ? searchMedia(mode, searchQuery, currentPage)
-          : fetchPopular(mode, currentPage),
-        reset ? fetchTrending(mode) : Promise.resolve(trending),
-      ]);
-
-      if (reset) {
-        setMedia(mediaData.results);
-        setTrending(trendingData as Media[]);
-      } else {
-        setMedia((prev) => [...prev, ...mediaData.results]);
-      }
-      setTotalPages(mediaData.total_pages);
-    } catch (error) {
-      console.error('Error loading media:', error);
-    } finally {
-      setIsLoading(false);
+      const trend = await fetchTrending(mode);
+      setTrending(trend);
+    } catch (err) {
+      console.error("Trending fetch error:", err);
+      setTrending([]);
     }
-  }, [mode, page, searchQuery, isSearchMode, trending]);
+  }, [mode]);
 
+  // -----------------------------
+  // MODE CHANGE → RESET EVERYTHING
+  // -----------------------------
   useEffect(() => {
     setMedia([]);
     setTrending([]);
     setPage(1);
-    setSearchQuery('');
+    setTotalPages(1);
+    setSearchQuery("");
     setIsSearchMode(false);
+
+    loadTrending();
     loadMedia(true);
   }, [mode]);
 
+  // -----------------------------
+  // PAGE INCREASE → LOAD MORE
+  // -----------------------------
   useEffect(() => {
     if (page > 1) {
       loadMedia(false);
     }
   }, [page]);
 
-  const loadMore = useCallback(() => {
-    if (!isLoading && page < totalPages) {
-      setPage((p) => p + 1);
-    }
-  }, [isLoading, page, totalPages]);
+  // -----------------------------
+  // SEARCH HANDLER
+  // -----------------------------
+  const search = useCallback(
+    async (query: string) => {
+      setSearchQuery(query);
 
-  const search = useCallback((query: string) => {
-    setSearchQuery(query);
-    setIsSearchMode(true);
-    setPage(1);
-    setMedia([]);
-    
-    searchMedia(mode, query, 1).then((data) => {
+      if (query.trim().length === 0) {
+        // back to popular
+        setIsSearchMode(false);
+        setPage(1);
+        loadMedia(true);
+        return;
+      }
+
+      setIsSearchMode(true);
+      setPage(1);
+      setIsLoading(true);
+
+      const data = await searchMedia(mode, query, 1);
+
       setMedia(data.results);
-      setTotalPages(data.total_pages);
+      setTotalPages(data.total_pages || 1);
       setIsLoading(false);
-    });
-  }, [mode]);
+    },
+    [mode, loadMedia]
+  );
 
+  // -----------------------------
+  // CLEAR SEARCH → RESTORE POPULAR
+  // -----------------------------
   const clearSearch = useCallback(() => {
-    setSearchQuery('');
+    setSearchQuery("");
     setIsSearchMode(false);
     setPage(1);
+
     loadMedia(true);
   }, [loadMedia]);
 
+  // -----------------------------
+  // LOAD MORE FOR INFINITE SCROLL
+  // -----------------------------
   const hasMore = page < totalPages;
+
+  const loadMore = useCallback(() => {
+    if (!isLoading && hasMore) {
+      setPage((p) => p + 1);
+    }
+  }, [isLoading, hasMore]);
 
   return {
     media,
