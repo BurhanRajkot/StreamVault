@@ -1,13 +1,122 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { Media, MediaMode } from '@/lib/config';
+import { useMedia } from '@/hooks/useMedia';
+import { Header } from '@/components/Header';
+import { HeroCarousel } from '@/components/HeroCarousel';
+import { MediaGrid } from '@/components/MediaGrid';
+import { PlayerModal } from '@/components/PlayerModal';
+import { DisclaimerModal } from '@/components/DisclaimerModal';
+import { AnimeSection } from '@/components/AnimeSection';
+import { Footer } from '@/components/Footer';
 
 const Index = () => {
+  const [mode, setMode] = useState<MediaMode>('movie');
+  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+
+  const { media, trending, isLoading, hasMore, loadMore, search, clearSearch, searchQuery } = useMedia(mode);
+
+  useEffect(() => {
+    const accepted = sessionStorage.getItem('disclaimerAccepted');
+    if (accepted !== 'true') {
+      setShowDisclaimer(true);
+    }
+  }, []);
+
+  const handleAcceptDisclaimer = () => {
+    sessionStorage.setItem('disclaimerAccepted', 'true');
+    setShowDisclaimer(false);
+  };
+
+  const handleMediaClick = (mediaItem: Media) => {
+    setSelectedMedia(mediaItem);
+    setIsPlayerOpen(true);
+  };
+
+  const handleModeChange = (newMode: MediaMode) => {
+    setMode(newMode);
+  };
+
+  const getModeTitle = () => {
+    switch (mode) {
+      case 'movie':
+        return 'Popular Movies';
+      case 'tv':
+        return 'Popular TV Shows';
+      case 'anime':
+        return 'Anime';
+      default:
+        return 'Popular';
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <>
+      <Helmet>
+        <title>StreamVault - Stream Movies, TV Shows & Anime</title>
+        <meta
+          name="description"
+          content="StreamVault is a modern streaming platform for movies, TV shows, and anime. Browse popular titles and stream instantly."
+        />
+      </Helmet>
+
+      <div className="flex min-h-screen flex-col">
+        <Header
+          mode={mode}
+          onModeChange={handleModeChange}
+          onSearch={search}
+          searchQuery={searchQuery}
+          onClearSearch={clearSearch}
+        />
+
+        <main className="container flex-1 py-8">
+          {mode === 'anime' ? (
+            <AnimeSection onMediaClick={handleMediaClick} />
+          ) : (
+            <>
+              {/* Hero Carousel - Only show when not searching */}
+              {!searchQuery && trending.length > 0 && (
+                <HeroCarousel items={trending} onMediaClick={handleMediaClick} />
+              )}
+
+              {/* Search Results Title */}
+              {searchQuery && (
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-foreground">
+                    Search results for "{searchQuery}"
+                  </h2>
+                </div>
+              )}
+
+              {/* Media Grid */}
+              <MediaGrid
+                media={media}
+                isLoading={isLoading}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
+                onMediaClick={handleMediaClick}
+                title={!searchQuery ? getModeTitle() : undefined}
+              />
+            </>
+          )}
+        </main>
+
+        <Footer />
+
+        {/* Player Modal */}
+        <PlayerModal
+          media={selectedMedia}
+          mode={mode}
+          isOpen={isPlayerOpen}
+          onClose={() => setIsPlayerOpen(false)}
+        />
+
+        {/* Disclaimer Modal */}
+        <DisclaimerModal isOpen={showDisclaimer} onAccept={handleAcceptDisclaimer} />
       </div>
-    </div>
+    </>
   );
 };
 
