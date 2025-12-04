@@ -8,36 +8,40 @@ export const CONFIG = {
     thumbnail: '/w342',
   },
 
+  // Updated working stream providers
   STREAM_PROVIDERS: {
-    vidfast_pro: 'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
-    vidpop_xyz: 'https://www.vidpop.xyz/embed/?id={tmdbId}&season={season}&episode={episode}',
-    vidsrc_icu: 'https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}',
-    vidlink_pro: 'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=00d4aa&autoplay=true',
-    vidsrc_cc: 'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=true',
-    autoembed: 'https://player.autoembed.cc/embed/tv/{tmdbId}/{season}/{episode}',
+    // TV Show providers
+    vidsrc_pro: 'https://vidsrc.pro/embed/tv/{tmdbId}/{season}/{episode}',
+    vidsrc_xyz: 'https://vidsrc.xyz/embed/tv/{tmdbId}/{season}/{episode}',
+    embedsu: 'https://embed.su/embed/tv/{tmdbId}/{season}/{episode}',
+    multiembed: 'https://multiembed.mov/directstream.php?video_id={tmdbId}&tmdb=1&s={season}&e={episode}',
+    smashystream: 'https://player.smashy.stream/tv/{tmdbId}?s={season}&e={episode}',
+    twoembed: 'https://www.2embed.cc/embedtv/{tmdbId}&s={season}&e={episode}',
 
-    vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true',
-    vidpop_xyz_movie: 'https://www.vidpop.xyz/embed/?id={tmdbId}',
-    vidsrc_icu_movie: 'https://vidsrc.icu/embed/movie/{tmdbId}',
-    vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true',
-    vidsrc_cc_movie: 'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=true',
-    autoembed_movie: 'https://player.autoembed.cc/embed/movie/{tmdbId}',
+    // Movie providers
+    vidsrc_pro_movie: 'https://vidsrc.pro/embed/movie/{tmdbId}',
+    vidsrc_xyz_movie: 'https://vidsrc.xyz/embed/movie/{tmdbId}',
+    embedsu_movie: 'https://embed.su/embed/movie/{tmdbId}',
+    multiembed_movie: 'https://multiembed.mov/directstream.php?video_id={tmdbId}&tmdb=1',
+    smashystream_movie: 'https://player.smashy.stream/movie/{tmdbId}',
+    twoembed_movie: 'https://www.2embed.cc/embed/{tmdbId}',
 
-    vidfast_pro_anime: 'https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true',
-    vidpop_xyz_anime: 'https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true',
-    vidsrc_icu_anime: 'https://vidsrc.icu/embed/anime/{MALid}/{number}/{subOrDub}',
-    vidlink_pro_anime: 'https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true',
-    vidsrc_cc_anime: 'https://vidsrc.cc/v2/embed/anime/{MALid}/{number}/{subOrDub}?autoPlay=true',
-    autoembed_anime: 'https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true',
+    // Anime providers (using MAL ID)
+    vidsrc_pro_anime: 'https://vidsrc.pro/embed/tv/{tmdbId}',
+    vidsrc_xyz_anime: 'https://vidsrc.xyz/embed/tv/{tmdbId}',
+    embedsu_anime: 'https://embed.su/embed/tv/{tmdbId}',
+    multiembed_anime: 'https://multiembed.mov/directstream.php?video_id={MALid}&mal=1&e={number}',
+    smashystream_anime: 'https://player.smashy.stream/anime/{MALid}/{number}/{subOrDub}',
+    twoembed_anime: 'https://www.2embed.cc/embedanime/{MALid}&ep={number}',
   },
 
   PROVIDER_NAMES: {
-    vidfast_pro: 'VidFast',
-    vidpop_xyz: 'VidPop',
-    vidsrc_icu: 'VidSrc ICU',
-    vidlink_pro: 'VidLink Pro',
-    vidsrc_cc: 'VidSrc CC',
-    autoembed: 'AutoEmbed',
+    vidsrc_pro: 'VidSrc Pro',
+    vidsrc_xyz: 'VidSrc XYZ',
+    embedsu: 'EmbedSU',
+    multiembed: 'MultiEmbed',
+    smashystream: 'SmashyStream',
+    twoembed: '2Embed',
   } as Record<string, string>,
 };
 
@@ -54,4 +58,6 @@ export interface Media {
   release_date?: string;
   first_air_date?: string;
   genre_ids?: number[];
+  number_of_seasons?: number;
+  number_of_episodes?: number;
 }

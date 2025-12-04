@@ -69,6 +69,19 @@ export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Me
   }
 }
 
+export async function fetchTVSeasons(tvId: number): Promise<{ season_number: number; episode_count: number; name: string }[]> {
+  const url = `${CONFIG.TMDB_BASE_URL}/tv/${tvId}?api_key=${CONFIG.TMDB_API_KEY}`;
+  
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.seasons?.filter((s: any) => s.season_number > 0) || [];
+  } catch (error) {
+    console.error('Error fetching TV seasons:', error);
+    return [];
+  }
+}
+
 export function getImageUrl(path: string | null, size: 'poster' | 'backdrop' | 'thumbnail' = 'poster'): string {
   if (!path) return '/placeholder.svg';
   return `${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES[size]}${path}`;
@@ -99,6 +112,7 @@ export function buildEmbedUrl(
     const template = CONFIG.STREAM_PROVIDERS[`${provider}_anime`];
     return template
       ?.replace(/{MALid}/g, malId || '')
+      .replace(/{tmdbId}/g, String(mediaId))
       .replace(/{number}/g, String(episode))
       .replace(/{subOrDub}/g, subOrDub) || '';
   }
