@@ -1,73 +1,138 @@
-# Welcome to your Lovable project
+.
 
-## Project info
+🎬 StreamVault — My Personal Streaming Hub
 
-**URL**: https://lovable.dev/projects/19ecb724-51ac-42f6-b714-84f844bce2d3
+This is a project I built to create a clean, fast, and modern media streaming website.
+The goal was simple:
+one place where I can browse movies, TV shows, and anime with a smooth UI and stream them instantly.
 
-## How can I edit this code?
+I didn't want a bulky website, slow backend, or anything complex — just a polished frontend powered by APIs.
 
-There are several ways of editing your application.
+🚀 What This Project Does
 
-**Use Lovable**
+Shows trending, popular, and top-rated movies/series/anime
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/19ecb724-51ac-42f6-b714-84f844bce2d3) and start prompting.
+Lets you search and explore media
 
-Changes made via Lovable will be committed automatically to this repo.
+Opens a clean streaming player inside a modal
 
-**Use your preferred IDE**
+Fetches all metadata (title, overview, posters, ratings) from TMDB API
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Uses external embedded streaming sources to play the content
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Fully responsive for mobile, tablet, laptop
 
-Follow these steps:
+Clean UI built with Tailwind + ShadCN
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+My goal is simplicity + speed + a modern frontend feel.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+🧩 Why I Built This
 
-# Step 3: Install the necessary dependencies.
-npm i
+I wanted to learn:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+How to structure a proper React + TypeScript project
+
+How to use Vite for a fast dev environment
+
+How to build reusable UI components
+
+How to integrate external APIs (TMDB)
+
+How to design a streaming-style UI (like Zoro, AniWatch, etc.)
+
+How to manage modals, carousels, grids, and dynamic data
+
+And I wanted a personal project that I could actually use as a media hub.
+
+📂 Main Features (Explained Simply)
+⭐ Hero Carousel
+
+Shows featured movies with big posters and smooth sliding animation.
+
+⭐ Media Grid
+
+Clean card-based layout for browsing.
+Includes posters, title, year, rating, and a hover effect.
+
+⭐ Anime Section
+
+A dedicated space for anime fans — pulls anime data from TMDB categories.
+
+⭐ Streaming Player
+
+When you click on any movie/series:
+→ A player modal opens
+→ The stream loads using an embed source
+→ You can close it without leaving the page
+
+⭐ Disclaimer Modal
+
+Shows a disclaimer about external links and streaming rights.
+
+⭐ Reusable UI Components
+
+All dropdowns, dialogs, cards, buttons, etc. are from ShadCN, but I customized a lot of them.
+
+🛠️ Tech Stack I Used
+
+React + TypeScript → for structure and reliable code
+
+Vite → super fast dev server
+
+TailwindCSS → styling without writing CSS files
+
+ShadCN UI → modern UI components
+
+TMDB API → to fetch movies/series/anime
+
+Custom Hooks (useMedia, use-mobile)
+
+External streaming providers for video playback
+
+This stack makes the project extremely fast and modular.
+
+📁 Folder Structure (My Explanation)
+src/
+├── components/     → All UI pieces (header, cards, modals, etc.)
+├── pages/          → Main pages like Home + Not Found
+├── hooks/          → Custom logic (media fetching, toast, mobile view)
+├── lib/            → API config + helper functions
+├── main.tsx        → App entry point
+├── App.tsx         → Routes + layout
+└── index.css       → Global styles
+
+
+I kept everything clean, modular, and easy to navigate.
+
+🔧 How to Run It
+npm install
 npm run dev
-```
 
-**Edit a file directly in GitHub**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Then open:
 
-**Use GitHub Codespaces**
+http://localhost:5173
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## What technologies are used for this project?
+If you want to use TMDB, create a .env file:
 
-This project is built with:
+VITE_TMDB_API_KEY=your_api_key
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+🧭 Future Plans
 
-## How can I deploy this project?
+Better player source switching
 
-Simply open [Lovable](https://lovable.dev/projects/19ecb724-51ac-42f6-b714-84f844bce2d3) and click on Share -> Publish.
+Episode selector for TV shows
 
-## Can I connect a custom domain to my Lovable project?
+Watchlist + user preferences
 
-Yes, you can!
+Animations for section transitions
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Deploy to Vercel / Netlify
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+📝 Final Notes from Me
+
+This is still a work-in-progress, but it already feels like a real streaming website.
+I’m building it mainly to learn, experiment, and create something I actually enjoy using.
+
+If you want me to make a LOGO, landing page screenshot, badges, or a better formatted README, just tell me — I can upgrade this further.
