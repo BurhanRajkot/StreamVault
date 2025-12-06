@@ -2,6 +2,9 @@ import { useState, FormEvent } from 'react';
 import { Film, Tv, Sparkles, Search, X } from 'lucide-react';
 import { MediaMode } from '@/lib/config';
 import { cn } from '@/lib/utils';
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/auth/AuthProvider"; // 👈 add this
 
 interface HeaderProps {
   mode: MediaMode;
@@ -13,6 +16,9 @@ interface HeaderProps {
 
 export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearch }: HeaderProps) {
   const [inputValue, setInputValue] = useState('');
+
+  // 👇 auth state
+  const { user, logout } = useAuth();
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -35,6 +41,7 @@ export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearc
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="container flex h-16 items-center justify-between gap-4">
+
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary">
@@ -87,6 +94,28 @@ export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearc
             )}
           </div>
         </form>
+
+        {/* AUTH UI (NEW) */}
+        <div className="flex items-center gap-3">
+          {!user && (
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/login">Login</Link>
+            </Button>
+          )}
+
+          {user && (
+            <div className="flex items-center gap-3">
+              {/* show logged in email */}
+              <span className="hidden sm:block text-sm text-muted-foreground">
+                {user.email}
+              </span>
+
+              <Button size="sm" variant="outline" onClick={logout}>
+                Logout
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
