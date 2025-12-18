@@ -1,106 +1,41 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
+import { Auth0Provider } from "@auth0/auth0-react";
+import { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 
-type User = {
-  email: string;
-};
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
 
-type AuthContextType = {
-  user: User | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-};
+  const domain = import.meta.env.VITE_AUTH0_DOMAIN;
+  const clientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
+  const redirectUri = import.meta.env.VITE_AUTH0_REDIRECT_URI;
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+  // Debug logging
+  console.log("Auth0 Config:", {
+    domain,
+    clientId,
+    redirectUri,
+  });
 
-const USERS_KEY = "app_users";
-const CURRENT_USER_KEY = "app_current_user";
-
-function readUsers(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(USERS_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw);
-  } catch {
-    return {};
+  // Validation
+  if (!domain || !clientId || !redirectUri) {
+    console.error("❌ Missing Auth0 environment variables!");
+    return <div className="p-4 text-red-500">
+      Auth0 configuration error. Check your .env file.
+    </div>;
   }
-}
-
-function writeUsers(users: Record<string, string>) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Load current user from localStorage on first render
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(CURRENT_USER_KEY);
-      if (raw) {
-        const stored = JSON.parse(raw) as User;
-        setUser(stored);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    const users = readUsers();
-    const savedPassword = users[email.toLowerCase()];
-
-    if (!savedPassword || savedPassword !== password) {
-      throw new Error("Invalid email or password");
-    }
-
-    const loggedInUser: User = { email };
-    setUser(loggedInUser);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(loggedInUser));
-  };
-
-  const signup = async (email: string, password: string) => {
-    const users = readUsers();
-    const key = email.toLowerCase();
-
-    if (users[key]) {
-      throw new Error("An account with this email already exists");
-    }
-
-    users[key] = password;
-    writeUsers(users);
-
-    const newUser: User = { email };
-    setUser(newUser);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem(CURRENT_USER_KEY);
-  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <Auth0Provider
+      domain={domain}
+      clientId={clientId}
+      authorizationParams={{
+        redirect_uri: redirectUri,
+      }}
+      onRedirectCallback={(appState) => {
+        navigate(appState?.returnTo || "/");
+      }}
+    >
       {children}
-    </AuthContext.Provider>
+    </Auth0Provider>
   );
-};
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-  return ctx;
-};
+}

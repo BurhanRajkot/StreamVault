@@ -1,10 +1,10 @@
-import { useState, FormEvent } from 'react';
-import { Film, Tv, Sparkles, Search, X } from 'lucide-react';
-import { MediaMode } from '@/lib/config';
-import { cn } from '@/lib/utils';
+import { useState, FormEvent } from "react";
+import { Film, Tv, Sparkles, Search, X } from "lucide-react";
+import { MediaMode } from "@/lib/config";
+import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/auth/AuthProvider"; // 👈 add this
+import { useAuth0 } from "@auth0/auth0-react";
 
 interface HeaderProps {
   mode: MediaMode;
@@ -14,11 +14,17 @@ interface HeaderProps {
   onClearSearch: () => void;
 }
 
-export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearch }: HeaderProps) {
-  const [inputValue, setInputValue] = useState('');
+export function Header({
+  mode,
+  onModeChange,
+  onSearch,
+  searchQuery,
+  onClearSearch,
+}: HeaderProps) {
+  const [inputValue, setInputValue] = useState("");
 
-  // 👇 auth state
-  const { user, logout } = useAuth();
+  // ✅ Auth0 state
+  const { user, isAuthenticated, logout } = useAuth0();
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -28,14 +34,14 @@ export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearc
   };
 
   const handleClear = () => {
-    setInputValue('');
+    setInputValue("");
     onClearSearch();
   };
 
   const modes: { id: MediaMode; label: string; icon: typeof Film }[] = [
-    { id: 'movie', label: 'Movies', icon: Film },
-    { id: 'tv', label: 'TV Shows', icon: Tv },
-    { id: 'anime', label: 'Anime', icon: Sparkles },
+    { id: "movie", label: "Movies", icon: Film },
+    { id: "tv", label: "TV Shows", icon: Tv },
+    { id: "anime", label: "Anime", icon: Sparkles },
   ];
 
   return (
@@ -60,10 +66,10 @@ export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearc
               key={id}
               onClick={() => onModeChange(id)}
               className={cn(
-                'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200',
+                "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200",
                 mode === id
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >
               <Icon className="h-4 w-4" />
@@ -80,7 +86,7 @@ export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearc
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder={`Search ${mode === 'tv' ? 'shows' : mode}...`}
+              placeholder={`Search ${mode === "tv" ? "shows" : mode}...`}
               className="h-10 w-40 rounded-lg border border-border bg-secondary/50 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:w-64 transition-all"
             />
             {(inputValue || searchQuery) && (
@@ -95,22 +101,37 @@ export function Header({ mode, onModeChange, onSearch, searchQuery, onClearSearc
           </div>
         </form>
 
-        {/* AUTH UI (NEW) */}
+        {/* AUTH UI */}
         <div className="flex items-center gap-3">
-          {!user && (
-            <Button asChild size="sm" variant="secondary">
-              <Link to="/login">Login</Link>
-            </Button>
+          {!isAuthenticated && (
+            <>
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/login">Login</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/signup">Sign up</Link>
+              </Button>
+            </>
           )}
 
-          {user && (
+          {isAuthenticated && user && (
             <div className="flex items-center gap-3">
-              {/* show logged in email */}
+              {/* User email */}
               <span className="hidden sm:block text-sm text-muted-foreground">
                 {user.email}
               </span>
 
-              <Button size="sm" variant="outline" onClick={logout}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  logout({
+                    logoutParams: {
+                      returnTo: window.location.origin,
+                    },
+                  })
+                }
+              >
                 Logout
               </Button>
             </div>
