@@ -34,3 +34,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </Auth0Provider>
   )
 }
+
+//routing fixed
