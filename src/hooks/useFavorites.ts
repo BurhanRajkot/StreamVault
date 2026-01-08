@@ -14,8 +14,14 @@ export function useFavoritesInternal() {
   const [favorites, setFavorites] = useState<Favorite[]>([])
   const [loading, setLoading] = useState(false)
 
+  // ✅ FIX: Always request ACCESS TOKEN with audience
   const getHeaders = async () => {
-    const token = await getAccessTokenSilently()
+    const token = await getAccessTokenSilently({
+      authorizationParams: {
+        audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+      },
+    })
+
     return {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -28,10 +34,20 @@ export function useFavoritesInternal() {
       return
     }
 
-    const headers = await getHeaders()
-    const res = await fetch(`${API_URL}/favorites`, { headers })
-    const data = await res.json()
-    setFavorites(data)
+    try {
+      const headers = await getHeaders()
+      const res = await fetch(`${API_URL}/favorites`, { headers })
+
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+
+      const data = await res.json()
+      setFavorites(data)
+    } catch (err) {
+      console.error('Failed to load favorites:', err)
+      setFavorites([])
+    }
   }, [isAuthenticated])
 
   useEffect(() => {
@@ -43,33 +59,45 @@ export function useFavoritesInternal() {
 
   const toggleFavorite = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
     if (!isAuthenticated) return
+
     setLoading(true)
 
-    const headers = await getHeaders()
-    const existing = favorites.find(
-      (f) => f.tmdbId === tmdbId && f.mediaType === mediaType
-    )
+    try {
+      const headers = await getHeaders()
+      const existing = favorites.find(
+        (f) => f.tmdbId === tmdbId && f.mediaType === mediaType
+      )
 
-    if (existing) {
-      await fetch(`${API_URL}/favorites/${existing.id}`, {
-        method: 'DELETE',
-        headers,
-      })
-      setFavorites((prev) => prev.filter((f) => f.id !== existing.id))
-    } else {
-      const res = await fetch(`${API_URL}/favorites`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ tmdbId, mediaType }),
-      })
+      if (existing) {
+        const res = await fetch(`${API_URL}/favorites/${existing.id}`, {
+          method: 'DELETE',
+          headers,
+        })
 
-      if (res.ok) {
+        if (!res.ok) {
+          throw new Error(await res.text())
+        }
+
+        setFavorites((prev) => prev.filter((f) => f.id !== existing.id))
+      } else {
+        const res = await fetch(`${API_URL}/favorites`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ tmdbId, mediaType }),
+        })
+
+        if (!res.ok) {
+          throw new Error(await res.text())
+        }
+
         const newFav = await res.json()
         setFavorites((prev) => [newFav, ...prev])
       }
+    } catch (err) {
+      console.error('Favorite toggle failed:', err)
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   return {
