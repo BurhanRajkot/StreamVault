@@ -8,18 +8,26 @@ import { checkJwt } from './middleware/auth'
 
 const app = express()
 
-/**
- * ✅ CORS CONFIG (DEV + PROD)
- * Replace STREAMVAULT_VERCEL_URL after deploy
- */
+const allowedOrigins = [
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'https://stream-vault-7u6q.vercel.app',
+]
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:8080',
-      'http://localhost:3000',
-      'https://stream-vault-7u6q.vercel.app/', // ⬅️ change if your Vercel URL differs
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true)
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true)
+      }
+
+      return callback(new Error('Not allowed by CORS'))
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 )
 
