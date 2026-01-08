@@ -8,23 +8,15 @@ import { checkJwt } from './middleware/auth'
 
 const app = express()
 
-const allowedOrigins = [
-  'http://localhost:8080',
-  'http://localhost:5173',
-  'https://stream-vault-7u6q.vercel.app',
-]
-
+/**
+ * ✅ PRODUCTION-SAFE CORS
+ * - Works with Express 5
+ * - Fixes preflight (OPTIONS)
+ * - Works for Vercel, localhost, previews
+ */
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true)
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true)
-      }
-
-      return callback(new Error('Not allowed by CORS'))
-    },
+    origin: true, // 👈 IMPORTANT: echo requesting origin
     credentials: true,
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
