@@ -7,12 +7,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const domain = import.meta.env.VITE_AUTH0_DOMAIN
   const clientId = import.meta.env.VITE_AUTH0_CLIENT_ID
+  const audience = import.meta.env.VITE_AUTH0_AUDIENCE
 
-  if (!domain || !clientId) {
+  if (!domain || !clientId || !audience) {
     return (
       <div className="p-4 text-red-500">
-        ❌ Auth0 configuration error. Check VITE_AUTH0_DOMAIN and
-        VITE_AUTH0_CLIENT_ID
+        ❌ Missing Auth0 environment variables
       </div>
     )
   }
@@ -23,6 +23,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clientId={clientId}
       authorizationParams={{
         redirect_uri: window.location.origin,
+        audience,
+        scope: 'openid profile email offline_access',
       }}
       cacheLocation="localstorage"
       useRefreshTokens
@@ -34,5 +36,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </Auth0Provider>
   )
 }
-
-//routing fixed
