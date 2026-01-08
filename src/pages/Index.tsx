@@ -9,6 +9,7 @@ import { PlayerModal } from '@/components/PlayerModal'
 import { DisclaimerModal } from '@/components/DisclaimerModal'
 import { AnimeSection } from '@/components/AnimeSection'
 import { Footer } from '@/components/Footer'
+import { AuthorsChoiceSection } from '@/components/AuthorsChoiceSection'
 
 const Index = () => {
   const [mode, setMode] = useState<MediaMode>('movie')
@@ -85,7 +86,7 @@ const Index = () => {
             <AnimeSection onMediaClick={handleMediaClick} />
           ) : (
             <>
-              {/* ✅ HERO (compact, non-breaking) */}
+              {/* 🎞 HERO CAROUSEL */}
               {!searchQuery && trending.length > 0 && (
                 <div className="mb-6 h-[360px] md:h-[420px] overflow-hidden rounded-xl">
                   <HeroCarousel
@@ -95,7 +96,12 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Search Results Title */}
+              {/* ⭐ AUTHOR'S CHOICE (VISIBLE TO EVERYONE) */}
+              {!searchQuery && (
+                <AuthorsChoiceSection onMediaClick={handleMediaClick} />
+              )}
+
+              {/* 🔍 SEARCH RESULTS TITLE */}
               {searchQuery && (
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-foreground">
@@ -104,7 +110,7 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Media Grid */}
+              {/* 🎬 MAIN MEDIA GRID */}
               <MediaGrid
                 media={media}
                 isLoading={isLoading}
@@ -119,7 +125,7 @@ const Index = () => {
 
         <Footer />
 
-        {/* Player Modal */}
+        {/* ▶ PLAYER MODAL */}
         <PlayerModal
           media={selectedMedia}
           mode={mode}
@@ -127,7 +133,7 @@ const Index = () => {
           onClose={() => setIsPlayerOpen(false)}
         />
 
-        {/* Disclaimer Modal */}
+        {/* ⚠ DISCLAIMER */}
         <DisclaimerModal
           isOpen={showDisclaimer}
           onAccept={handleAcceptDisclaimer}
