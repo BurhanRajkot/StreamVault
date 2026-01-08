@@ -1,16 +1,29 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import { AuthProvider } from "./auth/AuthProvider";
-import App from "./App.tsx";
-import "./index.css";
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import { Auth0Provider } from '@auth0/auth0-react'
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
+import App from './App'
+import './index.css'
+import { FavoritesProvider } from '@/context/FavoritesContext'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <Auth0Provider
+        domain={import.meta.env.VITE_AUTH0_DOMAIN}
+        clientId={import.meta.env.VITE_AUTH0_CLIENT_ID}
+        authorizationParams={{
+          redirect_uri: window.location.origin,
+          audience: import.meta.env.VITE_AUTH0_AUDIENCE,
+        }}
+        cacheLocation="localstorage"
+        useRefreshTokens
+      >
+        <FavoritesProvider>
+          <App />
+        </FavoritesProvider>
+      </Auth0Provider>
     </BrowserRouter>
-  </StrictMode>
-);
+  </React.StrictMode>
+)
