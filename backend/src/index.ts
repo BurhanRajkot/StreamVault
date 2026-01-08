@@ -1,10 +1,10 @@
 import dotenv from 'dotenv'
-dotenv.config() // ✅ MUST BE FIRST
+dotenv.config()
 
 import express from 'express'
 import cors from 'cors'
-import { checkJwt } from './middleware/auth'
 import favoritesRouter from './routes/favorites'
+import { checkJwt } from './middleware/auth'
 
 const app = express()
 
@@ -19,10 +19,11 @@ app.get('/health', (_req, res) => {
 
 app.get('/protected', checkJwt, (req, res) => {
   res.json({
-    message: 'Protected route accessed',
+    message: 'Protected route',
     user: req.auth?.payload.sub,
   })
 })
+
 app.use('/favorites', favoritesRouter)
 
 app.listen(PORT, () => {
