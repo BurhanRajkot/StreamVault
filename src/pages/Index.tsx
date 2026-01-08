@@ -1,56 +1,65 @@
-import { useState, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
-import { Media, MediaMode } from '@/lib/config';
-import { useMedia } from '@/hooks/useMedia';
-import { Header } from '@/components/Header';
-import { HeroCarousel } from '@/components/HeroCarousel';
-import { MediaGrid } from '@/components/MediaGrid';
-import { PlayerModal } from '@/components/PlayerModal';
-import { DisclaimerModal } from '@/components/DisclaimerModal';
-import { AnimeSection } from '@/components/AnimeSection';
-import { Footer } from '@/components/Footer';
+import { useState, useEffect } from 'react'
+import { Helmet } from 'react-helmet-async'
+import { Media, MediaMode } from '@/lib/config'
+import { useMedia } from '@/hooks/useMedia'
+import { Header } from '@/components/Header'
+import { HeroCarousel } from '@/components/HeroCarousel'
+import { MediaGrid } from '@/components/MediaGrid'
+import { PlayerModal } from '@/components/PlayerModal'
+import { DisclaimerModal } from '@/components/DisclaimerModal'
+import { AnimeSection } from '@/components/AnimeSection'
+import { Footer } from '@/components/Footer'
 
 const Index = () => {
-  const [mode, setMode] = useState<MediaMode>('movie');
-  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
-  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [mode, setMode] = useState<MediaMode>('movie')
+  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false)
+  const [showDisclaimer, setShowDisclaimer] = useState(false)
 
-  const { media, trending, isLoading, hasMore, loadMore, search, clearSearch, searchQuery } = useMedia(mode);
+  const {
+    media,
+    trending,
+    isLoading,
+    hasMore,
+    loadMore,
+    search,
+    clearSearch,
+    searchQuery,
+  } = useMedia(mode)
 
   useEffect(() => {
-    const accepted = sessionStorage.getItem('disclaimerAccepted');
+    const accepted = sessionStorage.getItem('disclaimerAccepted')
     if (accepted !== 'true') {
-      setShowDisclaimer(true);
+      setShowDisclaimer(true)
     }
-  }, []);
+  }, [])
 
   const handleAcceptDisclaimer = () => {
-    sessionStorage.setItem('disclaimerAccepted', 'true');
-    setShowDisclaimer(false);
-  };
+    sessionStorage.setItem('disclaimerAccepted', 'true')
+    setShowDisclaimer(false)
+  }
 
   const handleMediaClick = (mediaItem: Media) => {
-    setSelectedMedia(mediaItem);
-    setIsPlayerOpen(true);
-  };
+    setSelectedMedia(mediaItem)
+    setIsPlayerOpen(true)
+  }
 
   const handleModeChange = (newMode: MediaMode) => {
-    setMode(newMode);
-  };
+    setMode(newMode)
+  }
 
   const getModeTitle = () => {
     switch (mode) {
       case 'movie':
-        return 'Popular Movies';
+        return 'Popular Movies'
       case 'tv':
-        return 'Popular TV Shows';
+        return 'Popular TV Shows'
       case 'anime':
-        return 'Anime';
+        return 'Anime'
       default:
-        return 'Popular';
+        return 'Popular'
     }
-  };
+  }
 
   return (
     <>
@@ -58,7 +67,7 @@ const Index = () => {
         <title>StreamVault - Stream Movies, TV Shows & Anime</title>
         <meta
           name="description"
-          content="StreamVault is a modern streaming platform for movies, TV shows, and anime. Browse popular titles and stream instantly."
+          content="StreamVault is a modern streaming platform for movies, TV shows, and anime."
         />
       </Helmet>
 
@@ -71,20 +80,25 @@ const Index = () => {
           onClearSearch={clearSearch}
         />
 
-        <main className="container flex-1 py-8">
+        <main className="container flex-1 py-6">
           {mode === 'anime' ? (
             <AnimeSection onMediaClick={handleMediaClick} />
           ) : (
             <>
-              {/* Hero Carousel - Only show when not searching */}
+              {/* ✅ HERO (compact, non-breaking) */}
               {!searchQuery && trending.length > 0 && (
-                <HeroCarousel items={trending} onMediaClick={handleMediaClick} />
+                <div className="mb-6 h-[360px] md:h-[420px] overflow-hidden rounded-xl">
+                  <HeroCarousel
+                    items={trending}
+                    onMediaClick={handleMediaClick}
+                  />
+                </div>
               )}
 
               {/* Search Results Title */}
               {searchQuery && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-foreground">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-foreground">
                     Search results for "{searchQuery}"
                   </h2>
                 </div>
@@ -114,10 +128,13 @@ const Index = () => {
         />
 
         {/* Disclaimer Modal */}
-        <DisclaimerModal isOpen={showDisclaimer} onAccept={handleAcceptDisclaimer} />
+        <DisclaimerModal
+          isOpen={showDisclaimer}
+          onAccept={handleAcceptDisclaimer}
+        />
       </div>
     </>
-  );
-};
+  )
+}
 
-export default Index;
+export default Index
