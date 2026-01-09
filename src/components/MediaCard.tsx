@@ -19,7 +19,7 @@ export function MediaCard({
   const title = media.title || media.name || 'Unknown'
   const rating = media.vote_average ? media.vote_average.toFixed(1) : 'N/A'
 
-  const { isAuthenticated, loginWithRedirect } = useAuth0()
+  const { isAuthenticated } = useAuth0()
   const { toggleFavorite, isFavorited } = useFavorites()
 
   const mediaType: 'movie' | 'tv' = media.title ? 'movie' : 'tv'
@@ -27,14 +27,11 @@ export function MediaCard({
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!isAuthenticated) {
-      loginWithRedirect()
-      return
-    }
     toggleFavorite(media.id, mediaType)
   }
 
   /* ================= HERO CARD ================= */
+
   if (variant === 'hero') {
     const backdrop = getImageUrl(
       media.backdrop_path || media.poster_path,
@@ -55,18 +52,15 @@ export function MediaCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
         <div className="absolute bottom-0 left-0 right-0 p-5 md:p-6">
-          {/* Rating */}
           <div className="mb-2 flex items-center gap-2">
             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
             <span className="text-sm font-medium text-white">{rating}</span>
           </div>
 
-          {/* Title */}
           <h2 className="mb-2 line-clamp-2 max-w-2xl text-xl font-bold text-white md:text-2xl">
             {title}
           </h2>
 
-          {/* Description */}
           <p className="line-clamp-2 max-w-2xl text-sm text-white/80">
             {media.overview || 'No description available.'}
           </p>
@@ -77,17 +71,19 @@ export function MediaCard({
               Watch
             </button>
 
-            <button
-              onClick={handleFavorite}
-              className="rounded-full bg-white/80 p-2 backdrop-blur hover:scale-110"
-            >
-              <Heart
-                className={cn(
-                  'h-4 w-4',
-                  favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
-                )}
-              />
-            </button>
+            {isAuthenticated && (
+              <button
+                onClick={handleFavorite}
+                className="rounded-full bg-white/80 p-2 backdrop-blur hover:scale-110"
+              >
+                <Heart
+                  className={cn(
+                    'h-4 w-4',
+                    favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
+                  )}
+                />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -114,27 +110,26 @@ export function MediaCard({
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
 
-        {/* Favorite */}
-        <button
-          onClick={handleFavorite}
-          className="absolute right-2 top-2 rounded-full bg-background/80 p-2 backdrop-blur hover:scale-110"
-        >
-          <Heart
-            className={cn(
-              'h-4 w-4',
-              favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
-            )}
-          />
-        </button>
+        {isAuthenticated && (
+          <button
+            onClick={handleFavorite}
+            className="absolute right-2 top-2 rounded-full bg-background/80 p-2 backdrop-blur hover:scale-110"
+          >
+            <Heart
+              className={cn(
+                'h-4 w-4',
+                favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
+              )}
+            />
+          </button>
+        )}
 
-        {/* Rating */}
         <div className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium">
           <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
           <span className="text-foreground">{rating}</span>
         </div>
       </div>
 
-      {/* Title + Description */}
       <div className="p-3">
         <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
           {title}
@@ -146,8 +141,6 @@ export function MediaCard({
     </div>
   )
 }
-
-/* ================= SKELETON ================= */
 
 export function MediaCardSkeleton() {
   return (
