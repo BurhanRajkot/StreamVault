@@ -5,10 +5,12 @@ import { fetchMediaDetails } from '@/lib/api'
 import { MediaGrid } from '@/components/MediaGrid'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Helmet } from 'react-helmet-async'
+import { useNavigate } from 'react-router-dom'
 
 const Favorites = () => {
   const { isAuthenticated, loginWithRedirect } = useAuth0()
   const { favorites } = useFavorites()
+  const navigate = useNavigate()
 
   const [media, setMedia] = useState<Media[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,7 +54,9 @@ const Favorites = () => {
             isLoading={loading}
             hasMore={false}
             onLoadMore={() => {}}
-            onMediaClick={() => {}}
+            onMediaClick={(media) =>
+              navigate(`/watch/${media.title ? 'movie' : 'tv'}/${media.id}`)
+            }
           />
         )}
       </div>
