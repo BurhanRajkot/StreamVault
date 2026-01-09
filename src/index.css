@@ -1,7 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* =======================
+   THEME VARIABLES
+======================= */
 
 @layer base {
   :root {
@@ -35,9 +40,11 @@
 
     --radius: 0.75rem;
 
+    /* Highlight */
     --highlight: 45 100% 60%;
     --highlight-foreground: 240 10% 4%;
 
+    /* Sidebar */
     --sidebar-background: 240 10% 6%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 187 100% 42%;
@@ -47,60 +54,37 @@
     --sidebar-border: 240 5% 18%;
     --sidebar-ring: 187 100% 42%;
 
+    /* Charts */
     --chart-1: 187 100% 42%;
     --chart-2: 280 100% 65%;
     --chart-3: 45 100% 60%;
     --chart-4: 160 100% 40%;
     --chart-5: 340 100% 60%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(187 100% 42%), hsl(280 100% 65%));
+    /* Gradients */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(187 100% 42%),
+      hsl(280 100% 65%)
+    );
     --gradient-card: linear-gradient(180deg, hsl(240 10% 10%), hsl(240 10% 6%));
-    --gradient-overlay: linear-gradient(180deg, transparent 0%, hsl(240 10% 4% / 0.8) 50%, hsl(240 10% 4%) 100%);
+    --gradient-overlay: linear-gradient(
+      180deg,
+      transparent 0%,
+      hsl(240 10% 4% / 0.8) 55%,
+      hsl(240 10% 4%) 100%
+    );
 
+    /* Shadows */
     --shadow-glow: 0 0 40px hsl(187 100% 42% / 0.3);
     --shadow-card: 0 8px 32px hsl(0 0% 0% / 0.4);
-    --shadow-elevated: 0 20px 60px hsl(0 0% 0% / 0.5);
-  }
-
-  .dark {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
-
-    --card: 240 10% 8%;
-    --card-foreground: 0 0% 98%;
-
-    --popover: 240 10% 10%;
-    --popover-foreground: 0 0% 98%;
-
-    --primary: 187 100% 42%;
-    --primary-foreground: 240 10% 4%;
-
-    --secondary: 240 10% 14%;
-    --secondary-foreground: 0 0% 98%;
-
-    --muted: 240 5% 18%;
-    --muted-foreground: 240 5% 65%;
-
-    --accent: 280 100% 65%;
-    --accent-foreground: 0 0% 98%;
-
-    --destructive: 0 72% 50%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 5% 18%;
-    --input: 240 5% 18%;
-    --ring: 187 100% 42%;
-
-    --sidebar-background: 240 10% 6%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 187 100% 42%;
-    --sidebar-primary-foreground: 240 10% 4%;
-    --sidebar-accent: 280 100% 65%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 5% 18%;
-    --sidebar-ring: 187 100% 42%;
+    --shadow-elevated: 0 20px 60px hsl(0 0% 0% / 0.55);
   }
 }
+
+/* =======================
+   BASE STYLES
+======================= */
 
 @layer base {
   * {
@@ -109,28 +93,53 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+      sans-serif;
+    letter-spacing: -0.01em;
   }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: hsl(var(--background));
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted));
-    border-radius: 4px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--primary));
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
   }
 }
+
+/* =======================
+   SCROLLBARS
+======================= */
+
+/* Global scrollbar (vertical pages) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
+}
+
+/* Netflix-style horizontal rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* =======================
+   UTILITIES
+======================= */
 
 @layer utilities {
   .text-gradient {
@@ -160,8 +169,12 @@
     box-shadow: var(--shadow-elevated);
   }
 
+  /* =======================
+     ANIMATIONS
+  ======================= */
+
   .animate-shimmer {
-    animation: shimmer 2s infinite;
+    animation: shimmer 1.8s infinite linear;
     background: linear-gradient(
       90deg,
       hsl(var(--muted)) 0%,
@@ -172,35 +185,22 @@
   }
 
   @keyframes shimmer {
-    0% {
+    from {
       background-position: 200% 0;
     }
-    100% {
+    to {
       background-position: -200% 0;
     }
   }
 
-  .animate-pulse-glow {
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% {
-      box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
-    }
-    50% {
-      box-shadow: 0 0 40px hsl(var(--primary) / 0.5);
-    }
-  }
-
   .animate-fade-in {
-    animation: fade-in 0.5s ease-out forwards;
+    animation: fade-in 0.45s ease-out forwards;
   }
 
   @keyframes fade-in {
     from {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(14px);
     }
     to {
       opacity: 1;
@@ -209,17 +209,31 @@
   }
 
   .animate-scale-in {
-    animation: scale-in 0.3s ease-out forwards;
+    animation: scale-in 0.25s ease-out forwards;
   }
 
   @keyframes scale-in {
     from {
       opacity: 0;
-      transform: scale(0.95);
+      transform: scale(0.96);
     }
     to {
       opacity: 1;
       transform: scale(1);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 18px hsl(var(--primary) / 0.25);
+    }
+    50% {
+      box-shadow: 0 0 44px hsl(var(--primary) / 0.45);
     }
   }
 }
