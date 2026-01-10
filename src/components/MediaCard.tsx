@@ -22,7 +22,14 @@ export function MediaCard({
   const { isAuthenticated } = useAuth0()
   const { toggleFavorite, isFavorited } = useFavorites()
 
-  const mediaType: 'movie' | 'tv' = media.title ? 'movie' : 'tv'
+  /**
+   * ✅ CORRECT MEDIA TYPE DETECTION
+   * TMDB guarantees:
+   * - Movies have `release_date`
+   * - TV shows have `first_air_date`
+   */
+  const mediaType: 'movie' | 'tv' = media.release_date ? 'movie' : 'tv'
+
   const favorited = isFavorited(media.id, mediaType)
 
   const handleFavorite = (e: React.MouseEvent) => {
