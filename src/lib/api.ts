@@ -122,8 +122,12 @@ export function buildEmbedUrl(
 
   let template = ''
 
+  // Cast providers to allow dynamic string indexing (fixes TS errors)
+  const providers = CONFIG.STREAM_PROVIDERS as Record<string, string>
+
   if (mode === 'tv') {
-    template = CONFIG.STREAM_PROVIDERS[provider]
+    // Looks for 'videasy' directly
+    template = providers[provider]
     if (!template) return ''
     return template
       .replace(/\{tmdbId\}/g, String(mediaId))
@@ -132,15 +136,16 @@ export function buildEmbedUrl(
   }
 
   if (mode === 'movie') {
+    // Automatically appends '_movie' to find 'videasy_movie'
     const movieProvider = `${provider}_movie`
-    template = CONFIG.STREAM_PROVIDERS[movieProvider]
+    template = providers[movieProvider]
     if (!template) return ''
     return template.replace(/\{tmdbId\}/g, String(mediaId))
   }
 
   if (mode === 'anime') {
     const animeProvider = `${provider}_anime`
-    template = CONFIG.STREAM_PROVIDERS[animeProvider]
+    template = providers[animeProvider]
     if (!template) return ''
     return template
       .replace(/\{MALid\}/g, malId)
