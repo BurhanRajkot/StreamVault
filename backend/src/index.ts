@@ -1,6 +1,6 @@
 import dotenv from 'dotenv'
 dotenv.config()
-
+import continueWatchingRouter from './routes/continueWatching'
 import express from 'express'
 import cors from 'cors'
 import favoritesRouter from './routes/favorites'
@@ -39,6 +39,8 @@ app.get('/protected', checkJwt, (req, res) => {
 })
 
 app.use('/favorites', favoritesRouter)
+
+app.use('/continue-watching', continueWatchingRouter)
 
 app.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`)
