@@ -10,6 +10,7 @@ import { DisclaimerModal } from '@/components/DisclaimerModal'
 import { AnimeSection } from '@/components/AnimeSection'
 import { Footer } from '@/components/Footer'
 import { AuthorsChoiceSection } from '@/components/AuthorsChoiceSection'
+import { ContinueWatchingSection } from '@/components/ContinueWatchingSection'
 
 const Index = () => {
   const [mode, setMode] = useState<MediaMode>('movie')
@@ -96,7 +97,12 @@ const Index = () => {
                 </div>
               )}
 
-              {/* ⭐ AUTHOR'S CHOICE (VISIBLE TO EVERYONE) */}
+              {/* ▶ CONTINUE WATCHING (LOGGED-IN USERS ONLY) */}
+              {!searchQuery && (
+                <ContinueWatchingSection onMediaClick={handleMediaClick} />
+              )}
+
+              {/* ⭐ AUTHOR'S CHOICE */}
               {!searchQuery && (
                 <AuthorsChoiceSection onMediaClick={handleMediaClick} />
               )}
