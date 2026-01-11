@@ -155,3 +155,37 @@ export function buildEmbedUrl(
 
   return ''
 }
+
+export async function fetchContinueWatching(token: string) {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/continue-watching`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!res.ok) {
+    throw new Error('Failed to fetch continue watching')
+  }
+
+  return res.json()
+}
+
+export async function updateContinueWatching(
+  token: string,
+  data: {
+    tmdbId: number
+    mediaType: 'movie' | 'tv'
+    season?: number
+    episode?: number
+    progress: number
+  }
+) {
+  await fetch(`${import.meta.env.VITE_API_URL}/continue-watching`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+}
