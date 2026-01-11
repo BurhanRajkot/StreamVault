@@ -24,3 +24,19 @@ model Favorite {
 
   @@unique([userId, tmdbId, mediaType])
 }
+
+model ContinueWatching {
+  id        String   @id @default(cuid())
+  userId    String
+
+  tmdbId    Int
+  mediaType String   // "movie" | "tv"
+
+  season    Int?
+  episode   Int?
+
+  progress  Float    // 0.0 - 1.0
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tmdbId, mediaType])
+}
