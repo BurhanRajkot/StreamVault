@@ -1,12 +1,14 @@
 import { CONFIG, Media, MediaMode } from './config'
 
+/* ======================================================
+   TMDB FETCHING
+====================================================== */
+
 export async function fetchPopular(
   mode: MediaMode,
   page = 1
 ): Promise<{ results: Media[]; total_pages: number }> {
-  if (mode === 'anime') {
-    return { results: [], total_pages: 0 }
-  }
+  if (mode === 'anime') return { results: [], total_pages: 0 }
 
   const url = `${CONFIG.TMDB_BASE_URL}/discover/${mode}?sort_by=popularity.desc&api_key=${CONFIG.TMDB_API_KEY}&page=${page}`
 
@@ -17,8 +19,8 @@ export async function fetchPopular(
       results: data.results || [],
       total_pages: data.total_pages || 0,
     }
-  } catch (error) {
-    console.error('Error fetching popular:', error)
+  } catch (err) {
+    console.error('fetchPopular error:', err)
     return { results: [], total_pages: 0 }
   }
 }
@@ -32,8 +34,8 @@ export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
     const res = await fetch(url)
     const data = await res.json()
     return data.results || []
-  } catch (error) {
-    console.error('Error fetching trending:', error)
+  } catch (err) {
+    console.error('fetchTrending error:', err)
     return []
   }
 }
@@ -43,9 +45,7 @@ export async function searchMedia(
   query: string,
   page = 1
 ): Promise<{ results: Media[]; total_pages: number }> {
-  if (mode === 'anime') {
-    return { results: [], total_pages: 0 }
-  }
+  if (mode === 'anime') return { results: [], total_pages: 0 }
 
   const url = `${CONFIG.TMDB_BASE_URL}/search/${mode}?api_key=${
     CONFIG.TMDB_API_KEY
@@ -58,8 +58,8 @@ export async function searchMedia(
       results: data.results || [],
       total_pages: data.total_pages || 0,
     }
-  } catch (error) {
-    console.error('Error searching:', error)
+  } catch (err) {
+    console.error('searchMedia error:', err)
     return { results: [], total_pages: 0 }
   }
 }
@@ -75,8 +75,8 @@ export async function fetchMediaDetails(
   try {
     const res = await fetch(url)
     return await res.json()
-  } catch (error) {
-    console.error('Error fetching details:', error)
+  } catch (err) {
+    console.error('fetchMediaDetails error:', err)
     return null
   }
 }
@@ -90,11 +90,15 @@ export async function fetchTVSeasons(
     const res = await fetch(url)
     const data = await res.json()
     return data.seasons?.filter((s: any) => s.season_number > 0) || []
-  } catch (error) {
-    console.error('Error fetching TV seasons:', error)
+  } catch (err) {
+    console.error('fetchTVSeasons error:', err)
     return []
   }
 }
+
+/* ======================================================
+   IMAGE HELPERS
+====================================================== */
 
 export function getImageUrl(
   path: string | null,
@@ -104,9 +108,83 @@ export function getImageUrl(
   return `${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES[size]}${path}`
 }
 
-/**
- * Build embed URL based on mode, provider, and media ID.
- */
+/* ======================================================
+   CONTINUE WATCHING (BACKEND)
+====================================================== */
+
+const API_BASE = import.meta.env.VITE_API_URL
+
+export type ContinueWatchingItem = {
+  tmdbId: number
+  mediaType: 'movie' | 'tv'
+  season?: number
+  episode?: number
+  progress: number
+}
+
+// GET continue watching
+export async function fetchContinueWatching(
+  token: string
+): Promise<ContinueWatchingItem[]> {
+  const res = await fetch(`${API_BASE}/continue-watching`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!res.ok) {
+    throw new Error('Failed to fetch continue watching')
+  }
+
+  return res.json()
+}
+
+// POST update progress
+export async function updateContinueWatching(
+  token: string,
+  data: ContinueWatchingItem
+) {
+  const res = await fetch(`${API_BASE}/continue-watching`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!res.ok) {
+    throw new Error('Failed to update continue watching')
+  }
+
+  return res.json()
+}
+
+// DELETE remove item
+export async function removeContinueWatching(
+  token: string,
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+) {
+  const res = await fetch(
+    `${API_BASE}/continue-watching/${tmdbId}/${mediaType}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  )
+
+  if (!res.ok) {
+    throw new Error('Failed to remove continue watching')
+  }
+}
+
+/* ======================================================
+   EMBED URL BUILDER
+====================================================== */
+
 export function buildEmbedUrl(
   mode: MediaMode,
   provider: string,
@@ -120,13 +198,10 @@ export function buildEmbedUrl(
 ): string {
   const { season = 1, episode = 1, malId = '', subOrDub = 'sub' } = options
 
+  const providers = CONFIG.STREAM_PROVIDERS as Record<string, string>
   let template = ''
 
-  // Cast providers to allow dynamic string indexing (fixes TS errors)
-  const providers = CONFIG.STREAM_PROVIDERS as Record<string, string>
-
   if (mode === 'tv') {
-    // Looks for 'videasy' directly
     template = providers[provider]
     if (!template) return ''
     return template
@@ -136,16 +211,13 @@ export function buildEmbedUrl(
   }
 
   if (mode === 'movie') {
-    // Automatically appends '_movie' to find 'videasy_movie'
-    const movieProvider = `${provider}_movie`
-    template = providers[movieProvider]
+    template = providers[`${provider}_movie`]
     if (!template) return ''
     return template.replace(/\{tmdbId\}/g, String(mediaId))
   }
 
   if (mode === 'anime') {
-    const animeProvider = `${provider}_anime`
-    template = providers[animeProvider]
+    template = providers[`${provider}_anime`]
     if (!template) return ''
     return template
       .replace(/\{MALid\}/g, malId)
@@ -154,38 +226,4 @@ export function buildEmbedUrl(
   }
 
   return ''
-}
-
-export async function fetchContinueWatching(token: string) {
-  const res = await fetch(`${import.meta.env.VITE_API_URL}/continue-watching`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-
-  if (!res.ok) {
-    throw new Error('Failed to fetch continue watching')
-  }
-
-  return res.json()
-}
-
-export async function updateContinueWatching(
-  token: string,
-  data: {
-    tmdbId: number
-    mediaType: 'movie' | 'tv'
-    season?: number
-    episode?: number
-    progress: number
-  }
-) {
-  await fetch(`${import.meta.env.VITE_API_URL}/continue-watching`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  })
 }
