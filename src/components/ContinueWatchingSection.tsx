@@ -43,7 +43,7 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
 
         const data: ContinueWatchingItem[] = await fetchContinueWatching(token)
 
-        // Netflix behavior: hide almost-finished items
+        // Hide almost-finished items (Netflix behavior)
         const filtered = data.filter((i) => i.progress < 0.95)
 
         const resolved = await Promise.all(
@@ -55,8 +55,8 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
         )
 
         setEntries(resolved.filter(Boolean) as ContinueWatchingEntry[])
-      } catch (e) {
-        console.error(e)
+      } catch (err) {
+        console.error(err)
       } finally {
         setLoading(false)
       }
@@ -68,6 +68,7 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
   const handleRemove = async (item: ContinueWatchingItem) => {
     try {
       const token = await getAccessTokenSilently()
+
       await removeContinueWatching(token, item.tmdbId, item.mediaType)
 
       setEntries((prev) =>
@@ -87,34 +88,58 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
     } catch {
       toast({
         title: 'Error',
-        description: 'Failed to remove item',
+        description: 'Could not remove item',
         variant: 'destructive',
       })
     }
   }
 
-  if (!isAuthenticated || loading || entries.length === 0) return null
+  // 🔑 IMPORTANT:
+  // Section is ALWAYS rendered for logged-in users
+  if (!isAuthenticated) return null
 
   return (
     <section className="mb-10">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold">▶ Continue Watching</h2>
         <span className="text-sm text-muted-foreground">
-          Resume where you left off
+          Pick up where you left off
         </span>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-        {entries.map(({ media, item }) => (
-          <ContinueWatchingCard
-            key={`${item.mediaType}-${item.tmdbId}`}
-            media={media}
-            item={item}
-            onResume={onMediaClick}
-            onRemove={handleRemove}
-          />
-        ))}
-      </div>
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="flex gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-[240px] w-[160px] animate-pulse rounded-lg bg-muted"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && entries.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          You haven’t started watching anything yet.
+        </p>
+      )}
+
+      {/* Content */}
+      {!loading && entries.length > 0 && (
+        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+          {entries.map(({ media, item }) => (
+            <ContinueWatchingCard
+              key={`${item.mediaType}-${item.tmdbId}`}
+              media={media}
+              item={item}
+              onResume={onMediaClick}
+              onRemove={handleRemove}
+            />
+          ))}
+        </div>
+      )}
     </section>
   )
 }

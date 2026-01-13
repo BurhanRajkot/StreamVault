@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Media } from '@/lib/config'
-import { MediaCard } from './MediaCard'
+import { Play, MoreVertical, Trash2 } from 'lucide-react'
 
 type ContinueWatchingItem = {
   tmdbId: number
@@ -23,46 +23,52 @@ export function ContinueWatchingCard({
   onResume,
   onRemove,
 }: Props) {
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <>
+    <div className="group relative w-[160px] flex-shrink-0">
+      {/* Hover overlay */}
       <div
-        className="relative w-[160px] flex-shrink-0"
-        onContextMenu={(e) => {
-          e.preventDefault()
-          setMenu({ x: e.clientX, y: e.clientY })
-        }}
+        className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/60 opacity-0 transition group-hover:opacity-100"
+        onClick={() => onResume(media)}
       >
-        <MediaCard media={media} onClick={onResume} />
-
-        {/* Progress bar */}
-        <div className="mt-1 h-1 w-full overflow-hidden rounded bg-muted">
-          <div
-            className="h-full bg-primary"
-            style={{ width: `${item.progress * 100}%` }}
-          />
-        </div>
+        <Play className="h-10 w-10 text-white" />
       </div>
 
-      {/* Right-click menu */}
-      {menu && (
-        <div
-          className="fixed z-50 w-56 rounded-md border border-border bg-card shadow-lg"
-          style={{ top: menu.y, left: menu.x }}
-          onMouseLeave={() => setMenu(null)}
-        >
+      {/* Menu button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          setMenuOpen((v) => !v)
+        }}
+        className="absolute right-2 top-2 z-20 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+
+      {/* Menu */}
+      {menuOpen && (
+        <div className="absolute right-2 top-10 z-30 w-44 rounded-md border border-border bg-card shadow-lg">
           <button
             onClick={() => {
               onRemove(item)
-              setMenu(null)
+              setMenuOpen(false)
             }}
-            className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-destructive/10"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
           >
-            ❌ Remove from Continue Watching
+            <Trash2 className="h-4 w-4" />
+            Remove
           </button>
         </div>
       )}
-    </>
+
+      {/* Poster */}
+      <img
+        src={`https://image.tmdb.org/t/p/w342${media.poster_path}`}
+        alt={media.title || media.name}
+        className="rounded-lg"
+        onClick={() => onResume(media)}
+      />
+    </div>
   )
 }
