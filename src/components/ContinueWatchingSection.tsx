@@ -94,22 +94,21 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
     }
   }
 
-  // 🔑 IMPORTANT:
-  // Section is ALWAYS rendered for logged-in users
+  // Always rendered for logged-in users
   if (!isAuthenticated) return null
 
   return (
-    <section className="mb-10">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-bold">▶ Continue Watching</h2>
-        <span className="text-sm text-muted-foreground">
+    <section className="mb-8 sm:mb-10">
+      <div className="mb-3 flex flex-col gap-1 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-bold sm:text-xl">▶ Continue Watching</h2>
+        <span className="text-xs text-muted-foreground sm:text-sm">
           Pick up where you left off
         </span>
       </div>
 
       {/* Loading skeleton */}
       {loading && (
-        <div className="flex gap-4">
+        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar sm:gap-4">
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
@@ -128,7 +127,7 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
 
       {/* Content */}
       {!loading && entries.length > 0 && (
-        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar sm:gap-4">
           {entries.map(({ media, item }) => (
             <ContinueWatchingCard
               key={`${item.mediaType}-${item.tmdbId}`}

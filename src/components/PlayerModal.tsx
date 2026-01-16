@@ -44,9 +44,11 @@ export function PlayerModal({
   const [seasons, setSeasons] = useState<Season[]>([])
   const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState(10)
   const [autoPlay, setAutoPlay] = useState(true)
+
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
-  // Fetch TV seasons when modal opens for TV mode
+  /* ================= FETCH SEASONS ================= */
+
   useEffect(() => {
     if (isOpen && media && mode === 'tv') {
       fetchTVSeasons(media.id).then((data) => {
@@ -58,6 +60,8 @@ export function PlayerModal({
       })
     }
   }, [isOpen, media, mode])
+
+  /* ================= MODAL OPEN / CLOSE ================= */
 
   useEffect(() => {
     if (isOpen) {
@@ -75,7 +79,8 @@ export function PlayerModal({
     }
   }, [isOpen])
 
-  // Update episode count when season changes
+  /* ================= EPISODE COUNT UPDATE ================= */
+
   useEffect(() => {
     const currentSeason = seasons.find((s) => s.season_number === season)
     if (currentSeason) {
@@ -83,7 +88,8 @@ export function PlayerModal({
     }
   }, [season, seasons])
 
-  //adeed
+  /* ================= CONTINUE WATCHING HEARTBEAT ================= */
+
   useEffect(() => {
     if (!isPlaying || !media || !isAuthenticated) return
 
@@ -95,12 +101,14 @@ export function PlayerModal({
         mediaType: mode === 'tv' ? 'tv' : 'movie',
         season: mode === 'tv' ? season : undefined,
         episode: mode === 'tv' ? episode : undefined,
-        progress: 0.5, // iframe-safe heartbeat
+        progress: 0.5,
       })
     }, 15000)
 
     return () => clearInterval(interval)
   }, [isPlaying, media, season, episode])
+
+  /* ================= PLAY HELPERS ================= */
 
   const playEpisode = useCallback(
     (s: number, ep: number) => {
@@ -112,6 +120,7 @@ export function PlayerModal({
         malId,
         subOrDub,
       })
+
       setEmbedUrl(url)
       setIsPlaying(true)
       setSeason(s)
@@ -129,6 +138,7 @@ export function PlayerModal({
       malId,
       subOrDub,
     })
+
     setEmbedUrl(url)
     setIsPlaying(true)
   }
@@ -139,8 +149,6 @@ export function PlayerModal({
     } else if (season < seasons.length) {
       const nextSeason = seasons.find((s) => s.season_number === season + 1)
       if (nextSeason) {
-        setSeason(season + 1)
-        setCurrentSeasonEpisodes(nextSeason.episode_count)
         playEpisode(season + 1, 1)
       }
     }
@@ -177,31 +185,61 @@ export function PlayerModal({
   const title = media.title || media.name || 'Unknown'
   const providers = Object.entries(CONFIG.PROVIDER_NAMES)
 
+  /* ================= RENDER ================= */
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+      {/* Overlay */}
       <div
         className="absolute inset-0 bg-background/95 backdrop-blur-md"
         onClick={onClose}
       />
 
-      <div className="relative z-10 w-full max-w-5xl animate-scale-in rounded-2xl bg-card shadow-elevated border border-border/50 max-h-[95vh] overflow-y-auto">
+      {/* Modal */}
+      <div
+        className="
+          relative z-10 w-full max-w-5xl
+          bg-card shadow-elevated
+          border border-border/50
+          max-h-screen sm:max-h-[95vh]
+          overflow-y-auto
+          rounded-none sm:rounded-2xl
+        "
+      >
+        {/* Close */}
         <button
           onClick={onClose}
-          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-secondary/80 text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
+          className="
+            absolute right-3 top-3 z-20
+            flex h-10 w-10 items-center justify-center
+            rounded-full bg-secondary/80
+            text-muted-foreground
+            transition-colors
+            hover:bg-destructive hover:text-destructive-foreground
+            active:scale-95
+          "
         >
           <X className="h-5 w-5" />
         </button>
 
+        {/* Header */}
         <div className="border-b border-border/50 p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pr-10">
-            <h2 className="text-xl sm:text-2xl font-bold text-gradient">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pr-10">
+            <h2 className="text-xl font-bold text-gradient sm:text-2xl">
               {title}
             </h2>
 
             <div className="relative">
               <button
-                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-                className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary"
+                onClick={() => setShowProviderDropdown((prev) => !prev)}
+                className="
+                  flex items-center gap-2
+                  rounded-lg border border-border
+                  bg-secondary/50 px-4 py-2
+                  text-sm font-medium
+                  transition-colors hover:border-primary
+                  active:scale-95
+                "
               >
                 <Server className="h-4 w-4 text-primary" />
                 <span>{CONFIG.PROVIDER_NAMES[provider]}</span>
@@ -220,10 +258,9 @@ export function PlayerModal({
                       key={key}
                       onClick={() => changeSource(key)}
                       className={cn(
-                        'w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-secondary first:rounded-t-lg last:rounded-b-lg',
-                        provider === key
-                          ? 'bg-primary/10 text-primary font-medium'
-                          : 'text-foreground'
+                        'w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-secondary',
+                        provider === key &&
+                          'bg-primary/10 text-primary font-medium'
                       )}
                     >
                       {name}
@@ -235,12 +272,15 @@ export function PlayerModal({
           </div>
         </div>
 
+        {/* Content */}
         <div className="p-4 sm:p-6">
           {!isPlaying ? (
+            /* ===== PRE-PLAY UI (UNCHANGED LOGIC) ===== */
             <div className="space-y-6">
               {mode === 'tv' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
+                    {/* Season */}
                     <div>
                       <label className="mb-2 block text-sm font-medium text-muted-foreground">
                         Season
@@ -248,7 +288,7 @@ export function PlayerModal({
                       <select
                         value={season}
                         onChange={(e) => setSeason(Number(e.target.value))}
-                        className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3"
                       >
                         {seasons.length > 0
                           ? seasons.map((s) => (
@@ -266,6 +306,8 @@ export function PlayerModal({
                             ))}
                       </select>
                     </div>
+
+                    {/* Episode */}
                     <div>
                       <label className="mb-2 block text-sm font-medium text-muted-foreground">
                         Episode
@@ -273,7 +315,7 @@ export function PlayerModal({
                       <select
                         value={episode}
                         onChange={(e) => setEpisode(Number(e.target.value))}
-                        className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3"
                       >
                         {Array.from(
                           { length: currentSeasonEpisodes },
@@ -287,6 +329,7 @@ export function PlayerModal({
                     </div>
                   </div>
 
+                  {/* Autoplay */}
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setAutoPlay(!autoPlay)}
@@ -316,11 +359,9 @@ export function PlayerModal({
                       MAL ID
                     </label>
                     <input
-                      type="text"
                       value={malId}
                       onChange={(e) => setMalId(e.target.value)}
-                      placeholder="1234"
-                      className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3"
                     />
                   </div>
                   <div>
@@ -332,7 +373,7 @@ export function PlayerModal({
                       min={1}
                       value={episode}
                       onChange={(e) => setEpisode(Number(e.target.value))}
-                      className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3"
                     />
                   </div>
                   <div>
@@ -342,7 +383,7 @@ export function PlayerModal({
                     <select
                       value={subOrDub}
                       onChange={(e) => setSubOrDub(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3"
                     >
                       <option value="sub">Sub</option>
                       <option value="dub">Dub</option>
@@ -353,7 +394,13 @@ export function PlayerModal({
 
               <button
                 onClick={handlePlay}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-primary py-4 font-semibold text-primary-foreground transition-all hover:shadow-glow hover:scale-[1.02]"
+                className="
+                  flex w-full items-center justify-center gap-2
+                  rounded-lg bg-gradient-primary py-4
+                  font-semibold text-primary-foreground
+                  transition-all hover:shadow-glow hover:scale-[1.02]
+                  active:scale-95
+                "
               >
                 <Play className="h-5 w-5 fill-current" />
                 {mode === 'tv'
@@ -362,6 +409,7 @@ export function PlayerModal({
               </button>
             </div>
           ) : (
+            /* ===== PLAYER ===== */
             <div className="space-y-4">
               {mode === 'tv' && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-secondary/30 p-3">
@@ -369,10 +417,9 @@ export function PlayerModal({
                     <button
                       onClick={handlePrevEpisode}
                       disabled={season === 1 && episode === 1}
-                      className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm"
                     >
                       <ChevronLeft className="h-4 w-4" />
-                      <span className="hidden sm:inline">Previous</span>
                     </button>
 
                     <span className="rounded-lg bg-primary/20 px-4 py-2 text-sm font-bold text-primary">
@@ -381,39 +428,22 @@ export function PlayerModal({
 
                     <button
                       onClick={handleNextEpisode}
-                      className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/80"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm"
                     >
-                      <span className="hidden sm:inline">Next</span>
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={episode}
-                      onChange={(e) =>
-                        playEpisode(season, Number(e.target.value))
-                      }
-                      className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm text-foreground"
-                    >
-                      {Array.from({ length: currentSeasonEpisodes }, (_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          Ep {i + 1}
-                        </option>
-                      ))}
-                    </select>
-
-                    {autoPlay && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <SkipForward className="h-3 w-3" />
-                        <span>Auto</span>
-                      </div>
-                    )}
-                  </div>
+                  {autoPlay && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <SkipForward className="h-3 w-3" />
+                      Auto
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="aspect-video overflow-hidden rounded-lg border border-border bg-black">
+              <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
                 <iframe
                   src={embedUrl}
                   className="h-full w-full"
@@ -421,63 +451,6 @@ export function PlayerModal({
                   allow="autoplay; fullscreen; encrypted-media"
                 />
               </div>
-
-              {mode === 'tv' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-muted-foreground">
-                      Quick Episode Select
-                    </h4>
-                    <select
-                      value={season}
-                      onChange={(e) => {
-                        const newSeason = Number(e.target.value)
-                        setSeason(newSeason)
-                        const seasonData = seasons.find(
-                          (s) => s.season_number === newSeason
-                        )
-                        if (seasonData)
-                          setCurrentSeasonEpisodes(seasonData.episode_count)
-                      }}
-                      className="rounded-lg border border-border bg-secondary/50 px-3 py-1.5 text-sm text-foreground"
-                    >
-                      {seasons.length > 0
-                        ? seasons.map((s) => (
-                            <option
-                              key={s.season_number}
-                              value={s.season_number}
-                            >
-                              Season {s.season_number}
-                            </option>
-                          ))
-                        : Array.from({ length: 10 }, (_, i) => (
-                            <option key={i + 1} value={i + 1}>
-                              Season {i + 1}
-                            </option>
-                          ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 max-h-32 overflow-y-auto">
-                    {Array.from(
-                      { length: Math.min(currentSeasonEpisodes, 50) },
-                      (_, i) => (
-                        <button
-                          key={i + 1}
-                          onClick={() => playEpisode(season, i + 1)}
-                          className={cn(
-                            'rounded-md py-2 text-xs font-medium transition-colors',
-                            episode === i + 1
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground'
-                          )}
-                        >
-                          {i + 1}
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
