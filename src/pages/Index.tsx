@@ -82,14 +82,14 @@ const Index = () => {
           onClearSearch={clearSearch}
         />
 
-        <main className="container flex-1 py-6">
+        <main className="container flex-1 py-4 sm:py-6">
           {mode === 'anime' ? (
             <AnimeSection onMediaClick={handleMediaClick} />
           ) : (
             <>
               {/* 🎞 HERO CAROUSEL */}
               {!searchQuery && trending.length > 0 && (
-                <div className="mb-6 h-[360px] md:h-[420px] overflow-hidden rounded-xl">
+                <div className="mb-5 h-[220px] sm:mb-6 sm:h-[360px] md:h-[420px] overflow-hidden rounded-xl">
                   <HeroCarousel
                     items={trending}
                     onMediaClick={handleMediaClick}
@@ -97,7 +97,7 @@ const Index = () => {
                 </div>
               )}
 
-              {/* ▶ CONTINUE WATCHING (LOGGED-IN USERS ONLY) */}
+              {/* ▶ CONTINUE WATCHING */}
               {!searchQuery && (
                 <ContinueWatchingSection onMediaClick={handleMediaClick} />
               )}
@@ -109,8 +109,8 @@ const Index = () => {
 
               {/* 🔍 SEARCH RESULTS TITLE */}
               {searchQuery && (
-                <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-foreground">
+                <div className="mb-3 sm:mb-4">
+                  <h2 className="text-base font-semibold text-foreground sm:text-lg">
                     Search results for "{searchQuery}"
                   </h2>
                 </div>
