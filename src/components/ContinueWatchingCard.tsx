@@ -27,21 +27,35 @@ export function ContinueWatchingCard({
 
   return (
     <div className="group relative w-[160px] flex-shrink-0">
-      {/* Hover overlay */}
+      {/* Play Overlay (hover + touch) */}
       <div
-        className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/60 opacity-0 transition group-hover:opacity-100"
+        className="
+          absolute inset-0 z-10 flex items-center justify-center
+          rounded-lg bg-black/60
+          opacity-0 group-hover:opacity-100
+          transition
+          active:opacity-100
+        "
         onClick={() => onResume(media)}
       >
         <Play className="h-10 w-10 text-white" />
       </div>
 
-      {/* Menu button */}
+      {/* Menu Button */}
       <button
         onClick={(e) => {
           e.stopPropagation()
           setMenuOpen((v) => !v)
         }}
-        className="absolute right-2 top-2 z-20 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100"
+        className="
+          absolute right-2 top-2 z-20
+          rounded-full bg-black/60 p-1.5
+          text-white
+          opacity-0 group-hover:opacity-100
+          transition
+          active:opacity-100
+          active:scale-95
+        "
       >
         <MoreVertical className="h-4 w-4" />
       </button>
@@ -54,7 +68,14 @@ export function ContinueWatchingCard({
               onRemove(item)
               setMenuOpen(false)
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
+            className="
+              flex w-full items-center gap-2
+              px-3 py-2 text-sm
+              text-destructive
+              transition-colors
+              hover:bg-destructive/10
+              active:bg-destructive/20
+            "
           >
             <Trash2 className="h-4 w-4" />
             Remove
