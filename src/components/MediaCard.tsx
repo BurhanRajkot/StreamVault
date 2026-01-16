@@ -23,13 +23,9 @@ export function MediaCard({
   const { toggleFavorite, isFavorited } = useFavorites()
 
   /**
-   * ✅ CORRECT MEDIA TYPE DETECTION
-   * TMDB guarantees:
-   * - Movies have `release_date`
-   * - TV shows have `first_air_date`
+   * TMDB media type detection
    */
   const mediaType: 'movie' | 'tv' = media.release_date ? 'movie' : 'tv'
-
   const favorited = isFavorited(media.id, mediaType)
 
   const handleFavorite = (e: React.MouseEvent) => {
@@ -48,7 +44,7 @@ export function MediaCard({
     return (
       <div
         onClick={() => onClick(media)}
-        className="relative h-full w-full cursor-pointer overflow-hidden"
+        className="relative h-full w-full cursor-pointer overflow-hidden active:scale-[0.99]"
       >
         <img
           src={backdrop}
@@ -58,13 +54,13 @@ export function MediaCard({
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-0 p-5 md:p-6">
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
           <div className="mb-2 flex items-center gap-2">
             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
             <span className="text-sm font-medium text-white">{rating}</span>
           </div>
 
-          <h2 className="mb-2 line-clamp-2 max-w-2xl text-xl font-bold text-white md:text-2xl">
+          <h2 className="mb-2 line-clamp-2 max-w-2xl text-xl font-bold text-white sm:text-2xl">
             {title}
           </h2>
 
@@ -73,7 +69,7 @@ export function MediaCard({
           </p>
 
           <div className="mt-4 flex items-center gap-3">
-            <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:scale-105">
+            <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:scale-105 active:scale-95">
               <Play className="h-4 w-4 fill-current" />
               Watch
             </button>
@@ -81,7 +77,7 @@ export function MediaCard({
             {isAuthenticated && (
               <button
                 onClick={handleFavorite}
-                className="rounded-full bg-white/80 p-2 backdrop-blur hover:scale-110"
+                className="rounded-full bg-white/80 p-2 backdrop-blur transition hover:scale-110 active:scale-95"
               >
                 <Heart
                   className={cn(
@@ -106,7 +102,8 @@ export function MediaCard({
       onClick={() => onClick(media)}
       className={cn(
         'group relative cursor-pointer overflow-hidden rounded-lg bg-card transition-all duration-300',
-        'hover:scale-[1.02] hover:shadow-card hover:ring-1 hover:ring-primary/50'
+        'hover:scale-[1.02] hover:shadow-card hover:ring-1 hover:ring-primary/50',
+        'active:scale-[0.97]'
       )}
     >
       <div className="relative aspect-[2/3] overflow-hidden">
@@ -120,7 +117,7 @@ export function MediaCard({
         {isAuthenticated && (
           <button
             onClick={handleFavorite}
-            className="absolute right-2 top-2 rounded-full bg-background/80 p-2 backdrop-blur hover:scale-110"
+            className="absolute right-2 top-2 rounded-full bg-background/80 p-2 backdrop-blur transition hover:scale-110 active:scale-95"
           >
             <Heart
               className={cn(
