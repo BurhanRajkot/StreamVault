@@ -8,7 +8,6 @@ export const CONFIG = {
     thumbnail: '/w342',
   },
 
-  // Stream provider templates
   STREAM_PROVIDERS: {
     /* ================= TV ================= */
     vidfast_pro:
@@ -19,7 +18,6 @@ export const CONFIG = {
     vidsrc_cc:
       'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=true',
 
-    // ✅ NEW: Added Videasy TV pattern
     videasy:
       'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=true',
 
@@ -30,19 +28,8 @@ export const CONFIG = {
     vidsrc_cc_movie:
       'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=true',
 
-    // ✅ NEW: Added Videasy Movie pattern (Found in your HTML)
     videasy_movie:
       'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=true',
-
-    /* ================= ANIME ================= */
-    vidfast_pro_anime:
-      'https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true',
-    vidsrc_icu_anime:
-      'https://vidsrc.icu/embed/anime/{MALid}/{number}/{subOrDub}',
-    vidlink_pro_anime:
-      'https://vidlink.pro/anime/{MALid}/{number}/{subOrDub}?fallback=true',
-    vidsrc_cc_anime:
-      'https://vidsrc.cc/v2/embed/anime/{MALid}/{number}/{subOrDub}?autoPlay=true',
   },
 
   PROVIDER_NAMES: {
@@ -50,11 +37,12 @@ export const CONFIG = {
     vidsrc_icu: 'VidSrc ICU',
     vidlink_pro: 'VidLink Pro',
     vidsrc_cc: 'VidSrc CC',
-    videasy: 'Videasy', // Name for the UI
+    videasy: 'Videasy',
   } as Record<string, string>,
 }
 
-export type MediaMode = 'movie' | 'tv' | 'anime'
+/* ✅ FIXED: added "downloads" */
+export type MediaMode = 'movie' | 'tv' | 'anime' | 'downloads'
 
 export interface Media {
   id: number
@@ -66,7 +54,4 @@ export interface Media {
   vote_average: number
   release_date?: string
   first_air_date?: string
-  genre_ids?: number[]
-  number_of_seasons?: number
-  number_of_episodes?: number
 }

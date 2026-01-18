@@ -9,6 +9,7 @@ import Index from './pages/Index'
 import Favorites from './pages/Favorites'
 import Watch from './pages/Watch'
 import NotFound from './pages/NotFound'
+import Downloads from './pages/Downloads'
 
 import Login from './auth/Login'
 import Signup from './auth/Signup'
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/favorites" element={<Favorites />} />
+          <Route path="/downloads" element={<Downloads />} />
           <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
