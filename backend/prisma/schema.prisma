@@ -28,15 +28,20 @@ model Favorite {
 model ContinueWatching {
   id        String   @id @default(cuid())
   userId    String
-
   tmdbId    Int
-  mediaType String   // "movie" | "tv"
-
+  mediaType String
   season    Int?
   episode   Int?
-
-  progress  Float    // 0.0 - 1.0
+  progress  Float
   updatedAt DateTime @updatedAt
 
   @@unique([userId, tmdbId, mediaType])
+}
+
+model Download {
+  id        String   @id @default(cuid())
+  title     String
+  quality   String
+  filename  String
+  createdAt DateTime @default(now())
 }
