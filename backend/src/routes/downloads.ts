@@ -1,7 +1,7 @@
 import { Router } from 'express'
+import { prisma } from '../lib/prisma'
 import path from 'path'
 import fs from 'fs'
-import { prisma } from '../lib/prisma'
 
 const router = Router()
 
@@ -15,24 +15,23 @@ router.get('/', async (_req, res) => {
 
 // DOWNLOAD file
 router.get('/:id/file', async (req, res) => {
-  const download = await prisma.download.findUnique({
-    where: { id: req.params.id },
-  })
+  const { id } = req.params
 
-  if (!download) return res.status(404).json({ error: 'Not found' })
+  const item = await prisma.download.findUnique({ where: { id } })
+  if (!item) return res.status(404).json({ error: 'Not found' })
 
   const filePath = path.join(
     process.cwd(),
     'public',
     'downloads',
-    download.filename
+    item.filename
   )
 
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File missing' })
+    return res.status(404).json({ error: 'File missing on server' })
   }
 
-  res.download(filePath)
+  res.download(filePath, item.filename)
 })
 
 export default router
