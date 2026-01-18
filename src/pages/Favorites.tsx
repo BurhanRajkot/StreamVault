@@ -6,6 +6,8 @@ import { MediaGrid } from '@/components/MediaGrid'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Helmet } from 'react-helmet-async'
 import { useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 const Favorites = () => {
   const { isAuthenticated, loginWithRedirect } = useAuth0()
@@ -42,6 +44,17 @@ const Favorites = () => {
       </Helmet>
 
       <div className="container py-6">
+        {/* Back Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/')}
+          className="mb-4 flex items-center gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+
         <h1 className="mb-6 text-2xl font-bold">❤️ My Favorites</h1>
 
         {media.length === 0 && !loading ? (
