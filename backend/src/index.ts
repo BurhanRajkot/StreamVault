@@ -6,8 +6,8 @@ import cors from 'cors'
 
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
-import downloadsRouter from './routes/downloads'
 import { checkJwt } from './middleware/auth'
+import downloadsRouter from './routes/downloads'
 
 const app = express()
 
@@ -28,6 +28,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
+app.use('/downloads', downloadsRouter)
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
 app.use('/downloads', downloadsRouter)
