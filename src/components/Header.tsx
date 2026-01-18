@@ -1,9 +1,25 @@
 import { useState, FormEvent } from 'react'
-import { Film, Tv, Search, X, Heart, Download } from 'lucide-react'
+import {
+  Film,
+  Tv,
+  Search,
+  X,
+  Heart,
+  Download,
+  LogOut,
+} from 'lucide-react'
 import { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth0 } from '@auth0/auth0-react'
 
 interface HeaderProps {
@@ -40,11 +56,18 @@ export function Header({
     { id: 'downloads', label: 'Downloads', icon: Download },
   ]
 
+  const initials =
+    user?.name
+      ?.split(' ')
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'SV'
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="container flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
-
-        {/* Logo */}
+        {/* Logo + Mobile Favorites */}
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary">
@@ -108,8 +131,19 @@ export function Header({
           </form>
         )}
 
-        {/* Auth */}
+        {/* Desktop Favorites + Auth */}
         <div className="hidden sm:flex items-center gap-3">
+          {/* Favorites (RESTORED) */}
+          {isAuthenticated && (
+            <Button asChild size="sm" variant="secondary">
+              <Link to="/favorites" className="flex items-center gap-2">
+                <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+                Favorites
+              </Link>
+            </Button>
+          )}
+
+          {/* Logged OUT */}
           {!isAuthenticated && (
             <>
               <Button asChild size="sm" variant="secondary">
@@ -121,27 +155,39 @@ export function Header({
             </>
           )}
 
+          {/* Logged IN → Profile Avatar */}
           {isAuthenticated && (
-            <>
-              <Button asChild size="sm" variant="secondary">
-                <Link to="/favorites" className="flex items-center gap-2">
-                  <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                  Favorites
-                </Link>
-              </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary">
+                  <Avatar className="h-9 w-9 border">
+                    <AvatarImage src={user?.picture} />
+                    <AvatarFallback>{initials}</AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
 
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  logout({
-                    logoutParams: { returnTo: window.location.origin },
-                  })
-                }
-              >
-                Logout
-              </Button>
-            </>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">{user?.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {user?.email}
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <button
+                  className="flex w-full items-center gap-2 px-2 py-1.5 text-sm text-destructive hover:bg-accent"
+                  onClick={() =>
+                    logout({
+                      logoutParams: { returnTo: window.location.origin },
+                    })
+                  }
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

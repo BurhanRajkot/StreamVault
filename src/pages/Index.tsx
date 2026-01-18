@@ -15,7 +15,7 @@ import Downloads from './Downloads'
 const Index = () => {
   const [mode, setMode] = useState<MediaMode>('movie')
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false)
+  const [playMode, setPlayMode] = useState<MediaMode>('movie')
   const [showDisclaimer, setShowDisclaimer] = useState(false)
 
   const {
@@ -34,6 +34,13 @@ const Index = () => {
       setShowDisclaimer(true)
     }
   }, [])
+
+  const handleMediaClick = (media: Media) => {
+    // Detect actual media type from TMDB data
+    const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
+    setPlayMode(detectedMode)
+    setSelectedMedia(media)
+  }
 
   return (
     <>
@@ -58,16 +65,20 @@ const Index = () => {
               {!searchQuery && trending.length > 0 && (
                 <HeroCarousel
                   items={trending}
-                  onMediaClick={setSelectedMedia}
+                  onMediaClick={handleMediaClick}
                 />
               )}
 
               {!searchQuery && (
-                <ContinueWatchingSection onMediaClick={setSelectedMedia} />
+                <ContinueWatchingSection
+                  onMediaClick={handleMediaClick}
+                />
               )}
 
               {!searchQuery && (
-                <AuthorsChoiceSection onMediaClick={setSelectedMedia} />
+                <AuthorsChoiceSection
+                  onMediaClick={handleMediaClick}
+                />
               )}
 
               <MediaGrid
@@ -75,7 +86,7 @@ const Index = () => {
                 isLoading={isLoading}
                 hasMore={hasMore}
                 onLoadMore={loadMore}
-                onMediaClick={setSelectedMedia}
+                onMediaClick={handleMediaClick}
               />
             </>
           )}
@@ -83,12 +94,14 @@ const Index = () => {
 
         <Footer />
 
-        <PlayerModal
-          media={selectedMedia}
-          mode={mode}
-          isOpen={!!selectedMedia}
-          onClose={() => setSelectedMedia(null)}
-        />
+        {selectedMedia && (
+          <PlayerModal
+            media={selectedMedia}
+            mode={playMode}
+            isOpen={true}
+            onClose={() => setSelectedMedia(null)}
+          />
+        )}
 
         <DisclaimerModal
           isOpen={showDisclaimer}
