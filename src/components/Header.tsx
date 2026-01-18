@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react'
-import { Film, Tv, Sparkles, Search, X, Heart, Download } from 'lucide-react'
+import { Film, Tv, Search, X, Heart, Download } from 'lucide-react'
 import { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
@@ -37,13 +37,13 @@ export function Header({
   const modes: { id: MediaMode; label: string; icon: any }[] = [
     { id: 'movie', label: 'Movies', icon: Film },
     { id: 'tv', label: 'TV Shows', icon: Tv },
-    { id: 'anime', label: 'Anime', icon: Sparkles },
     { id: 'downloads', label: 'Downloads', icon: Download },
   ]
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="container flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
+
         {/* Logo */}
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
@@ -56,6 +56,7 @@ export function Header({
             </h1>
           </Link>
 
+          {/* Mobile Favorites */}
           {isAuthenticated && (
             <Link
               to="/favorites"
@@ -73,7 +74,7 @@ export function Header({
               key={id}
               onClick={() => onModeChange(id)}
               className={cn(
-                'flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200',
+                'flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all',
                 mode === id
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
@@ -87,46 +88,62 @@ export function Header({
 
         {/* Search */}
         {mode !== 'downloads' && (
-          <form
-            onSubmit={handleSubmit}
-            className="relative flex w-full items-center sm:w-auto"
-          >
-            <div className="relative w-full sm:w-auto">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder={`Search ${mode === 'tv' ? 'shows' : mode}...`}
-                className="h-11 w-full rounded-lg border border-border bg-secondary/50 pl-10 pr-10 text-sm"
-              />
-              {(inputValue || searchQuery) && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+          <form onSubmit={handleSubmit} className="relative flex w-full sm:w-auto">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={`Search ${mode === 'tv' ? 'shows' : 'movies'}...`}
+              className="h-11 w-full rounded-lg border bg-secondary/50 pl-10 pr-10 text-sm"
+            />
+            {(inputValue || searchQuery) && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </form>
         )}
 
         {/* Auth */}
-        {isAuthenticated && user && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              logout({
-                logoutParams: { returnTo: window.location.origin },
-              })
-            }
-          >
-            Logout
-          </Button>
-        )}
+        <div className="hidden sm:flex items-center gap-3">
+          {!isAuthenticated && (
+            <>
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/login">Login</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/signup">Sign up</Link>
+              </Button>
+            </>
+          )}
+
+          {isAuthenticated && (
+            <>
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/favorites" className="flex items-center gap-2">
+                  <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+                  Favorites
+                </Link>
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  logout({
+                    logoutParams: { returnTo: window.location.origin },
+                  })
+                }
+              >
+                Logout
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </header>
   )
