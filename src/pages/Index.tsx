@@ -11,6 +11,7 @@ import { AnimeSection } from '@/components/AnimeSection'
 import { Footer } from '@/components/Footer'
 import { AuthorsChoiceSection } from '@/components/AuthorsChoiceSection'
 import { ContinueWatchingSection } from '@/components/ContinueWatchingSection'
+import Downloads from './Downloads'
 
 const Index = () => {
   const [mode, setMode] = useState<MediaMode>('movie')
@@ -56,8 +57,6 @@ const Index = () => {
         return 'Popular Movies'
       case 'tv':
         return 'Popular TV Shows'
-      case 'anime':
-        return 'Anime'
       default:
         return 'Popular'
     }
@@ -66,10 +65,10 @@ const Index = () => {
   return (
     <>
       <Helmet>
-        <title>StreamVault - Stream Movies, TV Shows & Anime</title>
+        <title>StreamVault - Stream Movies & TV Shows</title>
         <meta
           name="description"
-          content="StreamVault is a modern streaming platform for movies, TV shows, and anime."
+          content="StreamVault is a modern streaming platform for movies and TV shows."
         />
       </Helmet>
 
@@ -83,7 +82,10 @@ const Index = () => {
         />
 
         <main className="container flex-1 py-4 sm:py-6">
-          {mode === 'anime' ? (
+          {/* 📥 DOWNLOADS MODE */}
+          {mode === 'downloads' ? (
+            <Downloads />
+          ) : mode === 'anime' ? (
             <AnimeSection onMediaClick={handleMediaClick} />
           ) : (
             <>
