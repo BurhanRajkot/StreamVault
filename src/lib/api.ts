@@ -14,7 +14,10 @@ export async function fetchPopular(
   mode: MediaMode,
   page = 1
 ): Promise<{ results: Media[]; total_pages: number }> {
-  if (mode === 'anime') return { results: [], total_pages: 0 }
+  // Downloads has no TMDB data
+  if (mode === 'downloads') {
+    return { results: [], total_pages: 0 }
+  }
 
   const url = `${CONFIG.TMDB_BASE_URL}/discover/${mode}?sort_by=popularity.desc&api_key=${CONFIG.TMDB_API_KEY}&page=${page}`
 
@@ -28,7 +31,7 @@ export async function fetchPopular(
 }
 
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
-  if (mode === 'anime') return []
+  if (mode === 'downloads') return []
 
   const url = `${CONFIG.TMDB_BASE_URL}/trending/${mode}/week?api_key=${CONFIG.TMDB_API_KEY}`
   const res = await fetch(url)
@@ -42,7 +45,9 @@ export async function searchMedia(
   query: string,
   page = 1
 ): Promise<{ results: Media[]; total_pages: number }> {
-  if (mode === 'anime') return { results: [], total_pages: 0 }
+  if (mode === 'downloads') {
+    return { results: [], total_pages: 0 }
+  }
 
   const url = `${CONFIG.TMDB_BASE_URL}/search/${mode}?api_key=${CONFIG.TMDB_API_KEY}&query=${encodeURIComponent(
     query
@@ -61,7 +66,7 @@ export async function fetchMediaDetails(
   mode: MediaMode,
   id: number
 ): Promise<Media | null> {
-  if (mode === 'anime') return null
+  if (mode === 'downloads') return null
 
   const url = `${CONFIG.TMDB_BASE_URL}/${mode}/${id}?api_key=${CONFIG.TMDB_API_KEY}`
   const res = await fetch(url)
@@ -147,7 +152,7 @@ export async function removeContinueWatching(
 }
 
 /* ======================================================
-   EMBED URL BUILDER  ✅ REQUIRED BY PlayerModal
+   EMBED URL BUILDER
 ====================================================== */
 
 export function buildEmbedUrl(
@@ -157,12 +162,9 @@ export function buildEmbedUrl(
   options: {
     season?: number
     episode?: number
-    malId?: string
-    subOrDub?: string
   }
 ): string {
-  const { season = 1, episode = 1, malId = '', subOrDub = 'sub' } = options
-
+  const { season = 1, episode = 1 } = options
   const providers = CONFIG.STREAM_PROVIDERS as Record<string, string>
 
   if (mode === 'tv') {
@@ -178,15 +180,6 @@ export function buildEmbedUrl(
     const template = providers[`${provider}_movie`]
     if (!template) return ''
     return template.replace('{tmdbId}', String(mediaId))
-  }
-
-  if (mode === 'anime') {
-    const template = providers[`${provider}_anime`]
-    if (!template) return ''
-    return template
-      .replace('{MALid}', malId)
-      .replace('{number}', String(episode))
-      .replace('{subOrDub}', subOrDub)
   }
 
   return ''

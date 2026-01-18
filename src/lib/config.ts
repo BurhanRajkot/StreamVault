@@ -17,7 +17,6 @@ export const CONFIG = {
       'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true',
     vidsrc_cc:
       'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=true',
-
     videasy:
       'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=true',
 
@@ -27,7 +26,6 @@ export const CONFIG = {
     vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true',
     vidsrc_cc_movie:
       'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=true',
-
     videasy_movie:
       'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=true',
   },
@@ -41,8 +39,8 @@ export const CONFIG = {
   } as Record<string, string>,
 }
 
-/* ✅ FIXED: added "downloads" */
-export type MediaMode = 'movie' | 'tv' | 'anime' | 'downloads'
+/* ✅ ONLY REQUIRED MODES */
+export type MediaMode = 'movie' | 'tv' | 'downloads'
 
 export interface Media {
   id: number

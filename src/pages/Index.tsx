@@ -7,7 +7,6 @@ import { HeroCarousel } from '@/components/HeroCarousel'
 import { MediaGrid } from '@/components/MediaGrid'
 import { PlayerModal } from '@/components/PlayerModal'
 import { DisclaimerModal } from '@/components/DisclaimerModal'
-import { AnimeSection } from '@/components/AnimeSection'
 import { Footer } from '@/components/Footer'
 import { AuthorsChoiceSection } from '@/components/AuthorsChoiceSection'
 import { ContinueWatchingSection } from '@/components/ContinueWatchingSection'
@@ -31,101 +30,52 @@ const Index = () => {
   } = useMedia(mode)
 
   useEffect(() => {
-    const accepted = sessionStorage.getItem('disclaimerAccepted')
-    if (accepted !== 'true') {
+    if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
       setShowDisclaimer(true)
     }
   }, [])
 
-  const handleAcceptDisclaimer = () => {
-    sessionStorage.setItem('disclaimerAccepted', 'true')
-    setShowDisclaimer(false)
-  }
-
-  const handleMediaClick = (mediaItem: Media) => {
-    setSelectedMedia(mediaItem)
-    setIsPlayerOpen(true)
-  }
-
-  const handleModeChange = (newMode: MediaMode) => {
-    setMode(newMode)
-  }
-
-  const getModeTitle = () => {
-    switch (mode) {
-      case 'movie':
-        return 'Popular Movies'
-      case 'tv':
-        return 'Popular TV Shows'
-      default:
-        return 'Popular'
-    }
-  }
-
   return (
     <>
       <Helmet>
-        <title>StreamVault - Stream Movies & TV Shows</title>
-        <meta
-          name="description"
-          content="StreamVault is a modern streaming platform for movies and TV shows."
-        />
+        <title>StreamVault</title>
       </Helmet>
 
       <div className="flex min-h-screen flex-col">
         <Header
           mode={mode}
-          onModeChange={handleModeChange}
+          onModeChange={setMode}
           onSearch={search}
           searchQuery={searchQuery}
           onClearSearch={clearSearch}
         />
 
-        <main className="container flex-1 py-4 sm:py-6">
-          {/* 📥 DOWNLOADS MODE */}
+        <main className="container flex-1 py-6">
           {mode === 'downloads' ? (
             <Downloads />
-          ) : mode === 'anime' ? (
-            <AnimeSection onMediaClick={handleMediaClick} />
           ) : (
             <>
-              {/* 🎞 HERO CAROUSEL */}
               {!searchQuery && trending.length > 0 && (
-                <div className="mb-5 h-[220px] sm:mb-6 sm:h-[360px] md:h-[420px] overflow-hidden rounded-xl">
-                  <HeroCarousel
-                    items={trending}
-                    onMediaClick={handleMediaClick}
-                  />
-                </div>
+                <HeroCarousel
+                  items={trending}
+                  onMediaClick={setSelectedMedia}
+                />
               )}
 
-              {/* ▶ CONTINUE WATCHING */}
               {!searchQuery && (
-                <ContinueWatchingSection onMediaClick={handleMediaClick} />
+                <ContinueWatchingSection onMediaClick={setSelectedMedia} />
               )}
 
-              {/* ⭐ AUTHOR'S CHOICE */}
               {!searchQuery && (
-                <AuthorsChoiceSection onMediaClick={handleMediaClick} />
+                <AuthorsChoiceSection onMediaClick={setSelectedMedia} />
               )}
 
-              {/* 🔍 SEARCH RESULTS TITLE */}
-              {searchQuery && (
-                <div className="mb-3 sm:mb-4">
-                  <h2 className="text-base font-semibold text-foreground sm:text-lg">
-                    Search results for "{searchQuery}"
-                  </h2>
-                </div>
-              )}
-
-              {/* 🎬 MAIN MEDIA GRID */}
               <MediaGrid
                 media={media}
                 isLoading={isLoading}
                 hasMore={hasMore}
                 onLoadMore={loadMore}
-                onMediaClick={handleMediaClick}
-                title={!searchQuery ? getModeTitle() : undefined}
+                onMediaClick={setSelectedMedia}
               />
             </>
           )}
@@ -133,18 +83,19 @@ const Index = () => {
 
         <Footer />
 
-        {/* ▶ PLAYER MODAL */}
         <PlayerModal
           media={selectedMedia}
           mode={mode}
-          isOpen={isPlayerOpen}
-          onClose={() => setIsPlayerOpen(false)}
+          isOpen={!!selectedMedia}
+          onClose={() => setSelectedMedia(null)}
         />
 
-        {/* ⚠ DISCLAIMER */}
         <DisclaimerModal
           isOpen={showDisclaimer}
-          onAccept={handleAcceptDisclaimer}
+          onAccept={() => {
+            sessionStorage.setItem('disclaimerAccepted', 'true')
+            setShowDisclaimer(false)
+          }}
         />
       </div>
     </>
