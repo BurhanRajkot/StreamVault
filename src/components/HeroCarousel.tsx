@@ -38,21 +38,18 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
 
   return (
     <section className="relative mb-6">
-      {/* Hero Wrapper */}
-      <div className="relative h-[360px] md:h-[420px] overflow-hidden rounded-xl">
+      {/* 🔥 TALLER HERO ON XL / 2XL SCREENS */}
+      <div className="relative h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl">
         {displayItems.map((item, index) => (
           <div
             key={item.id}
             className={cn(
               'absolute inset-0 transition-opacity duration-700 ease-out',
-              index === currentIndex ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              index === currentIndex
+                ? 'opacity-100 pointer-events-auto'
+                : 'opacity-0 pointer-events-none'
             )}
           >
-            {/*
-              IMPORTANT:
-              Only MediaCard handles click.
-              No wrappers, no overlays, no duplicate handlers.
-            */}
             {index === currentIndex && (
               <MediaCard
                 media={item}
