@@ -23,7 +23,7 @@ type ContinueWatchingEntry = {
 }
 
 interface Props {
-  onMediaClick: (media: Media) => void
+  onMediaClick: (media: Media, season?: number, episode?: number) => void
 }
 
 export function ContinueWatchingSection({ onMediaClick }: Props) {
@@ -121,7 +121,7 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
       {/* Empty state */}
       {!loading && entries.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          You haven’t started watching anything yet.
+          You haven't started watching anything yet.
         </p>
       )}
 
