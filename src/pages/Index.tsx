@@ -18,6 +18,10 @@ const Index = () => {
   const [playMode, setPlayMode] = useState<MediaMode>('movie')
   const [showDisclaimer, setShowDisclaimer] = useState(false)
 
+  // ✅ NEW: State for resume season/episode
+  const [initialSeason, setInitialSeason] = useState<number | undefined>()
+  const [initialEpisode, setInitialEpisode] = useState<number | undefined>()
+
   const {
     media,
     trending,
@@ -35,11 +39,23 @@ const Index = () => {
     }
   }, [])
 
-  const handleMediaClick = (media: Media) => {
+  // ✅ UPDATED: Handle media click with optional season/episode
+  const handleMediaClick = (media: Media, season?: number, episode?: number) => {
     // Detect actual media type from TMDB data
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
     setPlayMode(detectedMode)
     setSelectedMedia(media)
+
+    // ✅ NEW: Set initial season/episode for resume
+    setInitialSeason(season)
+    setInitialEpisode(episode)
+  }
+
+  // ✅ UPDATED: Clear resume data when closing player
+  const handleClosePlayer = () => {
+    setSelectedMedia(null)
+    setInitialSeason(undefined)
+    setInitialEpisode(undefined)
   }
 
   return (
@@ -69,6 +85,7 @@ const Index = () => {
                 />
               )}
 
+              {/* ✅ UPDATED: Pass season/episode to ContinueWatchingSection */}
               {!searchQuery && (
                 <ContinueWatchingSection
                   onMediaClick={handleMediaClick}
@@ -94,12 +111,15 @@ const Index = () => {
 
         <Footer />
 
+        {/* ✅ UPDATED: Pass initial season/episode to PlayerModal */}
         {selectedMedia && (
           <PlayerModal
             media={selectedMedia}
             mode={playMode}
             isOpen={true}
-            onClose={() => setSelectedMedia(null)}
+            onClose={handleClosePlayer}
+            initialSeason={initialSeason}
+            initialEpisode={initialEpisode}
           />
         )}
 

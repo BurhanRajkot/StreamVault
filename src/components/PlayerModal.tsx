@@ -9,16 +9,17 @@ import {
   SkipForward,
 } from 'lucide-react'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
-import { buildEmbedUrl, fetchTVSeasons } from '@/lib/api'
+import { buildEmbedUrl, fetchTVSeasons, updateContinueWatching, removeContinueWatching, fetchExistingProgress } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
-import { updateContinueWatching } from '@/lib/api'
 
 interface PlayerModalProps {
   media: Media | null
   mode: MediaMode
   isOpen: boolean
   onClose: () => void
+  initialSeason?: number
+  initialEpisode?: number
 }
 
 interface Season {
@@ -32,10 +33,12 @@ export function PlayerModal({
   mode,
   isOpen,
   onClose,
+  initialSeason,
+  initialEpisode,
 }: PlayerModalProps) {
-  const [provider, setProvider] = useState('vidsrc_pro')
-  const [season, setSeason] = useState(1)
-  const [episode, setEpisode] = useState(1)
+  const [provider, setProvider] = useState('vidfast_pro')
+  const [season, setSeason] = useState(initialSeason || 1)
+  const [episode, setEpisode] = useState(initialEpisode || 1)
   const [malId, setMalId] = useState('')
   const [subOrDub, setSubOrDub] = useState('sub')
   const [embedUrl, setEmbedUrl] = useState('')
@@ -67,8 +70,8 @@ export function PlayerModal({
     if (isOpen) {
       setIsPlaying(false)
       setEmbedUrl('')
-      setSeason(1)
-      setEpisode(1)
+      setSeason(initialSeason || 1)
+      setEpisode(initialEpisode || 1)
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
@@ -77,7 +80,7 @@ export function PlayerModal({
     return () => {
       document.body.style.overflow = ''
     }
-  }, [isOpen])
+  }, [isOpen, initialSeason, initialEpisode])
 
   /* ================= EPISODE COUNT UPDATE ================= */
 
@@ -94,24 +97,76 @@ export function PlayerModal({
     if (!isPlaying || !media || !isAuthenticated) return
 
     const interval = setInterval(async () => {
-      const token = await getAccessTokenSilently()
+      try {
+        const token = await getAccessTokenSilently()
 
-      await updateContinueWatching(token, {
-        tmdbId: media.id,
-        mediaType: mode === 'tv' ? 'tv' : 'movie',
-        season: mode === 'tv' ? season : undefined,
-        episode: mode === 'tv' ? episode : undefined,
-        progress: 0.5,
-      })
+        await updateContinueWatching(token, {
+          tmdbId: media.id,
+          mediaType: mode === 'tv' ? 'tv' : 'movie',
+          season: mode === 'tv' ? season : undefined,
+          episode: mode === 'tv' ? episode : undefined,
+          progress: 0.5,
+        })
+      } catch (err) {
+        console.error('Failed to update continue watching:', err)
+      }
     }, 15000)
 
     return () => clearInterval(interval)
-  }, [isPlaying, media, season, episode])
+  }, [isPlaying, media, season, episode, mode, isAuthenticated, getAccessTokenSilently])
+
+  /* ================= SMART CLOSE WITH RESUME TRACKING ================= */
+
+  const handleSmartClose = useCallback(async () => {
+    if (!media || !isAuthenticated) {
+      onClose()
+      return
+    }
+
+    try {
+      const token = await getAccessTokenSilently()
+      const mediaType = mode === 'tv' ? 'tv' : 'movie'
+
+      // Calculate next progress based on media type
+      let nextProgress = 0.5 // Default for TV
+
+      if (mode === 'movie') {
+        // MOVIE HEURISTIC: 0.1 → 0.5 → 0.9
+        const existing = await fetchExistingProgress(token, media.id, mediaType)
+
+        if (!existing) {
+          nextProgress = 0.1 // First time opening
+        } else if (existing.progress < 0.5) {
+          nextProgress = 0.5 // Second time (resume)
+        } else {
+          nextProgress = 0.9 // Third time (almost finished)
+        }
+      }
+
+      // Save progress
+      await updateContinueWatching(token, {
+        tmdbId: media.id,
+        mediaType,
+        season: mode === 'tv' ? season : undefined,
+        episode: mode === 'tv' ? episode : undefined,
+        progress: nextProgress,
+      })
+
+      // Auto-remove if finished (>0.95 will be filtered on frontend already)
+      if (nextProgress >= 0.95) {
+        await removeContinueWatching(token, media.id, mediaType)
+      }
+    } catch (err) {
+      console.error('Failed to save resume data:', err)
+    }
+
+    onClose()
+  }, [media, mode, season, episode, isAuthenticated, getAccessTokenSilently, onClose])
 
   /* ================= PLAY HELPERS ================= */
 
   const playEpisode = useCallback(
-    (s: number, ep: number) => {
+    async (s: number, ep: number) => {
       if (!media) return
 
       const url = buildEmbedUrl(mode, provider, media.id, {
@@ -125,8 +180,24 @@ export function PlayerModal({
       setIsPlaying(true)
       setSeason(s)
       setEpisode(ep)
+
+      // Update Continue Watching immediately when episode changes
+      if (isAuthenticated) {
+        try {
+          const token = await getAccessTokenSilently()
+          await updateContinueWatching(token, {
+            tmdbId: media.id,
+            mediaType: 'tv',
+            season: s,
+            episode: ep,
+            progress: 0.5,
+          })
+        } catch (err) {
+          console.error('Failed to update episode:', err)
+        }
+      }
     },
-    [media, mode, provider, malId, subOrDub]
+    [media, mode, provider, malId, subOrDub, isAuthenticated, getAccessTokenSilently]
   )
 
   const handlePlay = () => {
@@ -192,7 +263,7 @@ export function PlayerModal({
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-background/95 backdrop-blur-md"
-        onClick={onClose}
+        onClick={handleSmartClose}
       />
 
       {/* Modal */}
@@ -208,7 +279,7 @@ export function PlayerModal({
       >
         {/* Close */}
         <button
-          onClick={onClose}
+          onClick={handleSmartClose}
           className="
             absolute right-3 top-3 z-20
             flex h-10 w-10 items-center justify-center
@@ -275,7 +346,7 @@ export function PlayerModal({
         {/* Content */}
         <div className="p-4 sm:p-6">
           {!isPlaying ? (
-            /* ===== PRE-PLAY UI (UNCHANGED LOGIC) ===== */
+            /* ===== PRE-PLAY UI ===== */
             <div className="space-y-6">
               {mode === 'tv' && (
                 <div className="space-y-4">
@@ -417,7 +488,7 @@ export function PlayerModal({
                     <button
                       onClick={handlePrevEpisode}
                       disabled={season === 1 && episode === 1}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>

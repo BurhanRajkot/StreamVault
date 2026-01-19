@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Media } from '@/lib/config'
 import { Play, MoreVertical, Trash2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type ContinueWatchingItem = {
   tmdbId: number
@@ -13,7 +14,7 @@ type ContinueWatchingItem = {
 interface Props {
   media: Media
   item: ContinueWatchingItem
-  onResume: (media: Media) => void
+  onResume: (media: Media, season?: number, episode?: number) => void
   onRemove: (item: ContinueWatchingItem) => void
 }
 
@@ -25,20 +26,37 @@ export function ContinueWatchingCard({
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
 
+  const title = media.title || media.name || 'Unknown'
+
+  // Calculate label based on progress
+  const getProgressLabel = () => {
+    if (item.progress < 0.2) return 'Start'
+    if (item.progress >= 0.2 && item.progress < 0.8) return 'Resume'
+    return null // Hidden by filter in parent (>0.95)
+  }
+
+  const progressLabel = getProgressLabel()
+
   return (
     <div className="group relative w-[160px] flex-shrink-0">
       {/* Play Overlay (hover + touch) */}
       <div
         className="
-          absolute inset-0 z-10 flex items-center justify-center
-          rounded-lg bg-black/60
+          absolute inset-0 z-10 flex flex-col items-center justify-center
+          rounded-lg bg-black/70
           opacity-0 group-hover:opacity-100
           transition
           active:opacity-100
+          cursor-pointer
         "
-        onClick={() => onResume(media)}
+        onClick={() => onResume(media, item.season, item.episode)}
       >
-        <Play className="h-10 w-10 text-white" />
+        <Play className="h-12 w-12 text-white fill-white mb-2" />
+        {progressLabel && (
+          <span className="text-xs font-semibold text-white bg-black/50 px-2 py-1 rounded">
+            {progressLabel}
+          </span>
+        )}
       </div>
 
       {/* Menu Button */}
@@ -49,7 +67,7 @@ export function ContinueWatchingCard({
         }}
         className="
           absolute right-2 top-2 z-20
-          rounded-full bg-black/60 p-1.5
+          rounded-full bg-black/70 p-1.5
           text-white
           opacity-0 group-hover:opacity-100
           transition
@@ -62,34 +80,79 @@ export function ContinueWatchingCard({
 
       {/* Menu */}
       {menuOpen && (
-        <div className="absolute right-2 top-10 z-30 w-44 rounded-md border border-border bg-card shadow-lg">
-          <button
-            onClick={() => {
-              onRemove(item)
-              setMenuOpen(false)
-            }}
-            className="
-              flex w-full items-center gap-2
-              px-3 py-2 text-sm
-              text-destructive
-              transition-colors
-              hover:bg-destructive/10
-              active:bg-destructive/20
-            "
-          >
-            <Trash2 className="h-4 w-4" />
-            Remove
-          </button>
-        </div>
+        <>
+          {/* Backdrop to close menu */}
+          <div
+            className="fixed inset-0 z-25"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div className="absolute right-2 top-10 z-30 w-44 rounded-md border border-border bg-card shadow-lg">
+            <button
+              onClick={() => {
+                onRemove(item)
+                setMenuOpen(false)
+              }}
+              className="
+                flex w-full items-center gap-2
+                px-3 py-2 text-sm
+                text-destructive
+                transition-colors
+                hover:bg-destructive/10
+                active:bg-destructive/20
+              "
+            >
+              <Trash2 className="h-4 w-4" />
+              Remove from Continue Watching
+            </button>
+          </div>
+        </>
       )}
 
       {/* Poster */}
-      <img
-        src={`https://image.tmdb.org/t/p/w342${media.poster_path}`}
-        alt={media.title || media.name}
-        className="rounded-lg"
-        onClick={() => onResume(media)}
-      />
+      <div
+        className="relative rounded-lg overflow-hidden cursor-pointer"
+        onClick={() => onResume(media, item.season, item.episode)}
+      >
+        <img
+          src={`https://image.tmdb.org/t/p/w342${media.poster_path}`}
+          alt={title}
+          className="w-full h-[240px] object-cover rounded-lg"
+        />
+
+        {/* Progress Bar at Bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${item.progress * 100}%` }}
+          />
+        </div>
+
+        {/* Episode Badge for TV Shows */}
+        {item.mediaType === 'tv' && item.season && item.episode && (
+          <div className="absolute bottom-2 left-2 bg-black/80 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold text-white">
+            S{item.season} · E{item.episode}
+          </div>
+        )}
+
+        {/* Progress Label Badge */}
+        {progressLabel && (
+          <div
+            className={cn(
+              'absolute top-2 left-2 px-2 py-1 rounded text-xs font-semibold',
+              progressLabel === 'Start'
+                ? 'bg-green-500/90 text-white'
+                : 'bg-primary/90 text-primary-foreground'
+            )}
+          >
+            {progressLabel}
+          </div>
+        )}
+      </div>
+
+      {/* Title */}
+      <p className="mt-2 text-xs font-medium text-foreground line-clamp-1">
+        {title}
+      </p>
     </div>
   )
 }
