@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { HelmetProvider } from 'react-helmet-async'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Routes, Route } from 'react-router-dom'
@@ -13,6 +14,16 @@ import NotFound from './pages/NotFound'
 const queryClient = new QueryClient()
 
 export default function App() {
+  // 🔥 FRONTEND WARM-UP PING (VERY IMPORTANT)
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL
+    if (apiUrl) {
+      fetch(`${apiUrl}/health`).catch(() => {
+        // silently ignore errors
+      })
+    }
+  }, [])
+
   return (
     <HelmetProvider>
       <QueryClientProvider client={queryClient}>
