@@ -59,6 +59,7 @@ export function MediaGrid({
         </h2>
       )}
 
+      {/* 🔥 EXTRA COLUMNS ON 2XL SCREENS */}
       <div
         className="
           grid
@@ -69,6 +70,7 @@ export function MediaGrid({
           md:grid-cols-4
           lg:grid-cols-5
           xl:grid-cols-6
+          2xl:grid-cols-7
         "
       >
         {media.map((item) => (
@@ -81,7 +83,6 @@ export function MediaGrid({
           ))}
       </div>
 
-      {/* Load More Trigger */}
       <div ref={loadMoreRef} className="h-10" />
 
       {!hasMore && media.length > 0 && (
