@@ -14,14 +14,11 @@ import NotFound from './pages/NotFound'
 const queryClient = new QueryClient()
 
 export default function App() {
-  // 🔥 FRONTEND WARM-UP PING (VERY IMPORTANT)
+  // 🔥 FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL
-    if (apiUrl) {
-      fetch(`${apiUrl}/health`).catch(() => {
-        // silently ignore errors
-      })
-    }
+    fetch('https://streamvault-backend-bq9p.onrender.com/health').catch(() => {
+      // silently ignore errors
+    })
   }, [])
 
   return (
