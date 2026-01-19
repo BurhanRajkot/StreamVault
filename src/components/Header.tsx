@@ -66,7 +66,8 @@ export function Header({
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      <div className="container flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
+      {/* 🔥 MATCH HEADER WIDTH WITH MAIN CONTENT */}
+      <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
         {/* Logo + Mobile Favorites */}
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
@@ -79,7 +80,6 @@ export function Header({
             </h1>
           </Link>
 
-          {/* Mobile Favorites */}
           {isAuthenticated && (
             <Link
               to="/favorites"
@@ -133,7 +133,6 @@ export function Header({
 
         {/* Desktop Favorites + Auth */}
         <div className="hidden sm:flex items-center gap-3">
-          {/* Favorites (RESTORED) */}
           {isAuthenticated && (
             <Button asChild size="sm" variant="secondary">
               <Link to="/favorites" className="flex items-center gap-2">
@@ -143,7 +142,6 @@ export function Header({
             </Button>
           )}
 
-          {/* Logged OUT */}
           {!isAuthenticated && (
             <>
               <Button asChild size="sm" variant="secondary">
@@ -155,7 +153,6 @@ export function Header({
             </>
           )}
 
-          {/* Logged IN → Profile Avatar */}
           {isAuthenticated && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

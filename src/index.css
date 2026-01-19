@@ -237,3 +237,8 @@
     }
   }
 }
+@layer utilities {
+  .container-wide {
+    max-width: 1800px;
+  }
+}
