@@ -9,7 +9,13 @@ import {
   SkipForward,
 } from 'lucide-react'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
-import { buildEmbedUrl, fetchTVSeasons, updateContinueWatching, removeContinueWatching, fetchExistingProgress } from '@/lib/api'
+import {
+  buildEmbedUrl,
+  fetchTVSeasons,
+  updateContinueWatching,
+  removeContinueWatching,
+  fetchExistingProgress,
+} from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
 
@@ -113,55 +119,68 @@ export function PlayerModal({
     }, 15000)
 
     return () => clearInterval(interval)
-  }, [isPlaying, media, season, episode, mode, isAuthenticated, getAccessTokenSilently])
+  }, [
+    isPlaying,
+    media,
+    season,
+    episode,
+    mode,
+    isAuthenticated,
+    getAccessTokenSilently,
+  ])
 
-  /* ================= SMART CLOSE WITH RESUME TRACKING ================= */
+  /* ================= FAST CLOSE (ONLY CHANGE MADE HERE) ================= */
 
-  const handleSmartClose = useCallback(async () => {
-    if (!media || !isAuthenticated) {
-      onClose()
-      return
-    }
-
-    try {
-      const token = await getAccessTokenSilently()
-      const mediaType = mode === 'tv' ? 'tv' : 'movie'
-
-      // Calculate next progress based on media type
-      let nextProgress = 0.5 // Default for TV
-
-      if (mode === 'movie') {
-        // MOVIE HEURISTIC: 0.1 → 0.5 → 0.9
-        const existing = await fetchExistingProgress(token, media.id, mediaType)
-
-        if (!existing) {
-          nextProgress = 0.1 // First time opening
-        } else if (existing.progress < 0.5) {
-          nextProgress = 0.5 // Second time (resume)
-        } else {
-          nextProgress = 0.9 // Third time (almost finished)
-        }
-      }
-
-      // Save progress
-      await updateContinueWatching(token, {
-        tmdbId: media.id,
-        mediaType,
-        season: mode === 'tv' ? season : undefined,
-        episode: mode === 'tv' ? episode : undefined,
-        progress: nextProgress,
-      })
-
-      // Auto-remove if finished (>0.95 will be filtered on frontend already)
-      if (nextProgress >= 0.95) {
-        await removeContinueWatching(token, media.id, mediaType)
-      }
-    } catch (err) {
-      console.error('Failed to save resume data:', err)
-    }
-
+  const handleSmartClose = useCallback(() => {
+    // 1️⃣ Close modal immediately (NO async here)
     onClose()
-  }, [media, mode, season, episode, isAuthenticated, getAccessTokenSilently, onClose])
+
+    // 2️⃣ Save resume in background (fire-and-forget)
+    if (!media || !isAuthenticated) return
+
+    setTimeout(async () => {
+      try {
+        const token = await getAccessTokenSilently()
+        const mediaType = mode === 'tv' ? 'tv' : 'movie'
+
+        let nextProgress = 0.5 // Default for TV
+
+        if (mode === 'movie') {
+          const existing = await fetchExistingProgress(token, media.id, mediaType)
+
+          if (!existing) {
+            nextProgress = 0.1
+          } else if (existing.progress < 0.5) {
+            nextProgress = 0.5
+          } else {
+            nextProgress = 0.9
+          }
+        }
+
+        await updateContinueWatching(token, {
+          tmdbId: media.id,
+          mediaType,
+          season: mode === 'tv' ? season : undefined,
+          episode: mode === 'tv' ? episode : undefined,
+          progress: nextProgress,
+        })
+
+        if (nextProgress >= 0.95) {
+          await removeContinueWatching(token, media.id, mediaType)
+        }
+      } catch (err) {
+        console.error('Failed to save resume data:', err)
+      }
+    }, 0)
+  }, [
+    media,
+    mode,
+    season,
+    episode,
+    isAuthenticated,
+    getAccessTokenSilently,
+    onClose,
+  ])
 
   /* ================= PLAY HELPERS ================= */
 
@@ -181,7 +200,6 @@ export function PlayerModal({
       setSeason(s)
       setEpisode(ep)
 
-      // Update Continue Watching immediately when episode changes
       if (isAuthenticated) {
         try {
           const token = await getAccessTokenSilently()
