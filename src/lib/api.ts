@@ -151,6 +151,19 @@ export async function removeContinueWatching(
   if (!res.ok) throw new Error('Failed to remove continue watching')
 }
 
+/**
+ * Helper to fetch existing progress for a specific media item
+ * Used for movie heuristic logic (0.1 → 0.5 → 0.9)
+ */
+export async function fetchExistingProgress(
+  token: string,
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<ContinueWatchingItem | null> {
+  const items = await fetchContinueWatching(token)
+  return items.find(i => i.tmdbId === tmdbId && i.mediaType === mediaType) || null
+}
+
 /* ======================================================
    EMBED URL BUILDER
 ====================================================== */
@@ -162,6 +175,8 @@ export function buildEmbedUrl(
   options: {
     season?: number
     episode?: number
+    malId?: string
+    subOrDub?: string
   }
 ): string {
   const { season = 1, episode = 1 } = options
