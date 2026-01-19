@@ -6,7 +6,6 @@ import cors from 'cors'
 
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
-import { checkJwt } from './middleware/auth'
 import downloadsRouter from './routes/downloads'
 
 const app = express()
@@ -24,15 +23,21 @@ app.use(express.json())
 
 const PORT = process.env.PORT || 4000
 
+// 🔥 HEALTH ENDPOINT (FOR UPTIMEROBOT + WARMUP)
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' })
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    time: new Date().toISOString(),
+  })
 })
 
+// ROUTES
 app.use('/downloads', downloadsRouter)
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
-app.use('/downloads', downloadsRouter)
 
+// 🚀 START SERVER
 app.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`)
 })
