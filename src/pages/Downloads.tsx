@@ -1,16 +1,89 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { fetchDownloads, downloadFile, DownloadItem } from '@/lib/api'
-import { Download } from 'lucide-react'
+import { getImageUrl } from '@/lib/api'
+import { Search, Download } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+type EnrichedDownload = DownloadItem & {
+  posterPath: string | null
+}
+
+const TMDB_BASE = 'https://api.themoviedb.org/3'
+const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY // ✅ SAFE WAY
+
+// Clean title: remove year, quality, brackets, etc.
+function cleanTitle(raw: string) {
+  return raw
+    .replace(/\(\d{4}\)/g, '')        // remove (2014)
+    .replace(/\[\.*?\]/g, '')        // remove [1080p]
+    .replace(/1080p|720p|2160p/gi, '')
+    .replace(/bluray|webrip|hdrip/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+async function fetchPoster(title: string): Promise<string | null> {
+  try {
+    if (!TMDB_KEY) {
+      console.error('❌ TMDB API KEY is missing')
+      return null
+    }
+
+    const cleaned = cleanTitle(title)
+
+    const url = `${TMDB_BASE}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(
+      cleaned
+    )}`
+
+    const res = await fetch(url)
+    const data = await res.json()
+
+    if (data.results && data.results.length > 0) {
+      return data.results[0].poster_path || null
+    }
+
+    return null
+  } catch (err) {
+    console.error('Poster fetch failed for:', title, err)
+    return null
+  }
+}
 
 const Downloads = () => {
-  const [items, setItems] = useState<DownloadItem[]>([])
+  const [items, setItems] = useState<EnrichedDownload[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetchDownloads()
-      .then(setItems)
-      .finally(() => setLoading(false))
+    async function load() {
+      setLoading(true)
+
+      const raw = await fetchDownloads()
+
+      const enriched = await Promise.all(
+        raw.map(async (item) => {
+          const posterPath = await fetchPoster(item.title)
+          return {
+            ...item,
+            posterPath,
+          }
+        })
+      )
+
+      setItems(enriched)
+      setLoading(false)
+    }
+
+    load()
   }, [])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return items
+
+    return items.filter((i) =>
+      i.title.toLowerCase().includes(search.toLowerCase())
+    )
+  }, [items, search])
 
   if (loading) {
     return (
@@ -30,34 +103,81 @@ const Downloads = () => {
   }
 
   return (
-    <div className="space-y-4">
-      {items.map((d) => (
-        <div
-          key={d.id}
-          className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <h3 className="text-base font-semibold text-foreground">
-              {d.title}
-            </h3>
-            <p className="text-sm text-muted-foreground">{d.quality}</p>
-          </div>
+    <div className="space-y-6">
+      {/* 🔍 Search Bar */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search downloads..."
+          className="h-11 w-full rounded-lg border bg-secondary/50 pl-10 pr-4 text-sm"
+        />
+      </div>
 
-          <button
-            onClick={() => downloadFile(d.id)}
-            className="
-              inline-flex items-center justify-center gap-2
-              rounded-lg bg-primary px-5 py-2.5
-              text-sm font-semibold text-primary-foreground
-              transition-all hover:scale-[1.03] hover:shadow-md
-              active:scale-95
-            "
-          >
-            <Download className="h-4 w-4" />
-            Download
-          </button>
-        </div>
-      ))}
+      {/* 📦 Grid */}
+      <div
+        className="
+          grid
+          grid-cols-2
+          gap-3
+          sm:grid-cols-3
+          sm:gap-4
+          md:grid-cols-4
+          lg:grid-cols-5
+          xl:grid-cols-6
+        "
+      >
+        {filtered.map((item) => {
+          const imageUrl = getImageUrl(item.posterPath, 'poster')
+
+          return (
+            <div
+              key={item.id}
+              onClick={() => downloadFile(item.id)}
+              className={cn(
+                'group relative cursor-pointer overflow-hidden rounded-lg bg-card transition-all duration-300',
+                'hover:scale-[1.03] hover:shadow-card hover:ring-1 hover:ring-primary/50',
+                'active:scale-[0.97]'
+              )}
+            >
+              {/* Poster */}
+              <div className="relative aspect-[2/3] overflow-hidden">
+                <img
+                  src={imageUrl}
+                  alt={item.title}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  onError={(e) => {
+                    // 🔒 FINAL SAFETY FALLBACK
+                    ;(e.currentTarget as HTMLImageElement).src = '/placeholder.svg'
+                  }}
+                />
+
+                {/* Download Overlay */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/40">
+                  <Download className="h-10 w-10 opacity-0 transition group-hover:opacity-100" />
+                </div>
+              </div>
+
+              {/* Text */}
+              <div className="p-3">
+                <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
+                  {item.title}
+                </h3>
+                <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                  {item.quality}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-center text-sm text-muted-foreground">
+          No downloads match your search.
+        </p>
+      )}
     </div>
   )
 }
