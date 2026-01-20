@@ -7,18 +7,13 @@ import Index from './pages/Index'
 import Favorites from './pages/Favorites'
 import Downloads from './pages/Downloads'
 import Watch from './pages/Watch'
-import Login from './auth/Login'
-import Signup from './auth/Signup'
 import NotFound from './pages/NotFound'
 
 const queryClient = new QueryClient()
 
 export default function App() {
-  // 🔥 FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
-    fetch('https://streamvault-backend-bq9p.onrender.com/health').catch(() => {
-      // silently ignore errors
-    })
+    fetch('https://streamvault-backend-bq9p.onrender.com/health').catch(() => {})
   }, [])
 
   return (
@@ -29,8 +24,6 @@ export default function App() {
           <Route path="/downloads" element={<Downloads />} />
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </QueryClientProvider>

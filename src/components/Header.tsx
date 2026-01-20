@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth0 } from '@auth0/auth0-react'
+import { AuthModal } from '@/auth/AuthModal'
+import { motion } from 'framer-motion'
 
 interface HeaderProps {
   mode: MediaMode
@@ -38,6 +40,8 @@ export function Header({
   onClearSearch,
 }: HeaderProps) {
   const [inputValue, setInputValue] = useState('')
+  const [authOpen, setAuthOpen] = useState(false)
+
   const { user, isAuthenticated, logout } = useAuth0()
 
   const handleSubmit = (e: FormEvent) => {
@@ -66,9 +70,8 @@ export function Header({
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      {/* 🔥 MATCH HEADER WIDTH WITH MAIN CONTENT */}
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
-        {/* Logo + Mobile Favorites */}
+        {/* Logo */}
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary">
@@ -131,7 +134,7 @@ export function Header({
           </form>
         )}
 
-        {/* Desktop Favorites + Auth */}
+        {/* Right Section */}
         <div className="hidden sm:flex items-center gap-3">
           {isAuthenticated && (
             <Button asChild size="sm" variant="secondary">
@@ -144,11 +147,19 @@ export function Header({
 
           {!isAuthenticated && (
             <>
-              <Button asChild size="sm" variant="secondary">
-                <Link to="/login">Login</Link>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setAuthOpen(true)}
+              >
+                Login
               </Button>
-              <Button asChild size="sm" variant="outline">
-                <Link to="/signup">Sign up</Link>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAuthOpen(true)}
+              >
+                Sign up
               </Button>
             </>
           )}
@@ -156,12 +167,17 @@ export function Header({
           {isAuthenticated && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary">
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+                >
                   <Avatar className="h-9 w-9 border">
                     <AvatarImage src={user?.picture} />
                     <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="w-56">
@@ -188,6 +204,9 @@ export function Header({
           )}
         </div>
       </div>
+
+      {/* 🔐 AUTH MODAL */}
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </header>
   )
 }
