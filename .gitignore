@@ -1,4 +1,7 @@
+
+# =========================
 # Logs
+# =========================
 logs
 *.log
 npm-debug.log*
@@ -7,18 +10,72 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# =========================
+# Runtime data
+# =========================
+pids
+*.pid
+*.seed
+*.pid.lock
 
-# Editor directories and files
+# =========================
+# Dependency directories
+# =========================
+node_modules/
+.bun/
+.pnpm-store/
+
+# =========================
+# Build output
+# =========================
+dist/
+dist-ssr/
+build/
+.out/
+.next/
+coverage/
+
+# =========================
+# Environment variables (CRITICAL)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Vite / React specific
+# =========================
+.vite/
+.cache/
+
+# =========================
+# Prisma
+# =========================
+prisma/dev.db
+prisma/dev.db-journal
+
+# =========================
+# OS / Editor files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Editor directories
+# =========================
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# =========================
+# Misc
+# =========================
+*.local
+*.tmp
+*.bak
+*.old
