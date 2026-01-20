@@ -77,12 +77,16 @@ export function MediaCard({
             {isAuthenticated && (
               <button
                 onClick={handleFavorite}
-                className="rounded-full bg-white/80 p-2 backdrop-blur transition hover:scale-110 active:scale-95"
+                /* 🔧 ONLY CHANGE IS HERE: REMOVED bg-white/80 */
+                className="rounded-full bg-black/40 p-2 backdrop-blur transition hover:scale-110 active:scale-95"
               >
                 <Heart
                   className={cn(
                     'h-4 w-4',
-                    favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
+                    /* 🔧 KEEP EXACT SAME LOGIC AS BEFORE */
+                    favorited
+                      ? 'fill-red-500 text-red-500'
+                      : 'text-red-500'
                   )}
                 />
               </button>
