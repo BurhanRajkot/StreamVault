@@ -1,138 +1,375 @@
-.
+<div align="center">
 
-🎬 StreamVault — My Personal Streaming Hub
+# 🎬 StreamVault
 
-This is a project I built to create a clean, fast, and modern media streaming website.
-The goal was simple:
-one place where I can browse movies, TV shows, and anime with a smooth UI and stream them instantly.
+### The Ultimate Personal Streaming Hub
 
-I didn't want a bulky website, slow backend, or anything complex — just a polished frontend powered by APIs.
+A modern, full-stack media platform combining Netflix-inspired UX with production-grade engineering. Built to showcase real-world development skills in React, TypeScript, and backend architecture.
 
-🚀 What This Project Does
+[**🌐 Live Demo**](https://stream-vault-7u6q.vercel.app/) · [**📖 Documentation**](#-getting-started) · [**🐞 Report Bug**](https://github.com/dragon-manner/streamvault/issues) · [**✨ Request Feature**](https://github.com/dragon-manner/streamvault/issues)
 
-Shows trending, popular, and top-rated movies/series/anime
+![StreamVault Hero](https://via.placeholder.com/800x400/0f172a/38bdf8?text=StreamVault+Hero+Screenshot)
 
-Lets you search and explore media
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![Bun](https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white)](https://bun.sh/)
 
-Opens a clean streaming player inside a modal
+</div>
 
-Fetches all metadata (title, overview, posters, ratings) from TMDB API
+---
 
-Uses external embedded streaming sources to play the content
+## 🌟 Overview
 
-Fully responsive for mobile, tablet, laptop
+**StreamVault** is a production-ready streaming platform that demonstrates mastery of modern web development practices. Featuring a sleek, glass-morphic interface and robust backend architecture, it delivers a premium viewing experience while maintaining clean, scalable code.
 
-Clean UI built with Tailwind + ShadCN
+### Why StreamVault?
 
-My goal is simplicity + speed + a modern frontend feel.
+- **Performance First**: Vite-powered frontend with optimized bundle sizes and lazy loading
+- **Type-Safe**: End-to-end TypeScript for reduced runtime errors
+- **Database-Driven**: Prisma ORM with relational data modeling
+- **Secure by Design**: JWT authentication, API key protection, and secure routing
+- **Production-Ready**: Health checks, error handling, and deployment-optimized
 
-🧩 Why I Built This
+---
 
-I wanted to learn:
+## ✨ Features
 
-How to structure a proper React + TypeScript project
+### 🎨 **Frontend Experience**
+- **Modern UI/UX**: Glass-morphic design with Tailwind CSS and shadcn/ui components
+- **Fully Responsive**: Seamless experience across mobile, tablet, and desktop
+- **Hero Carousel**: Auto-playing showcase of featured content
+- **Infinite Scroll**: Dynamic loading for large media libraries
+- **Smooth Animations**: Framer Motion-powered transitions and skeleton loaders
 
-How to use Vite for a fast dev environment
+### 🔐 **User Features**
+- **Secure Authentication**: JWT-based login and signup system
+- **Favorites & Watchlist**: Personalized collection management
+- **Continue Watching**: Smart resume with progress tracking across sessions
+- **Auto-Resume**: Pick up exactly where you left off for movies and TV episodes
+- **Profile Management**: Custom avatars and account settings
 
-How to build reusable UI components
+### 📥 **Downloads System**
+- **Backend-Managed**: Secure file handling and serving
+- **Rich Metadata**: TMDB integration for posters and descriptions
+- **Smart Search**: Filter and find downloaded content instantly
+- **Direct Access**: One-click downloads from organized media cards
 
-How to integrate external APIs (TMDB)
+### 🧠 **Backend Architecture**
+- **Prisma ORM**: Type-safe database queries with migration support
+- **RESTful API**: Clean endpoint design with proper HTTP methods
+- **JWT Authentication**: Protected routes and user session management
+- **TMDB Proxy**: Frontend never exposes third-party API keys
+- **Cold-Start Optimization**: Health check endpoints for serverless deployments
 
-How to design a streaming-style UI (like Zoro, AniWatch, etc.)
+---
 
-How to manage modals, carousels, grids, and dynamic data
+## 🏗️ Architecture
 
-And I wanted a personal project that I could actually use as a media hub.
+```mermaid
+graph LR
+    A[React Frontend] -->|HTTPS/JSON| B[Express API]
+    B -->|Prisma ORM| C[PostgreSQL/SQLite]
+    B -->|Proxy| D[TMDB API]
+    A -->|Protected Routes| E[JWT Auth]
+    B -->|File Serving| F[Downloads Storage]
+```
 
-📂 Main Features (Explained Simply)
-⭐ Hero Carousel
+**Security Model**: All API keys and secrets remain server-side. The frontend communicates solely through authenticated backend endpoints.
 
-Shows featured movies with big posters and smooth sliding animation.
+---
 
-⭐ Media Grid
+## 🛠️ Tech Stack
 
-Clean card-based layout for browsing.
-Includes posters, title, year, rating, and a hover effect.
+<table>
+<tr>
+<td valign="top" width="50%">
 
-⭐ Anime Section
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: TailwindCSS, shadcn/ui
+- **State Management**: React Context API
+- **Routing**: React Router v6
+- **HTTP Client**: Axios
+- **Icons**: Lucide React
 
-A dedicated space for anime fans — pulls anime data from TMDB categories.
+</td>
+<td valign="top" width="50%">
 
-⭐ Streaming Player
+### Backend
+- **Runtime**: Bun (Node.js compatible)
+- **Framework**: Express
+- **ORM**: Prisma
+- **Database**: PostgreSQL (prod), SQLite (dev)
+- **Authentication**: JWT
+- **API Integration**: TMDB API v3
+- **File Storage**: Local filesystem
 
-When you click on any movie/series:
-→ A player modal opens
-→ The stream loads using an embed source
-→ You can close it without leaving the page
+</td>
+</tr>
+</table>
 
-⭐ Disclaimer Modal
+---
 
-Shows a disclaimer about external links and streaming rights.
+## 📂 Project Structure
 
-⭐ Reusable UI Components
+```
+StreamVault/
+├── src/                      # Frontend application
+│   ├── components/           # Reusable UI components
+│   │   ├── ui/              # shadcn/ui base components
+│   │   ├── MediaCard.tsx    # Media display card
+│   │   ├── HeroCarousel.tsx # Featured content slider
+│   │   └── Navbar.tsx       # Navigation bar
+│   ├── pages/               # Route pages
+│   │   ├── Home.tsx         # Landing page
+│   │   ├── Watch.tsx        # Video player page
+│   │   ├── Favorites.tsx    # User's saved content
+│   │   └── Downloads.tsx    # Downloaded media
+│   ├── hooks/               # Custom React hooks
+│   ├── auth/                # Authentication logic & guards
+│   ├── lib/                 # Utilities & API client
+│   └── types/               # TypeScript definitions
+│
+├── backend/                  # Backend application
+│   ├── prisma/              # Database schema & migrations
+│   │   ├── schema.prisma    # Data models
+│   │   └── migrations/      # Version-controlled DB changes
+│   ├── routes/              # API endpoints
+│   │   ├── auth.ts          # Authentication routes
+│   │   ├── media.ts         # Media CRUD operations
+│   │   └── downloads.ts     # Download management
+│   ├── middleware/          # Express middleware
+│   │   └── auth.ts          # JWT verification
+│   ├── public/              # Static file serving
+│   │   └── downloads/       # Downloaded media files
+│   └── server.ts            # Application entry point
+│
+├── public/                   # Frontend static assets
+└── README.md                # You are here!
+```
 
-All dropdowns, dialogs, cards, buttons, etc. are from ShadCN, but I customized a lot of them.
+---
 
-🛠️ Tech Stack I Used
+## 🚀 Getting Started
 
-React + TypeScript → for structure and reliable code
+### Prerequisites
 
-Vite → super fast dev server
+- **Bun** v1.0+ (or Node.js v18+)
+- **Git**
+- **TMDB API Key** ([Get one here](https://www.themoviedb.org/settings/api))
 
-TailwindCSS → styling without writing CSS files
+### Installation
 
-ShadCN UI → modern UI components
+#### 1️⃣ Clone the Repository
 
-TMDB API → to fetch movies/series/anime
+```bash
+git clone https://github.com/dragon-manner/streamvault.git
+cd streamvault
+```
 
-Custom Hooks (useMedia, use-mobile)
+#### 2️⃣ Install Dependencies
 
-External streaming providers for video playback
+**Frontend:**
+```bash
+bun install
+```
 
-This stack makes the project extremely fast and modular.
-
-📁 Folder Structure (My Explanation)
-src/
-├── components/     → All UI pieces (header, cards, modals, etc.)
-├── pages/          → Main pages like Home + Not Found
-├── hooks/          → Custom logic (media fetching, toast, mobile view)
-├── lib/            → API config + helper functions
-├── main.tsx        → App entry point
-├── App.tsx         → Routes + layout
-└── index.css       → Global styles
-
-
-I kept everything clean, modular, and easy to navigate.
-
-🔧 How to Run It
-npm install
-npm run dev
+**Backend:**
+```bash
+cd backend
+bun install
+cd ..
+```
 
 
-Then open:
+#### 4️⃣ Database Setup
 
-http://localhost:5173
+```bash
+cd backend
+bun x prisma migrate dev --name init
+bun x prisma generate
+cd ..
+```
+
+#### 5️⃣ Start Development Servers
+
+**Terminal 1 - Frontend:**
+```bash
+bun run dev
+```
+
+**Terminal 2 - Backend:**
+```bash
+cd backend
+bun run dev
+```
+
+**Access the application:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3000
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+
+### Home Page with Hero Carousel
+![Home Page](https://via.placeholder.com/800x450/0f172a/38bdf8?text=Hero+Carousel+%26+Featured+Content)
+
+### Continue Watching & Favorites
+![Continue Watching](https://via.placeholder.com/800x450/0f172a/a855f7?text=Smart+Resume+%26+Progress+Tracking)
+
+### Downloads Library
+![Downloads](https://via.placeholder.com/800x450/0f172a/10b981?text=Local+Media+Management)
+
+### Video Player
+![Player](https://via.placeholder.com/800x450/0f172a/f59e0b?text=Immersive+Viewing+Experience)
+
+</div>
+
+---
+
+## 🎯 Key Features Deep Dive
+
+### Smart Resume System
+StreamVault uses intelligent progress tracking to determine when to resume content:
+- **Movies**: Resumes between 10% and 90% progress
+- **TV Shows**: Episode-level tracking with season context
+- **Auto-hide**: Completed content (>90%) automatically removed from Continue Watching
+
+### TMDB Integration
+All metadata is enriched through The Movie Database:
+- Real-time poster and backdrop images
+- Cast and crew information
+- Ratings and release dates
+- Genre classification
+- Episode guides for TV series
+
+### Download Management
+Backend-controlled file serving with rich metadata:
+- Secure file storage outside web root
+- Metadata enrichment for local files
+- Search and filter capabilities
+- Organized by type (movies/shows)
+
+---
+
+## 🔧 Available Scripts
+
+### Frontend
+```bash
+bun run dev          # Start development server
+bun run build        # Production build
+bun run preview      # Preview production build
+bun run lint         # Run ESLint
+```
+
+### Backend
+```bash
+bun run dev          # Start with hot-reload
+bun run start        # Production start
+bun run migrate      # Run database migrations
+bun run studio       # Open Prisma Studio
+```
+
+---
+
+## 🌐 Deployment
+
+### Frontend (Vercel)
+```bash
+# Already configured with vercel.json
+vercel --prod
+```
+
+### Backend (Railway/Render)
+1. Set environment variables in platform dashboard
+2. Change `DATABASE_URL` to PostgreSQL connection string
+3. Run migrations: `bunx prisma migrate deploy`
+4. Deploy from GitHub integration
 
 
-If you want to use TMDB, create a .env file:
 
-VITE_TMDB_API_KEY=your_api_key
+## 🗺️ Roadmap
 
-🧭 Future Plans
+- [ ] **Redis Caching**: Cache TMDB responses to reduce API calls
+- [ ] **User Profiles**: Multi-profile support per account
+- [ ] **Watch History**: Timeline view of viewing activity
+- [ ] **Recommendations**: AI-powered content suggestions
+- [ ] **Multi-Provider**: Fallback player sources
+- [ ] **Admin Panel**: Content management dashboard
+- [ ] **Subtitles**: Multi-language subtitle support
+- [ ] **Social Features**: Share favorites and reviews
 
-Better player source switching
+---
 
-Episode selector for TV shows
+## 🤝 Contributing
 
-Watchlist + user preferences
+Contributions make the open-source community amazing! Any contributions you make are **greatly appreciated**.
 
-Animations for section transitions
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-Deploy to Vercel / Netlify
+### Development Guidelines
+- Follow existing code style and conventions
+- Write meaningful commit messages
+- Add tests for new features
+- Update documentation as needed
 
-📝 Final Notes from Me
+---
 
-This is still a work-in-progress, but it already feels like a real streaming website.
-I’m building it mainly to learn, experiment, and create something I actually enjoy using.
+## 📜 Legal Disclaimer
 
-If you want me to make a LOGO, landing page screenshot, badges, or a better formatted README, just tell me — I can upgrade this further.
+**StreamVault is an educational portfolio project.**
+
+- ⚠️ **No Content Hosting**: This application does not host any video files
+- 🔗 **Metadata Only**: All data is sourced from TMDB API under their terms of service
+- 🎥 **Embedded Players**: Video streams are embedded from third-party providers
+- 📝 **No Copyright Infringement**: No copyrighted content is stored on this server
+
+**Use Responsibly**: Ensure you have proper rights to access any content you stream through this platform.
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` file for more information.
+
+---
+
+## 👤 Author
+
+**Piracy Is Not Stealing**
+
+- GitHub: [@dragon-manner](https://github.com/dragon-manner)
+- Portfolio: *Coming Soon* 🚀
+- LinkedIn: [Connect with me](https://linkedin.com/in/Piracy Is Not Stealing)
+
+---
+
+## 🙏 Acknowledgments
+
+- [TMDB](https://www.themoviedb.org/) for providing comprehensive media metadata
+- [shadcn/ui](https://ui.shadcn.com/) for beautiful, accessible components
+- [Lucide](https://lucide.dev/) for the icon system
+- [Prisma](https://www.prisma.io/) for the excellent ORM experience
+
+---
+
+<div align="center">
+
+**Built with ❤️ using React · TypeScript · Bun · Prisma**
+
+If you found this project helpful, please consider giving it a ⭐!
+
+[⬆ Back to Top](#-streamvault)
+
+</div>
