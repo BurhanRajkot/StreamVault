@@ -4,11 +4,8 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog"
-import { Mail, Github, Chrome } from "lucide-react"
+import { Mail, Github, Chrome, Play, Heart, Download } from "lucide-react"
 
 interface AuthModalProps {
   open: boolean
@@ -18,102 +15,137 @@ interface AuthModalProps {
 export function AuthModal({ open, onClose }: AuthModalProps) {
   const { loginWithRedirect, isLoading } = useAuth0()
 
+  const handleRedirect = async (options?: any) => {
+    onClose()
+    await loginWithRedirect(options)
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md overflow-hidden p-0">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden">
         <AnimatePresence>
           {open && (
             <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, scale: 0.95 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-              className="p-6"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="grid grid-cols-1 md:grid-cols-2"
             >
-              <DialogHeader className="space-y-2">
-                <DialogTitle className="text-2xl font-bold">
-                  Welcome to StreamVault
-                </DialogTitle>
-                <DialogDescription>
-                  Sign in to continue watching your movies & shows.
-                </DialogDescription>
-              </DialogHeader>
+              {/* LEFT SIDE — VALUE PROPOSITION */}
+              <div className="hidden md:flex flex-col justify-between bg-gradient-to-br from-primary/20 via-background to-background p-8">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight">
+                    Unlock your StreamVault
+                  </h2>
 
-              <div className="mt-6 space-y-4">
-                {/* Email Login */}
-                <Button
-                  className="w-full h-11"
-                  disabled={isLoading}
-                  onClick={() =>
-                    loginWithRedirect({
-                      appState: { returnTo: "/" },
-                    })
-                  }
-                >
-                  <Mail className="mr-2 h-4 w-4" />
-                  Continue with Email
-                </Button>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Create an account to get the full experience.
+                  </p>
 
-                {/* Divider */}
-                <div className="relative py-2">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or continue with
-                    </span>
+                  <div className="mt-8 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Heart className="h-5 w-5 text-primary" />
+                      <span className="text-sm">
+                        Save your favorites & watch later
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Play className="h-5 w-5 text-primary" />
+                      <span className="text-sm">
+                        Resume watching across all devices
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Download className="h-5 w-5 text-primary" />
+                      <span className="text-sm">
+                        Access downloads & continue offline
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Social Buttons */}
-                <Button
-                  variant="outline"
-                  className="w-full h-11"
-                  onClick={() =>
-                    loginWithRedirect({
-                      authorizationParams: {
-                        connection: "google-oauth2",
-                      },
-                      appState: { returnTo: "/" },
-                    })
-                  }
-                >
-                  <Chrome className="mr-2 h-4 w-4" />
-                  Google
-                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Join thousands of viewers building their personal library.
+                </p>
+              </div>
 
-                <Button
-                  variant="outline"
-                  className="w-full h-11"
-                  onClick={() =>
-                    loginWithRedirect({
-                      authorizationParams: {
-                        connection: "github",
-                      },
-                      appState: { returnTo: "/" },
-                    })
-                  }
-                >
-                  <Github className="mr-2 h-4 w-4" />
-                  GitHub
-                </Button>
+              {/* RIGHT SIDE — ACTIONS */}
+              <div className="p-8">
+                <h3 className="text-xl font-semibold tracking-tight">
+                  Sign in to continue
+                </h3>
 
-                {/* Signup */}
-                <p className="pt-4 text-center text-sm text-muted-foreground">
-                  New here?{" "}
-                  <button
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Your account gives you a personalized StreamVault experience.
+                </p>
+
+                <div className="mt-6 space-y-3">
+                  {/* Email */}
+                  <Button
+                    className="w-full h-11"
+                    disabled={isLoading}
                     onClick={() =>
-                      loginWithRedirect({
-                        authorizationParams: { screen_hint: "signup" },
+                      handleRedirect({
                         appState: { returnTo: "/" },
                       })
                     }
-                    className="font-medium text-primary hover:underline"
                   >
-                    Create an account
-                  </button>
-                </p>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Continue with Email
+                  </Button>
+
+                  {/* Social */}
+                  <Button
+                    variant="outline"
+                    className="w-full h-11"
+                    onClick={() =>
+                      handleRedirect({
+                        authorizationParams: {
+                          connection: "google-oauth2",
+                        },
+                        appState: { returnTo: "/" },
+                      })
+                    }
+                  >
+                    <Chrome className="mr-2 h-4 w-4" />
+                    Continue with Google
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="w-full h-11"
+                    onClick={() =>
+                      handleRedirect({
+                        authorizationParams: {
+                          connection: "github",
+                        },
+                        appState: { returnTo: "/" },
+                      })
+                    }
+                  >
+                    <Github className="mr-2 h-4 w-4" />
+                    Continue with GitHub
+                  </Button>
+
+                  {/* Signup */}
+                  <p className="pt-4 text-center text-sm text-muted-foreground">
+                    New to StreamVault?{" "}
+                    <button
+                      onClick={() =>
+                        handleRedirect({
+                          authorizationParams: { screen_hint: "signup" },
+                          appState: { returnTo: "/" },
+                        })
+                      }
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Create your free account
+                    </button>
+                  </p>
+                </div>
               </div>
             </motion.div>
           )}
