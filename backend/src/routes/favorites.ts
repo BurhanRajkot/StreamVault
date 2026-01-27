@@ -1,41 +1,54 @@
 import { Router, Request, Response } from 'express'
-import { prisma } from '../lib/prisma'
+import { supabase } from '../lib/supabase'
 import { checkJwt } from '../middleware/auth'
+import { v4 as uuidv4 } from 'uuid'
 
 const router = Router()
 
-/**
- * Ensure user exists in DB
- */
 async function ensureUser(userId: string) {
-  await prisma.user.upsert({
-    where: { id: userId },
-    update: {},
-    create: { id: userId },
-  })
+  const { data: existing } = await supabase
+    .from('User')
+    .select('id')
+    .eq('id', userId)
+    .single()
+
+  if (!existing) {
+    await supabase.from('User').insert({ id: userId })
+  }
 }
 
-/**
- * GET /favorites
- */
+function getUserId(req: Request) {
+  return (req as any).auth?.payload?.sub as string | undefined
+}
+
 router.get('/', checkJwt, async (req: Request, res: Response) => {
-  const userId = req.auth!.payload.sub as string
+  const userId = getUserId(req)
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
 
   await ensureUser(userId)
 
-  const favorites = await prisma.favorite.findMany({
-    where: { userId },
-    orderBy: { id: 'desc' },
-  })
+  const { data, error } = await supabase
+    .from('Favorite')
+    .select('*')
+    .eq('userId', userId)
+    .order('id', { ascending: false })
 
-  res.json(favorites)
+  if (error) {
+    console.error('Favorites fetch error:', error)
+    return res.status(500).json({ error: 'Server error' })
+  }
+
+  res.json(data || [])
 })
 
-/**
- * POST /favorites
- */
 router.post('/', checkJwt, async (req: Request, res: Response) => {
-  const userId = req.auth!.payload.sub as string
+  const userId = getUserId(req)
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
   const { tmdbId, mediaType } = req.body as {
     tmdbId: number
     mediaType: 'movie' | 'tv'
@@ -48,37 +61,70 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
   try {
     await ensureUser(userId)
 
-    const favorite = await prisma.favorite.create({
-      data: { userId, tmdbId, mediaType },
-    })
+    const { data: existing } = await supabase
+      .from('Favorite')
+      .select('id')
+      .eq('userId', userId)
+      .eq('tmdbId', tmdbId)
+      .eq('mediaType', mediaType)
+      .single()
 
-    res.status(201).json(favorite)
-  } catch (error: any) {
-    if (error.code === 'P2002') {
+    if (existing) {
       return res.status(409).json({ error: 'Already favorited' })
     }
 
+    const newFavorite = {
+      id: uuidv4(),
+      userId,
+      tmdbId,
+      mediaType,
+    }
+
+    const { data, error } = await supabase
+      .from('Favorite')
+      .insert(newFavorite)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Favorite create error:', error)
+      return res.status(500).json({ error: 'Server error' })
+    }
+
+    res.status(201).json(data)
+  } catch (error: any) {
     console.error('Favorite create error:', error)
     res.status(500).json({ error: 'Server error' })
   }
 })
 
-/**
- * DELETE /favorites/:id
- */
 router.delete('/:id', checkJwt, async (req: Request, res: Response) => {
-  const userId = req.auth!.payload.sub as string
+  const userId = getUserId(req)
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
   const { id } = req.params
 
   await ensureUser(userId)
 
-  const fav = await prisma.favorite.findUnique({ where: { id } })
+  const { data: fav } = await supabase
+    .from('Favorite')
+    .select('userId')
+    .eq('id', id)
+    .single()
 
   if (!fav || fav.userId !== userId) {
     return res.status(404).json({ error: 'Not found' })
   }
 
-  await prisma.favorite.delete({ where: { id } })
+  const { error } = await supabase.from('Favorite').delete().eq('id', id)
+
+  if (error) {
+    console.error('Favorite delete error:', error)
+    return res.status(500).json({ error: 'Server error' })
+  }
+
   res.status(204).send()
 })
 

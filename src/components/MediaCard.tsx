@@ -68,30 +68,28 @@ export function MediaCard({
             {media.overview || 'No description available.'}
           </p>
 
-          <div className="mt-4 flex items-center gap-3">
-            <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:scale-105 active:scale-95">
-              <Play className="h-4 w-4 fill-current" />
-              Watch
-            </button>
-
-            {isAuthenticated && (
-              <button
-                onClick={handleFavorite}
-                /* 🔧 ONLY CHANGE IS HERE: REMOVED bg-white/80 */
-                className="rounded-full bg-black/40 p-2 backdrop-blur transition hover:scale-110 active:scale-95"
-              >
-                <Heart
-                  className={cn(
-                    'h-4 w-4',
-                    /* 🔧 KEEP EXACT SAME LOGIC AS BEFORE */
-                    favorited
-                      ? 'fill-red-500 text-red-500'
-                      : 'text-red-500'
-                  )}
-                />
+            <div className="mt-4 flex items-center gap-3">
+              <button className="flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/40 hover:scale-105 active:scale-95">
+                <Play className="h-4 w-4 fill-current" />
+                Watch
               </button>
-            )}
-          </div>
+
+              {isAuthenticated && (
+                <button
+                  onClick={handleFavorite}
+                  className="rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95"
+                >
+                  <Heart
+                    className={cn(
+                      'h-5 w-5 transition-all',
+                      favorited
+                        ? 'fill-red-500 text-red-500'
+                        : 'text-red-500'
+                    )}
+                  />
+                </button>
+              )}
+            </div>
         </div>
       </div>
     )
@@ -101,58 +99,68 @@ export function MediaCard({
 
   const imageUrl = getImageUrl(media.poster_path, 'poster')
 
-  return (
-    <div
-      onClick={() => onClick(media)}
-      className={cn(
-        'group relative cursor-pointer overflow-hidden rounded-lg bg-card transition-all duration-300',
-        'hover:scale-[1.02] hover:shadow-card hover:ring-1 hover:ring-primary/50',
-        'active:scale-[0.97]'
-      )}
-    >
-      <div className="relative aspect-[2/3] overflow-hidden">
-        <img
-          src={imageUrl}
-          alt={title}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-        />
-
-        {isAuthenticated && (
-          <button
-            onClick={handleFavorite}
-            className="absolute right-2 top-2 rounded-full bg-background/80 p-2 backdrop-blur transition hover:scale-110 active:scale-95"
-          >
-            <Heart
-              className={cn(
-                'h-4 w-4',
-                favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
-              )}
-            />
-          </button>
+    return (
+      <div
+        onClick={() => onClick(media)}
+        className={cn(
+          'group relative cursor-pointer overflow-hidden rounded-xl bg-card transition-all duration-300 border border-border/50',
+          'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50',
+          'active:scale-[0.97]'
         )}
+      >
+        <div className="relative aspect-[2/3] overflow-hidden">
+          <img
+            src={imageUrl}
+            alt={title}
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:brightness-110"
+          />
 
-        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-background/80 px-2 py-1 text-xs font-medium">
-          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-          <span className="text-foreground">{rating}</span>
+          {/* Gradient overlay on hover */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+          {isAuthenticated && (
+            <button
+              onClick={handleFavorite}
+              className="absolute right-2 top-2 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95 opacity-0 group-hover:opacity-100"
+            >
+              <Heart
+                className={cn(
+                  'h-4 w-4 transition-all',
+                  favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
+                )}
+              />
+            </button>
+          )}
+
+          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-lg bg-background/90 backdrop-blur-sm px-2 py-1 text-xs font-medium shadow-lg">
+            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+            <span className="text-foreground">{rating}</span>
+          </div>
+
+          {/* Play button overlay on hover */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="rounded-full bg-primary/90 backdrop-blur-sm p-4 shadow-xl">
+              <Play className="h-8 w-8 fill-white text-white" />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3 bg-gradient-to-b from-card to-card/80">
+          <h3 className="line-clamp-1 text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+            {title}
+          </h3>
+          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+            {media.overview || 'No description available.'}
+          </p>
         </div>
       </div>
-
-      <div className="p-3">
-        <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
-          {title}
-        </h3>
-        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-          {media.overview || 'No description available.'}
-        </p>
-      </div>
-    </div>
-  )
+    )
 }
 
 export function MediaCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-lg bg-card">
+    <div className="overflow-hidden rounded-xl bg-card border border-border/50">
       <div className="aspect-[2/3] animate-shimmer" />
       <div className="space-y-2 p-3">
         <div className="h-4 w-3/4 animate-shimmer rounded" />

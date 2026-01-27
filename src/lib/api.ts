@@ -211,9 +211,17 @@ export type DownloadItem = {
   filename: string
 }
 
-export async function fetchDownloads(): Promise<DownloadItem[]> {
-  const res = await fetch(`${API_BASE}/downloads`)
-  if (!res.ok) throw new Error('Failed to fetch downloads')
+export async function fetchDownloads(token?: string): Promise<DownloadItem[]> {
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const res = await fetch(`${API_BASE}/downloads`, { headers })
+  if (!res.ok) {
+    const errorText = await res.text()
+    throw new Error(errorText)
+  }
   return res.json()
 }
 

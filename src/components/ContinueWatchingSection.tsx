@@ -36,12 +36,15 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
   useEffect(() => {
     if (!isAuthenticated) return
 
-    async function load() {
-      try {
-        setLoading(true)
-        const token = await getAccessTokenSilently()
+      async function load() {
+        try {
+          setLoading(true)
+          const audience = import.meta.env.VITE_AUTH0_AUDIENCE
+          const token = await getAccessTokenSilently({
+            authorizationParams: { audience },
+          })
 
-        const data: ContinueWatchingItem[] = await fetchContinueWatching(token)
+          const data: ContinueWatchingItem[] = await fetchContinueWatching(token)
 
         // Hide almost-finished items (Netflix behavior)
         const filtered = data.filter((i) => i.progress < 0.95)
@@ -66,26 +69,32 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
   }, [isAuthenticated, getAccessTokenSilently])
 
   const handleRemove = async (item: ContinueWatchingItem) => {
-    try {
-      const token = await getAccessTokenSilently()
-
-      await removeContinueWatching(token, item.tmdbId, item.mediaType)
-
-      setEntries((prev) =>
-        prev.filter(
-          (e) =>
-            !(
-              e.item.tmdbId === item.tmdbId &&
-              e.item.mediaType === item.mediaType
-            )
-        )
+    // Optimistic update - instant UI feedback
+    const prevEntries = entries
+    setEntries((prev) =>
+      prev.filter(
+        (e) =>
+          !(
+            e.item.tmdbId === item.tmdbId &&
+            e.item.mediaType === item.mediaType
+          )
       )
+    )
+
+      try {
+        const audience = import.meta.env.VITE_AUTH0_AUDIENCE
+        const token = await getAccessTokenSilently({
+          authorizationParams: { audience },
+        })
+        await removeContinueWatching(token, item.tmdbId, item.mediaType)
 
       toast({
         title: 'Removed',
         description: 'Removed from Continue Watching',
       })
     } catch {
+      // Rollback on error
+      setEntries(prevEntries)
       toast({
         title: 'Error',
         description: 'Could not remove item',
