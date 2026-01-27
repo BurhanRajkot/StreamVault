@@ -7,6 +7,8 @@ import Index from './pages/Index'
 import Favorites from './pages/Favorites'
 import Downloads from './pages/Downloads'
 import Watch from './pages/Watch'
+import Pricing from './pages/Pricing'
+import SubscriptionSuccess from './pages/SubscriptionSuccess'
 import Login from './auth/Login'
 import Signup from './auth/Signup'
 import NotFound from './pages/NotFound'
@@ -29,9 +31,11 @@ export default function App() {
           <Route path="/downloads" element={<Downloads />} />
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="*" element={<NotFound />} />
+<Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+            <Route path="*" element={<NotFound />} />
         </Routes>
       </QueryClientProvider>
     </HelmetProvider>

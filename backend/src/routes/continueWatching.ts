@@ -1,30 +1,30 @@
 import { Router } from 'express'
-import { prisma } from '../lib/prisma'
+import { supabase } from '../lib/supabase'
 import { checkJwt } from '../middleware/auth'
 
 const router = Router()
 
-// ==============================
-// GET: fetch continue watching
-// ==============================
 router.get('/', checkJwt, async (req, res) => {
   const userId = req.auth?.payload.sub
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const items = await prisma.continueWatching.findMany({
-    where: { userId },
-    orderBy: { updatedAt: 'desc' },
-    take: 20,
-  })
+  const { data, error } = await supabase
+    .from('ContinueWatching')
+    .select('*')
+    .eq('userId', userId)
+    .order('updatedAt', { ascending: false })
+    .limit(20)
 
-  res.json(items)
+  if (error) {
+    console.error('Continue watching fetch error:', error)
+    return res.status(500).json({ error: 'Server error' })
+  }
+
+  res.json(data || [])
 })
 
-// ==============================
-// POST: update progress
-// ==============================
 router.post('/', checkJwt, async (req, res) => {
   const userId = req.auth?.payload.sub
   if (!userId) {
@@ -37,35 +37,58 @@ router.post('/', checkJwt, async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' })
   }
 
-  const record = await prisma.continueWatching.upsert({
-    where: {
-      userId_tmdbId_mediaType: {
+  const { data: existing } = await supabase
+    .from('ContinueWatching')
+    .select('id')
+    .eq('userId', userId)
+    .eq('tmdbId', tmdbId)
+    .eq('mediaType', mediaType)
+    .single()
+
+  let result
+  if (existing) {
+    const { data, error } = await supabase
+      .from('ContinueWatching')
+      .update({
+        season,
+        episode,
+        progress,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', existing.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Continue watching update error:', error)
+      return res.status(500).json({ error: 'Server error' })
+    }
+    result = data
+  } else {
+    const { data, error } = await supabase
+      .from('ContinueWatching')
+      .insert({
         userId,
         tmdbId,
         mediaType,
-      },
-    },
-    update: {
-      season,
-      episode,
-      progress,
-    },
-    create: {
-      userId,
-      tmdbId,
-      mediaType,
-      season,
-      episode,
-      progress,
-    },
-  })
+        season,
+        episode,
+        progress,
+        updatedAt: new Date().toISOString(),
+      })
+      .select()
+      .single()
 
-  res.json(record)
+    if (error) {
+      console.error('Continue watching create error:', error)
+      return res.status(500).json({ error: 'Server error' })
+    }
+    result = data
+  }
+
+  res.json(result)
 })
 
-// ==============================
-// DELETE: remove from continue watching
-// ==============================
 router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
   const userId = req.auth?.payload.sub
   const tmdbId = Number(req.params.tmdbId)
@@ -75,13 +98,17 @@ router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
     return res.status(400).json({ error: 'Invalid request' })
   }
 
-  await prisma.continueWatching.deleteMany({
-    where: {
-      userId,
-      tmdbId,
-      mediaType,
-    },
-  })
+  const { error } = await supabase
+    .from('ContinueWatching')
+    .delete()
+    .eq('userId', userId)
+    .eq('tmdbId', tmdbId)
+    .eq('mediaType', mediaType)
+
+  if (error) {
+    console.error('Continue watching delete error:', error)
+    return res.status(500).json({ error: 'Server error' })
+  }
 
   res.json({ success: true })
 })

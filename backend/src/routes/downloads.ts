@@ -1,23 +1,68 @@
-import { Router } from 'express'
-import { prisma } from '../lib/prisma'
+import { Router, Request } from 'express'
+import { supabase } from '../lib/supabase'
+import { checkJwt } from '../middleware/auth'
 import path from 'path'
 import fs from 'fs'
 
 const router = Router()
 
-// GET all downloads
-router.get('/', async (_req, res) => {
-  const downloads = await prisma.download.findMany({
-    orderBy: { createdAt: 'desc' },
-  })
-  res.json(downloads)
+function getUserId(req: Request) {
+  return (req as any).auth?.payload?.sub as string | undefined
+}
+
+async function isPaidUser(userId: string): Promise<boolean> {
+  const { data: user } = await supabase
+    .from('User')
+    .select('subscriptionStatus')
+    .eq('id', userId)
+    .single()
+
+  return user?.subscriptionStatus === 'active'
+}
+
+router.get('/', checkJwt, async (req, res) => {
+  const userId = getUserId(req)
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const isPaid = await isPaidUser(userId)
+  if (!isPaid) {
+    return res.status(403).json({ error: 'Downloads are only available for premium users. Please upgrade.' })
+  }
+
+  const { data, error } = await supabase
+    .from('Download')
+    .select('*')
+    .order('createdAt', { ascending: false })
+
+  if (error) {
+    console.error('Downloads fetch error:', error)
+    return res.status(500).json({ error: 'Server error' })
+  }
+
+  res.json(data || [])
 })
 
-// DOWNLOAD file
-router.get('/:id/file', async (req, res) => {
+router.get('/:id/file', checkJwt, async (req, res) => {
+  const userId = getUserId(req)
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const isPaid = await isPaidUser(userId)
+  if (!isPaid) {
+    return res.status(403).json({ error: 'Downloads are only available for premium users.' })
+  }
+
   const { id } = req.params
 
-  const item = await prisma.download.findUnique({ where: { id } })
+  const { data: item } = await supabase
+    .from('Download')
+    .select('*')
+    .eq('id', id)
+    .single()
+
   if (!item) return res.status(404).json({ error: 'Not found' })
 
   const filePath = path.join(

@@ -14,13 +14,14 @@ export function useFavoritesInternal() {
   const [favorites, setFavorites] = useState<Favorite[]>([])
   const [loading, setLoading] = useState(false)
 
-  // ✅ FIX: Always request ACCESS TOKEN with audience
   const getHeaders = async () => {
-    const token = await getAccessTokenSilently({
-      authorizationParams: {
-        audience: import.meta.env.VITE_AUTH0_AUDIENCE,
-      },
-    })
+    const audience = import.meta.env.VITE_AUTH0_AUDIENCE
+
+    const token = audience
+      ? await getAccessTokenSilently({
+          authorizationParams: { audience },
+        })
+      : await getAccessTokenSilently()
 
     return {
       Authorization: `Bearer ${token}`,
@@ -60,13 +61,21 @@ export function useFavoritesInternal() {
   const toggleFavorite = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
     if (!isAuthenticated) return
 
-    setLoading(true)
+    const existing = favorites.find(
+      (f) => f.tmdbId === tmdbId && f.mediaType === mediaType
+    )
+
+    const tempId = `temp-${Date.now()}-${tmdbId}`
+
+    // Optimistic update - instant UI feedback
+    if (existing) {
+      setFavorites((prev) => prev.filter((f) => f.id !== existing.id))
+    } else {
+      setFavorites((prev) => [{ id: tempId, tmdbId, mediaType }, ...prev])
+    }
 
     try {
       const headers = await getHeaders()
-      const existing = favorites.find(
-        (f) => f.tmdbId === tmdbId && f.mediaType === mediaType
-      )
 
       if (existing) {
         const res = await fetch(`${API_URL}/favorites/${existing.id}`, {
@@ -77,8 +86,6 @@ export function useFavoritesInternal() {
         if (!res.ok) {
           throw new Error(await res.text())
         }
-
-        setFavorites((prev) => prev.filter((f) => f.id !== existing.id))
       } else {
         const res = await fetch(`${API_URL}/favorites`, {
           method: 'POST',
@@ -91,12 +98,19 @@ export function useFavoritesInternal() {
         }
 
         const newFav = await res.json()
-        setFavorites((prev) => [newFav, ...prev])
+        // Replace temp ID with real ID from backend
+        setFavorites((prev) =>
+          prev.map((f) => (f.id === tempId ? newFav : f))
+        )
       }
     } catch (err) {
       console.error('Favorite toggle failed:', err)
-    } finally {
-      setLoading(false)
+      // Rollback on error
+      if (existing) {
+        setFavorites((prev) => [existing, ...prev])
+      } else {
+        setFavorites((prev) => prev.filter((f) => f.id !== tempId))
+      }
     }
   }
 
