@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
 import { fetchDownloads, downloadFile, DownloadItem } from '@/lib/api'
 import { getImageUrl } from '@/lib/api'
-import { Search, Download } from 'lucide-react'
+import { Search, Download, Crown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Link } from 'react-router-dom'
 
 type EnrichedDownload = DownloadItem & {
   posterPath: string | null
@@ -50,32 +52,51 @@ async function fetchPoster(title: string): Promise<string | null> {
 }
 
 const Downloads = () => {
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [items, setItems] = useState<EnrichedDownload[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [isPremium, setIsPremium] = useState(false)
+  const [needsUpgrade, setNeedsUpgrade] = useState(false)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
 
-      const raw = await fetchDownloads()
+      if (!isAuthenticated) {
+        setLoading(false)
+        return
+      }
 
-      const enriched = await Promise.all(
-        raw.map(async (item) => {
-          const posterPath = await fetchPoster(item.title)
-          return {
-            ...item,
-            posterPath,
-          }
-        })
-      )
+      try {
+        const token = await getAccessTokenSilently()
+        const raw = await fetchDownloads(token)
 
-      setItems(enriched)
-      setLoading(false)
+        const enriched = await Promise.all(
+          raw.map(async (item) => {
+            const posterPath = await fetchPoster(item.title)
+            return {
+              ...item,
+              posterPath,
+            }
+          })
+        )
+
+        setItems(enriched)
+        setIsPremium(true)
+        setNeedsUpgrade(false)
+      } catch (err: any) {
+        if (err.message?.includes('premium') || err.message?.includes('upgrade')) {
+          setNeedsUpgrade(true)
+        }
+        setItems([])
+      } finally {
+        setLoading(false)
+      }
     }
 
     load()
-  }, [])
+  }, [isAuthenticated, getAccessTokenSilently])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return items
@@ -89,6 +110,42 @@ const Downloads = () => {
     return (
       <div className="flex items-center justify-center py-20 text-muted-foreground">
         Loading downloads…
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Download className="mb-4 h-12 w-12 text-muted-foreground" />
+        <h2 className="mb-2 text-xl font-semibold">Login Required</h2>
+        <p className="mb-4 text-muted-foreground">
+          Please sign in to access downloads.
+        </p>
+        <Link
+          to="/login"
+          className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Sign In
+        </Link>
+      </div>
+    )
+  }
+
+  if (needsUpgrade) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <Crown className="mb-4 h-12 w-12 text-yellow-500" />
+        <h2 className="mb-2 text-xl font-semibold">Premium Feature</h2>
+        <p className="mb-4 max-w-md text-muted-foreground">
+          Downloads are only available for premium subscribers. Upgrade now to download unlimited content!
+        </p>
+        <Link
+          to="/pricing"
+          className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Upgrade to Premium
+        </Link>
       </div>
     )
   }

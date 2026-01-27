@@ -7,6 +7,7 @@ import cors from 'cors'
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
 import downloadsRouter from './routes/downloads'
+import subscriptionsRouter from './routes/subscriptions'
 
 const app = express()
 
@@ -19,6 +20,7 @@ app.use(
   })
 )
 
+app.post('/subscriptions/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())
 
 const PORT = process.env.PORT || 4000
@@ -36,6 +38,7 @@ app.get('/health', (_req, res) => {
 app.use('/downloads', downloadsRouter)
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
+app.use('/subscriptions', subscriptionsRouter)
 
 // 🚀 START SERVER
 app.listen(PORT, () => {
