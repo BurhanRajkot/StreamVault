@@ -1,8 +1,8 @@
 {
-  "projectId": "98194726-c34b-4a1a-9d6b-58ba6ae133cb",
-  "createdAt": 1769510782043,
+  "projectId": "aaeac910-7576-419e-98c6-cc0a4123244d",
+  "createdAt": 1769546611291,
   "startupCommands": [
-    "bun install; bun run dev",
-    "cd backend && bun install && bun run dev"
+    "cd /home/burhan/orchids-projects/StreamVault && bun install && bun run dev",
+    "cd /home/burhan/orchids-projects/StreamVault/backend && npm install && npm run dev"
   ]
 }
