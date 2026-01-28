@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { supabase } from '../lib/supabase'
 import { checkJwt } from '../middleware/auth'
 import { v4 as uuidv4 } from 'uuid'
+import * as cache from '../services/cache'
 
 const router = Router()
 
@@ -29,6 +30,15 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
 
   await ensureUser(userId)
 
+  // Check cache first
+  const cacheKey = cache.generateCacheKey('favorites', userId)
+  const cached = cache.userData.get(cacheKey)
+
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT')
+    return res.json(cached)
+  }
+
   const { data, error } = await supabase
     .from('Favorite')
     .select('*')
@@ -40,6 +50,9 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Server error' })
   }
 
+  // Cache the result
+  cache.userData.set(cacheKey, data || [], 60) // 1 minute TTL
+  res.setHeader('X-Cache', 'MISS')
   res.json(data || [])
 })
 
@@ -91,6 +104,10 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Server error' })
     }
 
+    // Invalidate cache for this user
+    const cacheKey = cache.generateCacheKey('favorites', userId)
+    cache.userData.del(cacheKey)
+
     res.status(201).json(data)
   } catch (error: any) {
     console.error('Favorite create error:', error)
@@ -124,6 +141,10 @@ router.delete('/:id', checkJwt, async (req: Request, res: Response) => {
     console.error('Favorite delete error:', error)
     return res.status(500).json({ error: 'Server error' })
   }
+
+  // Invalidate cache for this user
+  const cacheKey = cache.generateCacheKey('favorites', userId)
+  cache.userData.del(cacheKey)
 
   res.status(204).send()
 })

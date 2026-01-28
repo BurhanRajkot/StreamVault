@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { supabase } from '../lib/supabase'
 import { checkJwt } from '../middleware/auth'
+import * as cache from '../services/cache'
 
 const router = Router()
 
@@ -8,6 +9,15 @@ router.get('/', checkJwt, async (req, res) => {
   const userId = req.auth?.payload.sub
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  // Check cache first
+  const cacheKey = cache.generateCacheKey('continue-watching', userId)
+  const cached = cache.userData.get(cacheKey)
+
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT')
+    return res.json(cached)
   }
 
   const { data, error } = await supabase
@@ -22,6 +32,9 @@ router.get('/', checkJwt, async (req, res) => {
     return res.status(500).json({ error: 'Server error' })
   }
 
+  // Cache the result
+  cache.userData.set(cacheKey, data || [], 60) // 1 minute TTL
+  res.setHeader('X-Cache', 'MISS')
   res.json(data || [])
 })
 
@@ -86,6 +99,10 @@ router.post('/', checkJwt, async (req, res) => {
     result = data
   }
 
+  // Invalidate cache for this user
+  const cacheKey = cache.generateCacheKey('continue-watching', userId)
+  cache.userData.del(cacheKey)
+
   res.json(result)
 })
 
@@ -109,6 +126,10 @@ router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
     console.error('Continue watching delete error:', error)
     return res.status(500).json({ error: 'Server error' })
   }
+
+  // Invalidate cache for this user
+  const cacheKey = cache.generateCacheKey('continue-watching', userId)
+  cache.userData.del(cacheKey)
 
   res.json({ success: true })
 })
