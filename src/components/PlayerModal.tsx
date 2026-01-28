@@ -117,7 +117,7 @@ export function PlayerModal({
       } catch (err) {
         console.error('Failed to update continue watching:', err)
       }
-    }, 15000)
+    }, 30000) // 🔥 Reduced from 15s to 30s for better performance
 
     return () => clearInterval(interval)
   }, [
