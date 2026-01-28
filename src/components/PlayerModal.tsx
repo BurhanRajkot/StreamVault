@@ -533,17 +533,18 @@ export function PlayerModal({
                 </div>
               )}
 
-                <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
-                  <iframe
-                    key={embedUrl}
-                    src={embedUrl}
-                    className="h-full w-full"
-                    allowFullScreen
-                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                    loading="eager"
-                    referrerPolicy="origin"
-                  />
-                </div>
+                  <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
+                    <iframe
+                      key={embedUrl}
+                      src={embedUrl}
+                      className="h-full w-full"
+                      allowFullScreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                      loading="eager"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      sandbox="allow-forms allow-scripts allow-same-origin allow-presentation allow-top-navigation allow-top-navigation-by-user-activation"
+                    />
+                  </div>
             </div>
           )}
         </div>

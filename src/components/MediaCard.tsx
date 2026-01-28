@@ -104,19 +104,22 @@ export function MediaCard({
     )
   }
 
-  /* ================= GRID CARD ================= */
+    /* ================= GRID CARD ================= */
 
-  const imageUrl = getImageUrl(media.poster_path, 'poster')
+    const imageUrl = getImageUrl(media.poster_path, 'poster')
 
-    return (
-      <div
-        onClick={() => onClick(media)}
-        className={cn(
-          'group relative cursor-pointer overflow-hidden rounded-xl bg-card transition-all duration-300 border border-border/50',
-          'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50',
-          'active:scale-[0.97]'
-        )}
-      >
+      return (
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+            onClick(media)
+          }}
+          className={cn(
+            'group relative cursor-pointer overflow-hidden rounded-xl bg-card transition-all duration-300 border border-border/50',
+            'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50',
+            'active:scale-[0.97]'
+          )}
+        >
         <div className="relative aspect-[2/3] overflow-hidden">
           <img
             src={imageUrl}
@@ -128,22 +131,19 @@ export function MediaCard({
           {/* Gradient overlay on hover */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-            {isAuthenticated && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toggleFavorite(media.id, mediaType)
-                }}
-                className="absolute right-2 top-2 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95 opacity-0 group-hover:opacity-100"
-              >
-                <Heart
-                  className={cn(
-                    'h-4 w-4 transition-all',
-                    favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
-                  )}
-                />
-              </button>
-            )}
+              {isAuthenticated && (
+                <button
+                  onClick={handleFavorite}
+                  className="absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95 opacity-0 group-hover:opacity-100"
+                >
+                  <Heart
+                    className={cn(
+                      'h-4 w-4 transition-all',
+                      favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
+                    )}
+                  />
+                </button>
+              )}
 
           <div className="absolute left-2 top-2 flex items-center gap-1 rounded-lg bg-background/90 backdrop-blur-sm px-2 py-1 text-xs font-medium shadow-lg">
             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
