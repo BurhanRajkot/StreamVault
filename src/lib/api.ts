@@ -4,10 +4,10 @@ import { CONFIG, Media, MediaMode } from './config'
    API BASE
 ====================================================== */
 
-const API_BASE = import.meta.env.VITE_API_URL
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 /* ======================================================
-   TMDB FETCHING
+   TMDB FETCHING (via Backend Proxy)
 ====================================================== */
 
 export async function fetchPopular(
@@ -19,7 +19,7 @@ export async function fetchPopular(
     return { results: [], total_pages: 0 }
   }
 
-  const url = `${CONFIG.TMDB_BASE_URL}/discover/${mode}?sort_by=popularity.desc&api_key=${CONFIG.TMDB_API_KEY}&page=${page}`
+  const url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
 
   const res = await fetch(url)
   const data = await res.json()
@@ -33,7 +33,7 @@ export async function fetchPopular(
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   if (mode === 'downloads') return []
 
-  const url = `${CONFIG.TMDB_BASE_URL}/trending/${mode}/week?api_key=${CONFIG.TMDB_API_KEY}`
+  const url = `${API_BASE}/tmdb/trending/${mode}`
   const res = await fetch(url)
   const data = await res.json()
 
@@ -49,7 +49,7 @@ export async function searchMedia(
     return { results: [], total_pages: 0 }
   }
 
-  const url = `${CONFIG.TMDB_BASE_URL}/search/${mode}?api_key=${CONFIG.TMDB_API_KEY}&query=${encodeURIComponent(
+  const url = `${API_BASE}/tmdb/search/${mode}?query=${encodeURIComponent(
     query
   )}&page=${page}`
 
@@ -68,7 +68,7 @@ export async function fetchMediaDetails(
 ): Promise<Media | null> {
   if (mode === 'downloads') return null
 
-  const url = `${CONFIG.TMDB_BASE_URL}/${mode}/${id}?api_key=${CONFIG.TMDB_API_KEY}`
+  const url = `${API_BASE}/tmdb/${mode}/${id}`
   const res = await fetch(url)
   return res.json()
 }
@@ -76,11 +76,11 @@ export async function fetchMediaDetails(
 export async function fetchTVSeasons(
   tvId: number
 ): Promise<{ season_number: number; episode_count: number; name: string }[]> {
-  const url = `${CONFIG.TMDB_BASE_URL}/tv/${tvId}?api_key=${CONFIG.TMDB_API_KEY}`
+  const url = `${API_BASE}/tmdb/tv/${tvId}/seasons`
   const res = await fetch(url)
   const data = await res.json()
 
-  return data.seasons?.filter((s: any) => s.season_number > 0) || []
+  return data || []
 }
 
 /* ======================================================
