@@ -68,28 +68,34 @@ export function MediaCard({
             {media.overview || 'No description available.'}
           </p>
 
-            <div className="mt-4 flex items-center gap-3">
-              <button className="flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/40 hover:scale-105 active:scale-95">
-                <Play className="h-4 w-4 fill-current" />
-                Watch
-              </button>
-
-              {isAuthenticated && (
+              <div className="mt-4 flex items-center gap-3">
                 <button
-                  onClick={handleFavorite}
-                  className="rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onClick(media)
+                  }}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/40 hover:scale-105 active:scale-95"
                 >
-                  <Heart
-                    className={cn(
-                      'h-5 w-5 transition-all',
-                      favorited
-                        ? 'fill-red-500 text-red-500'
-                        : 'text-red-500'
-                    )}
-                  />
+                  <Play className="h-4 w-4 fill-current" />
+                  Watch
                 </button>
-              )}
-            </div>
+
+                {isAuthenticated && (
+                  <button
+                    onClick={handleFavorite}
+                    className="rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95"
+                  >
+                    <Heart
+                      className={cn(
+                        'h-5 w-5 transition-all',
+                        favorited
+                          ? 'fill-red-500 text-red-500'
+                          : 'text-red-500'
+                      )}
+                    />
+                  </button>
+                )}
+              </div>
         </div>
       </div>
     )
