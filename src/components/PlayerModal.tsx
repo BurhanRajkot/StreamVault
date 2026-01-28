@@ -533,14 +533,17 @@ export function PlayerModal({
                 </div>
               )}
 
-              <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
-                <iframe
-                  src={embedUrl}
-                  className="h-full w-full"
-                  allowFullScreen
-                  allow="autoplay; fullscreen; encrypted-media"
-                />
-              </div>
+                <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
+                  <iframe
+                    key={embedUrl}
+                    src={embedUrl}
+                    className="h-full w-full"
+                    allowFullScreen
+                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                    loading="eager"
+                    referrerPolicy="origin"
+                  />
+                </div>
             </div>
           )}
         </div>
