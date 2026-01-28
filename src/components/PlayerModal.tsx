@@ -72,21 +72,22 @@ export function PlayerModal({
 
   /* ================= MODAL OPEN / CLOSE ================= */
 
-  useEffect(() => {
-    if (isOpen) {
-      setIsPlaying(false)
-      setEmbedUrl('')
-      setSeason(initialSeason || 1)
-      setEpisode(initialEpisode || 1)
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
+    useEffect(() => {
+      if (isOpen) {
+        setIsPlaying(false)
+        setEmbedUrl('')
+        setProvider('vidfast_pro')
+        setSeason(initialSeason || 1)
+        setEpisode(initialEpisode || 1)
+        document.body.style.overflow = 'hidden'
+      } else {
+        document.body.style.overflow = ''
+      }
 
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [isOpen, initialSeason, initialEpisode])
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }, [isOpen, initialSeason, initialEpisode])
 
   /* ================= EPISODE COUNT UPDATE ================= */
 

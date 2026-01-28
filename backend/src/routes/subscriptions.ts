@@ -1,12 +1,12 @@
 import express from 'express'
-import { stripe, SUBSCRIPTION_PLANS } from '../lib/stripe'
+import { getStripe, SUBSCRIPTION_PLANS } from '../lib/stripe'
 import { checkJwt } from '../middleware/auth'
 
 const router = express.Router()
 export { express }
 
 async function getOrCreatePrices() {
-
+  const stripe = getStripe()
   const existingProducts = await stripe.products.list({ limit: 100, active: true })
 
   let basicProduct = existingProducts.data.find(p => p.name === 'StreamVault Basic')
@@ -88,6 +88,7 @@ router.get('/plans', async (_req, res) => {
 
 router.post('/create-checkout-session', async (req, res) => {
   try {
+    const stripe = getStripe()
     const { priceId, userId, email } = req.body
 
     if (!priceId) {
@@ -122,6 +123,7 @@ router.post('/create-checkout-session', async (req, res) => {
 
 router.get('/session/:sessionId', async (req, res) => {
   try {
+    const stripe = getStripe()
     const { sessionId } = req.params
 
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
@@ -145,6 +147,7 @@ router.get('/session/:sessionId', async (req, res) => {
 
 router.post('/create-portal-session', async (req, res) => {
   try {
+    const stripe = getStripe()
     const { customerId } = req.body
 
     if (!customerId) {
@@ -170,12 +173,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET
 
   if (!endpointSecret) {
-    console.error('⚠️  Webhook secret not configured. Set STRIPE_WEBHOOK_SECRET in .env')
+    console.error('Webhook secret not configured. Set STRIPE_WEBHOOK_SECRET in .env')
     return res.status(500).json({ error: 'Webhook secret not configured' })
   }
 
   try {
-    const event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret)
+    const stripe = getStripe()
+    const event = await stripe.webhooks.constructEventAsync(req.body, sig, endpointSecret)
 
     switch (event.type) {
       case 'customer.subscription.created':
