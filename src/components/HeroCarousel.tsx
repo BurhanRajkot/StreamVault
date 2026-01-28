@@ -61,36 +61,36 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
         ))}
       </div>
 
-      {/* Navigation */}
-      <button
-        onClick={goToPrev}
-        className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/70 p-2 backdrop-blur hover:bg-primary hover:text-primary-foreground"
-      >
-        <ChevronLeft className="h-5 w-5" />
-      </button>
+        {/* Navigation */}
+        <button
+          onClick={goToPrev}
+          className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
 
-      <button
-        onClick={goToNext}
-        className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/70 p-2 backdrop-blur hover:bg-primary hover:text-primary-foreground"
-      >
-        <ChevronRight className="h-5 w-5" />
-      </button>
+        <button
+          onClick={goToNext}
+          className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
 
-      {/* Indicators */}
-      <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-2">
-        {displayItems.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => setCurrentIndex(index)}
-            className={cn(
-              'h-2 rounded-full transition-all duration-300',
-              index === currentIndex
-                ? 'w-8 bg-primary'
-                : 'w-2 bg-foreground/30 hover:bg-foreground/50'
-            )}
-          />
-        ))}
-      </div>
+        {/* Indicators */}
+        <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2 bg-background/60 backdrop-blur-xl px-4 py-2 rounded-full border border-border/50 shadow-xl">
+          {displayItems.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentIndex(index)}
+              className={cn(
+                'h-2.5 rounded-full transition-all duration-300',
+                index === currentIndex
+                  ? 'w-10 bg-gradient-primary shadow-lg shadow-primary/50'
+                  : 'w-2.5 bg-foreground/30 hover:bg-foreground/60 hover:scale-110'
+              )}
+            />
+          ))}
+        </div>
     </section>
   )
 }

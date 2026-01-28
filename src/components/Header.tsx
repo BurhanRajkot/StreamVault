@@ -66,23 +66,23 @@ export function Header({
       .toUpperCase() || 'SV'
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-2xl shadow-lg shadow-black/5">
-      {/* 🔥 MATCH HEADER WIDTH WITH MAIN CONTENT */}
-      <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
-          {/* Logo + Mobile Favorites */}
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3 group">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-primary rounded-lg blur opacity-50 group-hover:opacity-75 transition-opacity" />
-                <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary shadow-lg group-hover:scale-105 transition-transform">
-                  <Film className="h-5 w-5 text-white" />
-                </div>
-              </div>
-              <h1 className="hidden text-xl font-bold tracking-tight sm:block">
-                <span className="text-gradient">Stream</span>
-                <span className="text-foreground">Vault</span>
-              </h1>
-            </Link>
+        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-all">
+          {/* 🔥 MATCH HEADER WIDTH WITH MAIN CONTENT */}
+          <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
+              {/* Logo + Mobile Favorites */}
+              <div className="flex items-center justify-between">
+                <Link to="/" className="flex items-center gap-3 group">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
+                    <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-all duration-300 hover-glow">
+                      <Film className="h-6 w-6 text-white drop-shadow-md" />
+                    </div>
+                  </div>
+                  <h1 className="hidden text-xl font-bold tracking-tight sm:block">
+                    <span className="bg-gradient-hero bg-clip-text text-transparent">Stream</span>
+                    <span className="text-foreground">Vault</span>
+                  </h1>
+                </Link>
 
           {isAuthenticated && (
             <Link
@@ -94,80 +94,80 @@ export function Header({
           )}
         </div>
 
-          {/* Mode Selector */}
-          <nav className="flex items-center gap-1 overflow-x-auto rounded-xl bg-secondary/80 p-1 no-scrollbar border border-border/50">
-            {modes.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => onModeChange(id)}
-                className={cn(
-                  'flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200',
-                  mode === id
-                    ? 'bg-gradient-primary text-white shadow-lg shadow-primary/25'
-                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground hover:scale-[1.02] active:scale-[0.98]'
+              {/* Mode Selector */}
+              <nav className="flex items-center gap-1.5 overflow-x-auto rounded-2xl bg-secondary/70 backdrop-blur-xl p-1.5 no-scrollbar border border-border/50 shadow-inner">
+                {modes.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => onModeChange(id)}
+                    className={cn(
+                      'flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300',
+                      mode === id
+                        ? 'bg-gradient-primary text-white shadow-xl shadow-deep-purple/40 scale-105'
+                        : 'text-muted-foreground hover:bg-secondary/90 hover:text-foreground hover:scale-105 active:scale-95'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                ))}
+              </nav>
+
+            {/* Search */}
+            {mode !== 'downloads' && (
+              <form onSubmit={handleSubmit} className="relative flex w-full sm:w-auto group">
+                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-all duration-300 group-focus-within:scale-110" />
+                <input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder={`Search ${mode === 'tv' ? 'shows' : 'movies'}...`}
+                  className="h-12 w-full rounded-2xl border-2 border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-11 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
+                />
+                {(inputValue || searchQuery) && (
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:scale-110 transition-all duration-200 active:scale-90"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            ))}
-          </nav>
-
-          {/* Search */}
-          {mode !== 'downloads' && (
-            <form onSubmit={handleSubmit} className="relative flex w-full sm:w-auto group">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-              <input
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder={`Search ${mode === 'tv' ? 'shows' : 'movies'}...`}
-                className="h-11 w-full rounded-xl border border-border/50 bg-secondary/80 pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
-              />
-              {(inputValue || searchQuery) && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </form>
-          )}
-
-{/* Desktop Favorites + Pricing + Auth */}
-            <div className="hidden sm:flex items-center gap-3">
-              <Link to="/pricing">
-                <Button size="sm" variant="outline" className="relative overflow-hidden border-violet-500/30 text-violet-400 hover:bg-violet-500/10 hover:border-violet-500/50 hover:text-violet-300 transition-all group">
-                  <div className="absolute inset-0 bg-gradient-to-r from-violet-500/0 via-violet-500/10 to-violet-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                  <Crown className="h-4 w-4 relative" />
-                  <span className="relative">Upgrade</span>
-                </Button>
-              </Link>
-
-              {isAuthenticated && (
-                <Link to="/favorites">
-                  <Button size="sm" variant="secondary" className="hover:scale-105 active:scale-95 transition-transform">
-                    <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                    Favorites
-                  </Button>
-                </Link>
-              )}
-
-            {!isAuthenticated && (
-              <>
-                <Link to="/login">
-                  <Button size="sm" variant="secondary" className="hover:scale-105 active:scale-95 transition-transform">
-                    Login
-                  </Button>
-                </Link>
-                <Link to="/signup">
-                  <Button size="sm" className="bg-gradient-primary text-white hover:opacity-90 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/25">
-                    Sign up
-                  </Button>
-                </Link>
-              </>
+              </form>
             )}
+
+  {/* Desktop Favorites + Pricing + Auth */}
+                <div className="hidden sm:flex items-center gap-3">
+                  <Link to="/pricing">
+                    <Button size="sm" variant="outline" className="relative overflow-hidden border-2 border-golden-amber/30 text-golden-amber hover:bg-golden-amber/15 hover:border-golden-amber/60 hover:text-golden-amber transition-all duration-300 group hover:scale-110 active:scale-95 shadow-lg hover:shadow-golden-amber/25">
+                      <div className="absolute inset-0 bg-gradient-to-r from-golden-amber/0 via-golden-amber/20 to-golden-amber/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                      <Crown className="h-4 w-4 relative" />
+                      <span className="relative font-bold">Upgrade</span>
+                    </Button>
+                  </Link>
+
+                  {isAuthenticated && (
+                    <Link to="/favorites">
+                      <Button size="sm" variant="secondary" className="hover:scale-110 active:scale-95 transition-all duration-200 font-semibold shadow-md hover:shadow-lg border border-border/50">
+                        <Heart className="h-4 w-4 fill-coral-pink text-coral-pink" />
+                        Favorites
+                      </Button>
+                    </Link>
+                  )}
+
+              {!isAuthenticated && (
+                <>
+                  <Link to="/login">
+                    <Button size="sm" variant="secondary" className="hover:scale-110 active:scale-95 transition-all duration-200 font-semibold shadow-md hover:shadow-lg border border-border/50">
+                      Login
+                    </Button>
+                  </Link>
+                  <Link to="/signup">
+                    <Button size="sm" className="bg-gradient-primary text-white hover:opacity-90 hover:scale-110 active:scale-95 transition-all duration-200 shadow-xl shadow-deep-purple/40 font-bold hover:shadow-glow">
+                      Sign up
+                    </Button>
+                  </Link>
+                </>
+              )}
 
           {isAuthenticated && (
             <DropdownMenu>
