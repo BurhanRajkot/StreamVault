@@ -1,0 +1,18 @@
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = """
+      frame-src 'self' https://vidfast.pro https://vidsrc.icu https://vidlink.pro https://vidsrc.cc https://player.videasy.net https://*.vidfast.pro https://*.vidsrc.icu https://*.vidlink.pro https://*.vidsrc.cc https://*.videasy.net;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vidfast.pro https://vidsrc.icu https://vidlink.pro https://vidsrc.cc https://player.videasy.net;
+      connect-src 'self' https://api.themoviedb.org https://*.supabase.co https://*.auth0.com https://vidfast.pro https://vidsrc.icu https://vidlink.pro https://vidsrc.cc https://player.videasy.net;
+      img-src 'self' data: https: http:;
+      media-src 'self' https: http: blob:;
+      style-src 'self' 'unsafe-inline';
+    """
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "no-referrer-when-downgrade"
+    Permissions-Policy = "accelerometer=*, autoplay=*, clipboard-write=*, encrypted-media=*, gyroscope=*, picture-in-picture=*, fullscreen=*"
+
+[build]
+  command = "npm run build"
+  publish = "dist"

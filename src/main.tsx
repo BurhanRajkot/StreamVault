@@ -9,6 +9,18 @@ import App from './App'
 import './index.css'
 import { FavoritesProvider } from '@/context/FavoritesContext'
 
+// Suppress Chrome extension errors that are unrelated to our app
+const originalError = console.error
+console.error = (...args) => {
+  if (
+    typeof args[0] === 'string' &&
+    args[0].includes('runtime.lastError')
+  ) {
+    return
+  }
+  originalError.apply(console, args)
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
