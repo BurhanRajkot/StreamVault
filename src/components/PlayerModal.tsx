@@ -53,6 +53,8 @@ export function PlayerModal({
   const [seasons, setSeasons] = useState<Season[]>([])
   const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState(10)
   const [autoPlay, setAutoPlay] = useState(true)
+  const [streamError, setStreamError] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
@@ -79,6 +81,8 @@ export function PlayerModal({
         setProvider('vidfast_pro')
         setSeason(initialSeason || 1)
         setEpisode(initialEpisode || 1)
+        setStreamError(false)
+        setIsLoading(false)
         document.body.style.overflow = 'hidden'
       } else {
         document.body.style.overflow = ''
@@ -196,6 +200,8 @@ export function PlayerModal({
         subOrDub,
       })
 
+      setStreamError(false)
+      setIsLoading(true)
       setEmbedUrl(url)
       setIsPlaying(true)
       setSeason(s)
@@ -229,6 +235,8 @@ export function PlayerModal({
       subOrDub,
     })
 
+    setStreamError(false)
+    setIsLoading(true)
     setEmbedUrl(url)
     setIsPlaying(true)
   }
@@ -258,6 +266,8 @@ export function PlayerModal({
   const changeSource = (newProvider: string) => {
     setProvider(newProvider)
     setShowProviderDropdown(false)
+    setStreamError(false)
+    setIsLoading(true)
 
     if (isPlaying && media) {
       const url = buildEmbedUrl(mode, newProvider, media.id, {
@@ -533,15 +543,63 @@ export function PlayerModal({
                 </div>
               )}
 
-                    <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
+                    <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black relative">
+                      {isLoading && !streamError && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
+                          <div className="text-center space-y-3">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+                            <p className="text-sm text-muted-foreground">Loading stream...</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {streamError && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-10">
+                          <div className="text-center space-y-4 p-6 max-w-md">
+                            <div className="text-destructive text-4xl">⚠️</div>
+                            <h3 className="text-lg font-semibold text-foreground">Stream Unavailable</h3>
+                            <p className="text-sm text-muted-foreground">
+                              This stream failed to load. Try switching to a different provider or check your connection.
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                              <button
+                                onClick={() => {
+                                  setStreamError(false)
+                                  setIsLoading(true)
+                                  setEmbedUrl(embedUrl + '&retry=' + Date.now())
+                                }}
+                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                              >
+                                Retry
+                              </button>
+                              <button
+                                onClick={() => setShowProviderDropdown(true)}
+                                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                              >
+                                Change Provider
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <iframe
                         key={embedUrl}
                         src={embedUrl}
                         className="h-full w-full"
                         allowFullScreen
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                         loading="eager"
                         referrerPolicy="no-referrer-when-downgrade"
+                        onLoad={() => {
+                          setIsLoading(false)
+                          setStreamError(false)
+                        }}
+                        onError={() => {
+                          setIsLoading(false)
+                          setStreamError(true)
+                          console.error('Stream failed to load:', embedUrl)
+                        }}
                       />
                     </div>
             </div>
