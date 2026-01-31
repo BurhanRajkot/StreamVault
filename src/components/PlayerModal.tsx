@@ -452,7 +452,7 @@ export function PlayerModal({
                 </div>
               )}
 
-              {mode === 'anime' && (
+              {(mode as string) === 'anime' && (
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-muted-foreground">
@@ -544,14 +544,7 @@ export function PlayerModal({
               )}
 
                     <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black relative">
-                      {isLoading && !streamError && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-                          <div className="text-center space-y-3">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-                            <p className="text-sm text-muted-foreground">Loading stream...</p>
-                          </div>
-                        </div>
-                      )}
+                      {/* Loading overlay removed per user request */}
 
                       {streamError && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-10">
