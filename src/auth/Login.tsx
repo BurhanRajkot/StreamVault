@@ -2,7 +2,8 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Film, Sparkles, ArrowRight } from "lucide-react";
+import { Film, ArrowRight } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 
 export default function Login() {
   const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0();
@@ -16,100 +17,64 @@ export default function Login() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-900/20 via-background to-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />
-          <p className="text-sm text-muted-foreground animate-pulse">Loading...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
-    return (
-        <div className="relative min-h-screen flex items-center justify-center overflow-hidden px-4">
-          {/* Enhanced animated background with mesh gradient effect */}
-          <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5" />
-          
-          {/* Animated mesh gradient orbs */}
-          <div className="absolute top-0 left-0 h-[700px] w-[700px] rounded-full bg-deep-purple/15 blur-[130px] animate-glow-pulse" style={{ animationDuration: '8s' }} />
-          <div className="absolute bottom-0 right-0 h-[600px] w-[600px] rounded-full bg-golden-amber/10 blur-[120px] animate-glow-pulse" style={{ animationDuration: '10s', animationDelay: '2s' }} />
-          <div className="absolute top-1/2 right-1/4 h-[450px] w-[450px] rounded-full bg-coral-pink/8 blur-[110px] animate-float" style={{ animationDuration: '14s' }} />
+  return (
+    <>
+      <Helmet>
+        <title>Sign In - StreamVault</title>
+      </Helmet>
 
-          {/* Main content */}
-          <div className="relative z-10 w-full max-w-md animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            {/* Glass card with enhanced effects */}
-            <div className="relative group">
-              {/* Animated glow ring */}
-              <div className="absolute -inset-1 bg-gradient-hero rounded-3xl opacity-0 group-hover:opacity-60 blur-xl transition-all duration-700 animate-pulse-glow" />
-              
-              {/* Card */}
-              <div className="relative backdrop-blur-2xl bg-card/60 border-2 border-deep-purple/25 rounded-3xl p-10 shadow-2xl hover:border-deep-purple/40 transition-all duration-500">
-                {/* Logo with stagger animation */}
-                <div className="flex justify-center mb-10 animate-scale-in" style={{ animationDelay: '0.2s' }}>
-                  <div className="relative group/logo">
-                    <div className="absolute inset-0 bg-gradient-primary rounded-2xl blur-2xl opacity-70 group-hover/logo:opacity-100 transition-opacity duration-500" />
-                    <div className="relative flex items-center gap-3 bg-gradient-primary px-8 py-4 rounded-2xl shadow-glow hover:scale-110 transition-all duration-300">
-                      <Film className="h-7 w-7 text-white drop-shadow-lg" />
-                      <span className="text-2xl font-bold text-white tracking-tight drop-shadow-lg">StreamVault</span>
-                    </div>
-                  </div>
-                </div>
+      <div className="min-h-screen relative flex items-center justify-center bg-black overflow-hidden">
+        {/* Cinematic Background */}
+        <div className="absolute inset-0 z-0">
+            <div className="absolute inset-0 bg-[url('https://assets.nflxext.com/ffe/siteui/vlv3/c38a2d52-138e-48a3-ab68-36787ece46b3/eeb03fc9-99bf-440f-9d7a-11af9e5fd52f/IN-en-20240101-popsignuptwoweeks-perspective_alpha_website_large.jpg')] bg-cover bg-center opacity-50 scale-105" />
+            <div className="absolute inset-0 bg-black/60 bg-gradient-to-input from-black via-transparent to-black" />
+        </div>
 
-                {/* Header with stagger */}
-                <div className="text-center mb-10 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-                  <h1 className="text-4xl font-bold mb-3 bg-gradient-hero bg-clip-text text-transparent leading-tight">
-                    Welcome back
-                  </h1>
-                  <p className="text-muted-foreground text-base">
-                    Sign in to continue your streaming journey
-                  </p>
-                </div>
+        {/* Top Logo */}
+        <div className="absolute top-0 left-0 p-6 z-20">
+             <div className="flex items-center gap-2">
+                <Film className="h-8 w-8 text-primary" />
+                <span className="text-2xl font-bold tracking-tighter text-red-600 shadow-glow">StreamVault</span>
+             </div>
+        </div>
 
-                {/* Sign in button with enhanced effects */}
-                <div className="animate-fade-in" style={{ animationDelay: '0.4s' }}>
-                  <Button
+        {/* Login Card */}
+        <div className="relative z-10 w-full max-w-[450px] p-16 rounded-xl bg-black/75 border border-white/10 backdrop-blur-sm shadow-2xl animate-fade-in mx-4">
+            <h1 className="text-3xl font-bold text-white mb-8">Sign In</h1>
+
+            <div className="grid gap-6">
+                <Button
                     onClick={() => loginWithRedirect()}
-                    className="w-full h-14 bg-gradient-primary hover:shadow-glow text-white font-semibold rounded-2xl shadow-xl shadow-deep-purple/30 transition-all duration-300 hover:scale-[1.05] active:scale-[0.95] group relative overflow-hidden"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
-                    <span className="flex items-center gap-2 relative z-10">
-                      Sign in with Auth0
-                      <ArrowRight className="h-5 w-5 group-hover:translate-x-2 transition-transform duration-300" />
-                    </span>
-                  </Button>
-                </div>
-
-                {/* Features with stagger */}
-                <div className="mt-10 pt-8 border-t border-border/50 animate-fade-in" style={{ animationDelay: '0.5s' }}>
-                  <div className="grid gap-4 text-sm">
-                    <div className="flex items-center gap-3 text-foreground/80 hover:text-foreground transition-all duration-300 group/item">
-                      <div className="p-2.5 rounded-xl bg-deep-purple/10 group-hover/item:bg-deep-purple/20 transition-all duration-300 group-hover/item:scale-110">
-                        <Sparkles className="h-4 w-4 text-deep-purple" />
-                      </div>
-                      <span className="font-medium">Access thousands of movies & shows</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-foreground/80 hover:text-foreground transition-all duration-300 group/item">
-                      <div className="p-2.5 rounded-xl bg-golden-amber/10 group-hover/item:bg-golden-amber/20 transition-all duration-300 group-hover/item:scale-110">
-                        <Sparkles className="h-4 w-4 text-golden-amber" />
-                      </div>
-                      <span className="font-medium">Save your favorites and continue watching</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sign up link */}
-                <p className="text-center text-sm text-muted-foreground mt-8 animate-fade-in" style={{ animationDelay: '0.6s' }}>
-                  Don't have an account?{" "}
-                  <Link 
-                    to="/signup" 
-                    className="text-transparent bg-clip-text bg-gradient-primary hover:opacity-80 font-semibold transition-all hover:tracking-wide inline-block"
-                  >
-                    Sign up
-                  </Link>
-                </p>
-              </div>
+                    className="h-12 w-full bg-[#e50914] hover:bg-[#c11119] text-white font-medium text-base rounded transition-all transform active:scale-95"
+                >
+                    Sign In with Auth0
+                </Button>
             </div>
-          </div>
+
+            <div className="mt-8 text-sm text-[#737373]">
+                <div className="flex justify-between items-center mb-6">
+                    <span className="cursor-pointer hover:underline">Need help?</span>
+                </div>
+
+                <div className="mt-10">
+                    <span className="text-[#737373]">New to StreamVault? </span>
+                    <Link to="/signup" className="text-white hover:underline font-medium">
+                        Sign up now.
+                    </Link>
+                </div>
+
+                <p className="mt-4 text-xs">
+                    This page is protected by Google reCAPTCHA to ensure you're not a bot.
+                </p>
+            </div>
+        </div>
       </div>
-    );
+    </>
+  );
 }
