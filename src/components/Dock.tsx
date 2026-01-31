@@ -32,13 +32,14 @@ function DockItem({ children, className = '', onClick, mouseX, spring, distance,
 
   const targetSize = useTransform(mouseDistance, [-distance, 0, distance], [baseItemSize, magnification, baseItemSize]);
   const size = useSpring(targetSize, spring);
+  const height = useTransform(size, s => s * 0.45); // Aspect ratio ~2.2
 
   return (
     <motion.div
       ref={ref}
       style={{
         width: size,
-        height: size,
+        height: height,
         ['--item-color' as any]: color || '255, 255, 255'
       }}
       onHoverStart={() => isHovered.set(1)}
@@ -46,7 +47,7 @@ function DockItem({ children, className = '', onClick, mouseX, spring, distance,
       onFocus={() => isHovered.set(1)}
       onBlur={() => isHovered.set(0)}
       onClick={onClick}
-      className={`dock-item ${className}`}
+      className={`dock-item rounded-full ${className}`} // rounded-full for pill
       tabIndex={0}
       role="button"
       aria-haspopup="true"
@@ -113,7 +114,8 @@ export default function Dock({
   dockHeight = 256,
   baseItemSize = 50,
   activeItem,
-}: DockProps) {
+  magnificationMode = 'scale', // 'scale' or 'linear'
+}: DockProps & { magnificationMode?: 'scale' | 'linear' }) {
   const mouseX = useMotionValue(Infinity);
   const isHovered = useMotionValue(0);
 
@@ -154,7 +156,6 @@ export default function Dock({
             isActive={activeItem === index}
           >
             <DockIcon>{item.icon}</DockIcon>
-            <DockLabel>{item.label}</DockLabel>
           </DockItem>
         ))}
       </motion.div>
