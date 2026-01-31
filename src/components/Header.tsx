@@ -24,6 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth0 } from '@auth0/auth0-react'
 import Dock from './Dock'
 
+
 interface HeaderProps {
   mode: MediaMode
   onModeChange: (mode: MediaMode) => void
@@ -51,12 +52,39 @@ export function Header({
     setInputValue('')
     onClearSearch()
   }
-
-  const modes: { id: MediaMode; label: string; icon: any; color: string }[] = [
-    { id: 'movie', label: 'Movies', icon: Film, color: '217, 70, 239' }, // Fusion Pink/Purple (RGB)
-    { id: 'tv', label: 'TV Shows', icon: Tv, color: '34, 197, 94' }, // Topaz Green (RGB)
-    { id: 'downloads', label: 'Downloads', icon: Download, color: '59, 130, 246' }, // Blue (RGB)
+  const modes = [
+    {
+      id: 'movie',
+      label: 'Movies',
+      icon: (
+        <span className="text-sm font-semibold tracking-wide w-full h-full flex items-center justify-center">
+            Movies
+        </span>
+      ),
+      color: '217, 70, 239'
+    },
+    {
+      id: 'tv',
+      label: 'Series',
+      icon: (
+        <span className="text-sm font-semibold tracking-wide w-full h-full flex items-center justify-center">
+            Series
+        </span>
+      ),
+      color: '34, 197, 94'
+    },
+    {
+      id: 'downloads',
+      label: 'Downloads',
+      icon: (
+        <span className="text-sm font-semibold tracking-wide w-full h-full flex items-center justify-center">
+            Downloads
+        </span>
+      ),
+      color: '59, 130, 246'
+    },
   ]
+
 
   const initials =
     user?.name
@@ -72,7 +100,7 @@ export function Header({
           <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
               {/* Logo + Mobile Favorites */}
               <div className="flex items-center justify-between">
-                <Link to="/" className="flex items-center gap-3 group">
+                <Link to="/" className="flex items-center gap-3 group sm:flex hidden">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
                     <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-all duration-300 hover-glow">
@@ -95,24 +123,28 @@ export function Header({
           )}
         </div>
 
-              {/* Mode Selector */}
-              {/* Dock Navigation */}
-              <div className="flex justify-center px-4">
+              {/* Desktop Navigation - Dock */}
+            <div className="hidden md:flex justify-center flex-1">
                  <Dock
                    items={modes.map(m => ({
-                     icon: <m.icon size={24} />,
+                     icon: m.icon,
                      label: m.label,
                      color: m.color,
-                     onClick: () => onModeChange(m.id)
+                     onClick: () => onModeChange(m.id as MediaMode)
                    }))}
                    activeItem={modes.findIndex(m => m.id === mode)}
                    panelHeight={60}
-                   baseItemSize={40}
-                   magnification={60}
+                   baseItemSize={100} // Width
+                   magnification={130} // Expanded Width
                  />
-              </div>
+            </div>
 
-              {/* Right Side: Search + Actions */}
+            {/* Mobile Logo (Prominent) */}
+            <div className="md:hidden flex-1 flex justify-center">
+                <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
+                  StreamVault
+                </span>
+            </div>   {/* Right Side: Search + Actions */}
               <div className="flex items-center gap-6">
                 {/* Search */}
                 {mode !== 'downloads' && (
