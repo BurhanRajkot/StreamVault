@@ -22,6 +22,10 @@ export async function fetchPopular(
   const url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
 
   const res = await fetch(url)
+  if (!res.ok) {
+    console.error('fetchPopular failed:', res.status, res.statusText)
+    return { results: [], total_pages: 0 }
+  }
   const data = await res.json()
 
   return {
@@ -35,6 +39,10 @@ export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
 
   const url = `${API_BASE}/tmdb/trending/${mode}`
   const res = await fetch(url)
+  if (!res.ok) {
+    console.error('fetchTrending failed:', res.status, res.statusText)
+    return []
+  }
   const data = await res.json()
 
   return data.results || []
@@ -78,6 +86,10 @@ export async function fetchTVSeasons(
 ): Promise<{ season_number: number; episode_count: number; name: string }[]> {
   const url = `${API_BASE}/tmdb/tv/${tvId}/seasons`
   const res = await fetch(url)
+  if (!res.ok) {
+    console.error('fetchTVSeasons failed:', res.status, res.statusText)
+    return []
+  }
   const data = await res.json()
 
   return data || []

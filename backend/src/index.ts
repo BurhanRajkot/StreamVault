@@ -4,6 +4,8 @@ dotenv.config()
 import express from 'express'
 import cors from 'cors'
 import compression from 'compression'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import { getCacheStats } from './services/cache'
 
 import favoritesRouter from './routes/favorites'
@@ -13,6 +15,22 @@ import subscriptionsRouter from './routes/subscriptions'
 import tmdbRouter from './routes/tmdb'
 
 const app = express()
+
+// 🔒 SECURITY: Helmet sets various HTTP headers for protection
+app.use(helmet({
+  crossOriginEmbedderPolicy: false, // Allow iframe embeds
+  contentSecurityPolicy: false, // We handle CSP in frontend _headers
+}))
+
+// 🔒 SECURITY: Rate limiting to prevent abuse
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per windowMs per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+})
+app.use(limiter)
 
 // 🔥 COMPRESSION MIDDLEWARE (gzip/brotli)
 app.use(compression())
