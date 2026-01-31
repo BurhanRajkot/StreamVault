@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async'
 import { Media, MediaMode } from '@/lib/config'
 import { useMedia } from '@/hooks/useMedia'
 import { Header } from '@/components/Header'
+import { MobileNav } from '@/components/MobileNav'
 import { HeroCarousel } from '@/components/HeroCarousel'
 import { MediaGrid } from '@/components/MediaGrid'
 import { PlayerModal } from '@/components/PlayerModal'
@@ -66,6 +67,7 @@ const Index = () => {
           searchQuery={searchQuery}
           onClearSearch={clearSearch}
         />
+        <MobileNav mode={mode} onModeChange={setMode} />
 
         {/* 🔥 WIDER CONTAINER FOR LARGE MONITORS */}
         <main className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex-1 py-6">
