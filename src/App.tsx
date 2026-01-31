@@ -14,11 +14,12 @@ import Signup from './auth/Signup'
 import NotFound from './pages/NotFound'
 
 const queryClient = new QueryClient()
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export default function App() {
   // 🔥 FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
-    fetch('https://streamvault-backend-bq9p.onrender.com/health').catch(() => {
+    fetch(`${API_BASE}/health`).catch(() => {
       // silently ignore errors
     })
   }, [])
@@ -31,13 +32,14 @@ export default function App() {
           <Route path="/downloads" element={<Downloads />} />
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
-<Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/subscription/success" element={<SubscriptionSuccess />} />
-            <Route path="*" element={<NotFound />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </QueryClientProvider>
     </HelmetProvider>
   )
 }
+

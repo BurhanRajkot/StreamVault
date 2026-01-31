@@ -97,9 +97,10 @@ export function Header({
   return (
         <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-all">
           {/* 🔥 MATCH HEADER WIDTH WITH MAIN CONTENT */}
-          <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
+          <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
               {/* Logo + Mobile Favorites */}
-              <div className="flex items-center justify-between">
+              {/* Logo + Mobile Elements */}
+              <div className="flex items-center justify-between w-full sm:w-auto">
                 <Link to="/" className="flex items-center gap-3 group sm:flex hidden">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
@@ -113,14 +114,62 @@ export function Header({
                   </h1>
                 </Link>
 
-          {isAuthenticated && (
-            <Link
-              to="/favorites"
-              className="sm:hidden rounded-full p-2 active:scale-95"
-            >
-              <Heart className="h-5 w-5 fill-red-500 text-red-500" />
-            </Link>
-          )}
+                {/* Mobile: Profile/Login (Left) */}
+                <div className="sm:hidden flex items-center gap-3">
+                    {isAuthenticated ? (
+                         <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary">
+                          <Avatar className="h-9 w-9 border border-border/50 shadow-md">
+                            <AvatarImage src={user?.picture} />
+                            <AvatarFallback>{initials}</AvatarFallback>
+                          </Avatar>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                         <DropdownMenuLabel className="flex flex-col gap-1">
+                          <span className="text-sm font-medium">{user?.name}</span>
+                          <span className="text-xs text-muted-foreground">{user?.email}</span>
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                         <button
+                          className="flex w-full items-center gap-2 px-2 py-1.5 text-sm text-destructive hover:bg-accent"
+                          onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Logout
+                        </button>
+                      </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                         <Link to="/login">
+                            <Button size="icon" variant="ghost" className="rounded-full bg-white/5 hover:bg-white/10">
+                                <span className="sr-only">Login</span>
+                                <LogOut className="h-5 w-5 rotate-180" /> {/* Login Icon */}
+                            </Button>
+                        </Link>
+                    )}
+                </div>
+
+
+                {/* Mobile: Text Logo (Center) */}
+                 <div className="sm:hidden flex-1 flex justify-center">
+                    <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
+                      StreamVault
+                    </span>
+                 </div>
+
+                 {/* Mobile: Favorites (Right) */}
+                  <div className="sm:hidden flex items-center gap-2">
+                    {isAuthenticated && (
+                        <Link
+                        to="/favorites"
+                        className="rounded-full p-2 active:scale-95 hover:bg-white/5 transition-colors"
+                        >
+                        <Heart className="h-6 w-6 fill-red-500 text-red-500" />
+                        </Link>
+                    )}
+                  </div>
         </div>
 
               {/* Desktop Navigation - Dock */}
@@ -140,11 +189,7 @@ export function Header({
             </div>
 
             {/* Mobile Logo (Prominent) */}
-            <div className="md:hidden flex-1 flex justify-center">
-                <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
-                  StreamVault
-                </span>
-            </div>   {/* Right Side: Search + Actions */}
+              {/* Mobile Logo Removed from here as it is integrated above */}   {/* Right Side: Search + Actions */}
               <div className="flex items-center gap-6">
                 {/* Search */}
                 {mode !== 'downloads' && (

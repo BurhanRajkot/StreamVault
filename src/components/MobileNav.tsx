@@ -37,51 +37,61 @@ export function MobileNav({ mode, onModeChange }: MobileNavProps) {
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 z-50 w-full sm:hidden">
-      {/* Glassmorphism Background */}
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-xl border-t border-white/10" />
+    <div className="fixed bottom-0 left-0 z-50 w-full sm:hidden pb-safe">
+      {/* Glassmorphism Background - Darker and blurrier for "Premium" feel */}
+      <div className="absolute inset-0 bg-[#181A20]/90 backdrop-blur-2xl border-t border-white/5" />
 
-      <div className="relative flex items-center justify-around pb-4 pt-2 px-2">
+      {/* Nav Items Container */}
+      <div className="relative flex items-center justify-around pb-2 pt-2 px-4">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={item.action}
-            className={cn(
-              'flex flex-col items-center gap-1 p-2 transition-all duration-300',
-              item.isActive ? 'text-primary scale-110' : 'text-muted-foreground hover:text-white'
-            )}
+            className="group relative flex flex-col items-center justify-center gap-1 p-2 w-16"
           >
+            {/* Active Indicator (Pill Shape behind icon) */}
+             <div className={cn(
+               "absolute top-0 h-[3px] w-8 rounded-full transition-all duration-300",
+               item.isActive ? "bg-primary shadow-[0_0_10px_rgba(226,18,33,0.5)]" : "bg-transparent"
+             )} />
+
             <div className={cn(
-              "relative p-1.5 rounded-xl transition-all duration-300",
-               item.isActive && "bg-primary/10"
+              "relative p-2 rounded-2xl transition-all duration-300",
+               item.isActive ? "text-primary" : "text-gray-400 group-hover:text-white"
             )}>
-              <item.icon className={cn("h-5 w-5", item.isActive && "fill-current")} />
-              {item.isActive && (
-                <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-              )}
+              <item.icon className={cn("h-6 w-6 transition-all duration-300", item.isActive && "fill-current scale-110")} />
             </div>
-            <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
+            <span className={cn(
+              "text-[10px] font-medium tracking-wide transition-colors duration-300",
+              item.isActive ? "text-primary" : "text-gray-500"
+            )}>
+              {item.label}
+            </span>
           </button>
         ))}
 
         {/* Favorites Link */}
         <Link
           to="/favorites"
-          className={cn(
-            'flex flex-col items-center gap-1 p-2 transition-all duration-300',
-            isFavorites ? 'text-primary scale-110' : 'text-muted-foreground hover:text-white'
-          )}
+          className="group relative flex flex-col items-center justify-center gap-1 p-2 w-16"
         >
+           <div className={cn(
+               "absolute top-0 h-[3px] w-8 rounded-full transition-all duration-300",
+               isFavorites ? "bg-primary shadow-[0_0_10px_rgba(226,18,33,0.5)]" : "bg-transparent"
+             )} />
+
           <div className={cn(
-            "relative p-1.5 rounded-xl transition-all duration-300",
-             isFavorites && "bg-primary/10"
+            "relative p-2 rounded-2xl transition-all duration-300",
+            isFavorites ? "text-primary" : "text-gray-400 group-hover:text-white"
           )}>
-            <Heart className={cn("h-5 w-5", isFavorites && "fill-current")} />
-             {isFavorites && (
-                <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
-              )}
+            <Heart className={cn("h-6 w-6 transition-all duration-300", isFavorites && "fill-current scale-110")} />
           </div>
-          <span className="text-[10px] font-medium tracking-wide">Favorites</span>
+           <span className={cn(
+              "text-[10px] font-medium tracking-wide transition-colors duration-300",
+              isFavorites ? "text-primary" : "text-gray-500"
+            )}>
+            Favorites
+          </span>
         </Link>
       </div>
     </div>

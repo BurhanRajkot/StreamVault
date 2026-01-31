@@ -46,8 +46,18 @@ router.post('/', checkJwt, async (req, res) => {
 
   const { tmdbId, mediaType, season, episode, progress } = req.body
 
-  if (!tmdbId || !mediaType || progress === undefined) {
-    return res.status(400).json({ error: 'Missing required fields' })
+  // 🔒 Input validation
+  const parsedTmdbId = Number(tmdbId)
+  if (!Number.isInteger(parsedTmdbId) || parsedTmdbId <= 0) {
+    return res.status(400).json({ error: 'Invalid tmdbId: must be a positive integer' })
+  }
+
+  if (mediaType !== 'movie' && mediaType !== 'tv') {
+    return res.status(400).json({ error: 'Invalid mediaType: must be "movie" or "tv"' })
+  }
+
+  if (typeof progress !== 'number' || progress < 0 || progress > 1) {
+    return res.status(400).json({ error: 'Invalid progress: must be a number between 0 and 1' })
   }
 
   const { data: existing } = await supabase

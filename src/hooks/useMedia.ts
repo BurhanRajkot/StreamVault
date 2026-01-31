@@ -27,7 +27,8 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
   // -----------------------------
   const loadMedia = useCallback(
     async (reset = false) => {
-      if (mode === "anime") {
+      // Downloads mode has no TMDB data
+      if (mode === "downloads") {
         setMedia([]);
         setTrending([]);
         setIsLoading(false);
@@ -66,7 +67,8 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
   // LOAD TRENDING (only once per mode change)
   // -----------------------------
   const loadTrending = useCallback(async () => {
-    if (mode === "anime") {
+    // No trending for downloads mode
+    if (mode === "downloads") {
       setTrending([]);
       return;
     }
