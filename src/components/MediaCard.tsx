@@ -74,10 +74,10 @@ export function MediaCard({
                     e.stopPropagation()
                     onClick(media)
                   }}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/40 hover:scale-105 active:scale-95"
+                  className="flex items-center gap-2 rounded-full bg-gradient-primary px-8 py-3 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/40 hover:scale-105 active:scale-95"
                 >
                   <Play className="h-4 w-4 fill-current" />
-                  Watch
+                  Watch Now
                 </button>
 
                 {isAuthenticated && (

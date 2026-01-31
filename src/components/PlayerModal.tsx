@@ -334,7 +334,7 @@ export function PlayerModal({
                 onClick={() => setShowProviderDropdown((prev) => !prev)}
                 className="
                   flex items-center gap-2
-                  rounded-lg border border-border
+                  rounded-full border border-border
                   bg-secondary/50 px-4 py-2
                   text-sm font-medium
                   transition-colors hover:border-primary
@@ -496,7 +496,7 @@ export function PlayerModal({
                 onClick={handlePlay}
                 className="
                   flex w-full items-center justify-center gap-2
-                  rounded-lg bg-gradient-primary py-4
+                  rounded-full bg-gradient-primary py-4
                   font-semibold text-primary-foreground
                   transition-all hover:shadow-glow hover:scale-[1.02]
                   active:scale-95
@@ -517,18 +517,18 @@ export function PlayerModal({
                     <button
                       onClick={handlePrevEpisode}
                       disabled={season === 1 && episode === 1}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50"
+                      className="rounded-full bg-secondary px-3 py-2 text-sm disabled:opacity-50"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
 
-                    <span className="rounded-lg bg-primary/20 px-4 py-2 text-sm font-bold text-primary">
+                    <span className="rounded-full bg-primary/20 px-4 py-2 text-sm font-bold text-primary">
                       S{season} E{episode}
                     </span>
 
                     <button
                       onClick={handleNextEpisode}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm"
+                      className="rounded-full bg-secondary px-3 py-2 text-sm"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
