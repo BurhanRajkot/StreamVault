@@ -584,7 +584,6 @@ export function PlayerModal({
                         src={embedUrl}
                         className="h-full w-full"
                         allowFullScreen
-                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-modals allow-downloads"
                         allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
                         loading="eager"
                         referrerPolicy="origin"
