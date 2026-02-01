@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   X,
   Play,
@@ -58,17 +58,26 @@ export function PlayerModal({
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
-  /* ================= FETCH SEASONS ================= */
+  /* ================= FETCH SEASONS (OPTIMIZED) ================= */
 
   useEffect(() => {
     if (isOpen && media && mode === 'tv') {
-      fetchTVSeasons(media.id).then((data) => {
-        setSeasons(data)
-        if (data.length > 0) {
-          const firstSeason = data.find((s) => s.season_number === 1) || data[0]
-          setCurrentSeasonEpisodes(firstSeason.episode_count || 10)
-        }
-      })
+      // Debounce season fetching to avoid rapid API calls
+      const timer = setTimeout(() => {
+        fetchTVSeasons(media.id).then((data) => {
+          setSeasons(data)
+          if (data.length > 0) {
+            const firstSeason = data.find((s) => s.season_number === 1) || data[0]
+            setCurrentSeasonEpisodes(firstSeason.episode_count || 10)
+          }
+        }).catch((err) => {
+          console.error('Failed to fetch seasons:', err)
+          // Fallback to default if fetch fails
+          setSeasons([])
+        })
+      }, 100)
+
+      return () => clearTimeout(timer)
     }
   }, [isOpen, media, mode])
 
@@ -283,10 +292,12 @@ export function PlayerModal({
     }
   }
 
+  // Memoize providers list to prevent re-creation on every render
+  const providers = useMemo(() => Object.entries(CONFIG.PROVIDER_NAMES), [])
+
   if (!isOpen || !media) return null
 
   const title = media.title || media.name || 'Unknown'
-  const providers = Object.entries(CONFIG.PROVIDER_NAMES)
 
   /* ================= RENDER ================= */
 
@@ -588,8 +599,8 @@ export function PlayerModal({
                         loading="eager"
                         referrerPolicy="origin"
                         style={{ border: 'none' }}
-                        // @ts-ignore - importance is a valid attribute but not in TypeScript types yet
-                        importance="high"
+                        // @ts-ignore - fetchpriority is a valid attribute but not in TypeScript types yet
+                        fetchpriority="high"
                         onLoad={() => {
                           setIsLoading(false)
                           setStreamError(false)
