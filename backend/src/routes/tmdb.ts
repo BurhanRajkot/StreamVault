@@ -7,9 +7,9 @@ const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || '668a0dd95d2a554867a2c6104
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 
 /**
- * Fetch from TMDB with caching
+ * Fetch from TMDB with caching and retry logic
  */
-async function fetchTMDB(endpoint: string): Promise<any> {
+async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
   const cacheKey = cache.generateCacheKey('tmdb', endpoint)
   const cached = cache.tmdb.get(cacheKey)
 
@@ -19,18 +19,31 @@ async function fetchTMDB(endpoint: string): Promise<any> {
 
   const url = `${TMDB_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}api_key=${TMDB_API_KEY}`
 
-  try {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.statusText}`)
-    }
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.statusText}`)
+      }
 
-    const data = await response.json()
-    cache.tmdb.set(cacheKey, data, 300) // 5 minutes TTL
-    return data
-  } catch (error) {
-    console.error('TMDB fetch error:', error)
-    throw error
+      const data = await response.json()
+      cache.tmdb.set(cacheKey, data, 300) // 5 minutes TTL
+      return data
+    } catch (error: any) {
+      const isLastAttempt = attempt === retries
+      const isConnectionError = error?.code === 'ECONNRESET' || error?.errno === 0
+
+      if (isConnectionError && !isLastAttempt) {
+        // Wait before retrying (exponential backoff)
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
+        console.log(`🔄 TMDB connection reset, retrying in ${delay}ms (attempt ${attempt}/${retries})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+
+      console.error('TMDB fetch error:', error)
+      throw error
+    }
   }
 }
 
