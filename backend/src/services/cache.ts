@@ -131,7 +131,7 @@ export function clearAllCaches(): void {
   tmdb.flush()
   userData.flush()
   seasons.flush()
-  console.log('✅ All caches cleared')
+  console.log('All caches cleared')
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * 🌐 CORS (Cross-Origin Resource Sharing) MIDDLEWARE
+ * CORS (Cross-Origin Resource Sharing) MIDDLEWARE
  *
  * CORS is a security feature that restricts web pages from making requests
  * to a different domain than the one that served the original page.
@@ -29,7 +29,7 @@ export const corsMiddleware = cors({
     // if (!origin || allowedOrigins.includes(origin)) callback(null, true)
     // else callback(new Error('CORS not allowed'))
 
-    // ✅ Removed console.log for performance - was logging EVERY request
+    // Removed console.log for performance - was logging EVERY request
     callback(null, true)
   },
 

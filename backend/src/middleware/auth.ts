@@ -1,5 +1,5 @@
 import dotenv from 'dotenv'
-dotenv.config() // ✅ MUST be first
+dotenv.config() // MUST be first
 
 import { auth } from 'express-oauth2-jwt-bearer'
 import { Request, Response, NextFunction } from 'express'

@@ -67,7 +67,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
     mediaType: 'movie' | 'tv'
   }
 
-  // 🔒 Input validation
+  // Input validation
   const parsedTmdbId = Number(tmdbId)
   if (!Number.isInteger(parsedTmdbId) || parsedTmdbId <= 0) {
     return res.status(400).json({ error: 'Invalid tmdbId: must be a positive integer' })

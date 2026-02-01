@@ -183,15 +183,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     switch (event.type) {
       case 'customer.subscription.created':
-        console.log('✅ Subscription created:', event.data.object.id)
+        console.log('Subscription created:', event.data.object.id)
         break
 
       case 'customer.subscription.updated':
-        console.log('🔄 Subscription updated:', event.data.object.id)
+        console.log('Subscription updated:', event.data.object.id)
         break
 
       case 'customer.subscription.deleted':
-        console.log('❌ Subscription deleted:', event.data.object.id)
+        console.log('Subscription deleted:', event.data.object.id)
         break
 
       case 'invoice.paid':
@@ -199,7 +199,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         break
 
       case 'invoice.payment_failed':
-        console.error('❌ Payment failed:', event.data.object.id)
+        console.error('Payment failed:', event.data.object.id)
         break
 
       default:
@@ -208,7 +208,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     res.json({ received: true })
   } catch (err: any) {
-    console.error('❌ Webhook error:', err.message)
+    console.error('Webhook error:', err.message)
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 })
