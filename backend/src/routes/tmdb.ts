@@ -23,7 +23,9 @@ async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
     try {
       const response = await fetch(url)
       if (!response.ok) {
-        throw new Error(`TMDB API error: ${response.statusText}`)
+        const errorText = await response.text()
+        console.error(`❌ TMDB API error (${response.status}):`, errorText)
+        throw new Error(`TMDB API error: ${response.status} ${response.statusText} - ${errorText}`)
       }
 
       const data = await response.json()
@@ -41,7 +43,7 @@ async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
         continue
       }
 
-      console.error('TMDB fetch error:', error)
+      console.error(`❌ TMDB fetch error for ${endpoint}:`, error.message || error)
       throw error
     }
   }
