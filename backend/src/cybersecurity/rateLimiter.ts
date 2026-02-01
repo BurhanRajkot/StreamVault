@@ -50,6 +50,9 @@ export const apiRateLimiter = rateLimit({
   // Skip rate limiting for health check endpoints
   // These are hit frequently by monitoring services
   skip: (req) => req.path === '/' || req.path === '/health',
+
+  // Disable validation warnings (we handle trust proxy correctly)
+  validate: { trustProxy: false },
 })
 
 /**
@@ -65,6 +68,7 @@ export const strictRateLimiter = rateLimit({
     error: 'Too many attempts. Please wait before trying again.',
     retryAfter: '15 minutes'
   },
+  validate: { trustProxy: false },
 })
 
 /**
@@ -80,6 +84,7 @@ export const authRateLimiter = rateLimit({
     error: 'Too many login attempts. Please wait 15 minutes.',
     retryAfter: '15 minutes'
   },
+  validate: { trustProxy: false },
 })
 
 export default apiRateLimiter

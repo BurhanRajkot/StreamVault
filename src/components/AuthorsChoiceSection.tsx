@@ -81,8 +81,8 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
                 <MediaCardSkeleton />
               </div>
             ))
-          : media.map((item) => (
-              <div key={item.id} className="w-[160px] flex-shrink-0">
+          : media.map((item, index) => (
+              <div key={`${item.id}-${index}`} className="w-[160px] flex-shrink-0">
                 <MediaCard media={item} onClick={onMediaClick} />
               </div>
             ))}
