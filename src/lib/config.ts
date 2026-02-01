@@ -12,22 +12,22 @@ export const CONFIG = {
       /* ================= TV ================= */
       vidfast_pro:
         'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto&ds_lang=en',
-      vidsrc_icu: 'https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}?autoplay=1&ds_lang=en',
+      vidsrc_icu: 'https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}?autoplay=1&preload=auto&ds_lang=en',
       vidlink_pro:
         'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true&preload=auto&ds_lang=en',
       vidsrc_cc:
         'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy:
-        'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&ds_lang=en',
+        'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
 
       /* ================= MOVIE ================= */
       vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
-      vidsrc_icu_movie: 'https://vidsrc.icu/embed/movie/{tmdbId}?autoplay=1&ds_lang=en',
+      vidsrc_icu_movie: 'https://vidsrc.icu/embed/movie/{tmdbId}?autoplay=1&preload=auto&ds_lang=en',
       vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
       vidsrc_cc_movie:
         'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy_movie:
-        'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&ds_lang=en',
+        'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
     },
 
   PROVIDER_NAMES: {
@@ -37,6 +37,22 @@ export const CONFIG = {
     vidsrc_cc: 'VidSrc CC',
     videasy: 'Videasy',
   } as Record<string, string>,
+
+  PROVIDER_METADATA: {
+    vidfast_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Best for seeking' },
+    vidsrc_icu: { quality: '✓ Good', seekSupport: 'good', description: 'Reliable streaming' },
+    vidlink_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Fast buffering' },
+    vidsrc_cc: { quality: '✓ Good', seekSupport: 'good', description: 'Stable playback' },
+    videasy: { quality: '✓ Good', seekSupport: 'medium', description: 'Standard quality' },
+  } as Record<string, { quality: string; seekSupport: string; description: string }>,
+
+  STREAMING_DOMAINS: [
+    'vidfast.pro',
+    'vidsrc.icu',
+    'vidlink.pro',
+    'vidsrc.cc',
+    'player.videasy.net',
+  ],
 }
 
 /* ✅ ONLY REQUIRED MODES */
