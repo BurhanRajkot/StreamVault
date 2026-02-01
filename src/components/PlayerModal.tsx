@@ -597,9 +597,11 @@ export function PlayerModal({
                         src={embedUrl}
                         className="h-full w-full"
                         allowFullScreen
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-modals"
+                        allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
                         loading="eager"
-                        referrerPolicy="no-referrer-when-downgrade"
+                        referrerPolicy="no-referrer"
+                        style={{ border: 'none' }}
                         onLoad={() => {
                           setIsLoading(false)
                           setStreamError(false)
