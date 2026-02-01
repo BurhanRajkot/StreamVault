@@ -75,6 +75,7 @@ app.use('/continue-watching', continueWatchingRouter)
 app.use('/subscriptions', subscriptionsRouter)
 
 // 🚀 START SERVER
-app.listen(PORT, () => {
-  console.log(`🚀 Backend running on port ${PORT}`)
+const HOST = '0.0.0.0'
+app.listen(Number(PORT), HOST, () => {
+  console.log(`🚀 Backend running on http://${HOST}:${PORT}`)
 })
