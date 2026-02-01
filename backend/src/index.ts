@@ -36,14 +36,24 @@ app.use(limiter)
 // 🔥 COMPRESSION MIDDLEWARE (gzip/brotli)
 app.use(compression())
 
+// 🔒 CORS MIDDLEWARE - Allow all origins with explicit configuration
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow all origins (including no origin for direct API access)
+      console.log(`📡 CORS request from origin: ${origin || 'direct access'}`)
+      callback(null, true)
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Length', 'X-Request-Id'],
+    maxAge: 86400, // 24 hours - cache preflight responses
   })
 )
+
+// Additional explicit OPTIONS handling for preflight requests
+app.options('*', cors())
 
 app.post('/subscriptions/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())
