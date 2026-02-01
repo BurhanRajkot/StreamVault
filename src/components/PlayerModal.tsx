@@ -84,6 +84,22 @@ export function PlayerModal({
         setStreamError(false)
         setIsLoading(false)
         document.body.style.overflow = 'hidden'
+
+        // 🚀 Preconnect to streaming providers for faster loading
+        const providers = [
+          'https://vidfast.pro',
+          'https://vidsrc.icu',
+          'https://vidlink.pro',
+          'https://vidsrc.cc',
+          'https://player.videasy.net',
+        ]
+        providers.forEach((url) => {
+          const link = document.createElement('link')
+          link.rel = 'preconnect'
+          link.href = url
+          link.crossOrigin = 'anonymous'
+          document.head.appendChild(link)
+        })
       } else {
         document.body.style.overflow = ''
       }
