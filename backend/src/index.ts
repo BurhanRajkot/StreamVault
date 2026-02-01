@@ -25,21 +25,7 @@ app.use(helmet({
   contentSecurityPolicy: false, // We handle CSP in frontend _headers
 }))
 
-// 🔒 SECURITY: Rate limiting to prevent abuse (skip health checks)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per windowMs per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later.' },
-  skip: (req) => req.path === '/' || req.path === '/health',
-})
-app.use(limiter)
-
-// 🔥 COMPRESSION MIDDLEWARE (gzip/brotli)
-app.use(compression())
-
-// 🔒 CORS MIDDLEWARE - Allow all origins with explicit configuration
+// 🔒 CORS MIDDLEWARE - Must be BEFORE rate limiter so error responses include CORS headers
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -57,6 +43,20 @@ app.use(
 
 // Additional explicit OPTIONS handling for preflight requests
 app.options('/{*splat}', cors())
+
+// 🔒 SECURITY: Rate limiting to prevent abuse (skip health checks)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // 500 requests per windowMs per IP (increased for production)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+  skip: (req) => req.path === '/' || req.path === '/health',
+})
+app.use(limiter)
+
+// 🔥 COMPRESSION MIDDLEWARE (gzip/brotli)
+app.use(compression())
 
 app.post('/subscriptions/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())
