@@ -53,7 +53,7 @@ app.use(
 )
 
 // Additional explicit OPTIONS handling for preflight requests
-app.options('*', cors())
+app.options('/{*splat}', cors())
 
 app.post('/subscriptions/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())
