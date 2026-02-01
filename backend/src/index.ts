@@ -28,15 +28,15 @@ app.set('trust proxy', true)
 // 1. Helmet - HTTP security headers
 app.use(helmetMiddleware)
 
-// 2. CORS - Must be BEFORE rate limiter so error responses include CORS headers
+// 2. Compression - Apply BEFORE rate limiting for better performance
+app.use(compression())
+
+// 3. CORS - Must be BEFORE rate limiter so error responses include CORS headers
 app.use(corsMiddleware)
 app.options('/{*splat}', corsPreflightHandler)
 
-// 3. Rate Limiting - Prevent API abuse
+// 4. Rate Limiting - Prevent API abuse (applied after compression)
 app.use(apiRateLimiter)
-
-// 🔥 COMPRESSION MIDDLEWARE (gzip/brotli)
-app.use(compression())
 
 app.post('/subscriptions/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())

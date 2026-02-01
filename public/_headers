@@ -5,8 +5,13 @@
   # Allow cross-origin requests
   X-Frame-Options: SAMEORIGIN
 
-  # Referrer policy for iframe embeds
-  Referrer-Policy: no-referrer
+  # Referrer policy for iframe embeds - relaxed for streaming providers
+  Referrer-Policy: no-referrer-when-downgrade
+
+  # Cross-origin policies - unsafe-none allows streaming providers to work
+  Cross-Origin-Embedder-Policy: unsafe-none
+  Cross-Origin-Opener-Policy: unsafe-none
 
   # Permissions policy for video features
   Permissions-Policy: accelerometer=*, autoplay=*, clipboard-write=*, encrypted-media=*, gyroscope=*, picture-in-picture=*, fullscreen=*
+

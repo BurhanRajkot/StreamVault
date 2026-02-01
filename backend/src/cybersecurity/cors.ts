@@ -29,7 +29,7 @@ export const corsMiddleware = cors({
     // if (!origin || allowedOrigins.includes(origin)) callback(null, true)
     // else callback(new Error('CORS not allowed'))
 
-    console.log(`📡 CORS request from origin: ${origin || 'direct access'}`)
+    // ✅ Removed console.log for performance - was logging EVERY request
     callback(null, true)
   },
 
@@ -45,8 +45,8 @@ export const corsMiddleware = cors({
   // Headers the client can read from the response
   exposedHeaders: ['Content-Length', 'X-Request-Id'],
 
-  // Cache preflight responses for 24 hours (reduces OPTIONS requests)
-  maxAge: 86400,
+  // Cache preflight responses for 7 days (604800s) - reduces OPTIONS requests significantly
+  maxAge: 604800,
 })
 
 /**
