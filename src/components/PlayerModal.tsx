@@ -94,14 +94,37 @@ export function PlayerModal({
       setIsLoading(false)
       document.body.style.overflow = 'hidden'
 
-      // ✅ Removed preconnect links - they were adding overhead without helping
-      // Browsers already optimize iframe loading automatically
+      // Add DNS prefetch and preconnect hints for streaming providers
+      const head = document.head
+      const existingHints = head.querySelectorAll('link[data-streaming-hint]')
+      existingHints.forEach(hint => hint.remove())
+
+      CONFIG.STREAMING_DOMAINS.forEach(domain => {
+        // DNS prefetch
+        const dnsPrefetch = document.createElement('link')
+        dnsPrefetch.rel = 'dns-prefetch'
+        dnsPrefetch.href = `https://${domain}`
+        dnsPrefetch.setAttribute('data-streaming-hint', 'true')
+        head.appendChild(dnsPrefetch)
+
+        // Preconnect for faster connection establishment
+        const preconnect = document.createElement('link')
+        preconnect.rel = 'preconnect'
+        preconnect.href = `https://${domain}`
+        preconnect.setAttribute('data-streaming-hint', 'true')
+        head.appendChild(preconnect)
+      })
     } else {
       document.body.style.overflow = ''
+      // Clean up hints when modal closes
+      const hints = document.head.querySelectorAll('link[data-streaming-hint]')
+      hints.forEach(hint => hint.remove())
     }
 
     return () => {
       document.body.style.overflow = ''
+      const hints = document.head.querySelectorAll('link[data-streaming-hint]')
+      hints.forEach(hint => hint.remove())
     }
   }, [isOpen, initialSeason, initialEpisode])
 
@@ -366,20 +389,33 @@ export function PlayerModal({
               </button>
 
               {showProviderDropdown && (
-                <div className="absolute right-0 z-30 mt-2 w-48 rounded-lg border border-border bg-popover shadow-lg">
-                  {providers.map(([key, name]) => (
-                    <button
-                      key={key}
-                      onClick={() => changeSource(key)}
-                      className={cn(
-                        'w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-secondary',
-                        provider === key &&
-                          'bg-primary/10 text-primary font-medium'
-                      )}
-                    >
-                      {name}
-                    </button>
-                  ))}
+                <div className="absolute right-0 z-30 mt-2 w-64 rounded-lg border border-border bg-popover shadow-lg">
+                  {providers.map(([key, name]) => {
+                    const metadata = CONFIG.PROVIDER_METADATA[key]
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => changeSource(key)}
+                        className={cn(
+                          'w-full px-4 py-3 text-left transition-colors hover:bg-secondary',
+                          provider === key &&
+                            'bg-primary/10 text-primary font-medium'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium">{name}</span>
+                          {metadata && (
+                            <span className="text-xs opacity-75">{metadata.quality}</span>
+                          )}
+                        </div>
+                        {metadata && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {metadata.description}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -599,8 +635,9 @@ export function PlayerModal({
                         loading="eager"
                         referrerPolicy="origin"
                         style={{ border: 'none' }}
-                        // @ts-ignore - fetchpriority is a valid attribute but not in TypeScript types yet
+                        // @ts-ignore - fetchpriority and importance are valid attributes but not in TypeScript types yet
                         fetchpriority="high"
+                        importance="high"
                         onLoad={() => {
                           setIsLoading(false)
                           setStreamError(false)
