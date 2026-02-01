@@ -22,13 +22,14 @@ app.use(helmet({
   contentSecurityPolicy: false, // We handle CSP in frontend _headers
 }))
 
-// 🔒 SECURITY: Rate limiting to prevent abuse
+// 🔒 SECURITY: Rate limiting to prevent abuse (skip health checks)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // 100 requests per windowMs per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
+  skip: (req) => req.path === '/' || req.path === '/health',
 })
 app.use(limiter)
 
@@ -48,6 +49,18 @@ app.post('/subscriptions/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())
 
 const PORT = process.env.PORT || 4000
+
+// Log environment status for debugging
+console.log('🔧 Environment check:')
+console.log(`   - PORT: ${PORT}`)
+console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`)
+console.log(`   - SUPABASE_URL: ${process.env.SUPABASE_URL ? '✓ set' : '✗ MISSING'}`)
+console.log(`   - SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✓ set' : '✗ MISSING'}`)
+
+// 🔥 ROOT ENDPOINT (FOR RENDER'S DEFAULT HEALTH CHECK)
+app.get('/', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'streamvault-backend' })
+})
 
 // 🔥 HEALTH ENDPOINT (FOR UPTIMEROBOT + WARMUP)
 app.get('/health', (_req, res) => {
