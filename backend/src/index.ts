@@ -2,11 +2,16 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 import express from 'express'
-import cors from 'cors'
 import compression from 'compression'
-import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
 import { getCacheStats } from './services/cache'
+
+// 🔐 CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
+import {
+  helmetMiddleware,
+  corsMiddleware,
+  corsPreflightHandler,
+  apiRateLimiter
+} from './cybersecurity'
 
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
@@ -19,41 +24,16 @@ const app = express()
 // 🔒 Trust proxy (required for Render/Vercel/Heroku reverse proxy)
 app.set('trust proxy', true)
 
-// 🔒 SECURITY: Helmet sets various HTTP headers for protection
-app.use(helmet({
-  crossOriginEmbedderPolicy: false, // Allow iframe embeds
-  contentSecurityPolicy: false, // We handle CSP in frontend _headers
-}))
+// 🔒 SECURITY: Apply security middleware in order
+// 1. Helmet - HTTP security headers
+app.use(helmetMiddleware)
 
-// 🔒 CORS MIDDLEWARE - Must be BEFORE rate limiter so error responses include CORS headers
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow all origins (including no origin for direct API access)
-      console.log(`📡 CORS request from origin: ${origin || 'direct access'}`)
-      callback(null, true)
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Length', 'X-Request-Id'],
-    maxAge: 86400, // 24 hours - cache preflight responses
-  })
-)
+// 2. CORS - Must be BEFORE rate limiter so error responses include CORS headers
+app.use(corsMiddleware)
+app.options('/{*splat}', corsPreflightHandler)
 
-// Additional explicit OPTIONS handling for preflight requests
-app.options('/{*splat}', cors())
-
-// 🔒 SECURITY: Rate limiting to prevent abuse (skip health checks)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // 500 requests per windowMs per IP (increased for production)
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later.' },
-  skip: (req) => req.path === '/' || req.path === '/health',
-})
-app.use(limiter)
+// 3. Rate Limiting - Prevent API abuse
+app.use(apiRateLimiter)
 
 // 🔥 COMPRESSION MIDDLEWARE (gzip/brotli)
 app.use(compression())
