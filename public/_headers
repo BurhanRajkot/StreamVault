@@ -6,7 +6,7 @@
   X-Frame-Options: SAMEORIGIN
 
   # Referrer policy for iframe embeds
-  Referrer-Policy: no-referrer-when-downgrade
+  Referrer-Policy: no-referrer
 
   # Permissions policy for video features
   Permissions-Policy: accelerometer=*, autoplay=*, clipboard-write=*, encrypted-media=*, gyroscope=*, picture-in-picture=*, fullscreen=*
