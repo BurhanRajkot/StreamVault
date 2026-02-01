@@ -16,6 +16,9 @@ import tmdbRouter from './routes/tmdb'
 
 const app = express()
 
+// 🔒 Trust proxy (required for Render/Vercel/Heroku reverse proxy)
+app.set('trust proxy', true)
+
 // 🔒 SECURITY: Helmet sets various HTTP headers for protection
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // Allow iframe embeds
