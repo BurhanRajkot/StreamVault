@@ -9,7 +9,7 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 /**
  * Fetch from TMDB with caching and retry logic
  */
-async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
+async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
   const cacheKey = cache.generateCacheKey('tmdb', endpoint)
   const cached = cache.tmdb.get(cacheKey)
 
@@ -27,15 +27,15 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
       }
 
       const data = await response.json()
-      cache.tmdb.set(cacheKey, data, 300) // 5 minutes TTL
+      cache.tmdb.set(cacheKey, data, 600) // 10 minutes TTL (increased from 5)
       return data
     } catch (error: any) {
       const isLastAttempt = attempt === retries
       const isConnectionError = error?.code === 'ECONNRESET' || error?.errno === 0
 
       if (isConnectionError && !isLastAttempt) {
-        // Wait before retrying (exponential backoff)
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
+        // Wait before retrying (exponential backoff, max 2s)
+        const delay = Math.min(500 * Math.pow(2, attempt - 1), 2000)
         console.log(`🔄 TMDB connection reset, retrying in ${delay}ms (attempt ${attempt}/${retries})`)
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
@@ -61,7 +61,7 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
 
   try {
     const data = await fetchTMDB(`/discover/${mediaType}?sort_by=popularity.desc&page=${page}`)
-    res.setHeader('Cache-Control', 'public, max-age=300') // 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=600') // 10 minutes
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch popular media' })
@@ -81,7 +81,7 @@ router.get('/trending/:mediaType', async (req: Request, res: Response) => {
 
   try {
     const data = await fetchTMDB(`/trending/${mediaType}/week`)
-    res.setHeader('Cache-Control', 'public, max-age=300')
+    res.setHeader('Cache-Control', 'public, max-age=600')
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch trending media' })
@@ -127,7 +127,7 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
 
   try {
     const data = await fetchTMDB(`/${mediaType}/${id}`)
-    res.setHeader('Cache-Control', 'public, max-age=3600') // 1 hour for details
+    res.setHeader('Cache-Control', 'public, max-age=7200') // 2 hours for details
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch media details' })
@@ -153,7 +153,7 @@ router.get('/tv/:id/seasons', async (req: Request, res: Response) => {
     const data = await fetchTMDB(`/tv/${id}`)
     const seasons = data.seasons?.filter((s: any) => s.season_number > 0) || []
 
-    cache.seasons.set(cacheKey, seasons, 3600) // 1 hour TTL
+    cache.seasons.set(cacheKey, seasons, 7200) // 2 hours TTL
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('Cache-Control', 'public, max-age=3600')
     res.json(seasons)
