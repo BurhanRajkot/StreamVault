@@ -10,6 +10,8 @@ export const CONFIG = {
 
     STREAM_PROVIDERS: {
       /* ================= TV ================= */
+      vidsrc_pro:
+        'https://vidsrc.to/embed/tv/{tmdbId}/{season}/{episode}',
       vidfast_pro:
         'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto&ds_lang=en',
       vidsrc_icu: 'https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}?autoplay=1&preload=auto&ds_lang=en',
@@ -21,6 +23,7 @@ export const CONFIG = {
         'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
 
       /* ================= MOVIE ================= */
+      vidsrc_pro_movie: 'https://vidsrc.to/embed/movie/{tmdbId}',
       vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
       vidsrc_icu_movie: 'https://vidsrc.icu/embed/movie/{tmdbId}?autoplay=1&preload=auto&ds_lang=en',
       vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
@@ -31,6 +34,7 @@ export const CONFIG = {
     },
 
   PROVIDER_NAMES: {
+    vidsrc_pro: 'VidSrc Pro',
     vidfast_pro: 'VidFast Pro',
     vidsrc_icu: 'VidSrc ICU',
     vidlink_pro: 'VidLink Pro',
@@ -39,6 +43,7 @@ export const CONFIG = {
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
+    vidsrc_pro: { quality: '🌟 Latest/Best', seekSupport: 'excellent', description: 'Latest quality streams' },
     vidfast_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Best for seeking' },
     vidsrc_icu: { quality: '✓ Good', seekSupport: 'good', description: 'Reliable streaming' },
     vidlink_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Fast buffering' },
@@ -47,6 +52,7 @@ export const CONFIG = {
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
 
   STREAMING_DOMAINS: [
+    'vidsrc.to',
     'vidfast.pro',
     'vidsrc.icu',
     'vidlink.pro',

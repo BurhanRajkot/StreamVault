@@ -42,7 +42,7 @@ export function PlayerModal({
   initialSeason,
   initialEpisode,
 }: PlayerModalProps) {
-  const [provider, setProvider] = useState('vidfast_pro')
+  const [provider, setProvider] = useState('vidsrc_pro')
   const [season, setSeason] = useState(initialSeason || 1)
   const [episode, setEpisode] = useState(initialEpisode || 1)
   const [malId, setMalId] = useState('')
@@ -87,7 +87,7 @@ export function PlayerModal({
     if (isOpen) {
       setIsPlaying(false)
       setEmbedUrl('')
-      setProvider('vidfast_pro')
+      setProvider('vidsrc_pro')
       setSeason(initialSeason || 1)
       setEpisode(initialEpisode || 1)
       setStreamError(false)
