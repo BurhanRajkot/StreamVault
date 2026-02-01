@@ -12,8 +12,11 @@
     """
     X-Frame-Options = "SAMEORIGIN"
     Referrer-Policy = "no-referrer-when-downgrade"
+    Cross-Origin-Embedder-Policy = "unsafe-none"
+    Cross-Origin-Opener-Policy = "unsafe-none"
     Permissions-Policy = "accelerometer=*, autoplay=*, clipboard-write=*, encrypted-media=*, gyroscope=*, picture-in-picture=*, fullscreen=*"
 
 [build]
   command = "npm run build"
   publish = "dist"
+

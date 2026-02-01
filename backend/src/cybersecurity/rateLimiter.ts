@@ -23,17 +23,16 @@ import rateLimit from 'express-rate-limit'
 
 /**
  * General API rate limiter
- * 500 requests per 15 minutes per IP
+ * 100 requests per 15 minutes per IP (reduced from 500 for better performance)
  */
 export const apiRateLimiter = rateLimit({
   // Time window: 15 minutes
   windowMs: 15 * 60 * 1000,
 
-  // Maximum 500 requests per IP per window
-  // Adjust based on your traffic patterns:
-  // - Lower (100-200) for high-security endpoints
-  // - Higher (500-1000) for public APIs with legitimate high traffic
-  max: 500,
+  // Maximum 100 requests per IP per window
+  // Reduced from 500 to save memory and improve performance
+  // Most legitimate users won't hit this limit
+  max: 100,
 
   // Return rate limit info in RateLimit-* headers
   standardHeaders: true,
@@ -47,9 +46,22 @@ export const apiRateLimiter = rateLimit({
     retryAfter: '15 minutes'
   },
 
-  // Skip rate limiting for health check endpoints
-  // These are hit frequently by monitoring services
-  skip: (req) => req.path === '/' || req.path === '/health',
+  // Skip rate limiting for health checks, cache stats, and static assets
+  // These endpoints should not be throttled
+  skip: (req) => {
+    const path = req.path
+    return (
+      path === '/' ||
+      path === '/health' ||
+      path === '/cache-stats' ||
+      path.startsWith('/static/') ||
+      path.endsWith('.js') ||
+      path.endsWith('.css') ||
+      path.endsWith('.png') ||
+      path.endsWith('.jpg') ||
+      path.endsWith('.svg')
+    )
+  },
 
   // Disable validation warnings (we handle trust proxy correctly)
   validate: { trustProxy: false },

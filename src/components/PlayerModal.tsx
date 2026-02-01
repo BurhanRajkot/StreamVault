@@ -74,40 +74,27 @@ export function PlayerModal({
 
   /* ================= MODAL OPEN / CLOSE ================= */
 
-    useEffect(() => {
-      if (isOpen) {
-        setIsPlaying(false)
-        setEmbedUrl('')
-        setProvider('vidfast_pro')
-        setSeason(initialSeason || 1)
-        setEpisode(initialEpisode || 1)
-        setStreamError(false)
-        setIsLoading(false)
-        document.body.style.overflow = 'hidden'
+  useEffect(() => {
+    if (isOpen) {
+      setIsPlaying(false)
+      setEmbedUrl('')
+      setProvider('vidfast_pro')
+      setSeason(initialSeason || 1)
+      setEpisode(initialEpisode || 1)
+      setStreamError(false)
+      setIsLoading(false)
+      document.body.style.overflow = 'hidden'
 
-        // 🚀 Preconnect to streaming providers for faster loading
-        const providers = [
-          'https://vidfast.pro',
-          'https://vidsrc.icu',
-          'https://vidlink.pro',
-          'https://vidsrc.cc',
-          'https://player.videasy.net',
-        ]
-        providers.forEach((url) => {
-          const link = document.createElement('link')
-          link.rel = 'preconnect'
-          link.href = url
-          link.crossOrigin = 'anonymous'
-          document.head.appendChild(link)
-        })
-      } else {
-        document.body.style.overflow = ''
-      }
+      // ✅ Removed preconnect links - they were adding overhead without helping
+      // Browsers already optimize iframe loading automatically
+    } else {
+      document.body.style.overflow = ''
+    }
 
-      return () => {
-        document.body.style.overflow = ''
-      }
-    }, [isOpen, initialSeason, initialEpisode])
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen, initialSeason, initialEpisode])
 
   /* ================= EPISODE COUNT UPDATE ================= */
 
@@ -137,7 +124,7 @@ export function PlayerModal({
       } catch (err) {
         console.error('Failed to update continue watching:', err)
       }
-    }, 30000) // 🔥 Reduced from 15s to 30s for better performance
+    }, 60000) // 🔥 Reduced from 30s to 60s for better performance (50% less backend load)
 
     return () => clearInterval(interval)
   }, [
@@ -597,11 +584,13 @@ export function PlayerModal({
                         src={embedUrl}
                         className="h-full w-full"
                         allowFullScreen
-                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-modals"
+                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-modals allow-downloads"
                         allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
                         loading="eager"
-                        referrerPolicy="no-referrer"
+                        referrerPolicy="origin"
                         style={{ border: 'none' }}
+                        // @ts-ignore - importance is a valid attribute but not in TypeScript types yet
+                        importance="high"
                         onLoad={() => {
                           setIsLoading(false)
                           setStreamError(false)
