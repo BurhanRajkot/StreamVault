@@ -5,7 +5,7 @@ import express from 'express'
 import compression from 'compression'
 import { getCacheStats } from './services/cache'
 
-// 🔐 CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
+// CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
 import {
   helmetMiddleware,
   corsMiddleware,
@@ -21,10 +21,10 @@ import tmdbRouter from './routes/tmdb'
 
 const app = express()
 
-// 🔒 Trust proxy (required for Render/Vercel/Heroku reverse proxy)
+// Trust proxy (required for Render/Vercel/Heroku reverse proxy)
 app.set('trust proxy', true)
 
-// 🔒 SECURITY: Apply security middleware in order
+// SECURITY: Apply security middleware in order
 // 1. Helmet - HTTP security headers
 app.use(helmetMiddleware)
 
@@ -44,18 +44,18 @@ app.use(express.json())
 const PORT = process.env.PORT || 4000
 
 // Log environment status for debugging
-console.log('🔧 Environment check:')
+console.log('Environment check:')
 console.log(`   - PORT: ${PORT}`)
 console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`)
 console.log(`   - SUPABASE_URL: ${process.env.SUPABASE_URL ? '✓ set' : '✗ MISSING'}`)
 console.log(`   - SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✓ set' : '✗ MISSING'}`)
 
-// 🔥 ROOT ENDPOINT (FOR RENDER'S DEFAULT HEALTH CHECK)
+// ROOT ENDPOINT (FOR RENDER'S DEFAULT HEALTH CHECK)
 app.get('/', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'streamvault-backend' })
 })
 
-// 🔥 HEALTH ENDPOINT (FOR UPTIMEROBOT + WARMUP)
+// HEALTH ENDPOINT (FOR UPTIMEROBOT + WARMUP)
 app.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'ok',
@@ -64,7 +64,7 @@ app.get('/health', (_req, res) => {
   })
 })
 
-// 🔥 CACHE STATS ENDPOINT (FOR MONITORING)
+// CACHE STATS ENDPOINT (FOR MONITORING)
 app.get('/cache-stats', (_req, res) => {
   const stats = getCacheStats()
   res.status(200).json({
@@ -80,8 +80,8 @@ app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
 app.use('/subscriptions', subscriptionsRouter)
 
-// 🚀 START SERVER
+// START SERVER
 const HOST = '0.0.0.0'
 app.listen(Number(PORT), HOST, () => {
-  console.log(`🚀 Backend running on http://${HOST}:${PORT}`)
+  console.log(`Backend running on http://${HOST}:${PORT}`)
 })

@@ -1,5 +1,5 @@
 /**
- * 🔐 CYBERSECURITY MODULE
+ * CYBERSECURITY MODULE
  *
  * This module exports all security-related middleware for the StreamVault API.
  *
