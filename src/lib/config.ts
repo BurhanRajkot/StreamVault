@@ -11,23 +11,23 @@ export const CONFIG = {
     STREAM_PROVIDERS: {
       /* ================= TV ================= */
       vidfast_pro:
-        'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto',
-      vidsrc_icu: 'https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}?autoplay=1',
+        'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto&ds_lang=en',
+      vidsrc_icu: 'https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}?autoplay=1&ds_lang=en',
       vidlink_pro:
-        'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true&preload=auto',
+        'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true&preload=auto&ds_lang=en',
       vidsrc_cc:
-        'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=true&preload=auto',
+        'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy:
-        'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=true&autoplay=1',
+        'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&ds_lang=en',
 
       /* ================= MOVIE ================= */
-      vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto',
-      vidsrc_icu_movie: 'https://vidsrc.icu/embed/movie/{tmdbId}?autoplay=1',
-      vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto',
+      vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
+      vidsrc_icu_movie: 'https://vidsrc.icu/embed/movie/{tmdbId}?autoplay=1&ds_lang=en',
+      vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
       vidsrc_cc_movie:
-        'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=true&preload=auto',
+        'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy_movie:
-        'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=true&autoplay=1',
+        'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&ds_lang=en',
     },
 
   PROVIDER_NAMES: {
