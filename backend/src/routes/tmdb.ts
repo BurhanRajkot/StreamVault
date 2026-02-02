@@ -56,13 +56,21 @@ async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
 router.get('/discover/:mediaType', async (req: Request, res: Response) => {
   const { mediaType } = req.params
   const page = req.query.page || '1'
+  const with_watch_providers = req.query.with_watch_providers as string
+  const watch_region = req.query.watch_region || 'IN'
 
   if (mediaType !== 'movie' && mediaType !== 'tv') {
     return res.status(400).json({ error: 'Invalid media type' })
   }
 
   try {
-    const data = await fetchTMDB(`/discover/${mediaType}?sort_by=popularity.desc&page=${page}`)
+    let url = `/discover/${mediaType}?sort_by=popularity.desc&page=${page}`
+
+    if (with_watch_providers) {
+      url += `&with_watch_providers=${with_watch_providers}&watch_region=${watch_region}`
+    }
+
+    const data = await fetchTMDB(url)
     // Stale-while-revalidate: serve cached version instantly, update in background
     res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600') // 30min cache, 1hr stale
     res.json(data)

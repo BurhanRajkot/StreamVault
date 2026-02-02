@@ -12,14 +12,18 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export async function fetchPopular(
   mode: MediaMode,
-  page = 1
+  page = 1,
+  providerId?: string | null
 ): Promise<{ results: Media[]; total_pages: number }> {
   // Downloads has no TMDB data
   if (mode === 'downloads') {
     return { results: [], total_pages: 0 }
   }
 
-  const url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
+  let url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
+  if (providerId) {
+    url += `&with_watch_providers=${providerId}&watch_region=IN`
+  }
 
   const res = await fetch(url)
   if (!res.ok) {
