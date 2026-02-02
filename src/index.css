@@ -10,6 +10,66 @@
 
 @layer base {
   :root {
+      /* LIGHT MODE VARIABLES */
+      --background: 210 40% 98%;
+      --foreground: 222 47% 11%;
+
+      --card: 0 0% 100%;
+      --card-foreground: 222 47% 11%;
+
+      --popover: 0 0% 100%;
+      --popover-foreground: 222 47% 11%;
+
+      --primary: 280 85% 58%;
+      --primary-foreground: 210 40% 98%;
+
+      --secondary: 210 40% 96%;
+      --secondary-foreground: 222 47% 11%;
+
+      --muted: 210 40% 96%;
+      --muted-foreground: 215 16% 47%;
+
+      --accent: 45 100% 50%; /* Slightly darker for light mode contrast */
+      --accent-foreground: 222 47% 11%;
+
+      --destructive: 0 84% 60%;
+      --destructive-foreground: 210 40% 98%;
+
+      --border: 214 32% 91%;
+      --input: 214 32% 91%;
+      --ring: 280 85% 58%;
+
+      --radius: 1rem;
+
+      /* Premium color palette (Light) */
+      --deep-purple: 280 85% 58%;
+      --golden-amber: 45 100% 50%;
+      --coral-pink: 350 85% 65%;
+      --emerald-teal: 170 75% 42%;
+      --vivid-orange: 28 100% 60%;
+
+      /* Gradients (Light) */
+      --gradient-primary: linear-gradient(135deg, hsl(280 85% 58%), hsl(45 100% 50%));
+      --gradient-hero: linear-gradient(135deg, hsl(280 85% 65%) 0%, hsl(320 80% 65%) 35%, hsl(45 100% 55%) 100%);
+      --gradient-sunset: linear-gradient(135deg, hsl(350 85% 65%), hsl(28 100% 60%), hsl(45 100% 55%));
+      --gradient-ocean: linear-gradient(135deg, hsl(280 85% 58%), hsl(240 90% 65%), hsl(170 75% 48%));
+      --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 40% 98%));
+      --gradient-overlay: linear-gradient(
+        180deg,
+        transparent 0%,
+        hsl(0 0% 100% / 0.85) 50%,
+        hsl(0 0% 100%) 100%
+      );
+
+      /* Shadows (Light) */
+      --shadow-glow: 0 0 60px hsl(280 85% 58% / 0.25);
+      --shadow-glow-amber: 0 0 50px hsl(45 100% 62% / 0.25);
+      --shadow-card: 0 10px 40px hsl(222 47% 11% / 0.05);
+      --shadow-elevated: 0 25px 80px hsl(222 47% 11% / 0.1);
+  }
+
+  .dark {
+      /* DARK MODE VARIABLES */
       --background: 222 47% 3%;
       --foreground: 210 40% 98%;
 
@@ -38,16 +98,7 @@
       --input: 217 33% 15%;
       --ring: 280 85% 58%;
 
-      --radius: 1rem;
-
-      /* Premium color palette */
-      --deep-purple: 280 85% 58%;
-      --golden-amber: 45 100% 62%;
-      --coral-pink: 350 85% 65%;
-      --emerald-teal: 170 75% 48%;
-      --vivid-orange: 28 100% 60%;
-      
-      /* Gradients */
+      /* Gradients (Dark) */
       --gradient-primary: linear-gradient(135deg, hsl(280 85% 58%), hsl(45 100% 62%));
       --gradient-hero: linear-gradient(135deg, hsl(280 85% 58%) 0%, hsl(320 80% 60%) 35%, hsl(45 100% 62%) 100%);
       --gradient-sunset: linear-gradient(135deg, hsl(350 85% 65%), hsl(28 100% 60%), hsl(45 100% 62%));
@@ -60,12 +111,12 @@
         hsl(222 47% 3%) 100%
       );
 
-      /* Shadows */
+      /* Shadows (Dark) */
       --shadow-glow: 0 0 60px hsl(280 85% 58% / 0.4);
       --shadow-glow-amber: 0 0 50px hsl(45 100% 62% / 0.35);
       --shadow-card: 0 10px 40px hsl(0 0% 0% / 0.5);
       --shadow-elevated: 0 25px 80px hsl(0 0% 0% / 0.6);
-    }
+  }
 }
 
 /* =======================
@@ -81,13 +132,40 @@
       @apply bg-background text-foreground antialiased;
       font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       letter-spacing: -0.015em;
-      background: radial-gradient(ellipse at top left, hsl(280 85% 58% / 0.12), transparent 40%),
+
+      /* Performance Optimization: Use pseudo-element for fixed background */
+      position: relative;
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%; /* Ensures it covers viewport */
+      z-index: -1;
+      pointer-events: none;
+      transition: opacity 0.5s ease-in-out, background 0.5s ease-in-out;
+
+      /* Light Mode Gradient */
+      background:
+        radial-gradient(circle at 0% 0%, hsl(210 40% 98% / 1), transparent 40%),
+        radial-gradient(circle at 100% 0%, hsl(280 85% 95% / 0.5), transparent 40%),
+        radial-gradient(circle at 100% 100%, hsl(45 100% 90% / 0.5), transparent 40%),
+        radial-gradient(circle at 0% 100%, hsl(210 40% 96% / 1), transparent 40%),
+        hsl(210 40% 98%);
+    }
+
+    /* Dark Mode Gradient Override */
+    .dark body::before {
+        background: radial-gradient(ellipse at top left, hsl(280 85% 58% / 0.12), transparent 40%),
                   radial-gradient(ellipse at bottom right, hsl(45 100% 62% / 0.08), transparent 40%),
                   radial-gradient(ellipse at center, hsl(350 85% 65% / 0.05), transparent 60%),
                   hsl(222 47% 3%);
-      background-attachment: fixed;
     }
-    
+
     h1, h2, h3, h4, h5, h6 {
       font-family: 'Space Grotesk', 'Archivo', sans-serif;
       letter-spacing: -0.025em;
@@ -248,11 +326,11 @@
                       0 0 80px hsl(var(--primary) / 0.25);
         }
       }
-      
+
       .animate-glow-pulse {
         animation: glow-pulse 4s ease-in-out infinite;
       }
-      
+
       @keyframes glow-pulse {
         0%, 100% {
           opacity: 0.5;
@@ -263,11 +341,11 @@
           filter: blur(80px);
         }
       }
-      
+
       .animate-float {
         animation: float 6s ease-in-out infinite;
       }
-      
+
       @keyframes float {
         0%, 100% {
           transform: translateY(0px) translateX(0px);
@@ -288,18 +366,43 @@
       .hover-lift:hover {
         transform: translateY(-6px);
       }
-      
+
       .hover-glow {
         transition: all 0.3s ease;
       }
-      
-      .hover-glow:hover {
-        box-shadow: 0 0 30px hsl(var(--primary) / 0.4),
-                    0 0 60px hsl(var(--primary) / 0.2);
-      }
+
+  /* Reduced shadow intensity for performance */
+  .hover-glow:hover {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3),
+                0 0 40px hsl(var(--primary) / 0.15);
   }
+}
+
 @layer utilities {
   .container-wide {
     max-width: 1800px;
   }
+}
+
+/* View Transitions API */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Ensure the new view is on top during dark mode transition to expand the dark circle */
+.dark::view-transition-old(root) {
+  z-index: 1;
+}
+.dark::view-transition-new(root) {
+  z-index: 999;
+}
+
+/* Ensure the old view is on top during light mode transition to shrink the dark circle (or expand light) */
+::view-transition-old(root) {
+  z-index: 999;
+}
+::view-transition-new(root) {
+  z-index: 1;
 }
