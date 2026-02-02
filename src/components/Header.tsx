@@ -23,6 +23,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaTypeSwitcher } from './MediaTypeSwitcher'
+import { ThemeToggle } from './ThemeToggle'
 
 
 interface HeaderProps {
@@ -130,6 +131,7 @@ export function Header({
 
                  {/* Mobile: Favorites (Right) */}
                   <div className="sm:hidden flex items-center gap-2">
+                    <ThemeToggle />
                     {isAuthenticated && (
                         <Link
                         to="/favorites"
@@ -180,6 +182,8 @@ export function Header({
                       <span className="relative font-bold text-xs uppercase tracking-wide">Upgrade</span>
                     </Button>
                   </Link>
+
+                  <ThemeToggle />
 
                   {isAuthenticated && (
                     <Link to="/favorites">
