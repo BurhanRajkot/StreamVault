@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   X,
   Play,
@@ -55,6 +55,7 @@ export function PlayerModal({
   const [autoPlay, setAutoPlay] = useState(true)
   const [streamError, setStreamError] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const playerRef = useRef<HTMLDivElement>(null)
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
@@ -127,6 +128,38 @@ export function PlayerModal({
       hints.forEach(hint => hint.remove())
     }
   }, [isOpen, initialSeason, initialEpisode])
+
+  /* ================= MOBILE FULLSCREEN & LANDSCAPE ================= */
+
+  useEffect(() => {
+    // Only run if playing and content is present
+    if (isPlaying && media) {
+      // Check if device is mobile (phone/tablet)
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 850
+
+      if (isMobile && playerRef.current) {
+        // 1. Request Fullscreen
+        const requestFullscreen = async () => {
+          try {
+            await playerRef.current?.requestFullscreen()
+
+            // 2. Lock Orientation to Landscape (Android/Chrome mostly)
+            // @ts-ignore - screen.orientation type definition might be missing
+            if (screen.orientation && screen.orientation.lock) {
+              // @ts-ignore
+              await screen.orientation.lock('landscape').catch(() => {
+                // Orientation lock failed (expected on some devices/browsers)
+              })
+            }
+          } catch (err) {
+            console.error('Fullscreen request failed:', err)
+          }
+        }
+
+        requestFullscreen()
+      }
+    }
+  }, [isPlaying, media]) // Runs when isPlaying changes to true
 
   /* ================= EPISODE COUNT UPDATE ================= */
 
@@ -593,7 +626,11 @@ export function PlayerModal({
                 </div>
               )}
 
-                    <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black relative">
+
+                    <div
+                      ref={playerRef}
+                      className="aspect-video w-full overflow-hidden rounded-lg border-none bg-black relative"
+                    >
                       {/* Loading overlay removed per user request */}
 
                       {streamError && (
