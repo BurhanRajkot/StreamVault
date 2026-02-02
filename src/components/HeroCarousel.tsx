@@ -83,10 +83,10 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
               key={index}
               onClick={() => setCurrentIndex(index)}
               className={cn(
-                'h-2.5 rounded-full transition-all duration-300',
+                'h-1.5 md:h-2.5 rounded-full transition-all duration-300',
                 index === currentIndex
-                  ? 'w-10 bg-gradient-primary shadow-lg shadow-primary/50'
-                  : 'w-2.5 bg-foreground/30 hover:bg-foreground/60 hover:scale-110'
+                  ? 'w-4 md:w-10 bg-gradient-primary shadow-lg shadow-primary/50'
+                  : 'w-1.5 md:w-2.5 bg-foreground/30 hover:bg-foreground/60 hover:scale-110'
               )}
             />
           ))}
