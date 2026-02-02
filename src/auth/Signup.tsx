@@ -6,18 +6,14 @@ import { Film, Zap, Shield, Users, Tv, Check, ArrowRight, Star } from "lucide-re
 import { Helmet } from "react-helmet-async";
 
 // Featured movies backdrop
+// Featured movies backdrop
 const BACKDROP_IMAGES = [
-  "https://image.tmdb.org/t/p/original/xJHokMbljvjADYdit5fK5VQsXEG.jpg", // Dune
-  "https://image.tmdb.org/t/p/original/s3TBrRGB1iav7gFOCNx3H31MoES.jpg", // Avatar
-  "https://image.tmdb.org/t/p/original/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", // Inception
+  "https://image.tmdb.org/t/p/original/pbrkL804c8yAv3zBZR4QPEafpAR.jpg", // Interstellar
+  "https://image.tmdb.org/t/p/original/tmU7GeKVybMWFButWEGl2M4GeiP.jpg", // The Godfather
+  "https://image.tmdb.org/t/p/original/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg", // The Godfather Part II
 ];
 
-const FEATURES = [
-  { icon: Zap, title: "Instant Streaming", desc: "No downloads, just click and watch" },
-  { icon: Shield, title: "Ad-Free Experience", desc: "Enjoy uninterrupted viewing" },
-  { icon: Users, title: "Multiple Profiles", desc: "Everyone gets their own space" },
-  { icon: Tv, title: "Watch Anywhere", desc: "Phone, tablet, or TV" },
-];
+
 
 const BENEFITS = [
   "Unlimited movies and TV shows",
@@ -161,23 +157,7 @@ export default function Signup() {
 
           {/* Feature cards */}
           <div className="absolute inset-0 flex flex-col justify-center items-center p-12 z-10">
-            <div className="grid grid-cols-2 gap-4 max-w-lg">
-              {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-                <div
-                  key={i}
-                  className="p-6 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 transition-all hover:bg-black/60 hover:border-primary/50 hover:scale-105 cursor-default"
-                  style={{
-                    animationDelay: `${i * 0.15}s`,
-                  }}
-                >
-                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mb-4">
-                    <Icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="text-white font-semibold mb-1">{title}</h3>
-                  <p className="text-gray-400 text-sm">{desc}</p>
-                </div>
-              ))}
-            </div>
+
 
             {/* Bottom tagline */}
             <div className="mt-12 text-center">
