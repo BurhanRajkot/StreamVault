@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth0 } from '@auth0/auth0-react'
-import Dock from './Dock'
+import { MediaTypeSwitcher } from './MediaTypeSwitcher'
 
 
 interface HeaderProps {
@@ -52,38 +52,7 @@ export function Header({
     setInputValue('')
     onClearSearch()
   }
-  const modes = [
-    {
-      id: 'movie',
-      label: 'Movies',
-      icon: (
-        <span className="text-sm font-semibold tracking-wide w-full h-full flex items-center justify-center">
-            Movies
-        </span>
-      ),
-      color: '217, 70, 239'
-    },
-    {
-      id: 'tv',
-      label: 'Series',
-      icon: (
-        <span className="text-sm font-semibold tracking-wide w-full h-full flex items-center justify-center">
-            Series
-        </span>
-      ),
-      color: '34, 197, 94'
-    },
-    {
-      id: 'downloads',
-      label: 'Downloads',
-      icon: (
-        <span className="text-sm font-semibold tracking-wide w-full h-full flex items-center justify-center">
-            Downloads
-        </span>
-      ),
-      color: '59, 130, 246'
-    },
-  ]
+
 
 
   const initials =
@@ -172,20 +141,9 @@ export function Header({
                   </div>
         </div>
 
-              {/* Desktop Navigation - Dock */}
+              {/* Desktop Navigation - Switcher */}
             <div className="hidden md:flex justify-center flex-1">
-                 <Dock
-                   items={modes.map(m => ({
-                     icon: m.icon,
-                     label: m.label,
-                     color: m.color,
-                     onClick: () => onModeChange(m.id as MediaMode)
-                   }))}
-                   activeItem={modes.findIndex(m => m.id === mode)}
-                   panelHeight={60}
-                   baseItemSize={100} // Width
-                   magnification={130} // Expanded Width
-                 />
+                 <MediaTypeSwitcher mode={mode} onModeChange={onModeChange} />
             </div>
 
             {/* Mobile Logo (Prominent) */}
