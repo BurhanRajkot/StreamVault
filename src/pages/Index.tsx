@@ -11,6 +11,7 @@ import { DisclaimerModal } from '@/components/DisclaimerModal'
 import { Footer } from '@/components/Footer'
 import { AuthorsChoiceSection } from '@/components/AuthorsChoiceSection'
 import { ContinueWatchingSection } from '@/components/ContinueWatchingSection'
+import { PlatformSelector } from '@/components/PlatformSelector'
 import Downloads from './Downloads'
 
 const Index = () => {
@@ -18,6 +19,7 @@ const Index = () => {
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
   const [playMode, setPlayMode] = useState<MediaMode>('movie')
   const [showDisclaimer, setShowDisclaimer] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
 
   const [initialSeason, setInitialSeason] = useState<number | undefined>()
   const [initialEpisode, setInitialEpisode] = useState<number | undefined>()
@@ -31,7 +33,7 @@ const Index = () => {
     search,
     clearSearch,
     searchQuery,
-  } = useMedia(mode)
+  } = useMedia(mode, selectedProvider)
 
   useEffect(() => {
     if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
@@ -82,7 +84,15 @@ const Index = () => {
                 />
               )}
 
-              {!searchQuery && (
+              {/* OTT Provider Selector */}
+              {!searchQuery && mode !== 'downloads' && (
+                  <PlatformSelector
+                      selected={selectedProvider}
+                      onSelect={setSelectedProvider}
+                  />
+              )}
+
+              {!searchQuery && !selectedProvider && (
                 <ContinueWatchingSection
                   onMediaClick={handleMediaClick}
                 />
