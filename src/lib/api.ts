@@ -28,7 +28,7 @@ export async function fetchPopular(
     const provider = getProviderById(providerId)
     const region = provider?.region || WATCH_REGION
 
-    url += `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate|buy|rent|free&sort_by=popularity.desc`
+    url += `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate%7Cbuy%7Crent&sort_by=popularity.desc`
 
     // Fallback/Hack: HBO Max (384) sometimes returns empty for 'US' if not strictly correct.
     // Ensuring basic discover params are robust.
