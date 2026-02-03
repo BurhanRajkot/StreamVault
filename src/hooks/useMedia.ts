@@ -88,8 +88,8 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
   // MODE OR PROVIDER CHANGE → RESET EVERYTHING
   // -----------------------------
   useEffect(() => {
-    setMedia([]);
-    setTrending([]);
+    // Avoid clearing media/trending here to prevent layout collapse/scroll jump.
+    // New data will replace old data when loadMedia/loadTrending finishes.
     setPage(1);
     setTotalPages(1);
     setSearchQuery("");
