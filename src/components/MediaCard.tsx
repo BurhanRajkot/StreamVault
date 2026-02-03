@@ -92,10 +92,11 @@ export function MediaCard({
                         toggleFavorite(media.id, mediaType)
                       }
                     }}
-                    disabled={processing}
                     className={cn(
-                      'rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95',
-                      processing && 'opacity-50 cursor-not-allowed'
+                      'rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all active:scale-95',
+                      processing
+                        ? 'opacity-50 cursor-wait'
+                        : 'hover:scale-110 hover:bg-background cursor-pointer'
                     )}
                   >
                     <Heart
@@ -145,10 +146,11 @@ export function MediaCard({
               {isAuthenticated && (
                 <button
                   onClick={handleFavorite}
-                  disabled={processing}
                   className={cn(
-                    'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all hover:scale-110 hover:bg-background active:scale-95 opacity-0 group-hover:opacity-100',
-                    processing && 'opacity-100 cursor-not-allowed'
+                    'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all active:scale-95',
+                    processing
+                      ? 'opacity-100 cursor-wait'
+                      : 'opacity-0 group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
                   )}
                 >
                   <Heart
