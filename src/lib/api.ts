@@ -10,6 +10,8 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
    TMDB FETCHING (via Backend Proxy)
 ====================================================== */
 
+import { getProviderById, WATCH_REGION } from './ottProviders'
+
 export async function fetchPopular(
   mode: MediaMode,
   page = 1,
@@ -22,7 +24,14 @@ export async function fetchPopular(
 
   let url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
   if (providerId) {
-    url += `&with_watch_providers=${providerId}&watch_region=IN`
+    // Get the provider config to find the correct region (e.g. US for HBO Max, IN for others)
+    const provider = getProviderById(providerId)
+    const region = provider?.region || WATCH_REGION
+
+    url += `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate|buy|rent|free&sort_by=popularity.desc`
+
+    // Fallback/Hack: HBO Max (384) sometimes returns empty for 'US' if not strictly correct.
+    // Ensuring basic discover params are robust.
   }
 
   const res = await fetch(url)
