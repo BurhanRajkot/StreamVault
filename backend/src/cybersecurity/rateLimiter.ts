@@ -23,16 +23,18 @@ import rateLimit from 'express-rate-limit'
 
 /**
  * General API rate limiter
- * 100 requests per 15 minutes per IP (reduced from 500 for better performance)
+ * 300 requests per 15 minutes per IP
+ * Allows legitimate browsing while still protecting against abuse
  */
 export const apiRateLimiter = rateLimit({
   // Time window: 15 minutes
   windowMs: 15 * 60 * 1000,
 
-  // Maximum 100 requests per IP per window
-  // Reduced from 500 to save memory and improve performance
-  // Most legitimate users won't hit this limit
-  max: 100,
+  // Maximum 300 requests per IP per window
+  // Increased from 100 to allow legitimate browsing and favoriting
+  // A user browsing 20 movies and favoriting 10 = ~50 requests
+  // Plus loading images, continue watching, etc. = easily 100+ requests
+  max: 300,
 
   // Return rate limit info in RateLimit-* headers
   standardHeaders: true,
