@@ -44,8 +44,8 @@ export function ThemeToggle() {
           clipPath: isDark ? [...clipPath].reverse() : clipPath,
         },
         {
-          duration: 500,
-          easing: "ease-in",
+          duration: 250,
+          easing: "cubic-bezier(0.4, 0.0, 0.2, 1)",
           pseudoElement: isDark
             ? "::view-transition-old(root)"
             : "::view-transition-new(root)",
@@ -58,7 +58,7 @@ export function ThemeToggle() {
     <div className="flex items-center justify-center">
       <motion.button
         onClick={toggleTheme}
-        className={`relative w-20 h-10 rounded-full p-1 shadow-inner transition-colors duration-500 overflow-hidden ${
+        className={`relative w-20 h-10 rounded-full p-1 shadow-inner transition-colors duration-200 overflow-hidden ${
           isDark ? "bg-[#0f172a] shadow-black/50" : "bg-[#87CEEB] shadow-blue-400/30"
         }`}
         whileTap={{ scale: 0.95 }}
@@ -73,7 +73,7 @@ export function ThemeToggle() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.2 }}
             className="absolute inset-0 z-0"
           >
            {[...Array(6)].map((_, i) => (
@@ -97,7 +97,7 @@ export function ThemeToggle() {
             <motion.div
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.2 }}
                 className="absolute inset-0 z-0 pointer-events-none"
             >
                 <Cloud className="absolute text-white/50 w-4 h-4 top-2 right-6" />
@@ -111,9 +111,9 @@ export function ThemeToggle() {
            initial={false}
            animate={{ left: isDark ? "44px" : "4px" }}
            transition={{
-            type: "spring",
-            stiffness: 250,
-            damping: 25,
+            type: "tween",
+            duration: 0.25,
+            ease: [0.4, 0.0, 0.2, 1],
           }}
           className={`absolute top-1 z-10 w-8 h-8 rounded-full shadow-md flex items-center justify-center ${
             isDark
@@ -130,7 +130,7 @@ export function ThemeToggle() {
           <motion.div
              initial={false}
              animate={{ rotate: isDark ? 360 : 0 }}
-             transition={{ duration: 0.7 }}
+             transition={{ duration: 0.25, ease: [0.4, 0.0, 0.2, 1] }}
           >
               {isDark ? (
                 <div className="relative w-full h-full">
