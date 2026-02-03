@@ -9,6 +9,7 @@ import { ThemeProvider } from 'next-themes'
 import App from './App'
 import './index.css'
 import { FavoritesProvider } from '@/context/FavoritesContext'
+import { Toaster } from '@/components/ui/sonner'
 
 // Suppress Chrome extension errors that are unrelated to our app
 const originalError = console.error
@@ -39,6 +40,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <FavoritesProvider>
               <App />
+              <Toaster />
             </FavoritesProvider>
           </ThemeProvider>
         </Auth0Provider>

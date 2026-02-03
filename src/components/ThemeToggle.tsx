@@ -44,7 +44,7 @@ export function ThemeToggle() {
           clipPath: isDark ? [...clipPath].reverse() : clipPath,
         },
         {
-          duration: 250,
+          duration: 400,
           easing: "cubic-bezier(0.4, 0.0, 0.2, 1)",
           pseudoElement: isDark
             ? "::view-transition-old(root)"
@@ -112,7 +112,7 @@ export function ThemeToggle() {
            animate={{ left: isDark ? "44px" : "4px" }}
            transition={{
             type: "tween",
-            duration: 0.25,
+            duration: 0.4,
             ease: [0.4, 0.0, 0.2, 1],
           }}
           className={`absolute top-1 z-10 w-8 h-8 rounded-full shadow-md flex items-center justify-center ${
@@ -130,7 +130,7 @@ export function ThemeToggle() {
           <motion.div
              initial={false}
              animate={{ rotate: isDark ? 360 : 0 }}
-             transition={{ duration: 0.25, ease: [0.4, 0.0, 0.2, 1] }}
+             transition={{ duration: 0.4, ease: [0.4, 0.0, 0.2, 1] }}
           >
               {isDark ? (
                 <div className="relative w-full h-full">
