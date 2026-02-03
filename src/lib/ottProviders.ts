@@ -48,28 +48,12 @@ export const OTT_PROVIDERS: OTTProvider[] = [
     region: 'IN',
   },
   {
-    id: '122',
-    name: 'Disney Plus Hotstar',
-    displayName: 'Hotstar',
-    logo: 'https://image.tmdb.org/t/p/original/Ajqyt5aNxNGjmF9uOfxArGrdf3X.jpg',
-    color: 'hover:shadow-[#113CCF]/50 border-[#113CCF]',
-    region: 'IN',
-  },
-  {
-    id: '237',
-    name: 'SonyLIV',
-    displayName: 'SonyLIV',
-    logo: 'https://image.tmdb.org/t/p/original/A1nMHDENeNBYJLQipNoanFTXs5N.jpg',
-    color: 'hover:shadow-[#F6A500]/50 border-[#F6A500]',
-    region: 'IN',
-  },
-  {
-    id: '232',
-    name: 'Zee5',
-    displayName: 'Zee5',
-    logo: 'https://image.tmdb.org/t/p/original/8GIJIWwNzxp7uSRCtzfC1qJEDHu.jpg',
-    color: 'hover:shadow-[#7D0C64]/50 border-[#7D0C64]',
-    region: 'IN',
+    id: '1899|384',
+    name: 'HBO Max',
+    displayName: 'HBO Max',
+    logo: 'https://image.tmdb.org/t/p/original/7c9kCSbdxZ4OaO85JkZq5N3k4f.jpg',
+    color: 'hover:shadow-[#5B05F7]/50 border-[#5B05F7]',
+    region: 'US',
   },
   {
     id: '350',
@@ -79,16 +63,6 @@ export const OTT_PROVIDERS: OTTProvider[] = [
     color: 'hover:shadow-[#FFFFFF]/30 border-white',
     region: 'IN',
   },
-  // NOTE: JioCinema may not be available in TMDB's provider database
-  // Commenting out until we can verify the correct ID
-  // {
-  //   id: '220',
-  //   name: 'JioCinema',
-  //   displayName: 'JioCinema',
-  //   logo: 'https://image.tmdb.org/t/p/original/ti8qBJHQ3CqLLGLxCXd5NTCHkLx.jpg',
-  //   color: 'hover:shadow-[#D50284]/50 border-[#D50284]',
-  //   region: 'IN',
-  // },
 ]
 
 /**
