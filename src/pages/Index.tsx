@@ -12,6 +12,7 @@ import { Footer } from '@/components/Footer'
 import { AuthorsChoiceSection } from '@/components/AuthorsChoiceSection'
 import { ContinueWatchingSection } from '@/components/ContinueWatchingSection'
 import { PlatformSelector } from '@/components/PlatformSelector'
+import { RecentlyAddedSection } from '@/components/RecentlyAddedSection'
 import Downloads from './Downloads'
 
 const Index = () => {
@@ -77,7 +78,7 @@ const Index = () => {
             <Downloads />
           ) : (
             <>
-              {!searchQuery && trending.length > 0 && (
+              {!searchQuery && (
                 <HeroCarousel
                   items={trending}
                   onMediaClick={handleMediaClick}
@@ -85,11 +86,20 @@ const Index = () => {
               )}
 
               {/* OTT Provider Selector */}
-              {!searchQuery && mode !== 'downloads' && (
+              {!searchQuery && (
                   <PlatformSelector
                       selected={selectedProvider}
                       onSelect={setSelectedProvider}
                   />
+              )}
+
+              {/* Recently Added Section (Only when provider is selected) */}
+              {!searchQuery && selectedProvider && (
+                <RecentlyAddedSection
+                  mode={mode}
+                  providerId={selectedProvider}
+                  onMediaClick={handleMediaClick}
+                />
               )}
 
               {!searchQuery && !selectedProvider && (
