@@ -59,16 +59,34 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
   const with_watch_providers = req.query.with_watch_providers as string
   const watch_region = req.query.watch_region || 'IN'
 
+  const sort_by = req.query.sort_by || 'popularity.desc'
+
   if (mediaType !== 'movie' && mediaType !== 'tv') {
     return res.status(400).json({ error: 'Invalid media type' })
   }
 
   try {
-    let url = `/discover/${mediaType}?sort_by=popularity.desc&page=${page}`
+    let url = `/discover/${mediaType}?sort_by=${sort_by}&page=${page}`
 
     if (with_watch_providers) {
       url += `&with_watch_providers=${with_watch_providers}&watch_region=${watch_region}`
     }
+
+    // Forward additional filters
+    const validParams = [
+        'vote_count.gte',
+        'primary_release_date.lte',
+        'primary_release_date.gte',
+        'first_air_date.lte',
+        'first_air_date.gte',
+        'with_watch_monetization_types'
+    ]
+
+    validParams.forEach(param => {
+        if (req.query[param]) {
+            url += `&${param}=${req.query[param]}`
+        }
+    })
 
     const data = await fetchTMDB(url)
     // Stale-while-revalidate: serve cached version instantly, update in background
