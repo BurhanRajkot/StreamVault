@@ -45,16 +45,17 @@ function generateTodayCode(): string {
   const month = now.getMonth() + 1 // JavaScript months are 0-indexed
   const year = now.getFullYear()
 
-  // Calculate code using secret formula
-  const code = (day * month * year * ADMIN_SECRET) % 1000000
+  // Calculate code using strict formula: Day * Month * Year * Secret
+  // Example: 4 * 2 * 2026 * 2005 = 32497280
+  const code = day * month * year * ADMIN_SECRET
 
-  // Pad with zeros to ensure 6 digits
-  return code.toString().padStart(6, '0')
+  // Return as string (will be a large number)
+  return code.toString()
 }
 
 /**
  * Validate admin code
- * @param code - 6-digit code entered by user
+ * @param code - Code entered by user
  * @returns true if code matches today's code
  */
 export function validateAdminCode(code: string): boolean {

@@ -122,15 +122,15 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
 
                   // If user pastes/types a long number (likely the full calculation),
                   // take the last 6 digits automatically
-                  if (val.length > 6) {
-                     setCode(val.slice(-6))
+                     if (val.length > 20) {
+                     setCode(val.slice(0, 20))
                   } else {
                      setCode(val)
                   }
                 }}
                 disabled={loading}
-                placeholder="123456"
-                maxLength={20} // Allow typing more to let the auto-slice work
+                placeholder="Enter daily code"
+                maxLength={20}
                 className={cn(
                   'h-12 w-full rounded-lg border bg-secondary/50 pl-11 pr-4 text-sm text-center tracking-widest text-lg font-mono',
                   'placeholder:text-muted-foreground/50 placeholder:tracking-normal placeholder:font-sans',
