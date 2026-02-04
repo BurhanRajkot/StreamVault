@@ -74,4 +74,43 @@ if (process.env.AUTH0_ISSUER_BASE_URL && process.env.AUTH0_AUDIENCE) {
   }
 }
 
+import { verifyAdminToken, AdminTokenPayload } from '../admin/auth'
+
+// Extend Express Request type to include admin payload
+declare global {
+  namespace Express {
+    interface Request {
+      admin?: AdminTokenPayload
+    }
+  }
+}
+
+/**
+ * Unified Authentication Middleware
+ *
+ * 1. Checks for Admin Token (HS256) first.
+ *    - If valid, sets req.admin and calls next().
+ *    - Skips Auth0 check contentiously to avoid "Invalid alg" errors.
+ *
+ * 2. If not Admin, falls back to Auth0 (RS256).
+ *    - Sets req.auth on success.
+ *    - Returns 401 on failure (via checkJwt).
+ */
+export async function checkAuth(req: Request, res: Response, next: NextFunction) {
+  const header = req.headers.authorization
+  if (header?.startsWith('Bearer ')) {
+    const token = header.slice('Bearer '.length).trim()
+
+    // 1. Try Admin Token
+    const adminPayload = verifyAdminToken(token)
+    if (adminPayload) {
+      req.admin = adminPayload
+      return next()
+    }
+  }
+
+  // 2. Fallback to Auth0
+  return checkJwt(req, res, next)
+}
+
 export { checkJwt }
