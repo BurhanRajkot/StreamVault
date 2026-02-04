@@ -23,7 +23,8 @@
 import jwt from 'jsonwebtoken'
 
 // Secret salt from environment (this is what makes it secure!)
-const ADMIN_SECRET = parseInt(process.env.ADMIN_SECRET || '12345')
+// We check both ADMIN_SECRET and ADMIN_SECRET_CODE to be robust
+const ADMIN_SECRET = parseInt(process.env.ADMIN_SECRET || process.env.ADMIN_SECRET_CODE || '12345')
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'fallback-secret-change-in-production'
 
 // Token expiration: 30 minutes

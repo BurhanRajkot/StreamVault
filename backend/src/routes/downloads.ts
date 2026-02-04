@@ -1,7 +1,6 @@
 import { Router, Request } from 'express'
 import { supabase } from '../lib/supabase'
-import { checkJwt } from '../middleware/auth'
-import { optionalAdminAuth } from '../admin/middleware'
+import { checkAuth } from '../middleware/auth'
 import path from 'path'
 import fs from 'fs'
 
@@ -21,7 +20,7 @@ async function isPaidUser(userId: string): Promise<boolean> {
   return user?.subscriptionStatus === 'active'
 }
 
-router.get('/', checkJwt, optionalAdminAuth, async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
   // Check if user is admin - bypass premium check
   if (req.admin) {
     console.log(`✅ Admin access granted to downloads`)
@@ -63,7 +62,7 @@ router.get('/', checkJwt, optionalAdminAuth, async (req, res) => {
   res.json(data || [])
 })
 
-router.get('/:id/file', checkJwt, optionalAdminAuth, async (req, res) => {
+router.get('/:id/file', checkAuth, async (req, res) => {
   // Check if user is admin - bypass premium check
   if (req.admin) {
     console.log(`✅ Admin file download access`)
