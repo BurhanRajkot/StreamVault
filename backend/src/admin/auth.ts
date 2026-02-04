@@ -37,11 +37,7 @@ export interface AdminTokenPayload {
 
 /**
  * Generate today's admin code
- * Formula: (day × month × year × SECRET) % 1000000
- *
- * Example with SECRET = 7392:
- * - Feb 4, 2025: (4 × 2 × 2025 × 7392) % 1000000 = 119808
- * - Feb 5, 2025: (5 × 2 × 2025 × 7392) % 1000000 = 149760
+ * Uses date and secret salt to generate a unique daily code.
  */
 function generateTodayCode(): string {
   const now = new Date()

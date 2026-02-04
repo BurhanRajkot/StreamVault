@@ -143,7 +143,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
               />
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              💡 Formula: (Day × Month × Year × Secret) <strong>% 1,000,000</strong>
+              Enter specific admin authorization code.
             </p>
           </div>
 
