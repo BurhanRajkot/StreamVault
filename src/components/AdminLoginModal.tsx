@@ -116,10 +116,21 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
                 id="admin-code"
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
+                onChange={(e) => {
+                  // Allow numbers only
+                  const val = e.target.value.replace(/[^0-9]/g, '')
+
+                  // If user pastes/types a long number (likely the full calculation),
+                  // take the last 6 digits automatically
+                  if (val.length > 6) {
+                     setCode(val.slice(-6))
+                  } else {
+                     setCode(val)
+                  }
+                }}
                 disabled={loading}
                 placeholder="123456"
-                maxLength={6}
+                maxLength={20} // Allow typing more to let the auto-slice work
                 className={cn(
                   'h-12 w-full rounded-lg border bg-secondary/50 pl-11 pr-4 text-sm text-center tracking-widest text-lg font-mono',
                   'placeholder:text-muted-foreground/50 placeholder:tracking-normal placeholder:font-sans',
@@ -132,7 +143,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
               />
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              💡 Calculate today's code using the formula
+              💡 Formula: (Day × Month × Year × Secret) <strong>% 1,000,000</strong>
             </p>
           </div>
 
