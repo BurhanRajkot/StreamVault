@@ -47,6 +47,51 @@ export async function fetchPopular(
   }
 }
 
+export async function fetchRecentlyAdded(
+  mode: MediaMode,
+  providerId: string
+): Promise<Media[]> {
+  if (mode === 'downloads') return []
+
+  // Sort by release date to get "Recently Added"
+  const sortBy =
+    mode === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc'
+
+  // Get provider config to ensure correct region
+  const provider = getProviderById(providerId)
+  const region = provider?.region || WATCH_REGION
+
+  // Calculate date range: last 12 months to today (relaxed for providers with smaller catalogs)
+  const today = new Date()
+  const twelveMonthsAgo = new Date(today)
+  twelveMonthsAgo.setMonth(today.getMonth() - 12)
+
+  const todayStr = today.toISOString().split('T')[0]
+  const twelveMonthsAgoStr = twelveMonthsAgo.toISOString().split('T')[0]
+
+  let url = `${API_BASE}/tmdb/discover/${mode}?sort_by=${sortBy}&page=1`
+  url += `&with_watch_providers=${providerId}&watch_region=${region}`
+  url += `&with_watch_monetization_types=flatrate`  // Only streaming (not buy/rent)
+  url += `&vote_count.gte=50`  // Lowered from 100 to get more results
+
+  // Restrict to last 12 months for "recent" content
+  if (mode === 'movie') {
+      url += `&primary_release_date.gte=${twelveMonthsAgoStr}`
+      url += `&primary_release_date.lte=${todayStr}`
+  } else {
+      url += `&first_air_date.gte=${twelveMonthsAgoStr}`
+      url += `&first_air_date.lte=${todayStr}`
+  }
+
+  const res = await fetch(url)
+  if (!res.ok) {
+    console.error('fetchRecentlyAdded failed:', res.status, res.statusText)
+    return []
+  }
+  const data = await res.json()
+  return data.results || []
+}
+
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   if (mode === 'downloads') return []
 
