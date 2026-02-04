@@ -18,6 +18,7 @@ import continueWatchingRouter from './routes/continueWatching'
 import downloadsRouter from './routes/downloads'
 import subscriptionsRouter from './routes/subscriptions'
 import tmdbRouter from './routes/tmdb'
+import adminRouter from './admin/routes'
 
 const app = express()
 
@@ -79,6 +80,7 @@ app.use('/downloads', downloadsRouter)
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
 app.use('/subscriptions', subscriptionsRouter)
+app.use('/admin', adminRouter)
 
 // START SERVER
 const HOST = '0.0.0.0'

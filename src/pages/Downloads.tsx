@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
-import { fetchDownloads, downloadFile, DownloadItem } from '@/lib/api'
+import { fetchDownloads, downloadFile, DownloadItem, getAdminToken } from '@/lib/api'
 import { getImageUrl } from '@/lib/api'
-import { Search, Download, Crown } from 'lucide-react'
+import { Search, Download, Crown, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
+import AdminLoginModal from '@/components/AdminLoginModal'
 
 type EnrichedDownload = DownloadItem & {
   posterPath: string | null
@@ -58,11 +59,46 @@ const Downloads = () => {
   const [search, setSearch] = useState('')
   const [isPremium, setIsPremium] = useState(false)
   const [needsUpgrade, setNeedsUpgrade] = useState(false)
+  const [showAdminModal, setShowAdminModal] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
 
+      // Check if admin is authenticated
+      const adminToken = getAdminToken()
+      if (adminToken) {
+        setIsAdmin(true)
+        try {
+          // Fetch downloads with admin token
+          const raw = await fetchDownloads(adminToken)
+
+          const enriched = await Promise.all(
+            raw.map(async (item) => {
+              const posterPath = await fetchPoster(item.title)
+              return {
+                ...item,
+                posterPath,
+              }
+            })
+          )
+
+          setItems(enriched)
+          setIsPremium(true)
+          setNeedsUpgrade(false)
+        } catch (err: any) {
+          console.error('Admin downloads fetch error:', err)
+          setItems([])
+          setIsAdmin(false)
+          setNeedsUpgrade(true)
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
+
+      // Regular user flow
       if (!isAuthenticated) {
         setLoading(false)
         return
@@ -97,6 +133,40 @@ const Downloads = () => {
 
     load()
   }, [isAuthenticated, getAccessTokenSilently])
+
+  const handleAdminLoginSuccess = async () => {
+    setLoading(true)
+    const adminToken = getAdminToken()
+
+    if (!adminToken) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      const raw = await fetchDownloads(adminToken)
+
+      const enriched = await Promise.all(
+        raw.map(async (item) => {
+          const posterPath = await fetchPoster(item.title)
+          return {
+            ...item,
+            posterPath,
+          }
+        })
+      )
+
+      setItems(enriched)
+      setIsPremium(true)
+      setNeedsUpgrade(false)
+      setIsAdmin(true)
+    } catch (err: any) {
+      console.error('Admin downloads fetch error:', err)
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     if (!search.trim()) return items
@@ -134,19 +204,42 @@ const Downloads = () => {
 
   if (needsUpgrade) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Crown className="mb-4 h-12 w-12 text-yellow-500" />
-        <h2 className="mb-2 text-xl font-semibold">Premium Feature</h2>
-        <p className="mb-4 max-w-md text-muted-foreground">
-          Downloads are only available for premium subscribers. Upgrade now to download unlimited content!
-        </p>
-        <Link
-          to="/pricing"
-          className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Upgrade to Premium
-        </Link>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Crown className="mb-4 h-12 w-12 text-yellow-500" />
+          <h2 className="mb-2 text-xl font-semibold">Premium Feature</h2>
+          <p className="mb-4 max-w-md text-muted-foreground">
+            Downloads are only available for premium subscribers. Upgrade now to download unlimited content!
+          </p>
+          <Link
+            to="/pricing"
+            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Upgrade to Premium
+          </Link>
+
+          {/* Admin Login Button - Bottom Left */}
+          <button
+            onClick={() => setShowAdminModal(true)}
+            className={cn(
+              'fixed bottom-6 left-6 flex items-center gap-2 rounded-lg border border-border/50 bg-card/80 px-4 py-2.5 text-sm font-medium text-muted-foreground backdrop-blur-sm',
+              'hover:bg-card hover:text-foreground hover:border-primary/50',
+              'transition-all duration-200',
+              'shadow-lg hover:shadow-xl'
+            )}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            <span>Admin Login</span>
+          </button>
+        </div>
+
+        {/* Admin Login Modal */}
+        <AdminLoginModal
+          isOpen={showAdminModal}
+          onClose={() => setShowAdminModal(false)}
+          onSuccess={handleAdminLoginSuccess}
+        />
+      </>
     )
   }
 
