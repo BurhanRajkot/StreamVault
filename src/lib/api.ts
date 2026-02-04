@@ -240,3 +240,104 @@ export async function fetchDownloads(token?: string): Promise<DownloadItem[]> {
 export function downloadFile(id: string) {
   window.location.href = `${API_BASE}/downloads/${id}/file`
 }
+
+/* ======================================================
+   ADMIN AUTHENTICATION
+====================================================== */
+
+export type AdminLoginResponse = {
+  success: boolean
+  token: string
+  expiresIn: string
+}
+
+export type AdminVerifyResponse = {
+  valid: boolean
+  admin: {
+    email: string
+    role: string
+  }
+}
+
+/**
+ * Admin login with daily code
+ * Returns JWT token on success
+ */
+export async function adminLogin(
+  code: string
+): Promise<AdminLoginResponse> {
+  const res = await fetch(`${API_BASE}/admin/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code }),
+  })
+
+  if (!res.ok) {
+    const error = await res.json()
+    throw new Error(error.message || 'Login failed')
+  }
+
+  return res.json()
+}
+
+/**
+ * Verify admin token validity
+ */
+export async function verifyAdminToken(
+  token: string
+): Promise<AdminVerifyResponse> {
+  const res = await fetch(`${API_BASE}/admin/verify`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!res.ok) {
+    throw new Error('Token verification failed')
+  }
+
+  return res.json()
+}
+
+/**
+ * Admin logout (client-side token removal)
+ */
+export async function adminLogout(): Promise<void> {
+  // Remove token from localStorage
+  localStorage.removeItem('adminToken')
+
+  // Optional: call backend logout endpoint for consistency
+  try {
+    await fetch(`${API_BASE}/admin/logout`, {
+      method: 'POST',
+    })
+  } catch (error) {
+    // Ignore errors - token is already removed client-side
+    console.error('Admin logout error:', error)
+  }
+}
+
+/**
+ * Get admin token from localStorage
+ */
+export function getAdminToken(): string | null {
+  return localStorage.getItem('adminToken')
+}
+
+/**
+ * Set admin token in localStorage
+ */
+export function setAdminToken(token: string): void {
+  localStorage.setItem('adminToken', token)
+}
+
+/**
+ * Check if user is currently authenticated as admin
+ */
+export function isAdminAuthenticated(): boolean {
+  return !!getAdminToken()
+}
+
