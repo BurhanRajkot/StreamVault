@@ -119,7 +119,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                         src={provider.logo}
                         alt={provider.displayName}
                         className={cn(
-                            "h-full w-full object-contain p-2 md:p-3 transition-transform duration-500 will-change-transform",
+                            "h-full w-full object-contain transition-transform duration-500 will-change-transform",
                             isSelected ? "scale-100" : "grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110"
                         )}
                         onError={(e) => {
