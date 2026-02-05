@@ -10,16 +10,29 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
    TMDB FETCHING (via Backend Proxy)
 ====================================================== */
 
+import { getProviderById, WATCH_REGION } from './ottProviders'
+
 export async function fetchPopular(
   mode: MediaMode,
-  page = 1
+  page = 1,
+  providerId?: string | null
 ): Promise<{ results: Media[]; total_pages: number }> {
   // Downloads has no TMDB data
   if (mode === 'downloads') {
     return { results: [], total_pages: 0 }
   }
 
-  const url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
+  let url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
+  if (providerId) {
+    // Get the provider config to find the correct region (e.g. US for HBO Max, IN for others)
+    const provider = getProviderById(providerId)
+    const region = provider?.region || WATCH_REGION
+
+    url += `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate%7Cbuy%7Crent&sort_by=popularity.desc`
+
+    // Fallback/Hack: HBO Max (384) sometimes returns empty for 'US' if not strictly correct.
+    // Ensuring basic discover params are robust.
+  }
 
   const res = await fetch(url)
   if (!res.ok) {
@@ -32,6 +45,94 @@ export async function fetchPopular(
     results: data.results || [],
     total_pages: data.total_pages || 0,
   }
+}
+
+export async function fetchRecentlyAdded(
+  mode: MediaMode,
+  providerId: string
+): Promise<Media[]> {
+  if (mode === 'downloads') return []
+
+  // Sort by release date to get "Recently Added"
+  const sortBy =
+    mode === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc'
+
+  // Get provider config to ensure correct region
+  const provider = getProviderById(providerId)
+  const region = provider?.region || WATCH_REGION
+
+  // Calculate date range: last 24 months to today (expanded for providers with smaller catalogs)
+  const today = new Date()
+  const monthsAgo = new Date(today)
+  monthsAgo.setMonth(today.getMonth() - 24)  // Expanded from 12 to 24 months
+
+  const todayStr = today.toISOString().split('T')[0]
+  const monthsAgoStr = monthsAgo.toISOString().split('T')[0]
+
+  let url = `${API_BASE}/tmdb/discover/${mode}?sort_by=${sortBy}&page=1`
+  url += `&with_watch_providers=${providerId}&watch_region=${region}`
+  url += `&with_watch_monetization_types=flatrate`  // Only streaming (not buy/rent)
+  url += `&vote_count.gte=20`  // Lowered from 50 to get more results
+
+  // Restrict to last 24 months for "recent" content
+  if (mode === 'movie') {
+      url += `&primary_release_date.gte=${monthsAgoStr}`
+      url += `&primary_release_date.lte=${todayStr}`
+  } else {
+      url += `&first_air_date.gte=${monthsAgoStr}`
+      url += `&first_air_date.lte=${todayStr}`
+  }
+
+  const res = await fetch(url)
+  if (!res.ok) {
+    console.error('fetchRecentlyAdded failed:', res.status, res.statusText)
+    return []
+  }
+  const data = await res.json()
+  const results = data.results || []
+
+  // OPTIMIZED VALIDATION: Validate a sample of results to ensure accuracy
+  // If validation passes for the sample, trust TMDB's discover results
+  // This balances accuracy with performance
+
+  if (results.length === 0) {
+    return []
+  }
+
+  // Validate first 3 items as a sample
+  const sampleSize = Math.min(3, results.length)
+  let validatedCount = 0
+
+  for (let i = 0; i < sampleSize; i++) {
+    const media = results[i]
+    try {
+      const providersRes = await fetch(`${API_BASE}/tmdb/${mode}/${media.id}/watch/providers`)
+      if (!providersRes.ok) continue
+
+      const providersData = await providersRes.json()
+      const regionData = providersData.results?.[region]
+
+      if (regionData) {
+        const flatrateProviders = regionData.flatrate || []
+        const hasProvider = flatrateProviders.some((p: any) => String(p.provider_id) === String(providerId))
+        if (hasProvider) {
+          validatedCount++
+        }
+      }
+    } catch (error) {
+      console.warn(`Validation check failed for ${mode} ${media.id}:`, error)
+    }
+  }
+
+  // If at least 1 out of 3 samples is valid, trust TMDB's results
+  // This ensures we show content while maintaining reasonable accuracy
+  if (validatedCount > 0 || results.length < 5) {
+    return results
+  }
+
+  // If validation completely fails, return empty to avoid showing wrong content
+  console.warn(`Provider ${providerId} validation failed - no valid content found`)
+  return []
 }
 
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {

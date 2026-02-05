@@ -7,13 +7,14 @@ interface UseMediaReturn {
   trending: Media[];
   isLoading: boolean;
   hasMore: boolean;
+  loadMedia: (reset?: boolean) => void;
   loadMore: () => void;
   search: (query: string) => void;
   clearSearch: () => void;
   searchQuery: string;
 }
 
-export function useMedia(mode: MediaMode): UseMediaReturn {
+export function useMedia(mode: MediaMode, providerId: string | null = null): UseMediaReturn {
   const [media, setMedia] = useState<Media[]>([]);
   const [trending, setTrending] = useState<Media[]>([]);
   const [page, setPage] = useState(1);
@@ -44,7 +45,8 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
         if (isSearchMode && searchQuery.length > 0) {
           mediaResult = await searchMedia(mode, searchQuery, nextPage);
         } else {
-          mediaResult = await fetchPopular(mode, nextPage);
+          // Pass providerId here
+          mediaResult = await fetchPopular(mode, nextPage, providerId);
         }
 
         setTotalPages(mediaResult.total_pages || 1);
@@ -60,7 +62,7 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
         setIsLoading(false);
       }
     },
-    [mode, page, searchQuery, isSearchMode]
+    [mode, page, searchQuery, isSearchMode, providerId]
   );
 
   // -----------------------------
@@ -83,11 +85,11 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
   }, [mode]);
 
   // -----------------------------
-  // MODE CHANGE → RESET EVERYTHING
+  // MODE OR PROVIDER CHANGE → RESET EVERYTHING
   // -----------------------------
   useEffect(() => {
-    setMedia([]);
-    setTrending([]);
+    // Avoid clearing media/trending here to prevent layout collapse/scroll jump.
+    // New data will replace old data when loadMedia/loadTrending finishes.
     setPage(1);
     setTotalPages(1);
     setSearchQuery("");
@@ -95,7 +97,7 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
 
     loadTrending();
     loadMedia(true);
-  }, [mode]);
+  }, [mode, providerId]);
 
   // -----------------------------
   // PAGE INCREASE → LOAD MORE
@@ -162,6 +164,7 @@ export function useMedia(mode: MediaMode): UseMediaReturn {
     isLoading,
     hasMore,
     loadMore,
+    loadMedia,
     search,
     clearSearch,
     searchQuery,

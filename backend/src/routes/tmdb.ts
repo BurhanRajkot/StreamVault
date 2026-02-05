@@ -56,13 +56,39 @@ async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
 router.get('/discover/:mediaType', async (req: Request, res: Response) => {
   const { mediaType } = req.params
   const page = req.query.page || '1'
+  const with_watch_providers = req.query.with_watch_providers as string
+  const watch_region = req.query.watch_region || 'IN'
+
+  const sort_by = req.query.sort_by || 'popularity.desc'
 
   if (mediaType !== 'movie' && mediaType !== 'tv') {
     return res.status(400).json({ error: 'Invalid media type' })
   }
 
   try {
-    const data = await fetchTMDB(`/discover/${mediaType}?sort_by=popularity.desc&page=${page}`)
+    let url = `/discover/${mediaType}?sort_by=${sort_by}&page=${page}`
+
+    if (with_watch_providers) {
+      url += `&with_watch_providers=${with_watch_providers}&watch_region=${watch_region}`
+    }
+
+    // Forward additional filters
+    const validParams = [
+        'vote_count.gte',
+        'primary_release_date.lte',
+        'primary_release_date.gte',
+        'first_air_date.lte',
+        'first_air_date.gte',
+        'with_watch_monetization_types'
+    ]
+
+    validParams.forEach(param => {
+        if (req.query[param]) {
+            url += `&${param}=${req.query[param]}`
+        }
+    })
+
+    const data = await fetchTMDB(url)
     // Stale-while-revalidate: serve cached version instantly, update in background
     res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600') // 30min cache, 1hr stale
     res.json(data)
@@ -134,6 +160,26 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch media details' })
+  }
+})
+
+/**
+ * GET /tmdb/:mediaType/:id/watch/providers
+ * Get watch providers for a specific media item
+ */
+router.get('/:mediaType/:id/watch/providers', async (req: Request, res: Response) => {
+  const { mediaType, id } = req.params
+
+  if (mediaType !== 'movie' && mediaType !== 'tv') {
+    return res.status(400).json({ error: 'Invalid media type' })
+  }
+
+  try {
+    const data = await fetchTMDB(`/${mediaType}/${id}/watch/providers`)
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200') // 1hr cache, 2hr stale
+    res.json(data)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch watch providers' })
   }
 })
 
