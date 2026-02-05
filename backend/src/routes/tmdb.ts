@@ -164,6 +164,26 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
 })
 
 /**
+ * GET /tmdb/:mediaType/:id/watch/providers
+ * Get watch providers for a specific media item
+ */
+router.get('/:mediaType/:id/watch/providers', async (req: Request, res: Response) => {
+  const { mediaType, id } = req.params
+
+  if (mediaType !== 'movie' && mediaType !== 'tv') {
+    return res.status(400).json({ error: 'Invalid media type' })
+  }
+
+  try {
+    const data = await fetchTMDB(`/${mediaType}/${id}/watch/providers`)
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200') // 1hr cache, 2hr stale
+    res.json(data)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch watch providers' })
+  }
+})
+
+/**
  * GET /tmdb/tv/:id/seasons
  * Get TV show seasons
  */
