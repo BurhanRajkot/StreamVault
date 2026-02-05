@@ -71,7 +71,7 @@ export function Header({
               {/* Logo + Mobile Favorites */}
               {/* Logo + Mobile Elements */}
               <div className="flex items-center justify-between w-full sm:w-auto">
-                <Link to="/" className="flex items-center gap-3 group sm:flex hidden">
+                <Link to="/" className="flex items-center gap-3 group">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
                     <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-all duration-300 hover-glow">
@@ -122,8 +122,8 @@ export function Header({
                 </div>
 
 
-                {/* Mobile: Text Logo (Center) */}
-                 <div className="sm:hidden flex-1 flex justify-center">
+                 {/* Mobile: Text Logo (Center) - Hidden now as main logo is visible */}
+                 <div className="sm:hidden flex-1 flex justify-center hidden">
                     <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
                       StreamVault
                     </span>
