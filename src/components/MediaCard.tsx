@@ -127,7 +127,7 @@ export function MediaCard({
             onClick(media)
           }}
           className={cn(
-            'group relative cursor-pointer overflow-hidden rounded-xl bg-card transition-all duration-300 border border-border/50',
+            'group relative cursor-pointer overflow-hidden rounded-lg md:rounded-xl bg-card transition-all duration-300 border border-border/50',
             'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50',
             'active:scale-[0.97]'
           )}
@@ -176,14 +176,6 @@ export function MediaCard({
           </div>
         </div>
 
-        <div className="p-3 bg-gradient-to-b from-card to-card/80">
-          <h3 className="line-clamp-1 text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-            {title}
-          </h3>
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-            {media.overview || 'No description available.'}
-          </p>
-        </div>
       </div>
     )
 }
