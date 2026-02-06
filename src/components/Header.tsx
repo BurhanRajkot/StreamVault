@@ -113,7 +113,7 @@ export function Header({
                       </DropdownMenu>
                     ) : (
                          <Link to="/login">
-                            <Button size="icon" variant="ghost" className="rounded-full bg-white/5 hover:bg-white/10">
+                            <Button size="icon" variant="ghost" className="rounded-lg bg-white/5 hover:bg-white/10">
                                 <span className="sr-only">Login</span>
                                 <LogOut className="h-5 w-5 rotate-180" /> {/* Login Icon */}
                             </Button>
@@ -135,7 +135,7 @@ export function Header({
                     {isAuthenticated && (
                         <Link
                         to="/favorites"
-                        className="rounded-full p-2 active:scale-95 hover:bg-white/5 transition-colors"
+                        className="rounded-lg p-2 active:scale-95 hover:bg-white/5 transition-colors"
                         >
                         <Heart className="h-6 w-6 fill-red-500 text-red-500" />
                         </Link>
@@ -159,7 +159,7 @@ export function Header({
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       placeholder={`Search ${mode === 'tv' ? 'shows' : 'movies'}...`}
-                      className="h-10 w-full sm:w-64 rounded-full border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
+                      className="h-10 w-full sm:w-64 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
                     />
                     {(inputValue || searchQuery) && (
                       <button
@@ -176,7 +176,7 @@ export function Header({
                 {/* Desktop Favorites + Pricing + Auth */}
                 <div className="hidden sm:flex items-center gap-4">
                   <Link to="/pricing">
-                    <Button size="sm" variant="outline" className="relative overflow-hidden border border-golden-amber/30 text-golden-amber hover:bg-golden-amber/15 hover:border-golden-amber/60 hover:text-golden-amber transition-all duration-300 group hover:scale-105 active:scale-95 shadow-lg hover:shadow-golden-amber/25 h-9 rounded-full px-4">
+                    <Button size="sm" variant="outline" className="relative overflow-hidden border border-golden-amber/30 text-golden-amber hover:bg-golden-amber/15 hover:border-golden-amber/60 hover:text-golden-amber transition-all duration-300 group hover:scale-105 active:scale-95 shadow-lg hover:shadow-golden-amber/25 h-9 rounded-lg px-4">
                       <div className="absolute inset-0 bg-gradient-to-r from-golden-amber/0 via-golden-amber/20 to-golden-amber/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                       <Crown className="h-3.5 w-3.5 mr-2 relative" />
                       <span className="relative font-bold text-xs uppercase tracking-wide">Upgrade</span>
@@ -187,7 +187,7 @@ export function Header({
 
                   {isAuthenticated && (
                     <Link to="/favorites">
-                      <Button size="sm" variant="secondary" className="hover:scale-105 active:scale-95 transition-all duration-200 font-semibold shadow-md border border-border/50 h-9 rounded-full px-4 text-xs uppercase tracking-wide">
+                      <Button size="sm" variant="secondary" className="hover:scale-105 active:scale-95 transition-all duration-200 font-semibold shadow-md border border-border/50 h-9 rounded-lg px-4 text-xs uppercase tracking-wide">
                         <Heart className="h-3.5 w-3.5 mr-2 fill-coral-pink text-coral-pink" />
                         Favorites
                       </Button>
@@ -197,12 +197,12 @@ export function Header({
                   {!isAuthenticated && (
                     <>
                       <Link to="/login">
-                        <Button size="sm" variant="ghost" className="hover:bg-secondary hover:text-foreground h-9 rounded-full px-4 text-xs font-semibold uppercase tracking-wide">
+                        <Button size="sm" variant="ghost" className="hover:bg-secondary hover:text-foreground h-9 rounded-lg px-4 text-xs font-semibold uppercase tracking-wide">
                           Login
                         </Button>
                       </Link>
                       <Link to="/signup">
-                        <Button size="sm" className="bg-gradient-primary text-white hover:opacity-90 hover:scale-105 active:scale-95 transition-all duration-200 shadow-md shadow-deep-purple/20 font-bold h-9 rounded-full px-5 text-xs uppercase tracking-wide">
+                        <Button size="sm" className="bg-gradient-primary text-white hover:opacity-90 hover:scale-105 active:scale-95 transition-all duration-200 shadow-md shadow-deep-purple/20 font-bold h-9 rounded-lg px-5 text-xs uppercase tracking-wide">
                           Sign up
                         </Button>
                       </Link>
