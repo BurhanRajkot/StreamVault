@@ -45,7 +45,7 @@ export function AnimeSection({ onMediaClick }: AnimeSectionProps) {
     <div className="animate-fade-in">
       {/* Header */}
       <div className="mb-10 text-center">
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-accent/10 px-4 py-2 text-accent">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-lg bg-accent/10 px-4 py-2 text-accent">
           <Sparkles className="h-5 w-5" />
           <span className="font-medium">Anime Mode</span>
         </div>
