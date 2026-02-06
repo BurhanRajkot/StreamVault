@@ -57,7 +57,7 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
       {/* Left Arrow */}
       <button
         onClick={() => scroll('left')}
-        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
+        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
@@ -65,7 +65,7 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
       {/* Right Arrow */}
       <button
         onClick={() => scroll('right')}
-        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
+        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
       >
         <ChevronRight className="h-5 w-5" />
       </button>

@@ -78,9 +78,9 @@ export function MediaCard({
                     e.stopPropagation()
                     onClick(media)
                   }}
-                  className="flex items-center gap-2 rounded-full bg-gradient-primary px-8 py-3 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/40 hover:scale-105 active:scale-95"
+                  className="group/btn flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-500 to-primary bg-[length:200%_100%] animate-shimmer-fast px-8 py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition-all hover:shadow-2xl hover:shadow-primary/50 hover:scale-105 active:scale-95 hover:bg-[100%_0]"
                 >
-                  <Play className="h-4 w-4 fill-current" />
+                  <Play className="h-4 w-4 fill-current transition-transform group-hover/btn:scale-125" />
                   Watch Now
                 </button>
 
