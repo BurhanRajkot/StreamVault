@@ -222,10 +222,11 @@ const Downloads = () => {
           <button
             onClick={() => setShowAdminModal(true)}
             className={cn(
-              'fixed bottom-6 left-6 flex items-center gap-2 rounded-lg border border-border/50 bg-card/80 px-4 py-2.5 text-sm font-medium text-muted-foreground backdrop-blur-sm',
+              'fixed bottom-24 left-6 flex items-center gap-2 rounded-lg border border-border/50 bg-card/80 px-4 py-2.5 text-sm font-medium text-muted-foreground backdrop-blur-sm',
               'hover:bg-card hover:text-foreground hover:border-primary/50',
               'transition-all duration-200',
-              'shadow-lg hover:shadow-xl'
+              'shadow-lg hover:shadow-xl',
+              'z-50'
             )}
           >
             <ShieldCheck className="h-4 w-4" />
