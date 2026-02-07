@@ -12,7 +12,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (!domain || !clientId || !audience) {
     return (
       <div className="p-4 text-red-500">
-        ❌ Missing Auth0 environment variables
+        Missing Auth0 environment variables
       </div>
     )
   }

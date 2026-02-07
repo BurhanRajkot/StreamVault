@@ -38,7 +38,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
 
   return (
     <section className="relative mb-6">
-      {/* 🔥 TALLER HERO ON XL / 2XL SCREENS */}
+      {/* TALLER HERO ON XL / 2XL SCREENS */}
       <div className="relative h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl">
         {displayItems.map((item, index) => (
           <div

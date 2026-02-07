@@ -1,5 +1,6 @@
 export const CONFIG = {
-  TMDB_API_KEY: '668a0dd95d2a554867a2c610467fb934',
+  // SECURITY: TMDB_API_KEY removed from frontend - all TMDB calls now go through backend proxy
+  // The API key is stored securely in backend environment variables only
   TMDB_BASE_URL: 'https://api.themoviedb.org/3',
   IMG_BASE_URL: 'https://image.tmdb.org/t/p',
   IMG_SIZES: {
@@ -61,7 +62,7 @@ export const CONFIG = {
   ],
 }
 
-/* ✅ ONLY REQUIRED MODES */
+/* ONLY REQUIRED MODES */
 export type MediaMode = 'movie' | 'tv' | 'downloads'
 
 export interface Media {

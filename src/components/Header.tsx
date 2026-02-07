@@ -66,7 +66,7 @@ export function Header({
 
   return (
         <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-all">
-          {/* 🔥 MATCH HEADER WIDTH WITH MAIN CONTENT */}
+          {/* MATCH HEADER WIDTH WITH MAIN CONTENT */}
           <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
               {/* Logo + Mobile Favorites */}
               {/* Logo + Mobile Elements */}

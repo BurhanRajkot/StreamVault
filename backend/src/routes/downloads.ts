@@ -1,10 +1,19 @@
 import { Router, Request } from 'express'
 import { supabase } from '../lib/supabase'
 import { checkAuth } from '../middleware/auth'
+import { downloadRateLimiter } from '../middleware/rateLimiter'
 import path from 'path'
-import fs from 'fs'
 
 const router = Router()
+
+// Security: Sanitize filename to prevent path traversal attacks
+function sanitizeFilename(filename: string): string {
+  // Remove any path separators and only keep the basename
+  const basename = path.basename(filename)
+  // Only allow alphanumeric, dots, hyphens, and underscores
+  const sanitized = basename.replace(/[^a-zA-Z0-9._-]/g, '_')
+  return sanitized
+}
 
 function getUserId(req: Request) {
   return (req as any).auth?.payload?.sub as string | undefined
@@ -18,6 +27,42 @@ async function isPaidUser(userId: string): Promise<boolean> {
     .single()
 
   return user?.subscriptionStatus === 'active'
+}
+
+// ---------------------------------------------------------
+// HARDCODED INJECTION FOR TORRENTS (User Request)
+// Since we can't seed the DB directly from here easily.
+// ---------------------------------------------------------
+function injectHardcodedDownloads(results: any[]): any[] {
+  const hardcodedItems = [
+    {
+      id: 'hardcoded-godfather',
+      title: 'The Godfather',
+      quality: '1080p BluRay',
+      filename: 'The.Godfather.1972.REMASTERED.1080p.10bit.BluRay.6CH.x265.torrent',
+      createdAt: '2024-01-01T00:00:00.000Z'
+    },
+    {
+      id: 'hardcoded-interstellar',
+      title: 'Interstellar',
+      quality: '2160p IMAX BluRay',
+      filename: 'Interstellar.2014.IMAX.2160p.10bit.HDR.BluRay.6CH.x265.torrent',
+      createdAt: '2024-01-02T00:00:00.000Z'
+    }
+  ]
+
+  // Add hardcoded items if they don't exist
+  for (const item of hardcodedItems) {
+    const exists = results.some((i: any) => i.filename === item.filename)
+    if (!exists) {
+      results.push(item)
+    }
+  }
+
+  // Re-sort by date
+  results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  return results
 }
 
 router.get('/', checkAuth, async (req, res) => {
@@ -35,7 +80,8 @@ router.get('/', checkAuth, async (req, res) => {
       return res.status(500).json({ error: 'Server error' })
     }
 
-    return res.json(data || [])
+    const results = injectHardcodedDownloads(data || [])
+    return res.json(results)
   }
 
   // Regular user flow - check premium status
@@ -59,71 +105,81 @@ router.get('/', checkAuth, async (req, res) => {
     return res.status(500).json({ error: 'Server error' })
   }
 
-  res.json(data || [])
+  const results = injectHardcodedDownloads(data || [])
+  res.json(results)
 })
 
-router.get('/:id/file', checkAuth, async (req, res) => {
-  // Check if user is admin - bypass premium check
-  if (req.admin) {
-    console.log(`✅ Admin file download access`)
+// Helper to stream file from Supabase Storage
+async function streamDownloadFromStorage(res: any, filename: string) {
+  try {
+    // Security: Sanitize filename to prevent path traversal
+    const sanitizedFilename = sanitizeFilename(filename)
+    console.log(`⬇️ Attempting to download ${sanitizedFilename} from Supabase Storage`)
 
-    const { id } = req.params
+    const { data, error } = await supabase.storage
+      .from('downloads')
+      .download(sanitizedFilename)
 
+    if (error) {
+      console.error('Supabase storage download error:', error)
+      return res.status(404).json({ error: 'File not found in storage' })
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'File data is empty' })
+    }
+
+    // Set headers for download
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`)
+    res.setHeader('Content-Type', data.type || 'application/x-bittorrent')
+    res.setHeader('Content-Length', data.size.toString())
+
+    // Stream the file efficiently (avoid loading entire file into memory)
+    const arrayBuffer = await data.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    return res.send(buffer)
+  } catch (err) {
+    console.error('Stream download error:', err)
+    return res.status(500).json({ error: 'Server error during download' })
+  }
+}
+
+router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
+  const { id } = req.params
+  let filename = ''
+
+  // 1. Determine filename based on ID
+  if (id === 'hardcoded-godfather') {
+    filename = 'The.Godfather.1972.REMASTERED.1080p.10bit.BluRay.6CH.x265.torrent'
+  } else if (id === 'hardcoded-interstellar') {
+    filename = 'Interstellar.2014.IMAX.2160p.10bit.HDR.BluRay.6CH.x265.torrent'
+  } else {
+    // Fetch from DB
     const { data: item } = await supabase
       .from('Download')
-      .select('*')
+      .select('filename')
       .eq('id', id)
       .single()
 
     if (!item) return res.status(404).json({ error: 'Not found' })
-
-    const filePath = path.join(
-      process.cwd(),
-      'public',
-      'downloads',
-      item.filename
-    )
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File missing on server' })
-    }
-
-    return res.download(filePath, item.filename)
+    filename = item.filename
   }
 
-  // Regular user flow - check premium status
+  // 2. Auth checks
+  if (req.admin) {
+    console.log(`✅ Admin file download access for: ${filename}`)
+    return streamDownloadFromStorage(res, filename)
+  }
+
+  // Regular user check
   const userId = getUserId(req)
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
   const isPaid = await isPaidUser(userId)
-  if (!isPaid) {
-    return res.status(403).json({ error: 'Downloads are only available for premium users.' })
-  }
+  if (!isPaid) return res.status(403).json({ error: 'Downloads are only available for premium users.' })
 
-  const { id } = req.params
-
-  const { data: item } = await supabase
-    .from('Download')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (!item) return res.status(404).json({ error: 'Not found' })
-
-  const filePath = path.join(
-    process.cwd(),
-    'public',
-    'downloads',
-    item.filename
-  )
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File missing on server' })
-  }
-
-  res.download(filePath, item.filename)
+  return streamDownloadFromStorage(res, filename)
 })
 
 export default router

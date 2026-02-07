@@ -59,7 +59,7 @@ export function MediaGrid({
         </h2>
       )}
 
-      {/* 🔥 EXTRA COLUMNS ON 2XL SCREENS */}
+      {/* EXTRA COLUMNS ON 2XL SCREENS */}
       <div
         className="
           grid

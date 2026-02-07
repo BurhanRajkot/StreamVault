@@ -55,7 +55,7 @@ const Favorites = () => {
           Back
         </Button>
 
-        <h1 className="mb-6 text-2xl font-bold">❤️ My Favorites</h1>
+        <h1 className="mb-6 text-2xl font-bold">My Favorites</h1>
 
         {media.length === 0 && !loading ? (
           <p className="text-muted-foreground">
