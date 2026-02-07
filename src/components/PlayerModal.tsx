@@ -189,7 +189,7 @@ export function PlayerModal({
       } catch (err) {
         console.error('Failed to update continue watching:', err)
       }
-    }, 60000) // 🔥 Reduced from 30s to 60s for better performance (50% less backend load)
+    }, 60000) // Reduced from 30s to 60s for better performance (50% less backend load)
 
     return () => clearInterval(interval)
   }, [
@@ -205,10 +205,10 @@ export function PlayerModal({
   /* ================= FAST CLOSE (ONLY CHANGE MADE HERE) ================= */
 
   const handleSmartClose = useCallback(() => {
-    // 1️⃣ Close modal immediately (NO async here)
+    // 1. Close modal immediately (NO async here)
     onClose()
 
-    // 2️⃣ Save resume in background (fire-and-forget)
+    // 2. Save resume in background (fire-and-forget)
     if (!media || !isAuthenticated) return
 
     setTimeout(async () => {
@@ -636,7 +636,7 @@ export function PlayerModal({
                       {streamError && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-10">
                           <div className="text-center space-y-4 p-6 max-w-md">
-                            <div className="text-destructive text-4xl">⚠️</div>
+                            <div className="text-destructive text-4xl font-bold">!</div>
                             <h3 className="text-lg font-semibold text-foreground">Stream Unavailable</h3>
                             <p className="text-sm text-muted-foreground">
                               This stream failed to load. Try switching to a different provider or check your connection.

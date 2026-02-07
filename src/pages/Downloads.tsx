@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { fetchDownloads, downloadFile, DownloadItem, getAdminToken } from '@/lib/api'
 import { getImageUrl } from '@/lib/api'
-import { Search, Download, Crown, ShieldCheck } from 'lucide-react'
+import { Search, Download, Crown, ShieldCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import AdminLoginModal from '@/components/AdminLoginModal'
@@ -12,7 +12,7 @@ type EnrichedDownload = DownloadItem & {
 }
 
 const TMDB_BASE = 'https://api.themoviedb.org/3'
-const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY // ✅ SAFE WAY
+const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY // SAFE WAY
 
 // Clean title: remove year, quality, brackets, etc.
 function cleanTitle(raw: string) {
@@ -28,7 +28,7 @@ function cleanTitle(raw: string) {
 async function fetchPoster(title: string): Promise<string | null> {
   try {
     if (!TMDB_KEY) {
-      console.error('❌ TMDB API KEY is missing')
+      console.error('TMDB API KEY is missing')
       return null
     }
 
@@ -254,18 +254,28 @@ const Downloads = () => {
 
   return (
     <div className="space-y-6">
-      {/* 🔍 Search Bar */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {/* Search Bar */}
+      {/* Search Bar (Updated match Header) */}
+      <div className="relative max-w-md group">
+        <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-all duration-300 group-focus-within:scale-110" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search downloads..."
-          className="h-11 w-full rounded-lg border bg-secondary/50 pl-10 pr-4 text-sm"
+          className="h-10 w-full rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:scale-110 transition-all duration-200 active:scale-90"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      {/* 📦 Grid */}
+      {/* Grid */}
       <div
         className="
           grid

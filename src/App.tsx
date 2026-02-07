@@ -17,7 +17,7 @@ const queryClient = new QueryClient()
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export default function App() {
-  // 🔥 FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
+  // FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
     fetch(`${API_BASE}/health`).catch(() => {
       // silently ignore errors

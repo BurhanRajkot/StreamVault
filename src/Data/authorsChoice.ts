@@ -53,7 +53,7 @@ export const AUTHORS_CHOICE: AuthorsChoiceItem[] = [
   { tmdbId: 49047, mediaType: 'movie', note: 'French perfection.' }, // Amélie
   { tmdbId: 11645, mediaType: 'movie', note: 'Swedish introspection.' }, // Persona
 
-  // 🔥 ACTION & ADVENTURE
+  // ACTION & ADVENTURE
   { tmdbId: 85, mediaType: 'movie', note: 'Raiders of cinema.' }, // Indiana Jones
   { tmdbId: 1892, mediaType: 'movie', note: 'Sci-fi action peak.' }, // Return of the Jedi
   { tmdbId: 562, mediaType: 'movie', note: 'Die Hard excellence.' }, // Die Hard
@@ -65,7 +65,7 @@ export const AUTHORS_CHOICE: AuthorsChoiceItem[] = [
   { tmdbId: 353081, mediaType: 'movie', note: 'Mission impossible perfected.' }, // Fallout
   { tmdbId: 24428, mediaType: 'movie', note: 'Avengers assemble.' }, // Avengers
 
-  // 🎞️ MODERN MASTERPIECES
+  // MODERN MASTERPIECES
   { tmdbId: 300671, mediaType: 'movie', note: 'Revenge storytelling.' }, // Blade Runner 2049
   { tmdbId: 299536, mediaType: 'movie', note: 'Infinity saga.' }, // Infinity War
   { tmdbId: 284054, mediaType: 'movie', note: 'Black hole of emotion.' }, // Logan
