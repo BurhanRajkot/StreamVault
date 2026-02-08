@@ -28,8 +28,15 @@ export function MobileNav({ mode, onModeChange }: MobileNavProps) {
       isActive: mode === 'tv' && !isFavorites,
     },
     {
+      id: 'documentary',
+      label: 'Docs',
+      icon: Film, // Reusing Film icon for simplicity, or could import Video
+      action: () => onModeChange('documentary'),
+      isActive: mode === 'documentary' && !isFavorites,
+    },
+    {
       id: 'downloads',
-      label: 'Downloads',
+      label: 'DLs',
       icon: Download,
       action: () => onModeChange('downloads'),
       isActive: mode === 'downloads' && !isFavorites,
