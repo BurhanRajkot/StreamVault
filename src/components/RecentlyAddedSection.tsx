@@ -7,7 +7,7 @@ import { MediaCard, MediaCardSkeleton } from '@/components/MediaCard'
 
 interface RecentlyAddedSectionProps {
   mode: MediaMode
-  providerId: string
+  providerId: string | null
   onMediaClick: (media: Media) => void
 }
 
@@ -15,7 +15,9 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
   const [items, setItems] = useState<Media[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
-  const providerName = OTT_PROVIDERS.find(p => p.id === providerId)?.displayName || 'Provider'
+  const providerName = providerId
+    ? (OTT_PROVIDERS.find(p => p.id === providerId)?.displayName || 'Provider')
+    : 'Recently Added'
 
   useEffect(() => {
     const loadData = async () => {
@@ -31,7 +33,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       }
     }
 
-    if (providerId) {
+    if (providerId || mode === 'documentary') {
       loadData()
     }
   }, [mode, providerId])
@@ -47,7 +49,12 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
             <Calendar className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
           </div>
           <h2 className="text-lg md:text-xl font-bold text-white">
-            Recently Added on <span className="text-primary">{providerName}</span>
+            {providerId ? (
+              <>Recently Added on <span className="text-primary">{providerName}</span></>
+            ) : (
+              // Generic title for global view
+              <>Recently Added <span className="text-primary">Documentaries</span></>
+            )}
           </h2>
         </div>
       </div>
