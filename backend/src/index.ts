@@ -4,6 +4,7 @@ dotenv.config()
 import express from 'express'
 import compression from 'compression'
 import { getCacheStats } from './services/cache'
+import { logger } from './lib/logger'
 
 // CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
 import {
@@ -12,6 +13,7 @@ import {
   corsPreflightHandler,
   apiRateLimiter
 } from './cybersecurity'
+import { httpsEnforcement } from './cybersecurity/httpsEnforcement'
 
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
@@ -26,30 +28,36 @@ const app = express()
 app.set('trust proxy', true)
 
 // SECURITY: Apply security middleware in order
-// 1. Helmet - HTTP security headers
+// 1. HTTPS Enforcement - Redirect HTTP to HTTPS in production
+app.use(httpsEnforcement)
+
+// 2. Helmet - HTTP security headers
 app.use(helmetMiddleware)
 
-// 2. Compression - Apply BEFORE rate limiting for better performance
+// 3. Compression - Apply BEFORE rate limiting for better performance
 app.use(compression())
 
-// 3. CORS - Must be BEFORE rate limiter so error responses include CORS headers
+// 4. CORS - Must be BEFORE rate limiter so error responses include CORS headers
 app.use(corsMiddleware)
 app.options('/{*splat}', corsPreflightHandler)
 
-// 4. Rate Limiting - Prevent API abuse (applied after compression)
+// 5. Rate Limiting - Prevent API abuse (applied after compression)
 app.use(apiRateLimiter)
 
-app.post('/subscriptions/webhook', express.raw({ type: 'application/json' }))
-app.use(express.json())
+// 6. Body parsing with size limits (prevent DoS attacks)
+app.post('/subscriptions/webhook', express.raw({ type: 'application/json', limit: '1mb' }))
+app.use(express.json({ limit: '10mb' })) // Reasonable limit for API requests
+app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 const PORT = process.env.PORT || 4000
 
 // Log environment status for debugging
-console.log('Environment check:')
-console.log(`   - PORT: ${PORT}`)
-console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`)
-console.log(`   - SUPABASE_URL: ${process.env.SUPABASE_URL ? '✓ set' : '✗ MISSING'}`)
-console.log(`   - SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✓ set' : '✗ MISSING'}`)
+logger.info('Environment check', {
+  port: PORT,
+  nodeEnv: process.env.NODE_ENV || 'not set',
+  supabaseConfigured: !!process.env.SUPABASE_URL,
+  supabaseKeyConfigured: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+})
 
 // ROOT ENDPOINT (FOR RENDER'S DEFAULT HEALTH CHECK)
 app.get('/', (_req, res) => {
@@ -85,5 +93,5 @@ app.use('/admin', adminRouter)
 // START SERVER
 const HOST = '0.0.0.0'
 app.listen(Number(PORT), HOST, () => {
-  console.log(`Backend running on http://${HOST}:${PORT}`)
+  logger.info('Backend server started', { host: HOST, port: PORT })
 })

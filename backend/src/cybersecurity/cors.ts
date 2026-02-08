@@ -19,18 +19,36 @@ import cors from 'cors'
 
 /**
  * Main CORS middleware configuration
- * Allows requests from any origin (for public API access)
+ * Production: Whitelists specific domains
+ * Development: Allows all origins for easier testing
  */
 export const corsMiddleware = cors({
   origin: (origin, callback) => {
-    // Allow all origins (including no origin for direct API access)
-    // In production, you might want to whitelist specific domains:
-    // const allowedOrigins = ['https://yourdomain.com', 'https://staging.yourdomain.com']
-    // if (!origin || allowedOrigins.includes(origin)) callback(null, true)
-    // else callback(new Error('CORS not allowed'))
+    const isDevelopment = process.env.NODE_ENV !== 'production'
 
-    // Removed console.log for performance - was logging EVERY request
-    callback(null, true)
+    // In development, allow all origins
+    if (isDevelopment) {
+      return callback(null, true)
+    }
+
+    // Production: Whitelist specific domains
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      'https://yourdomain.com', // Replace with your actual production domain
+      'https://www.yourdomain.com',
+      // Add staging/preview URLs as needed
+    ].filter(Boolean) // Remove undefined values
+
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true)
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error(`CORS policy: Origin ${origin} is not allowed`))
+    }
   },
 
   // Allow cookies and authentication headers

@@ -1,7 +1,16 @@
 import jwt from 'jsonwebtoken'
 
-const ADMIN_SECRET = parseInt(process.env.ADMIN_SECRET || process.env.ADMIN_SECRET_CODE || '2005')
-const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'fallback-secret-change-in-production'
+// Validate required environment variables
+if (!process.env.ADMIN_SECRET && !process.env.ADMIN_SECRET_CODE) {
+  throw new Error('ADMIN_SECRET or ADMIN_SECRET_CODE environment variable is required')
+}
+
+if (!process.env.ADMIN_JWT_SECRET) {
+  throw new Error('ADMIN_JWT_SECRET environment variable is required')
+}
+
+const ADMIN_SECRET = parseInt(process.env.ADMIN_SECRET || process.env.ADMIN_SECRET_CODE!)
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET
 
 const TOKEN_EXPIRATION = '30m'
 
@@ -20,7 +29,16 @@ const getCodeForDate = (date: Date): string => {
 
 export function validateAdminCode(code: string): boolean {
   try {
+    // Input validation: prevent DoS and timing attacks
+    if (!code || typeof code !== 'string') return false
+    if (code.length > 50) return false // Reasonable max length
+    if (!/^[\d\s-]+$/.test(code)) return false // Only digits, spaces, hyphens
+
     const cleanCode = code.replace(/[\s-]/g, '')
+
+    // Prevent empty codes after cleaning
+    if (!cleanCode) return false
+
     const now = new Date()
 
     if (cleanCode === getCodeForDate(now)) return true
