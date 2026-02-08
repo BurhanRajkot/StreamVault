@@ -34,9 +34,9 @@ export const corsMiddleware = cors({
     // Production: Whitelist specific domains
     const allowedOrigins = [
       process.env.FRONTEND_URL,
-      'https://yourdomain.com', // Replace with your actual production domain
-      'https://www.yourdomain.com',
-      // Add staging/preview URLs as needed
+      'https://stream-vault-7u6q.vercel.app', // Vercel production
+      'https://streamvault-backend-bq9p.onrender.com', // Render backend (for admin panel)
+      // Add any preview/staging URLs as needed
     ].filter(Boolean) // Remove undefined values
 
     // Allow requests with no origin (mobile apps, Postman, etc.)
