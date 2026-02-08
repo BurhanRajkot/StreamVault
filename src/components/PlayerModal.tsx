@@ -266,6 +266,7 @@ export function PlayerModal({
         episode: ep,
         malId,
         subOrDub,
+        media,
       })
 
       setStreamError(false)
@@ -301,6 +302,7 @@ export function PlayerModal({
       episode,
       malId,
       subOrDub,
+      media,
     })
 
     setStreamError(false)
@@ -343,6 +345,7 @@ export function PlayerModal({
         episode,
         malId,
         subOrDub,
+        media,
       })
       setEmbedUrl(url)
     }

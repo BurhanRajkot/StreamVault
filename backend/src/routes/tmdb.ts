@@ -8,9 +8,9 @@ const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || '668a0dd95d2a554867a2c6104
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 
 /**
- * Fetch from TMDB with caching and retry logic
+ * Fetch from TMDB with caching, retry logic, and rate limit handling
  */
-async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
+async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
   const cacheKey = cache.generateCacheKey('tmdb', endpoint)
   const cached = cache.tmdb.get(cacheKey)
 
@@ -23,31 +23,64 @@ async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await fetch(url)
+
+      // Handle rate limiting (429 Too Many Requests)
+      if (response.status === 429) {
+        const isLastAttempt = attempt === retries
+
+        if (!isLastAttempt) {
+          // Exponential backoff for rate limits: 5s, 10s, 20s
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 20000)
+          logger.warn('TMDB rate limit hit, backing off', {
+            attempt,
+            maxRetries: retries,
+            delayMs: delay,
+            endpoint
+          })
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        } else {
+          logger.error('TMDB rate limit exceeded, max retries reached', { endpoint })
+          // Return empty data instead of crashing
+          return { results: [], total_pages: 0 }
+        }
+      }
+
       if (!response.ok) {
         const errorText = await response.text()
-        logger.error('TMDB API error', { status: response.status, error: errorText })
+        logger.error('TMDB API error', { status: response.status, error: errorText, endpoint })
         throw new Error(`TMDB API error: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
-      cache.tmdb.set(cacheKey, data, 1800) // 30 minutes TTL (increased from 10 for better performance)
+      // Extended cache TTL to 2 hours to reduce API calls
+      cache.tmdb.set(cacheKey, data, 7200)
       return data
     } catch (error: any) {
       const isLastAttempt = attempt === retries
       const isConnectionError = error?.code === 'ECONNRESET' || error?.errno === 0
 
       if (isConnectionError && !isLastAttempt) {
-        // Wait before retrying (exponential backoff, max 2s)
-        const delay = Math.min(500 * Math.pow(2, attempt - 1), 2000)
+        // Wait before retrying (exponential backoff, max 3s)
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000)
         logger.warn('TMDB connection reset, retrying', { attempt, maxRetries: retries, delayMs: delay })
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
       }
 
       logger.error('TMDB fetch error', { endpoint, error: error.message || error })
+
+      // Last attempt failed - return empty data gracefully
+      if (isLastAttempt) {
+        return { results: [], total_pages: 0 }
+      }
+
       throw error
     }
   }
+
+  // Fallback (should never reach here)
+  return { results: [], total_pages: 0 }
 }
 
 /**
@@ -80,7 +113,8 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
         'primary_release_date.gte',
         'first_air_date.lte',
         'first_air_date.gte',
-        'with_watch_monetization_types'
+        'with_watch_monetization_types',
+        'with_genres'
     ]
 
     validParams.forEach(param => {
@@ -99,7 +133,7 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
 })
 
 /**
- * GET /tmdb/trending/:mediaType
+ * GET /tmdb/trending/:mediaType using this for the pupose of getting files and other things
  * Fetch trending media
  */
 router.get('/trending/:mediaType', async (req: Request, res: Response) => {

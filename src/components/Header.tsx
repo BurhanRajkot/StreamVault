@@ -158,7 +158,15 @@ export function Header({
                     <input
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
-                      placeholder={`Search ${mode === 'tv' ? 'shows' : 'movies'}...`}
+                      placeholder={`Search ${
+                        mode === 'tv'
+                          ? 'shows'
+                          : mode === 'documentary'
+                          ? 'documentaries'
+                          : mode === 'downloads'
+                          ? 'downloads'
+                          : 'movies'
+                      }...`}
                       className="h-10 w-full sm:w-64 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
                     />
                     {(inputValue || searchQuery) && (
