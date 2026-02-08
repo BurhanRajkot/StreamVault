@@ -1,6 +1,7 @@
 import express from 'express'
 import { getStripe, SUBSCRIPTION_PLANS } from '../lib/stripe'
 import { checkJwt } from '../middleware/auth'
+import { logger } from '../lib/logger'
 
 const router = express.Router()
 export { express }
@@ -81,7 +82,7 @@ router.get('/plans', async (_req, res) => {
       ],
     })
   } catch (error: any) {
-    console.error('Error fetching plans:', error)
+    logger.error('Error fetching plans', { error: error.message })
     res.status(500).json({ error: 'Failed to fetch plans' })
   }
 })
@@ -116,7 +117,7 @@ router.post('/create-checkout-session', async (req, res) => {
 
     res.json({ url: session.url })
   } catch (error: any) {
-    console.error('Checkout session error:', error)
+    logger.error('Checkout session error', { error: error.message })
     res.status(500).json({ error: error.message || 'Failed to create checkout session' })
   }
 })
@@ -140,7 +141,7 @@ router.get('/session/:sessionId', async (req, res) => {
       currentPeriodEnd: subscription?.current_period_end,
     })
   } catch (error: any) {
-    console.error('Session retrieval error:', error)
+    logger.error('Session retrieval error', { error: error.message })
     res.status(500).json({ error: 'Failed to retrieve session' })
   }
 })
@@ -163,7 +164,7 @@ router.post('/create-portal-session', async (req, res) => {
 
     res.json({ url: portalSession.url })
   } catch (error: any) {
-    console.error('Portal session error:', error)
+    logger.error('Portal session error', { error: error.message })
     res.status(500).json({ error: 'Failed to create portal session' })
   }
 })
@@ -173,7 +174,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET
 
   if (!endpointSecret) {
-    console.error('Webhook secret not configured. Set STRIPE_WEBHOOK_SECRET in .env')
+    logger.error('Webhook secret not configured')
     return res.status(500).json({ error: 'Webhook secret not configured' })
   }
 
@@ -183,32 +184,32 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     switch (event.type) {
       case 'customer.subscription.created':
-        console.log('Subscription created:', event.data.object.id)
+        logger.info('Subscription created', { subscriptionId: event.data.object.id })
         break
 
       case 'customer.subscription.updated':
-        console.log('Subscription updated:', event.data.object.id)
+        logger.info('Subscription updated', { subscriptionId: event.data.object.id })
         break
 
       case 'customer.subscription.deleted':
-        console.log('Subscription deleted:', event.data.object.id)
+        logger.info('Subscription deleted', { subscriptionId: event.data.object.id })
         break
 
       case 'invoice.paid':
-        console.log('💰 Invoice paid:', event.data.object.id)
+        logger.info('Invoice paid', { invoiceId: event.data.object.id })
         break
 
       case 'invoice.payment_failed':
-        console.error('Payment failed:', event.data.object.id)
+        logger.error('Payment failed', { invoiceId: event.data.object.id })
         break
 
       default:
-        console.log(`Unhandled event type: ${event.type}`)
+        logger.warn('Unhandled webhook event', { eventType: event.type })
     }
 
     res.json({ received: true })
   } catch (err: any) {
-    console.error('Webhook error:', err.message)
+    logger.error('Webhook error', { error: err.message })
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 })

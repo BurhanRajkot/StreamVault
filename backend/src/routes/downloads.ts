@@ -2,6 +2,7 @@ import { Router, Request } from 'express'
 import { supabase } from '../lib/supabase'
 import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
+import { logger } from '../lib/logger'
 import path from 'path'
 
 const router = Router()
@@ -68,7 +69,7 @@ function injectHardcodedDownloads(results: any[]): any[] {
 router.get('/', checkAuth, async (req, res) => {
   // Check if user is admin - bypass premium check
   if (req.admin) {
-    console.log(`✅ Admin access granted to downloads`)
+    logger.info('Admin access granted to downloads')
 
     const { data, error } = await supabase
       .from('Download')
@@ -76,7 +77,7 @@ router.get('/', checkAuth, async (req, res) => {
       .order('createdAt', { ascending: false })
 
     if (error) {
-      console.error('Downloads fetch error:', error)
+      logger.error('Downloads fetch error', { error: error.message })
       return res.status(500).json({ error: 'Server error' })
     }
 
@@ -101,7 +102,7 @@ router.get('/', checkAuth, async (req, res) => {
     .order('createdAt', { ascending: false })
 
   if (error) {
-    console.error('Downloads fetch error:', error)
+    logger.error('Downloads fetch error', { error: error.message })
     return res.status(500).json({ error: 'Server error' })
   }
 
@@ -114,15 +115,15 @@ async function streamDownloadFromStorage(res: any, filename: string) {
   try {
     // Security: Sanitize filename to prevent path traversal
     const sanitizedFilename = sanitizeFilename(filename)
-    console.log(`⬇️ Attempting to download ${sanitizedFilename} from Supabase Storage`)
+    logger.info('File download requested', { filename: sanitizedFilename })
 
     const { data, error } = await supabase.storage
       .from('downloads')
       .download(sanitizedFilename)
 
     if (error) {
-      console.error('Supabase storage download error:', error)
-      return res.status(404).json({ error: 'File not found in storage' })
+      logger.error('Supabase storage download error', { error: error.message, filename: sanitizedFilename })
+      return res.status(404).json({ error: 'File not found' })
     }
 
     if (!data) {
@@ -139,9 +140,9 @@ async function streamDownloadFromStorage(res: any, filename: string) {
     const buffer = Buffer.from(arrayBuffer)
 
     return res.send(buffer)
-  } catch (err) {
-    console.error('Stream download error:', err)
-    return res.status(500).json({ error: 'Server error during download' })
+  } catch (err: any) {
+    logger.error('Stream download error', { error: err.message })
+    return res.status(500).json({ error: 'Server error' })
   }
 }
 
@@ -168,7 +169,7 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
 
   // 2. Auth checks
   if (req.admin) {
-    console.log(`✅ Admin file download access for: ${filename}`)
+    logger.info('Admin file download access', { filename })
     return streamDownloadFromStorage(res, filename)
   }
 

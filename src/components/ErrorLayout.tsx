@@ -41,8 +41,8 @@ const ErrorLayout = ({
         <img
           src={imageSrc}
           alt={title}
-          className="h-full w-full object-cover transition-transform duration-[20s] ease-linear hover:scale-110 animate-pulse-glow"
-          style={{ animationDuration: '8s' }} // Slow down the pulse for background
+          className="h-full w-full object-cover transition-transform ease-linear hover:scale-110 animate-pulse-glow"
+          style={{ animationDuration: '8s', transitionDuration: '20s' }} // Slow down the pulse for background
         />
         {/* Cinematic Overlays */}
         {/* 1. Darken the image overall for text readability */}

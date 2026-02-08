@@ -1,4 +1,5 @@
 import NodeCache from 'node-cache'
+import { logger } from '../lib/logger'
 
 /**
  * In-memory caching service with TTL support
@@ -131,7 +132,7 @@ export function clearAllCaches(): void {
   tmdb.flush()
   userData.flush()
   seasons.flush()
-  console.log('All caches cleared')
+  logger.info('All caches cleared')
 }
 
 /**

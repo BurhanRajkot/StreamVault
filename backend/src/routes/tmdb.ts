@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import * as cache from '../services/cache'
+import { logger } from '../lib/logger'
 
 const router = Router()
 
@@ -24,8 +25,8 @@ async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
       const response = await fetch(url)
       if (!response.ok) {
         const errorText = await response.text()
-        console.error(`TMDB API error (${response.status}):`, errorText)
-        throw new Error(`TMDB API error: ${response.status} ${response.statusText} - ${errorText}`)
+        logger.error('TMDB API error', { status: response.status, error: errorText })
+        throw new Error(`TMDB API error: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
@@ -38,12 +39,12 @@ async function fetchTMDB(endpoint: string, retries = 2): Promise<any> {
       if (isConnectionError && !isLastAttempt) {
         // Wait before retrying (exponential backoff, max 2s)
         const delay = Math.min(500 * Math.pow(2, attempt - 1), 2000)
-        console.log(`TMDB connection reset, retrying in ${delay}ms (attempt ${attempt}/${retries})`)
+        logger.warn('TMDB connection reset, retrying', { attempt, maxRetries: retries, delayMs: delay })
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
       }
 
-      console.error(`TMDB fetch error for ${endpoint}:`, error.message || error)
+      logger.error('TMDB fetch error', { endpoint, error: error.message || error })
       throw error
     }
   }
