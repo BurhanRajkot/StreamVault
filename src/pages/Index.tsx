@@ -93,11 +93,11 @@ const Index = () => {
                   />
               )}
 
-              {/* Recently Added Section (Only when provider is selected) */}
-              {!searchQuery && selectedProvider && (
+              {/* Recently Added Section (Global for Docs, Provider-specific for others) */}
+              {!searchQuery && (selectedProvider || mode === 'documentary') && (
                 <RecentlyAddedSection
                   mode={mode}
-                  providerId={selectedProvider}
+                  providerId={selectedProvider || null}
                   onMediaClick={handleMediaClick}
                 />
               )}

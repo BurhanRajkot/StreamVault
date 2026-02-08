@@ -22,6 +22,46 @@ export async function fetchPopular(
     return { results: [], total_pages: 0 }
   }
 
+  // DOCUMENTARY MODE: Fetch Mix of Movies (99) and TV (99)
+  if (mode === 'documentary') {
+    let movieUrl = `${API_BASE}/tmdb/discover/movie?with_genres=99&sort_by=popularity.desc&page=${page}`
+    let tvUrl = `${API_BASE}/tmdb/discover/tv?with_genres=99&sort_by=popularity.desc&page=${page}`
+
+    if (providerId) {
+      const provider = getProviderById(providerId)
+      const region = provider?.region || WATCH_REGION
+      const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
+
+      movieUrl += providerParams
+      tvUrl += providerParams
+    }
+
+    try {
+      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
+      const movieData = await movieRes.json()
+      const tvData = await tvRes.json()
+
+      // Merge and shuffle/sort results
+      const movies = (movieData.results || []).map((m: any) => ({ ...m, media_type: 'movie' }))
+      const tv = (tvData.results || []).map((t: any) => ({ ...t, media_type: 'tv' }))
+
+      // Combine
+      let combined = [...movies, ...tv]
+
+      // Sort by popularity (descending)
+      combined.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+
+      return {
+        results: combined,
+        total_pages: Math.max(movieData.total_pages || 0, tvData.total_pages || 0),
+      }
+
+    } catch (e) {
+      console.error('Documentary fetch failed', e)
+      return { results: [], total_pages: 0 }
+    }
+  }
+
   let url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
   if (providerId) {
     // Get the provider config to find the correct region (e.g. US for HBO Max, IN for others)
@@ -49,7 +89,7 @@ export async function fetchPopular(
 
 export async function fetchRecentlyAdded(
   mode: MediaMode,
-  providerId: string
+  providerId?: string | null
 ): Promise<Media[]> {
   if (mode === 'downloads') return []
 
@@ -58,8 +98,11 @@ export async function fetchRecentlyAdded(
     mode === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc'
 
   // Get provider config to ensure correct region
-  const provider = getProviderById(providerId)
-  const region = provider?.region || WATCH_REGION
+  let region = WATCH_REGION
+  if (providerId) {
+     const provider = getProviderById(providerId)
+     region = provider?.region || WATCH_REGION
+  }
 
   // Calculate date range: last 24 months to today (expanded for providers with smaller catalogs)
   const today = new Date()
@@ -68,6 +111,57 @@ export async function fetchRecentlyAdded(
 
   const todayStr = today.toISOString().split('T')[0]
   const monthsAgoStr = monthsAgo.toISOString().split('T')[0]
+
+  // DOCUMENTARY MODE: Fetch Recent Movies (99) and TV (99)
+  if (mode === 'documentary') {
+    let movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=primary_release_date.desc&page=1`
+    movieUrl += `&with_genres=99`
+    movieUrl += `&primary_release_date.gte=${monthsAgoStr}&primary_release_date.lte=${todayStr}`
+
+    // Lower vote count for documentaries as they have fewer ratings
+    movieUrl += `&vote_count.gte=5`
+
+    let tvUrl = `${API_BASE}/tmdb/discover/tv?sort_by=first_air_date.desc&page=1`
+    tvUrl += `&with_genres=99`
+    tvUrl += `&first_air_date.gte=${monthsAgoStr}&first_air_date.lte=${todayStr}`
+    tvUrl += `&vote_count.gte=5`
+
+    // Add provider filter if selected
+    if (providerId) {
+        const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
+        movieUrl += providerParams
+        tvUrl += providerParams
+    }
+
+    try {
+      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
+
+      const movieData = await movieRes.json()
+      const tvData = await tvRes.json()
+
+      const movies = (movieData.results || []).map((m: any) => ({
+        ...m,
+        media_type: 'movie',
+        date: new Date(m.release_date || m.primary_release_date || 0)
+      }))
+
+      const tv = (tvData.results || []).map((t: any) => ({
+        ...t,
+        media_type: 'tv',
+        date: new Date(t.first_air_date || 0)
+      }))
+
+      // Combine and Sort by Date (Newest First)
+      let combined = [...movies, ...tv]
+      combined.sort((a, b) => b.date.getTime() - a.date.getTime())
+
+      return combined
+
+    } catch (e) {
+      console.error('Documentary recently added fetch failed', e)
+      return []
+    }
+  }
 
   let url = `${API_BASE}/tmdb/discover/${mode}?sort_by=${sortBy}&page=1`
   url += `&with_watch_providers=${providerId}&watch_region=${region}`
@@ -138,6 +232,12 @@ export async function fetchRecentlyAdded(
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   if (mode === 'downloads') return []
 
+  // Documentaries: Use Popular as Trending (Discovery with genre)
+  if (mode === 'documentary') {
+    const data = await fetchPopular('documentary', 1)
+    return data.results.slice(0, 10) // Top 10 for carousel
+  }
+
   const url = `${API_BASE}/tmdb/trending/${mode}`
   const res = await fetch(url)
   if (!res.ok) {
@@ -158,7 +258,14 @@ export async function searchMedia(
     return { results: [], total_pages: 0 }
   }
 
-  const url = `${API_BASE}/tmdb/search/${mode}?query=${encodeURIComponent(
+  // Documentaries: Search Movies (closest approx) or Mixed
+  // Implementing true filtered search is complex, usually users search for "Planet Earth"
+  // Let's just search 'multi' or 'movie'?
+  // Search API doesn't support genre filter easily.
+  // For now, let's search 'movie' as fallback (most user intent)
+  const searchMode = mode === 'documentary' ? 'movie' : mode
+
+  const url = `${API_BASE}/tmdb/search/${searchMode}?query=${encodeURIComponent(
     query
   )}&page=${page}`
 
@@ -290,10 +397,29 @@ export function buildEmbedUrl(
     episode?: number
     malId?: string
     subOrDub?: string
+    media?: Media // Add media object to access media_type for documentaries
   }
 ): string {
-  const { season = 1, episode = 1 } = options
+  const { season = 1, episode = 1, media } = options
   const providers = CONFIG.STREAM_PROVIDERS as Record<string, string>
+
+  // Handle documentary mode by checking media_type
+  if (mode === 'documentary' && media) {
+    const actualMode = (media as any).media_type || 'movie' // Default to movie if not specified
+
+    if (actualMode === 'tv') {
+      const template = providers[provider]
+      if (!template) return ''
+      return template
+        .replace('{tmdbId}', String(mediaId))
+        .replace('{season}', String(season))
+        .replace('{episode}', String(episode))
+    } else {
+      const template = providers[`${provider}_movie`]
+      if (!template) return ''
+      return template.replace('{tmdbId}', String(mediaId))
+    }
+  }
 
   if (mode === 'tv') {
     const template = providers[provider]
