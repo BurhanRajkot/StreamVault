@@ -12,6 +12,8 @@ import SubscriptionSuccess from './pages/SubscriptionSuccess'
 import Login from './auth/Login'
 import Signup from './auth/Signup'
 import NotFound from './pages/NotFound'
+import ServerError from './pages/ServerError'
+import AccessDenied from './pages/AccessDenied'
 
 const queryClient = new QueryClient()
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -36,6 +38,11 @@ export default function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+
+          {/* Error Pages for Testing */}
+          <Route path="/error/500" element={<ServerError />} />
+          <Route path="/error/403" element={<AccessDenied />} />
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </QueryClientProvider>
