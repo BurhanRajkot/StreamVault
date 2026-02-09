@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react'
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -46,11 +46,6 @@ async function retryWithBackoff<T>(
 export function useFavoritesInternal() {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [favorites, setFavorites] = useState<Favorite[]>([])
-  const [loading, setLoading] = useState(false)
-  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
-
-  // Debounce map to prevent rapid successive calls
-  const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   const getHeaders = async () => {
     const audience = import.meta.env.VITE_AUTH0_AUDIENCE
@@ -96,138 +91,95 @@ export function useFavoritesInternal() {
   const isFavorited = (tmdbId: number, mediaType: 'movie' | 'tv') =>
     favorites.some((f) => f.tmdbId === tmdbId && f.mediaType === mediaType)
 
-  const isProcessing = (tmdbId: number, mediaType: 'movie' | 'tv') => {
-    const key = `${tmdbId}-${mediaType}`
-    return processingIds.has(key)
-  }
-
   const toggleFavorite = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
     if (!isAuthenticated) {
       toast.error('Please log in to add favorites')
       return
     }
 
-    const key = `${tmdbId}-${mediaType}`
+    // Optimistic update - INSTANT UI FEEDBACK (0ms delay)
+    // We don't wait for API, we don't debounce, we just update the state immediately.
 
-    // Prevent double-clicks
-    if (processingIds.has(key)) {
-      return
+    const existing = favorites.find(
+      (f) => f.tmdbId === tmdbId && f.mediaType === mediaType
+    )
+
+    const tempId = `temp-${Date.now()}-${tmdbId}`
+
+    // Apply strict optimistic update
+    if (existing) {
+      setFavorites((prev) => prev.filter((f) => f.id !== existing.id))
+    } else {
+      setFavorites((prev) => [{ id: tempId, tmdbId, mediaType }, ...prev])
     }
 
-    // Clear any existing debounce timer for this item
-    const existingTimer = debounceTimers.current.get(key)
-    if (existingTimer) {
-      clearTimeout(existingTimer)
-    }
+    // Background API Sync
+    try {
+      const headers = await getHeaders()
 
-    // Debounce: wait 300ms before actually making the API call
-    const timer = setTimeout(async () => {
-      debounceTimers.current.delete(key)
-
-      setProcessingIds(prev => new Set(prev).add(key))
-
-      const existing = favorites.find(
-        (f) => f.tmdbId === tmdbId && f.mediaType === mediaType
-      )
-
-      const tempId = `temp-${Date.now()}-${tmdbId}`
-
-      // Optimistic update - instant UI feedback
       if (existing) {
-        setFavorites((prev) => prev.filter((f) => f.id !== existing.id))
-      } else {
-        setFavorites((prev) => [{ id: tempId, tmdbId, mediaType }, ...prev])
-      }
-
-      try {
-        const headers = await getHeaders()
-
-        if (existing) {
-          // Remove from favorites with retry
-          await retryWithBackoff(async () => {
-            const res = await fetch(`${API_URL}/favorites/${existing.id}`, {
-              method: 'DELETE',
-              headers,
-            })
-
-            if (!res.ok) {
-              const errorText = await res.text()
-              const error: any = new Error(errorText)
-              error.status = res.status
-              throw error
-            }
-
-            return res
+        // Remove from favorites with retry
+        await retryWithBackoff(async () => {
+          const res = await fetch(`${API_URL}/favorites/${existing.id}`, {
+            method: 'DELETE',
+            headers,
           })
 
-          toast.success('Removed from favorites')
-        } else {
-          // Add to favorites with retry
-          const newFav = await retryWithBackoff(async () => {
-            const res = await fetch(`${API_URL}/favorites`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ tmdbId, mediaType }),
-            })
+          if (!res.ok) {
+            if (res.status === 404) return // Already deleted
+            const errorText = await res.text()
+            const error: any = new Error(errorText)
+            error.status = res.status
+            throw error
+          }
 
-            if (!res.ok) {
-              const errorText = await res.text()
-              const error: any = new Error(errorText)
-              error.status = res.status
-              throw error
-            }
-
-            return res.json()
-          })
-
-          // Replace temp ID with real ID from backend
-          setFavorites((prev) =>
-            prev.map((f) => (f.id === tempId ? newFav : f))
-          )
-
-          toast.success('Added to favorites')
-        }
-      } catch (err: any) {
-        console.error('Favorite toggle failed:', err)
-
-        // Rollback on error
-        if (existing) {
-          setFavorites((prev) => [existing, ...prev])
-        } else {
-          setFavorites((prev) => prev.filter((f) => f.id !== tempId))
-        }
-
-        // User-friendly error messages
-        if (err.message?.includes('429') || err.status === 429) {
-          toast.error('Too many requests. Please wait a moment and try again.')
-        } else {
-          toast.error('Failed to update favorites. Please try again.')
-        }
-      } finally {
-        setProcessingIds(prev => {
-          const next = new Set(prev)
-          next.delete(key)
-          return next
+          return res
         })
+
+        toast.success('Removed from favorites')
+      } else {
+        // Add to favorites with retry
+        const newFav = await retryWithBackoff(async () => {
+          const res = await fetch(`${API_URL}/favorites`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ tmdbId, mediaType }),
+          })
+
+          if (!res.ok) {
+            const errorText = await res.text()
+            const error: any = new Error(errorText)
+            error.status = res.status
+            throw error
+          }
+
+          return res.json()
+        })
+
+        // Replace temp ID with real ID from backend
+        setFavorites((prev) =>
+          prev.map((f) => (f.id === tempId ? newFav : f))
+        )
+
+        toast.success('Added to favorites')
       }
-    }, 300)
+    } catch (err: any) {
+      console.error('Favorite toggle failed:', err)
 
-    debounceTimers.current.set(key, timer)
-  }
-
-  // Cleanup debounce timers on unmount
-  useEffect(() => {
-    return () => {
-      debounceTimers.current.forEach(timer => clearTimeout(timer))
-      debounceTimers.current.clear()
+      // Rollback on error
+      if (existing) {
+        setFavorites((prev) => [existing, ...prev])
+        toast.error('Failed to remove favorite')
+      } else {
+        setFavorites((prev) => prev.filter((f) => f.id !== tempId))
+        toast.error('Failed to add favorite')
+      }
     }
-  }, [])
+  }
 
   return {
     favorites,
-    loading,
     isFavorited,
-    isProcessing,
     toggleFavorite,
   }
 }
