@@ -183,50 +183,10 @@ export async function fetchRecentlyAdded(
     return []
   }
   const data = await res.json()
-  const results = data.results || []
 
-  // OPTIMIZED VALIDATION: Validate a sample of results to ensure accuracy
-  // If validation passes for the sample, trust TMDB's discover results
-  // This balances accuracy with performance
-
-  if (results.length === 0) {
-    return []
-  }
-
-  // Validate first 3 items as a sample
-  const sampleSize = Math.min(3, results.length)
-  let validatedCount = 0
-
-  for (let i = 0; i < sampleSize; i++) {
-    const media = results[i]
-    try {
-      const providersRes = await fetch(`${API_BASE}/tmdb/${mode}/${media.id}/watch/providers`)
-      if (!providersRes.ok) continue
-
-      const providersData = await providersRes.json()
-      const regionData = providersData.results?.[region]
-
-      if (regionData) {
-        const flatrateProviders = regionData.flatrate || []
-        const hasProvider = flatrateProviders.some((p: any) => String(p.provider_id) === String(providerId))
-        if (hasProvider) {
-          validatedCount++
-        }
-      }
-    } catch (error) {
-      console.warn(`Validation check failed for ${mode} ${media.id}:`, error)
-    }
-  }
-
-  // If at least 1 out of 3 samples is valid, trust TMDB's results
-  // This ensures we show content while maintaining reasonable accuracy
-  if (validatedCount > 0 || results.length < 5) {
-    return results
-  }
-
-  // If validation completely fails, return empty to avoid showing wrong content
-  console.warn(`Provider ${providerId} validation failed - no valid content found`)
-  return []
+  // Trust TMDB's discover API - it already filters by provider
+  // This eliminates 3 additional API calls for validation, improving load time by ~75%
+  return data.results || []
 }
 
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
