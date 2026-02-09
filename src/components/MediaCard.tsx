@@ -20,20 +20,18 @@ export function MediaCard({
   const rating = media.vote_average ? media.vote_average.toFixed(1) : 'N/A'
 
   const { isAuthenticated } = useAuth0()
-  const { toggleFavorite, isFavorited, isProcessing } = useFavorites()
+  const { toggleFavorite, isFavorited } = useFavorites()
 
   /**
    * TMDB media type detection
    */
   const mediaType: 'movie' | 'tv' = media.release_date ? 'movie' : 'tv'
   const favorited = isFavorited(media.id, mediaType)
-  const processing = isProcessing(media.id, mediaType)
+
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!processing) {
-      toggleFavorite(media.id, mediaType)
-    }
+    toggleFavorite(media.id, mediaType)
   }
 
 
@@ -88,21 +86,15 @@ export function MediaCard({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (!processing) {
-                        toggleFavorite(media.id, mediaType)
-                      }
+                      toggleFavorite(media.id, mediaType)
                     }}
                     className={cn(
-                      'rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all active:scale-95',
-                      processing
-                        ? 'opacity-50 cursor-wait'
-                        : 'hover:scale-110 hover:bg-background cursor-pointer'
+                      'rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all active:scale-95 hover:scale-110 hover:bg-background cursor-pointer'
                     )}
                   >
                     <Heart
                       className={cn(
                         'h-5 w-5 transition-all',
-                        processing && 'animate-pulse',
                         favorited
                           ? 'fill-red-500 text-red-500'
                           : 'text-red-500'
@@ -147,16 +139,12 @@ export function MediaCard({
                 <button
                   onClick={handleFavorite}
                   className={cn(
-                    'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all active:scale-95',
-                    processing
-                      ? 'opacity-100 cursor-wait'
-                      : 'opacity-0 group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
+                    'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all active:scale-95 opacity-0 group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
                   )}
                 >
                   <Heart
                     className={cn(
                       'h-4 w-4 transition-all',
-                      processing && 'animate-pulse',
                       favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
                     )}
                   />
