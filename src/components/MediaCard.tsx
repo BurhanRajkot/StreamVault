@@ -108,8 +108,6 @@ export function MediaCard({
     )
   }
 
-    /* ================= GRID CARD ================= */
-
     const imageUrl = getImageUrl(media.poster_path, 'poster')
 
       return (
@@ -132,19 +130,25 @@ export function MediaCard({
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:brightness-110"
           />
 
-          {/* Gradient overlay on hover */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          {/* Gradient overlay - always visible on mobile, on hover for desktop */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />
 
               {isAuthenticated && (
                 <button
                   onClick={handleFavorite}
                   className={cn(
-                    'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm p-2 shadow-lg transition-all active:scale-95 opacity-0 group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
+                    'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
+                    // Mobile: always visible with larger touch target
+                    'p-3 md:p-2',
+                    // Desktop: show on hover
+                    'md:opacity-0 md:group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
                   )}
                 >
                   <Heart
                     className={cn(
-                      'h-4 w-4 transition-all',
+                      'transition-all',
+                      // Larger on mobile for better touch target
+                      'h-5 w-5 md:h-4 md:w-4',
                       favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
                     )}
                   />
@@ -156,8 +160,8 @@ export function MediaCard({
             <span className="text-foreground">{rating}</span>
           </div>
 
-          {/* Play button overlay on hover */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          {/* Play button overlay - only on desktop hover */}
+          <div className="absolute inset-0 hidden md:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <div className="rounded-full bg-primary/90 backdrop-blur-sm p-4 shadow-xl">
               <Play className="h-8 w-8 fill-white text-white" />
             </div>
