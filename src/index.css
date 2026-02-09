@@ -398,6 +398,27 @@
   .container-wide {
     max-width: 1800px;
   }
+
+  /* Logo Animations */
+
+  @keyframes logo-shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+
+  .hover-group:hover .animate-logo-shimmer {
+    background: linear-gradient(
+      120deg,
+      rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0.8) 50%,
+      rgba(255,255,255,0) 70%
+    );
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: rgba(255,255,255,1);
+    animation: logo-shimmer 2s infinite linear;
+  }
 }
 
 /* View Transitions API */
