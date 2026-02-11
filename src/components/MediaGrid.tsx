@@ -52,7 +52,7 @@ export function MediaGrid({
   }, [handleObserver])
 
   return (
-    <section className="animate-fade-in">
+    <section className="md:animate-fade-in">
       {title && (
         <h2 className="mb-4 text-lg font-bold text-foreground sm:mb-6 sm:text-2xl">
           {title}

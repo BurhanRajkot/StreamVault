@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Media } from '@/lib/config'
 import { MediaCard } from './MediaCard'
-import { cn } from '@/lib/utils'
+import { cn, isMobileDevice } from '@/lib/utils'
 
 interface HeroCarouselProps {
   items: Media[]
@@ -17,7 +17,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
 
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % Math.min(items.length, 5))
-    }, 6000)
+    }, 4000)
 
     return () => clearInterval(timer)
   }, [items.length])
@@ -64,20 +64,20 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
         {/* Navigation */}
         <button
           onClick={goToPrev}
-          className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
+          className="hidden md:block absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
 
         <button
           onClick={goToNext}
-          className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
+          className="hidden md:block absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
 
         {/* Indicators */}
-        <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2 bg-background/60 backdrop-blur-xl px-4 py-2 rounded-full border border-border/50 shadow-xl">
+        <div className="absolute bottom-4 left-1/2 z-10 hidden md:flex -translate-x-1/2 gap-2 bg-background/60 backdrop-blur-xl px-4 py-2 rounded-full border border-border/50 shadow-xl">
           {displayItems.map((_, index) => (
             <button
               key={index}

@@ -16,7 +16,7 @@ import {
   removeContinueWatching,
   fetchExistingProgress,
 } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, isMobileDevice } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
 
 interface PlayerModalProps {
@@ -34,6 +34,11 @@ interface Season {
   name: string
 }
 
+// Get default provider based on device type
+const getDefaultProvider = () => {
+  return isMobileDevice() ? 'vidfast_pro' : 'vidsrc_pro'
+}
+
 export function PlayerModal({
   media,
   mode,
@@ -42,7 +47,7 @@ export function PlayerModal({
   initialSeason,
   initialEpisode,
 }: PlayerModalProps) {
-  const [provider, setProvider] = useState('vidsrc_pro')
+  const [provider, setProvider] = useState(getDefaultProvider())
   const [season, setSeason] = useState(initialSeason || 1)
   const [episode, setEpisode] = useState(initialEpisode || 1)
   const [malId, setMalId] = useState('')
@@ -86,14 +91,29 @@ export function PlayerModal({
 
   useEffect(() => {
     if (isOpen) {
-      setIsPlaying(false)
-      setEmbedUrl('')
-      setProvider('vidsrc_pro')
+      const isMobile = isMobileDevice()
+      const shouldAutoPlay = isMobile && (mode as string) !== 'anime'
+
+      setProvider(getDefaultProvider())
       setSeason(initialSeason || 1)
       setEpisode(initialEpisode || 1)
       setStreamError(false)
-      setIsLoading(false)
       document.body.style.overflow = 'hidden'
+
+      if (shouldAutoPlay && media) {
+        setIsPlaying(true)
+        setIsLoading(true)
+        const url = buildEmbedUrl(mode, 'vidfast_pro', media.id, {
+          season: initialSeason || 1,
+          episode: initialEpisode || 1,
+          media,
+        })
+        setEmbedUrl(url)
+      } else {
+        setIsPlaying(false)
+        setIsLoading(false)
+        setEmbedUrl('')
+      }
 
       // Add DNS prefetch and preconnect hints for streaming providers
       const head = document.head
