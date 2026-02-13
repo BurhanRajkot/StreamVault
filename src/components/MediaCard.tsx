@@ -127,8 +127,8 @@ export function MediaCard({
             onClick(media)
           }}
           className={cn(
-            'group relative cursor-pointer overflow-hidden rounded-lg md:rounded-xl bg-card transition-all duration-300 border border-border/50',
-            'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50',
+            'group relative cursor-pointer overflow-hidden rounded-lg md:rounded-xl lg:rounded-2xl bg-card transition-all duration-300 border border-border/50',
+            'hover:scale-[1.03] md:hover:scale-[1.04] lg:hover:scale-[1.05] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50',
             'active:scale-[0.97]'
           )}
         >
@@ -163,15 +163,15 @@ export function MediaCard({
                 </button>
               )}
 
-          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-lg bg-background/90 backdrop-blur-sm px-2 py-1 text-xs font-medium shadow-lg">
-            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-lg bg-background/90 backdrop-blur-sm px-2 py-1 md:px-2.5 md:py-1.5 text-xs md:text-sm font-medium shadow-lg">
+            <Star className="h-3 w-3 md:h-3.5 md:w-3.5 fill-yellow-400 text-yellow-400" />
             <span className="text-foreground">{rating}</span>
           </div>
 
           {/* Play button overlay on hover */}
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <div className="rounded-full bg-primary/90 backdrop-blur-sm p-4 shadow-xl">
-              <Play className="h-8 w-8 fill-white text-white" />
+            <div className="rounded-full bg-primary/90 backdrop-blur-sm p-3 md:p-4 lg:p-5 shadow-xl">
+              <Play className="h-6 w-6 md:h-8 md:w-8 lg:h-10 lg:w-10 fill-white text-white" />
             </div>
           </div>
         </div>

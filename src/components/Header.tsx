@@ -66,8 +66,8 @@ export function Header({
 
   return (
         <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-all">
-          {/* MATCH HEADER WIDTH WITH MAIN CONTENT */}
-          <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
+          {/* OPTIMIZED HEADER WIDTH FOR ALL SCREEN SIZES */}
+          <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10 2xl:max-w-[1800px] 3xl:max-w-[2000px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
               {/* Logo + Mobile Favorites */}
               {/* Logo + Mobile Elements */}
               <div className="flex items-center justify-between w-full sm:w-auto">
@@ -165,7 +165,7 @@ export function Header({
                           ? 'documentaries'
                           : 'movies'
                       }...`}
-                      className="h-10 w-full sm:w-64 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
+                      className="h-10 w-full sm:w-64 md:w-72 lg:w-80 xl:w-96 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
                     />
                     {(inputValue || searchQuery) && (
                       <button

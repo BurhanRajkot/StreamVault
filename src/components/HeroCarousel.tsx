@@ -38,8 +38,8 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
 
   return (
     <section className="relative mb-6">
-      {/* TALLER HERO ON XL / 2XL SCREENS */}
-      <div className="relative h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl">
+      {/* OPTIMIZED HERO HEIGHTS ACROSS ALL BREAKPOINTS */}
+      <div className="relative h-[360px] sm:h-[400px] md:h-[450px] lg:h-[480px] xl:h-[520px] 2xl:h-[560px] 3xl:h-[600px] overflow-hidden rounded-xl lg:rounded-2xl">
         {displayItems.map((item, index) => (
           <div
             key={item.id}

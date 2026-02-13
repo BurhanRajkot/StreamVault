@@ -72,8 +72,8 @@ const Index = () => {
         />
         <MobileNav mode={mode} onModeChange={setMode} />
 
-        {/* WIDER CONTAINER FOR LARGE MONITORS */}
-        <main className="mx-auto w-full max-w-[1600px] px-2 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex-1 py-6">
+        {/* OPTIMIZED CONTAINER FOR ALL SCREEN SIZES */}
+        <main className="mx-auto w-full max-w-[1600px] px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:max-w-[1800px] 3xl:max-w-[2000px] flex-1 py-4 sm:py-6">
           {mode === 'downloads' ? (
             <Downloads />
           ) : (
