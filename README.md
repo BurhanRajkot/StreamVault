@@ -197,15 +197,22 @@ cd ..
 
 #### 5️⃣ Start Development Servers
 
+**Option 1 - Single Command (Recommended):**
+```bash
+npm start
+# This runs both frontend and backend concurrently
+```
+
+**Option 2 - Separate Terminals:**
+
 **Terminal 1 - Frontend:**
 ```bash
-bun run dev
+npm run dev:frontend
 ```
 
 **Terminal 2 - Backend:**
 ```bash
-cd backend
-bun run dev
+npm run dev:backend
 ```
 
 **Access the application:**
