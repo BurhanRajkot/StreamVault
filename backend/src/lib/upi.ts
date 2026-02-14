@@ -7,18 +7,28 @@ export const UPI_CONFIG = {
 }
 
 export const SUBSCRIPTION_PLANS = {
-  basic: {
-    name: 'StreamVault Basic',
-    price: 30, // ₹30
+  monthly: {
+    name: '1 Month Premium',
+    price: 70, // ₹70
     currency: 'INR',
     period: 'monthly',
-    features: ['HD Streaming', 'Watch on 1 device', 'Ad-supported'],
+    features: [
+        'HD Streaming',
+        'Download Movies & TV',
+        'Highest Quality Available',
+        'Smooth Ad-free Experience'
+    ],
   },
-  premium: {
-    name: 'StreamVault Premium',
-    price: 50, // ₹50
+  quarterly: {
+    name: '3 Months Premium',
+    price: 150, // ₹150
     currency: 'INR',
-    period: 'monthly',
-    features: ['4K Ultra HD', 'Watch on 4 devices', 'No ads', 'Download content', 'Early access'],
+    period: 'quarterly',
+    features: [
+        'All Monthly Features',
+        'Save ₹60 (Best Value)',
+        '4K Ultra HD Support',
+        'Priority Customer Support'
+    ],
   },
 } as const

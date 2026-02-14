@@ -163,7 +163,7 @@ export default function Pricing() {
             {!loading && !error && (
               <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                 {plans.map((plan, index) => {
-                  const isPremium = plan.id === 'premium'
+                  const isPremium = plan.id === 'quarterly'
                   return (
                     <div
                       key={plan.id}
@@ -255,25 +255,30 @@ export default function Pricing() {
           </DialogHeader>
 
           {selectedPlan && (
-            <div className="space-y-6">
-              <div className="flex flex-col items-center justify-center p-6 bg-white rounded-xl">
-                {/* QR Code Placeholder - in real implementation this would be generated */}
-                 <div className="bg-white p-2 rounded-lg shadow-sm border">
-                    {/* Use a placeholder or generated QR code service */}
-                    <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${encodeURIComponent('burhan@upi')}&pn=StreamVault&am=${selectedPlan.price}&tn=${encodeURIComponent(selectedPlan.name)}`}
-                        alt="UPI QR Code"
-                        className="w-48 h-48"
-                    />
-                 </div>
-                 <p className="mt-2 text-sm text-gray-500 font-mono bg-gray-100 px-3 py-1 rounded">
-                    UPI ID: burhan@upi
-                 </p>
-                 <div className="mt-4 text-center">
-                    <p className="text-lg font-bold text-gray-900">₹{selectedPlan.price}</p>
-                    <p className="text-xs text-gray-500">Amount to pay</p>
-                 </div>
-              </div>
+             <div className="space-y-6">
+               <div className="flex flex-col items-center justify-center p-6 bg-white rounded-xl">
+                 {/* QR Code from Backend */}
+                  <div className="bg-white p-2 rounded-lg shadow-sm border">
+                     {selectedPlan.qrCode ? (
+                        <img
+                            src={selectedPlan.qrCode}
+                            alt="UPI QR Code"
+                            className="w-48 h-48"
+                        />
+                     ) : (
+                        <div className="w-48 h-48 flex items-center justify-center bg-gray-100 text-gray-400 text-xs">
+                            QR Code Unavailable
+                        </div>
+                     )}
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500 font-mono bg-gray-100 px-3 py-1 rounded">
+                     UPI ID: {selectedPlan.upiId || 'gamershomeyt0520@oksbi'}
+                  </p>
+                  <div className="mt-4 text-center">
+                     <p className="text-lg font-bold text-gray-900">₹{selectedPlan.price}</p>
+                     <p className="text-xs text-gray-500">Amount to pay</p>
+                  </div>
+               </div>
 
               <form onSubmit={handleSubmitPayment} className="space-y-4">
                 <div className="space-y-2">
