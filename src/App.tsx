@@ -14,6 +14,8 @@ import Signup from './auth/Signup'
 import NotFound from './pages/NotFound'
 import ServerError from './pages/ServerError'
 import AccessDenied from './pages/AccessDenied'
+import ErrorBoundary from './components/ErrorBoundary'
+import AdminDashboard from './pages/admin/Dashboard'
 
 const queryClient = new QueryClient()
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -27,26 +29,29 @@ export default function App() {
   }, [])
 
   return (
-    <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/downloads" element={<Downloads />} />
-          <Route path="/favorites" element={<Favorites />} />
-          <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+    <ErrorBoundary>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/downloads" element={<Downloads />} />
+            <Route path="/favorites" element={<Favorites />} />
+            <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
-          {/* Error Pages for Testing */}
-          <Route path="/error/500" element={<ServerError />} />
-          <Route path="/error/403" element={<AccessDenied />} />
+            {/* Error Pages for Testing */}
+            <Route path="/error/500" element={<ServerError />} />
+            <Route path="/error/403" element={<AccessDenied />} />
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </QueryClientProvider>
-    </HelmetProvider>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </QueryClientProvider>
+      </HelmetProvider>
+    </ErrorBoundary>
   )
 }
 
