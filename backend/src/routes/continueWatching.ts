@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabase'
 import { checkJwt } from '../middleware/auth'
 import * as cache from '../services/cache'
 
@@ -20,7 +20,7 @@ router.get('/', checkJwt, async (req, res) => {
     return res.json(cached)
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('ContinueWatching')
     .select('*')
     .eq('userId', userId)
@@ -60,7 +60,7 @@ router.post('/', checkJwt, async (req, res) => {
     return res.status(400).json({ error: 'Invalid progress: must be a number between 0 and 1' })
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseAdmin
     .from('ContinueWatching')
     .select('id')
     .eq('userId', userId)
@@ -70,7 +70,7 @@ router.post('/', checkJwt, async (req, res) => {
 
   let result
   if (existing) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('ContinueWatching')
       .update({
         season,
@@ -88,7 +88,7 @@ router.post('/', checkJwt, async (req, res) => {
     }
     result = data
   } else {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('ContinueWatching')
       .insert({
         userId,
@@ -125,7 +125,7 @@ router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
     return res.status(400).json({ error: 'Invalid request' })
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('ContinueWatching')
     .delete()
     .eq('userId', userId)

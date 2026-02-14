@@ -7,4 +7,4 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY) environment variables')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
