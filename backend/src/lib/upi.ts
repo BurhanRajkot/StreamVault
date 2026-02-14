@@ -1,7 +1,7 @@
 // UPI Payment Configuration
 export const UPI_CONFIG = {
-  upiId: process.env.UPI_ID || 'gamershomeyt0520@oksbi',
-  payeeName: process.env.UPI_PAYEE_NAME || 'StreamVault',
+  upiId: process.env.UPI_ID || 'gamershomeyt0520@okhdfcbank',
+  payeeName: process.env.UPI_PAYEE_NAME || 'burhanuddin rajkotwala',
   phoneNumber: process.env.UPI_PHONE_NUMBER || '9867721328',
   currency: 'INR',
 }
