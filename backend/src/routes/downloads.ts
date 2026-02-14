@@ -1,5 +1,5 @@
 import { Router, Request } from 'express'
-import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabase'
 import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
@@ -21,7 +21,7 @@ function getUserId(req: Request) {
 }
 
 async function isPaidUser(userId: string): Promise<boolean> {
-  const { data: user } = await supabase
+  const { data: user } = await supabaseAdmin
     .from('User')
     .select('subscriptionStatus')
     .eq('id', userId)
@@ -71,7 +71,7 @@ router.get('/', checkAuth, async (req, res) => {
   if (req.admin) {
     logger.info('Admin access granted to downloads')
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('Download')
       .select('*')
       .order('createdAt', { ascending: false })
@@ -96,7 +96,7 @@ router.get('/', checkAuth, async (req, res) => {
     return res.status(403).json({ error: 'Downloads are only available for premium users. Please upgrade.' })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('Download')
     .select('*')
     .order('createdAt', { ascending: false })
@@ -117,7 +117,7 @@ async function streamDownloadFromStorage(res: any, filename: string) {
     const sanitizedFilename = sanitizeFilename(filename)
     logger.info('File download requested', { filename: sanitizedFilename })
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseAdmin.storage
       .from('downloads')
       .download(sanitizedFilename)
 
@@ -157,7 +157,7 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
     filename = 'Interstellar.2014.IMAX.2160p.10bit.HDR.BluRay.6CH.x265.torrent'
   } else {
     // Fetch from DB
-    const { data: item } = await supabase
+    const { data: item } = await supabaseAdmin
       .from('Download')
       .select('filename')
       .eq('id', id)

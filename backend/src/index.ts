@@ -15,6 +15,7 @@ import {
 } from './cybersecurity'
 import { httpsEnforcement } from './cybersecurity/httpsEnforcement'
 
+import subscriptionAdminRouter from './routes/admin'
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
 import downloadsRouter from './routes/downloads'
@@ -87,6 +88,7 @@ app.use('/tmdb', tmdbRouter)
 app.use('/downloads', downloadsRouter)
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
+app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin routes first
 app.use('/subscriptions', subscriptionsRouter)
 app.use('/admin', adminRouter)
 

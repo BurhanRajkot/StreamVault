@@ -1,16 +1,30 @@
 import { useState, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
-import { Check, Sparkles, Zap, Loader2, Crown } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Check, Sparkles, Zap, Loader2, Crown, QrCode } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/Footer'
+import { useToast } from '@/hooks/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useAuth0 } from '@auth0/auth0-react'
 
 interface Plan {
   id: string
-  priceId: string
   name: string
   price: number
+  currency: string
+  period: string
   features: string[]
+  qrCode?: string
+  upiId?: string
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -18,8 +32,14 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 export default function Pricing() {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
+  const [transactionId, setTransactionId] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const { user, isAuthenticated, loginWithRedirect } = useAuth0()
 
   useEffect(() => {
     fetchPlans()
@@ -38,24 +58,53 @@ export default function Pricing() {
     }
   }
 
-  const handleSubscribe = async (priceId: string, planId: string) => {
-    setCheckoutLoading(planId)
+  const handleSelectPlan = (plan: Plan) => {
+    if (!isAuthenticated) {
+      loginWithRedirect({
+        appState: { returnTo: '/pricing' }
+      })
+      return
+    }
+    setSelectedPlan(plan)
+  }
+
+  const handleSubmitPayment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedPlan || !transactionId) return
+
+    setSubmitting(true)
     try {
-      const res = await fetch(`${API_URL}/subscriptions/create-checkout-session`, {
+      const res = await fetch(`${API_URL}/subscriptions/manual-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({
+          userId: user?.sub,
+          email: user?.email,
+          planId: selectedPlan.id,
+          transactionId: transactionId
+        }),
       })
-      
-      if (!res.ok) throw new Error('Failed to create checkout session')
-      
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to submit request')
       }
-    } catch (err) {
-      setError('Failed to start checkout')
-      setCheckoutLoading(null)
+
+      toast({
+        title: 'Payment Submitted',
+        description: 'Your request is under review. Please allow 1-2 hours for approval.',
+      })
+
+      setSelectedPlan(null)
+      navigate('/subscription/success?manual=true')
+    } catch (err: any) {
+      toast({
+        title: 'Submission Failed',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -149,7 +198,7 @@ export default function Pricing() {
 
                       <div className="mb-8">
                         <div className="flex items-baseline gap-1">
-                          <span className="text-4xl font-bold">₹{(plan.price / 100).toFixed(0)}</span>
+                          <span className="text-4xl font-bold">₹{plan.price}</span>
                           <span className="text-muted-foreground">/month</span>
                         </div>
                       </div>
@@ -168,8 +217,7 @@ export default function Pricing() {
                       </ul>
 
                       <Button
-                        onClick={() => handleSubscribe(plan.priceId, plan.id)}
-                        disabled={checkoutLoading !== null}
+                        onClick={() => handleSelectPlan(plan)}
                         className={`w-full h-12 font-semibold ${
                           isPremium
                             ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white shadow-lg shadow-violet-500/25'
@@ -177,11 +225,8 @@ export default function Pricing() {
                         }`}
                         variant={isPremium ? 'default' : 'secondary'}
                       >
-                        {checkoutLoading === plan.id ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          `Subscribe to ${plan.id === 'basic' ? 'Basic' : 'Premium'}`
-                        )}
+                        <QrCode className="mr-2 h-4 w-4" />
+                        Pay via UPI
                       </Button>
                     </div>
                   )
@@ -191,7 +236,7 @@ export default function Pricing() {
 
             <div className="mt-16 text-center">
               <p className="text-sm text-muted-foreground">
-                Cancel anytime. All plans include a 7-day free trial.
+                Secure manual payments. Access granted after verification.
               </p>
             </div>
           </div>
@@ -199,6 +244,74 @@ export default function Pricing() {
 
         <Footer />
       </div>
+
+      <Dialog open={!!selectedPlan} onOpenChange={(open) => !open && setSelectedPlan(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pay via UPI</DialogTitle>
+            <DialogDescription>
+              Scan the QR code below using any UPI app (GPay, PhonePe, Paytm).
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedPlan && (
+            <div className="space-y-6">
+              <div className="flex flex-col items-center justify-center p-6 bg-white rounded-xl">
+                {/* QR Code Placeholder - in real implementation this would be generated */}
+                 <div className="bg-white p-2 rounded-lg shadow-sm border">
+                    {/* Use a placeholder or generated QR code service */}
+                    <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${encodeURIComponent('burhan@upi')}&pn=StreamVault&am=${selectedPlan.price}&tn=${encodeURIComponent(selectedPlan.name)}`}
+                        alt="UPI QR Code"
+                        className="w-48 h-48"
+                    />
+                 </div>
+                 <p className="mt-2 text-sm text-gray-500 font-mono bg-gray-100 px-3 py-1 rounded">
+                    UPI ID: burhan@upi
+                 </p>
+                 <div className="mt-4 text-center">
+                    <p className="text-lg font-bold text-gray-900">₹{selectedPlan.price}</p>
+                    <p className="text-xs text-gray-500">Amount to pay</p>
+                 </div>
+              </div>
+
+              <form onSubmit={handleSubmitPayment} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="transactionId">Transaction ID (UTR)</Label>
+                  <Input
+                    id="transactionId"
+                    placeholder="Enter 12-digit UTR number"
+                    value={transactionId}
+                    onChange={(e) => setTransactionId(e.target.value)}
+                    required
+                    minLength={12}
+                    maxLength={12}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You can find the UTR number in your payment app after successful transaction.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                    <Button type="button" variant="outline" className="flex-1" onClick={() => setSelectedPlan(null)}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" className="flex-1" disabled={submitting}>
+                        {submitting ? (
+                            <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Verifying...
+                            </>
+                        ) : (
+                            'Submit Payment'
+                        )}
+                    </Button>
+                </div>
+              </form>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

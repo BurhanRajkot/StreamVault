@@ -1,141 +1,178 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { useSearchParams, Link } from 'react-router-dom'
-import { CheckCircle2, Loader2, XCircle, Sparkles, ArrowRight } from 'lucide-react'
+import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-interface SessionDetails {
-  status: string
-  customerEmail: string
-  subscriptionStatus: string
-  subscriptionId: string
-  currentPeriodEnd: number
-}
+import { Footer } from '@/components/Footer'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
+interface PaymentDetails {
+  id: string
+  amount: number
+  currency: string
+  status: string
+  method: string
+  email: string
+  createdAt: number
+}
+
 export default function SubscriptionSuccess() {
   const [searchParams] = useSearchParams()
-  const sessionId = searchParams.get('session_id')
-  
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [session, setSession] = useState<SessionDetails | null>(null)
+  const isManual = searchParams.get('manual') === 'true'
   const [error, setError] = useState<string | null>(null)
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null)
 
   useEffect(() => {
-    if (sessionId) {
-      fetchSession()
+    // If it's manual, we don't verify immediately
+    if (isManual) {
+        setLoading(false)
+        return
+    }
+
+    const paymentId = searchParams.get('payment_id')
+    if (paymentId) {
+      verifyPayment(paymentId)
     } else {
-      setError('No session ID found')
+      setError('No payment ID found')
       setLoading(false)
     }
-  }, [sessionId])
+  }, [searchParams, isManual])
 
-  const fetchSession = async () => {
+  const verifyPayment = async (paymentId: string) => {
     try {
-      const res = await fetch(`${API_URL}/subscriptions/session/${sessionId}`)
-      if (!res.ok) throw new Error('Failed to fetch session')
+      const res = await fetch(`${API_URL}/subscriptions/payment/${paymentId}`)
+      if (!res.ok) throw new Error('Failed to fetch payment details')
+
       const data = await res.json()
-      setSession(data)
+      setPaymentDetails(data)
     } catch (err) {
-      setError('Unable to verify subscription')
+      setError('Unable to verify payment')
     } finally {
       setLoading(false)
     }
   }
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  }
-
   return (
     <>
       <Helmet>
-        <title>Subscription Confirmed - StreamVault</title>
+        <title>{isManual ? 'Payment Submitted - StreamVault' : 'Subscription Success - StreamVault'}</title>
       </Helmet>
 
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-violet-500/5 px-4">
-        <div className="w-full max-w-md">
-          {loading && (
-            <div className="text-center py-20">
-              <Loader2 className="h-12 w-12 animate-spin text-violet-400 mx-auto mb-4" />
-              <p className="text-muted-foreground">Verifying your subscription...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="text-center py-20">
-              <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-6">
-                <XCircle className="h-8 w-8 text-destructive" />
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+        <main className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-2xl w-full">
+            {loading && (
+              <div className="text-center">
+                <Loader2 className="h-16 w-16 animate-spin text-violet-400 mx-auto mb-6" />
+                <h2 className="text-2xl font-bold mb-2">Processing...</h2>
+                {!isManual && <p className="text-muted-foreground">Please wait while we confirm your subscription</p>}
               </div>
-              <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
-              <p className="text-muted-foreground mb-6">{error}</p>
-              <Button asChild>
-                <Link to="/pricing">Try Again</Link>
-              </Button>
-            </div>
-          )}
+            )}
 
-          {!loading && !error && session && (
-            <div className="text-center animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
-              <div className="relative mb-8">
-                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center mx-auto shadow-2xl shadow-violet-500/40">
-                  <CheckCircle2 className="h-10 w-10 text-white" />
+            {!loading && isManual && (
+              <div className="text-center">
+                <div className="h-20 w-20 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-6">
+                  <Clock className="h-10 w-10 text-blue-500" />
                 </div>
-                <div className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-white" />
+                <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                  Payment Submitted
+                </h1>
+                <p className="text-lg text-muted-foreground mb-8">
+                  Your request has been received and is under review.
+                </p>
+
+                <div className="bg-card/50 border border-border/50 rounded-xl p-6 mb-8 text-left">
+                  <h3 className="font-semibold mb-4">What happens next?</h3>
+                  <ul className="space-y-3 text-sm text-muted-foreground list-disc pl-5">
+                    <li>Our team will verify your transaction ID.</li>
+                    <li>This process typically takes <strong>1-2 hours</strong>.</li>
+                    <li>Your subscription will be activated automatically upon approval.</li>
+                    <li>If there are any issues, we will contact you via email.</li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-4 justify-center">
+                  <Button onClick={() => navigate('/')} size="lg" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600">
+                    Return Home
+                  </Button>
                 </div>
               </div>
+            )}
 
-              <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-white to-violet-200 bg-clip-text text-transparent">
-                Welcome to StreamVault!
-              </h1>
-              <p className="text-muted-foreground mb-8">
-                Your subscription is now active
-              </p>
+            {error && (
+              <div className="text-center">
+                <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-6">
+                  <XCircle className="h-10 w-10 text-destructive" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Payment Verification Failed</h2>
+                <p className="text-muted-foreground mb-8">{error}</p>
+                <div className="flex gap-4 justify-center">
+                  <Button onClick={() => navigate('/pricing')} variant="outline">
+                    Back to Pricing
+                  </Button>
+                  <Button onClick={() => navigate('/')}>
+                    Go Home
+                  </Button>
+                </div>
+              </div>
+            )}
 
-              <div className="bg-card/50 rounded-2xl border border-border/50 p-6 mb-8 text-left">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center pb-4 border-b border-border/50">
-                    <span className="text-sm text-muted-foreground">Status</span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-sm font-medium">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      Active
-                    </span>
+            {!loading && !error && paymentDetails && !isManual && (
+              <div className="text-center">
+                <div className="h-20 w-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 className="h-10 w-10 text-green-500" />
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                  Payment Successful!
+                </h1>
+                <p className="text-lg text-muted-foreground mb-8">
+                  Your subscription is now active
+                </p>
+
+                <div className="bg-card/50 border border-border/50 rounded-xl p-6 mb-8 text-left">
+                  <h3 className="font-semibold mb-4">Payment Details</h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Payment ID:</span>
+                      <span className="font-mono">{paymentDetails.id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Amount:</span>
+                      <span className="font-semibold">
+                        {paymentDetails.currency} {(paymentDetails.amount / 100).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className="text-green-500 capitalize">{paymentDetails.status}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Payment Method:</span>
+                      <span className="capitalize">{paymentDetails.method}</span>
+                    </div>
+                    {paymentDetails.email && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Email:</span>
+                        <span>{paymentDetails.email}</span>
+                      </div>
+                    )}
                   </div>
-                  {session.customerEmail && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Email</span>
-                      <span className="text-sm font-medium">{session.customerEmail}</span>
-                    </div>
-                  )}
-                  {session.currentPeriodEnd && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Next billing</span>
-                      <span className="text-sm font-medium">{formatDate(session.currentPeriodEnd)}</span>
-                    </div>
-                  )}
+                </div>
+
+                <div className="flex gap-4 justify-center">
+                  <Button onClick={() => navigate('/')} size="lg" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600">
+                    Start Watching
+                  </Button>
                 </div>
               </div>
+            )}
+          </div>
+        </main>
 
-              <div className="space-y-3">
-                <Button asChild size="lg" className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600">
-                  <Link to="/" className="flex items-center gap-2">
-                    Start Watching
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="ghost" size="sm" className="w-full">
-                  <Link to="/pricing">Manage Subscription</Link>
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+        <Footer />
       </div>
     </>
   )

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabase'
 import { checkJwt } from '../middleware/auth'
 import { v4 as uuidv4 } from 'uuid'
 import * as cache from '../services/cache'
@@ -7,14 +7,14 @@ import * as cache from '../services/cache'
 const router = Router()
 
 async function ensureUser(userId: string) {
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseAdmin
     .from('User')
     .select('id')
     .eq('id', userId)
     .single()
 
   if (!existing) {
-    await supabase.from('User').insert({ id: userId })
+    await supabaseAdmin.from('User').insert({ id: userId })
   }
 }
 
@@ -39,7 +39,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     return res.json(cached)
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('Favorite')
     .select('*')
     .eq('userId', userId)
@@ -80,7 +80,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
   try {
     await ensureUser(userId)
 
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin
       .from('Favorite')
       .select('id')
       .eq('userId', userId)
@@ -99,7 +99,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
       mediaType,
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('Favorite')
       .insert(newFavorite)
       .select()
@@ -131,7 +131,7 @@ router.delete('/:id', checkJwt, async (req: Request, res: Response) => {
 
   await ensureUser(userId)
 
-  const { data: fav } = await supabase
+  const { data: fav } = await supabaseAdmin
     .from('Favorite')
     .select('userId')
     .eq('id', id)
@@ -141,7 +141,7 @@ router.delete('/:id', checkJwt, async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Not found' })
   }
 
-  const { error } = await supabase.from('Favorite').delete().eq('id', id)
+  const { error } = await supabaseAdmin.from('Favorite').delete().eq('id', id)
 
   if (error) {
     console.error('Favorite delete error:', error)
