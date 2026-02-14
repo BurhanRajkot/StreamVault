@@ -1,7 +1,7 @@
 // UPI Payment Configuration
 export const UPI_CONFIG = {
   upiId: process.env.UPI_ID || 'removed@upi',
-  payeeName: process.env.UPI_PAYEE_NAME || 'StreamVault',
+  payeeName: process.env.UPI_PAYEE_NAME || 'Piracy Is Not Stealing',
   phoneNumber: process.env.UPI_PHONE_NUMBER || '0000000000',
   currency: 'INR',
 }
