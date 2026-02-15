@@ -89,7 +89,6 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
         <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent mx-1" />
 
         {/* Provider Buttons */}
-        <AnimatePresence mode='wait'>
             {OTT_PROVIDERS.map((provider) => {
                 const isSelected = selected === provider.id;
                 return (
@@ -154,7 +153,6 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                   </motion.button>
                 );
             })}
-        </AnimatePresence>
       </div>
     </div>
   )
