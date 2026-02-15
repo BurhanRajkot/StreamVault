@@ -244,9 +244,23 @@ export async function fetchMediaDetails(
 ): Promise<Media | null> {
   if (mode === 'downloads') return null
 
-  const url = `${API_BASE}/tmdb/${mode}/${id}`
+  const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar`
   const res = await fetch(url)
   return res.json()
+}
+
+export async function fetchMediaVideos(
+  mode: MediaMode,
+  id: number
+): Promise<{ key: string; site: string; type: string }[]> {
+  if (mode === 'downloads') return []
+
+  const url = `${API_BASE}/tmdb/${mode}/${id}/videos`
+  const res = await fetch(url)
+  if (!res.ok) return []
+
+  const data = await res.json()
+  return data.results || []
 }
 
 export async function fetchTVSeasons(

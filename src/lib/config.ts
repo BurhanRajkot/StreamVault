@@ -65,6 +65,18 @@ export const CONFIG = {
 /* ONLY REQUIRED MODES */
 export type MediaMode = 'movie' | 'tv' | 'downloads' | 'documentary'
 
+export interface Genre {
+  id: number
+  name: string
+}
+
+export interface Cast {
+  id: number
+  name: string
+  character: string
+  profile_path: string | null
+}
+
 export interface Media {
   id: number
   title?: string
@@ -75,4 +87,9 @@ export interface Media {
   vote_average: number
   release_date?: string
   first_air_date?: string
+  media_type?: string
+  genres?: Genre[]
+  credits?: {
+    cast: Cast[]
+  }
 }
