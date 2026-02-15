@@ -18,6 +18,14 @@ import {
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
+import { motion } from 'framer-motion'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface PlayerModalProps {
   media: Media | null
@@ -95,8 +103,8 @@ export function PlayerModal({
       setIsLoading(false)
       document.body.style.overflow = 'hidden'
 
-      // 2. Auto-Start Playback
-      if (media) {
+      // 2. Auto-Start Playback (ONLY FOR MOVIES)
+      if (media && mode === 'movie') {
          // Construct URL immediately
          const startSeason = initialSeason || 1
          const startEpisode = initialEpisode || 1
@@ -112,8 +120,12 @@ export function PlayerModal({
          setEmbedUrl(url)
          setIsPlaying(true)
       } else {
+         // For TV shows, we want the user to select season/episode first
          setIsPlaying(false)
          setEmbedUrl('')
+         // If initial season/episode provided, set them but don't play yet
+         if (initialSeason) setSeason(initialSeason)
+         if (initialEpisode) setEpisode(initialEpisode)
       }
 
       // Add DNS prefetch and preconnect hints for streaming providers
@@ -487,53 +499,65 @@ export function PlayerModal({
               {mode === 'tv' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Season */}
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-muted-foreground">
-                        Season
-                      </label>
-                      <select
-                        value={season}
-                        onChange={(e) => setSeason(Number(e.target.value))}
-                        className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3"
-                      >
-                        {seasons.length > 0
-                          ? seasons.map((s) => (
-                              <option
-                                key={s.season_number}
-                                value={s.season_number}
-                              >
-                                Season {s.season_number} ({s.episode_count} eps)
-                              </option>
-                            ))
-                          : Array.from({ length: 10 }, (_, i) => (
-                              <option key={i + 1} value={i + 1}>
-                                Season {i + 1}
-                              </option>
-                            ))}
-                      </select>
-                    </div>
+                     {/* Season Selector */}
+                     <div>
+                       <label className="mb-2 block text-sm font-medium text-muted-foreground">
+                         Season
+                       </label>
+                       <Select
+                         value={season.toString()}
+                         onValueChange={(val) => {
+                             setSeason(Number(val))
+                             setEpisode(1) // Reset to episode 1 on season change
+                         }}
+                       >
+                         <SelectTrigger className="w-full bg-secondary/50 border-border h-11">
+                           <SelectValue placeholder="Select Season" />
+                         </SelectTrigger>
+                         <SelectContent className="max-h-[300px]">
+                            {seasons.length > 0
+                              ? seasons.map((s) => (
+                                  <SelectItem
+                                    key={s.season_number}
+                                    value={s.season_number.toString()}
+                                    className="cursor-pointer"
+                                  >
+                                    Season {s.season_number} ({s.episode_count} eps)
+                                  </SelectItem>
+                                ))
+                              : Array.from({ length: 10 }, (_, i) => (
+                                  <SelectItem key={i + 1} value={(i + 1).toString()}>
+                                    Season {i + 1}
+                                  </SelectItem>
+                                ))}
+                         </SelectContent>
+                       </Select>
+                     </div>
 
-                    {/* Episode */}
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-muted-foreground">
-                        Episode
-                      </label>
-                      <select
-                        value={episode}
-                        onChange={(e) => setEpisode(Number(e.target.value))}
-                        className="w-full rounded-lg border border-border bg-secondary/50 px-4 py-3"
-                      >
-                        {Array.from(
-                          { length: currentSeasonEpisodes },
-                          (_, i) => (
-                            <option key={i + 1} value={i + 1}>
-                              Episode {i + 1}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </div>
+                     {/* Episode Selector */}
+                     <div>
+                       <label className="mb-2 block text-sm font-medium text-muted-foreground">
+                         Episode
+                       </label>
+                       <Select
+                         value={episode.toString()}
+                         onValueChange={(val) => setEpisode(Number(val))}
+                       >
+                         <SelectTrigger className="w-full bg-secondary/50 border-border h-11">
+                           <SelectValue placeholder="Select Episode" />
+                         </SelectTrigger>
+                         <SelectContent className="max-h-[300px]">
+                            {Array.from(
+                              { length: currentSeasonEpisodes },
+                              (_, i) => (
+                                <SelectItem key={i + 1} value={(i + 1).toString()}>
+                                  Episode {i + 1}
+                                </SelectItem>
+                              )
+                            )}
+                         </SelectContent>
+                       </Select>
+                     </div>
                   </div>
 
                   {/* Autoplay */}
@@ -618,13 +642,15 @@ export function PlayerModal({
           ) : (
             /* ===== PLAYER ===== */
             <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Controls Bar */}
               {mode === 'tv' && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-secondary/30 p-3">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handlePrevEpisode}
                       disabled={season === 1 && episode === 1}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50 hover:bg-secondary/80 transition-colors"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
@@ -635,82 +661,83 @@ export function PlayerModal({
 
                     <button
                       onClick={handleNextEpisode}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm hover:bg-secondary/80 transition-colors"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
 
                   {autoPlay && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground bg-secondary/20 px-2 py-1 rounded">
                       <SkipForward className="h-3 w-3" />
-                      Auto
+                      Auto-play On
                     </div>
                   )}
                 </div>
               )}
 
+              {/* Video Player */}
+              <div
+                ref={playerRef}
+                className="aspect-video w-full overflow-hidden rounded-lg border-none bg-black relative shadow-2xl"
+              >
+                {/* Loading overlay removed per user request */}
 
-                    <div
-                      ref={playerRef}
-                      className="aspect-video w-full overflow-hidden rounded-lg border-none bg-black relative"
-                    >
-                      {/* Loading overlay removed per user request */}
-
-                      {streamError && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-10">
-                          <div className="text-center space-y-4 p-6 max-w-md">
-                            <div className="text-destructive text-4xl font-bold">!</div>
-                            <h3 className="text-lg font-semibold text-foreground">Stream Unavailable</h3>
-                            <p className="text-sm text-muted-foreground">
-                              This stream failed to load. Try switching to a different provider or check your connection.
-                            </p>
-                            <div className="flex gap-3 justify-center">
-                              <button
-                                onClick={() => {
-                                  setStreamError(false)
-                                  setIsLoading(true)
-                                  setEmbedUrl(embedUrl + '&retry=' + Date.now())
-                                }}
-                                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                              >
-                                Retry
-                              </button>
-                              <button
-                                onClick={() => setShowProviderDropdown(true)}
-                                className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
-                              >
-                                Change Provider
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <iframe
-                        key={embedUrl}
-                        src={embedUrl}
-                        className="h-full w-full"
-                        allowFullScreen
-                        allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
-                        loading="eager"
-                        referrerPolicy="origin"
-                        style={{ border: 'none' }}
-                        // @ts-ignore - fetchpriority and importance are valid attributes but not in TypeScript types yet
-                        fetchpriority="high"
-                        importance="high"
-                        onLoad={() => {
-                          setIsLoading(false)
-                          setStreamError(false)
-                        }}
-                        onError={() => {
-                          setIsLoading(false)
-                          setStreamError(true)
-                          console.error('Stream failed to load:', embedUrl)
-                        }}
-                      />
+                {streamError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-10">
+                    <div className="text-center space-y-4 p-6 max-w-md">
+                      <div className="text-destructive text-4xl font-bold">!</div>
+                      <h3 className="text-lg font-semibold text-foreground">Stream Unavailable</h3>
+                      <p className="text-sm text-muted-foreground">
+                        This stream failed to load. Try switching to a different provider or check your connection.
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        <button
+                          onClick={() => {
+                            setStreamError(false)
+                            setIsLoading(true)
+                            setEmbedUrl(embedUrl + '&retry=' + Date.now())
+                          }}
+                          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                        >
+                          Retry
+                        </button>
+                        <button
+                          onClick={() => setShowProviderDropdown(true)}
+                          className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+                        >
+                          Change Provider
+                        </button>
+                      </div>
                     </div>
+                  </div>
+                )}
+
+                <iframe
+                  key={embedUrl}
+                  src={embedUrl}
+                  className="h-full w-full"
+                  allowFullScreen
+                  allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
+                  loading="eager"
+                  referrerPolicy="origin"
+                  style={{ border: 'none' }}
+                  // @ts-ignore - fetchpriority and importance are valid attributes but not in TypeScript types yet
+                  fetchpriority="high"
+                  importance="high"
+                  onLoad={() => {
+                    setIsLoading(false)
+                    setStreamError(false)
+                  }}
+                  onError={() => {
+                    setIsLoading(false)
+                    setStreamError(true)
+                    console.error('Stream failed to load:', embedUrl)
+                  }}
+                />
+              </div>
             </div>
+          </div>
           )}
         </div>
       </div>
