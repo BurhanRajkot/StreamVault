@@ -204,7 +204,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -408,15 +408,9 @@
     box-shadow: 0 0 20px hsl(var(--primary) / 0.3),
                 0 0 40px hsl(var(--primary) / 0.15);
   }
-}
 
-@layer utilities {
-  .container-wide {
-    max-width: 1800px;
-  }
 
   /* Logo Animations */
-
   @keyframes logo-shimmer {
     0% { background-position: -200% center; }
     100% { background-position: 200% center; }
@@ -434,6 +428,14 @@
     -webkit-background-clip: text;
     color: rgba(255,255,255,1);
     animation: logo-shimmer 2s infinite linear;
+  }
+
+  .container-wide {
+    max-width: 1800px;
+  }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }
 
