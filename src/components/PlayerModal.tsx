@@ -86,14 +86,35 @@ export function PlayerModal({
 
   useEffect(() => {
     if (isOpen) {
-      setIsPlaying(false)
-      setEmbedUrl('')
-      setProvider('vidsrc_pro')
+      // 1. Initialize State
+      const savedProvider = localStorage.getItem('stream_provider') || 'vidsrc_pro'
+      setProvider(savedProvider)
       setSeason(initialSeason || 1)
       setEpisode(initialEpisode || 1)
       setStreamError(false)
       setIsLoading(false)
       document.body.style.overflow = 'hidden'
+
+      // 2. Auto-Start Playback
+      if (media) {
+         // Construct URL immediately
+         const startSeason = initialSeason || 1
+         const startEpisode = initialEpisode || 1
+
+         const url = buildEmbedUrl(mode, savedProvider, media.id, {
+           season: startSeason,
+           episode: startEpisode,
+           malId,
+           subOrDub,
+           media,
+         })
+
+         setEmbedUrl(url)
+         setIsPlaying(true)
+      } else {
+         setIsPlaying(false)
+         setEmbedUrl('')
+      }
 
       // Add DNS prefetch and preconnect hints for streaming providers
       const head = document.head
