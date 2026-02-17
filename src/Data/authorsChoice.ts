@@ -1,10 +1,10 @@
 export type AuthorsChoiceItem = {
   tmdbId: number
-  mediaType: 'movie'
+  mediaType: 'movie' | 'tv' | 'documentary'
   note?: string
 }
 
-export const AUTHORS_CHOICE: AuthorsChoiceItem[] = [
+export const AUTHORS_CHOICE_MOVIES: AuthorsChoiceItem[] = [
   // 🏆 TOP TIER CLASSICS
   { tmdbId: 238, mediaType: 'movie', note: 'The ultimate crime epic.' }, // Godfather
   { tmdbId: 240, mediaType: 'movie', note: 'The perfect sequel.' }, // Godfather II
@@ -77,3 +77,48 @@ export const AUTHORS_CHOICE: AuthorsChoiceItem[] = [
   { tmdbId: 640146, mediaType: 'movie', note: 'Oppenheimer impact.' }, // Oppenheimer
   { tmdbId: 872585, mediaType: 'movie', note: 'Everything everywhere.' }, // EEAAO
 ]
+
+export const AUTHORS_CHOICE_TV: AuthorsChoiceItem[] = [
+  // 📺 GOLDEN AGE OF TV
+  { tmdbId: 1396, mediaType: 'tv', note: 'Chemistry and consequences.' }, // Breaking Bad
+  { tmdbId: 1399, mediaType: 'tv', note: 'Fantasy redefined.' }, // Game of Thrones
+  { tmdbId: 19885, mediaType: 'tv', note: 'Modern detective mastery.' }, // Sherlock
+  { tmdbId: 60625, mediaType: 'tv', note: 'Sci-fi animation peak.' }, // Rick and Morty
+  { tmdbId: 46648, mediaType: 'tv', note: 'Political intrigue.' }, // True Detective
+  { tmdbId: 1104, mediaType: 'tv', note: 'Workplace insanity.' }, // Mad Men
+  { tmdbId: 456, mediaType: 'tv', note: 'Animation for everyone.' }, // The Simpsons
+  { tmdbId: 1668, mediaType: 'tv', note: 'Tech paranoia.' }, // Black Mirror
+  { tmdbId: 63351, mediaType: 'tv', note: 'Mind-bending scifi.' }, // Dark (German)
+  { tmdbId: 70523, mediaType: 'tv', note: 'Dark comedy masterpiece.' }, // Fleabag
+
+  // 📼 MODERN HITS
+  { tmdbId: 76479, mediaType: 'tv', note: 'Nuclear horror.' }, // Chernobyl
+  { tmdbId: 119051, mediaType: 'tv', note: 'Addictive mystery.' }, // Wednesday
+  { tmdbId: 82856, mediaType: 'tv', note: 'Star Wars western.' }, // The Mandalorian
+  { tmdbId: 100088, mediaType: 'tv', note: 'Video game adaptation done right.' }, // The Last of Us
+  { tmdbId: 73586, mediaType: 'tv', note: 'Yellowstone drama.' }, // Yellowstone
+  { tmdbId: 85552, mediaType: 'tv', note: 'Teens and trauma.' }, // Euphoria
+  { tmdbId: 105248, mediaType: 'tv', note: 'Star Wars prequel perfection.' }, // Andor
+  { tmdbId: 94605, mediaType: 'tv', note: 'LoL masterpiece.' }, // Arcane
+  { tmdbId: 114479, mediaType: 'tv', note: 'Workplace dystopia.' }, // Severance
+  { tmdbId: 124364, mediaType: 'tv', note: 'Survival horror.' }, // From
+]
+
+export const AUTHORS_CHOICE_DOCUMENTARIES: AuthorsChoiceItem[] = [
+  // 🌍 NATURE & SCIENCE
+  { tmdbId: 1039, mediaType: 'tv', note: 'Our beautiful planet.' }, // Planet Earth
+  { tmdbId: 74313, mediaType: 'tv', note: 'Space exploration.' }, // Cosmos: A Spacetime Odyssey
+  { tmdbId: 83668, mediaType: 'tv', note: 'Depths of the ocean.' }, // Blue Planet II
+  { tmdbId: 96429, mediaType: 'tv', note: 'Formula 1 drama.' }, // Drive to Survive
+  { tmdbId: 79267, mediaType: 'tv', note: 'History of everything.' }, // The Vietnam War (Ken Burns)
+  { tmdbId: 45666, mediaType: 'tv', note: 'True crime phenomenon.' }, // Making a Murderer
+  { tmdbId: 83125, mediaType: 'tv', note: 'Basketball legend.' }, // The Last Dance
+  { tmdbId: 79146, mediaType: 'tv', note: 'Food and culture.' }, // Chef's Table
+  { tmdbId: 30975, mediaType: 'movie', note: 'Modern slavery.' }, // 13th
+  { tmdbId: 76336, mediaType: 'tv', note: 'Nature at night.' }, // Night on Earth
+  { tmdbId: 91404, mediaType: 'movie', note: 'Fungi world.' }, // Fantastic Fungi
+  { tmdbId: 86450, mediaType: 'movie', note: 'Social dilemma.' }, // The Social Dilemma
+]
+
+// Default export can be a mix or just movies for backward compatibility
+export const AUTHORS_CHOICE = AUTHORS_CHOICE_MOVIES

@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { AUTHORS_CHOICE } from '@/Data/authorsChoice'
+import {
+  AUTHORS_CHOICE_MOVIES,
+  AUTHORS_CHOICE_TV,
+  AUTHORS_CHOICE_DOCUMENTARIES,
+  AuthorsChoiceItem,
+} from '@/Data/authorsChoice'
 import { fetchMediaDetails } from '@/lib/api'
 import { Media } from '@/lib/config'
 import { MediaCard, MediaCardSkeleton } from '@/components/MediaCard'
@@ -7,9 +12,10 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Props {
   onMediaClick: (media: Media) => void
+  mode?: 'movie' | 'tv' | 'documentary' | 'all'
 }
 
-export function AuthorsChoiceSection({ onMediaClick }: Props) {
+export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   const [media, setMedia] = useState<Media[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -17,9 +23,26 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
     async function load() {
       setLoading(true)
 
+      let sourceData: AuthorsChoiceItem[] = []
+
+      if (mode === 'movie') {
+        sourceData = AUTHORS_CHOICE_MOVIES
+      } else if (mode === 'tv') {
+        sourceData = AUTHORS_CHOICE_TV
+      } else if (mode === 'documentary') {
+        sourceData = AUTHORS_CHOICE_DOCUMENTARIES
+      } else {
+        // 'all' - mix top items from each (e.g. top 5 of each)
+        sourceData = [
+          ...AUTHORS_CHOICE_MOVIES.slice(0, 5),
+          ...AUTHORS_CHOICE_TV.slice(0, 5),
+          ...AUTHORS_CHOICE_DOCUMENTARIES.slice(0, 5),
+        ].sort(() => 0.5 - Math.random()) // Shuffle
+      }
+
       const results = await Promise.all(
-        AUTHORS_CHOICE.map((item) =>
-          fetchMediaDetails(item.mediaType, item.tmdbId)
+        sourceData.map((item) =>
+          fetchMediaDetails(item.mediaType as any, item.tmdbId)
         )
       )
 
@@ -28,10 +51,10 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
     }
 
     load()
-  }, [])
+  }, [mode])
 
   const scroll = (dir: 'left' | 'right') => {
-    const row = document.getElementById('authors-choice-row')
+    const row = document.getElementById(`authors-choice-row-${mode}`)
     if (!row) return
 
     row.scrollBy({
@@ -40,14 +63,25 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
     })
   }
 
+  const getTitle = () => {
+    switch (mode) {
+      case 'movie':
+        return '🎬 Author’s Choice: Movies'
+      case 'tv':
+        return '📺 Author’s Choice: TV Shows'
+      case 'documentary':
+        return '🌍 Author’s Choice: Documentaries'
+      default:
+        return '👑 Author’s Choice'
+    }
+  }
+
   return (
     <section className="relative mb-10">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-foreground">
-            🎬 Author’s Choice
-          </h2>
+          <h2 className="text-xl font-bold text-foreground">{getTitle()}</h2>
           <p className="text-sm text-muted-foreground">
             Hand-picked recommendations by the creator of StreamVault
           </p>
@@ -72,7 +106,7 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
 
       {/* Horizontal Scroll Row */}
       <div
-        id="authors-choice-row"
+        id={`authors-choice-row-${mode}`}
         className="flex gap-4 overflow-x-auto scroll-smooth px-8 pb-4 no-scrollbar"
       >
         {loading
@@ -82,7 +116,10 @@ export function AuthorsChoiceSection({ onMediaClick }: Props) {
               </div>
             ))
           : media.map((item, index) => (
-              <div key={`${item.id}-${index}`} className="w-[160px] flex-shrink-0">
+              <div
+                key={`${item.id}-${index}`}
+                className="w-[160px] flex-shrink-0"
+              >
                 <MediaCard media={item} onClick={onMediaClick} />
               </div>
             ))}
