@@ -77,20 +77,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
         </button>
 
         {/* Indicators */}
-        <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2 bg-background/60 backdrop-blur-xl px-4 py-2 rounded-full border border-border/50 shadow-xl">
-          {displayItems.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentIndex(index)}
-              className={cn(
-                'h-1.5 md:h-2.5 rounded-full transition-all duration-300',
-                index === currentIndex
-                  ? 'w-4 md:w-10 bg-gradient-primary shadow-lg shadow-primary/50'
-                  : 'w-1.5 md:w-2.5 bg-foreground/30 hover:bg-foreground/60 hover:scale-110'
-              )}
-            />
-          ))}
-        </div>
+
     </section>
   )
 }
