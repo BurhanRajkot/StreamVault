@@ -4,6 +4,8 @@ import {
   fetchContinueWatching,
   fetchMediaDetails,
   removeContinueWatching,
+  getGuestProgress,
+  removeGuestProgress,
 } from '@/lib/api'
 import { Media } from '@/lib/config'
 import { ContinueWatchingCard } from './ContinueWatchingCard'
@@ -33,18 +35,24 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
   const [entries, setEntries] = useState<ContinueWatchingEntry[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!isAuthenticated) return
+  /* ================= FETCH DATA ================= */
 
-      async function load() {
-        try {
-          setLoading(true)
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true)
+        let data: ContinueWatchingItem[] = []
+
+        if (isAuthenticated) {
           const audience = import.meta.env.VITE_AUTH0_AUDIENCE
           const token = await getAccessTokenSilently({
             authorizationParams: { audience },
           })
-
-          const data: ContinueWatchingItem[] = await fetchContinueWatching(token)
+          data = await fetchContinueWatching(token)
+        } else {
+          // GUEST MODE
+          data = getGuestProgress()
+        }
 
         // Hide almost-finished items (Netflix behavior)
         const filtered = data.filter((i) => i.progress < 0.95)
@@ -81,12 +89,17 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
       )
     )
 
-      try {
+    try {
+      if (isAuthenticated) {
         const audience = import.meta.env.VITE_AUTH0_AUDIENCE
         const token = await getAccessTokenSilently({
           authorizationParams: { audience },
         })
         await removeContinueWatching(token, item.tmdbId, item.mediaType)
+      } else {
+        // GUEST MODE
+        removeGuestProgress(item.tmdbId, item.mediaType)
+      }
 
       toast({
         title: 'Removed',
@@ -103,8 +116,8 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
     }
   }
 
-  // Always rendered for logged-in users
-  if (!isAuthenticated) return null
+  // Render for both guests and logged-in users
+  // if (!isAuthenticated) return null // REMOVED THIS LINE
 
   return (
     <section className="mb-8 sm:mb-10">

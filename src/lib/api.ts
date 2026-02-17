@@ -542,3 +542,59 @@ export function isAdminAuthenticated(): boolean {
   return !!getAdminToken()
 }
 
+
+/* ======================================================
+   GUEST CONTINUE WATCHING (LocalStorage)
+====================================================== */
+
+const GUEST_PROGRESS_KEY = 'streamvault_guest_progress'
+
+export function getGuestProgress(): ContinueWatchingItem[] {
+  try {
+    const data = localStorage.getItem(GUEST_PROGRESS_KEY)
+    if (!data) return []
+    return JSON.parse(data)
+  } catch (e) {
+    console.error('Failed to parse guest progress:', e)
+    return []
+  }
+}
+
+export function saveGuestProgress(item: ContinueWatchingItem) {
+  try {
+    const items = getGuestProgress()
+    const index = items.findIndex(
+      (i) => i.tmdbId === item.tmdbId && i.mediaType === item.mediaType
+    )
+
+    if (index > -1) {
+      items[index] = item
+    } else {
+      items.push(item)
+    }
+
+    localStorage.setItem(GUEST_PROGRESS_KEY, JSON.stringify(items))
+  } catch (e) {
+    console.error('Failed to save guest progress:', e)
+  }
+}
+
+export function removeGuestProgress(tmdbId: number, mediaType: 'movie' | 'tv') {
+  try {
+    const items = getGuestProgress()
+    const filtered = items.filter(
+      (i) => !(i.tmdbId === tmdbId && i.mediaType === mediaType)
+    )
+    localStorage.setItem(GUEST_PROGRESS_KEY, JSON.stringify(filtered))
+  } catch (e) {
+    console.error('Failed to remove guest progress:', e)
+  }
+}
+
+export function getGuestItemProgress(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): ContinueWatchingItem | null {
+  const items = getGuestProgress()
+  return items.find((i) => i.tmdbId === tmdbId && i.mediaType === mediaType) || null
+}

@@ -15,6 +15,9 @@ import {
   updateContinueWatching,
   removeContinueWatching,
   fetchExistingProgress,
+  saveGuestProgress,
+  getGuestItemProgress,
+  removeGuestProgress,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -205,25 +208,35 @@ export function PlayerModal({
 
   /* ================= CONTINUE WATCHING HEARTBEAT ================= */
 
+  /* ================= CONTINUE WATCHING HEARTBEAT ================= */
+
   useEffect(() => {
-    if (!isPlaying || !media || !isAuthenticated) return
+    if (!isPlaying || !media) return
 
-    const interval = setInterval(async () => {
-      try {
-        const token = await getAccessTokenSilently()
-
-        await updateContinueWatching(token, {
-          tmdbId: media.id,
-          mediaType: mode === 'tv' ? 'tv' : 'movie',
-          season: mode === 'tv' ? season : undefined,
-          episode: mode === 'tv' ? episode : undefined,
-          progress: 0.5,
-        })
-      } catch (err) {
-        console.error('Failed to update continue watching:', err)
+    const saveProgress = async () => {
+      // Data to save
+      const progressData = {
+        tmdbId: media.id,
+        mediaType: (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie',
+        season: mode === 'tv' ? season : undefined,
+        episode: mode === 'tv' ? episode : undefined,
+        progress: 0.5,
       }
-    }, 60000) // Reduced from 30s to 60s for better performance (50% less backend load)
 
+      if (isAuthenticated) {
+        try {
+          const token = await getAccessTokenSilently()
+          await updateContinueWatching(token, progressData)
+        } catch (err) {
+          console.error('Failed to update continue watching:', err)
+        }
+      } else {
+        // GUEST MODE: Save to localStorage
+        saveGuestProgress(progressData)
+      }
+    }
+
+    const interval = setInterval(saveProgress, 60000) // 60s interval
     return () => clearInterval(interval)
   }, [
     isPlaying,
@@ -242,17 +255,22 @@ export function PlayerModal({
     onClose()
 
     // 2. Save resume in background (fire-and-forget)
-    if (!media || !isAuthenticated) return
+    if (!media) return
 
     setTimeout(async () => {
       try {
-        const token = await getAccessTokenSilently()
-        const mediaType = mode === 'tv' ? 'tv' : 'movie'
-
+        const mediaType = (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie'
         let nextProgress = 0.5 // Default for TV
 
         if (mode === 'movie') {
-          const existing = await fetchExistingProgress(token, media.id, mediaType)
+          let existing: any = null
+
+          if (isAuthenticated) {
+            const token = await getAccessTokenSilently()
+            existing = await fetchExistingProgress(token, media.id, mediaType)
+          } else {
+            existing = getGuestItemProgress(media.id, mediaType)
+          }
 
           if (!existing) {
             nextProgress = 0.1
@@ -263,16 +281,27 @@ export function PlayerModal({
           }
         }
 
-        await updateContinueWatching(token, {
+        const data = {
           tmdbId: media.id,
           mediaType,
           season: mode === 'tv' ? season : undefined,
           episode: mode === 'tv' ? episode : undefined,
           progress: nextProgress,
-        })
+        }
 
-        if (nextProgress >= 0.95) {
-          await removeContinueWatching(token, media.id, mediaType)
+        if (isAuthenticated) {
+           const token = await getAccessTokenSilently()
+           await updateContinueWatching(token, data)
+
+           if (nextProgress >= 0.95) {
+             await removeContinueWatching(token, media.id, mediaType)
+           }
+        } else {
+           // GUEST MODE
+           saveGuestProgress(data)
+           if (nextProgress >= 0.95) {
+             removeGuestProgress(media.id, mediaType)
+           }
         }
       } catch (err) {
         console.error('Failed to save resume data:', err)
