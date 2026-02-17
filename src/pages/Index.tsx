@@ -111,6 +111,7 @@ const Index = () => {
               {!searchQuery && (
                 <AuthorsChoiceSection
                   onMediaClick={handleMediaClick}
+                  mode={(mode === 'downloads' ? 'movie' : mode) as 'movie' | 'tv' | 'documentary'}
                 />
               )}
 
