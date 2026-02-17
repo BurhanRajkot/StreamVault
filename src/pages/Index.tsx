@@ -94,7 +94,7 @@ const Index = () => {
               )}
 
               {/* Recently Added Section (Global for Docs, Provider-specific for others) */}
-              {!searchQuery && (selectedProvider || mode === 'documentary') && (
+              {!searchQuery && selectedProvider && (
                 <RecentlyAddedSection
                   mode={mode}
                   providerId={selectedProvider || null}
