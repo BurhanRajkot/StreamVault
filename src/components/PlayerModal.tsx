@@ -21,7 +21,7 @@ import {
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
-import { motion } from 'framer-motion'
+// framer-motion removed - not used in this component
 import {
   Select,
   SelectContent,
@@ -37,6 +37,7 @@ interface PlayerModalProps {
   onClose: () => void
   initialSeason?: number
   initialEpisode?: number
+  initialServer?: string
 }
 
 interface Season {
@@ -52,6 +53,7 @@ export function PlayerModal({
   onClose,
   initialSeason,
   initialEpisode,
+  initialServer,
 }: PlayerModalProps) {
   const [provider, setProvider] = useState('vidsrc_pro')
   const [season, setSeason] = useState(initialSeason || 1)
@@ -98,8 +100,10 @@ export function PlayerModal({
   useEffect(() => {
     if (isOpen) {
       // 1. Initialize State
-      const savedProvider = localStorage.getItem('stream_provider') || 'vidsrc_pro'
-      setProvider(savedProvider)
+      // Provider is per-item: use the server saved for THIS specific media item.
+      // Falls back to 'vidsrc_pro' if no server was previously saved for it.
+      const effectiveProvider = initialServer || 'vidsrc_pro'
+      setProvider(effectiveProvider)
       setSeason(initialSeason || 1)
       setEpisode(initialEpisode || 1)
       setStreamError(false)
@@ -112,7 +116,7 @@ export function PlayerModal({
          const startSeason = initialSeason || 1
          const startEpisode = initialEpisode || 1
 
-         const url = buildEmbedUrl(mode, savedProvider, media.id, {
+         const url = buildEmbedUrl(mode, effectiveProvider, media.id, {
            season: startSeason,
            episode: startEpisode,
            malId,
@@ -208,8 +212,6 @@ export function PlayerModal({
 
   /* ================= CONTINUE WATCHING HEARTBEAT ================= */
 
-  /* ================= CONTINUE WATCHING HEARTBEAT ================= */
-
   useEffect(() => {
     if (!isPlaying || !media) return
 
@@ -221,6 +223,7 @@ export function PlayerModal({
         season: mode === 'tv' ? season : undefined,
         episode: mode === 'tv' ? episode : undefined,
         progress: 0.5,
+        server: provider,
       }
 
       if (isAuthenticated) {
@@ -244,6 +247,7 @@ export function PlayerModal({
     season,
     episode,
     mode,
+    provider, // Include provider so heartbeat always saves the current server
     isAuthenticated,
     getAccessTokenSilently,
   ])
@@ -287,6 +291,7 @@ export function PlayerModal({
           season: mode === 'tv' ? season : undefined,
           episode: mode === 'tv' ? episode : undefined,
           progress: nextProgress,
+          server: provider,
         }
 
         if (isAuthenticated) {
@@ -315,6 +320,7 @@ export function PlayerModal({
     isAuthenticated,
     getAccessTokenSilently,
     onClose,
+    provider,
   ])
 
   /* ================= PLAY HELPERS ================= */
@@ -347,6 +353,7 @@ export function PlayerModal({
             season: s,
             episode: ep,
             progress: 0.5,
+            server: provider,
           })
         } catch (err) {
           console.error('Failed to update episode:', err)
@@ -397,6 +404,9 @@ export function PlayerModal({
 
   const changeSource = (newProvider: string) => {
     setProvider(newProvider)
+    // NOTE: We do NOT write to localStorage here.
+    // Server preference is per-item and is saved to the database/guest-progress
+    // via the heartbeat and handleSmartClose functions.
     setShowProviderDropdown(false)
     setStreamError(false)
     setIsLoading(true)
