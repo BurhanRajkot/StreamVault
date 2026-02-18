@@ -24,6 +24,8 @@ const Index = () => {
 
   const [initialSeason, setInitialSeason] = useState<number | undefined>()
   const [initialEpisode, setInitialEpisode] = useState<number | undefined>()
+  const [initialServer, setInitialServer] = useState<string | undefined>()
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const {
     media,
@@ -42,18 +44,21 @@ const Index = () => {
     }
   }, [])
 
-  const handleMediaClick = (media: Media, season?: number, episode?: number) => {
+  const handleMediaClick = (media: Media, season?: number, episode?: number, server?: string) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
     setPlayMode(detectedMode)
     setSelectedMedia(media)
     setInitialSeason(season)
     setInitialEpisode(episode)
+    setInitialServer(server)
   }
 
   const handleClosePlayer = () => {
     setSelectedMedia(null)
     setInitialSeason(undefined)
     setInitialEpisode(undefined)
+    setInitialServer(undefined)
+    setRefreshKey(prev => prev + 1) // Trigger Continue Watching refresh
   }
 
   return (
@@ -105,6 +110,7 @@ const Index = () => {
               {!searchQuery && !selectedProvider && (
                 <ContinueWatchingSection
                   onMediaClick={handleMediaClick}
+                  refreshKey={refreshKey}
                 />
               )}
 
@@ -136,6 +142,7 @@ const Index = () => {
             onClose={handleClosePlayer}
             initialSeason={initialSeason}
             initialEpisode={initialEpisode}
+            initialServer={initialServer}
           />
         )}
 

@@ -44,7 +44,7 @@ router.post('/', checkJwt, async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const { tmdbId, mediaType, season, episode, progress } = req.body
+  const { tmdbId, mediaType, season, episode, progress, server } = req.body
 
   // Input validation
   const parsedTmdbId = Number(tmdbId)
@@ -60,11 +60,16 @@ router.post('/', checkJwt, async (req, res) => {
     return res.status(400).json({ error: 'Invalid progress: must be a number between 0 and 1' })
   }
 
+  // Sanitize server field: allow only known provider keys (alphanumeric + underscore, max 50 chars)
+  const sanitizedServer = (typeof server === 'string' && /^[a-z0-9_]{1,50}$/.test(server))
+    ? server
+    : null
+
   const { data: existing } = await supabaseAdmin
     .from('ContinueWatching')
     .select('id')
     .eq('userId', userId)
-    .eq('tmdbId', tmdbId)
+    .eq('tmdbId', parsedTmdbId)
     .eq('mediaType', mediaType)
     .single()
 
@@ -73,9 +78,10 @@ router.post('/', checkJwt, async (req, res) => {
     const { data, error } = await supabaseAdmin
       .from('ContinueWatching')
       .update({
-        season,
-        episode,
+        season: season ?? null,
+        episode: episode ?? null,
         progress,
+        server: sanitizedServer,
         updatedAt: new Date().toISOString(),
       })
       .eq('id', existing.id)
@@ -92,11 +98,12 @@ router.post('/', checkJwt, async (req, res) => {
       .from('ContinueWatching')
       .insert({
         userId,
-        tmdbId,
+        tmdbId: parsedTmdbId,
         mediaType,
-        season,
-        episode,
+        season: season ?? null,
+        episode: episode ?? null,
         progress,
+        server: sanitizedServer,
         updatedAt: new Date().toISOString(),
       })
       .select()
