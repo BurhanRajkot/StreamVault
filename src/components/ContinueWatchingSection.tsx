@@ -11,13 +11,7 @@ import { Media } from '@/lib/config'
 import { ContinueWatchingCard } from './ContinueWatchingCard'
 import { useToast } from '@/hooks/use-toast'
 
-type ContinueWatchingItem = {
-  tmdbId: number
-  mediaType: 'movie' | 'tv'
-  season?: number
-  episode?: number
-  progress: number
-}
+import { ContinueWatchingItem } from '@/lib/api'
 
 type ContinueWatchingEntry = {
   media: Media
@@ -25,10 +19,11 @@ type ContinueWatchingEntry = {
 }
 
 interface Props {
-  onMediaClick: (media: Media, season?: number, episode?: number) => void
+  onMediaClick: (media: Media, season?: number, episode?: number, server?: string) => void
+  refreshKey?: number
 }
 
-export function ContinueWatchingSection({ onMediaClick }: Props) {
+export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { toast } = useToast()
 
@@ -74,7 +69,7 @@ export function ContinueWatchingSection({ onMediaClick }: Props) {
     }
 
     load()
-  }, [isAuthenticated, getAccessTokenSilently])
+  }, [isAuthenticated, getAccessTokenSilently, refreshKey])
 
   const handleRemove = async (item: ContinueWatchingItem) => {
     // Optimistic update - instant UI feedback

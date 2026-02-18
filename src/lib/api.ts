@@ -242,10 +242,14 @@ export async function fetchMediaDetails(
   mode: MediaMode,
   id: number
 ): Promise<Media | null> {
-  if (mode === 'downloads') return null
+  if (mode === 'downloads' || !id) return null
 
   const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar`
   const res = await fetch(url)
+  if (!res.ok) {
+    console.error(`fetchMediaDetails failed for ${mode}/${id}:`, res.status)
+    return null
+  }
   return res.json()
 }
 
@@ -253,7 +257,7 @@ export async function fetchMediaVideos(
   mode: MediaMode,
   id: number
 ): Promise<{ key: string; site: string; type: string }[]> {
-  if (mode === 'downloads') return []
+  if (mode === 'downloads' || !id) return []
 
   const url = `${API_BASE}/tmdb/${mode}/${id}/videos`
   const res = await fetch(url)
@@ -266,6 +270,8 @@ export async function fetchMediaVideos(
 export async function fetchTVSeasons(
   tvId: number
 ): Promise<{ season_number: number; episode_count: number; name: string }[]> {
+  if (!tvId) return []
+
   const url = `${API_BASE}/tmdb/tv/${tvId}/seasons`
   const res = await fetch(url)
   if (!res.ok) {
@@ -299,6 +305,7 @@ export type ContinueWatchingItem = {
   season?: number
   episode?: number
   progress: number
+  server?: string
 }
 
 export async function fetchContinueWatching(
@@ -573,7 +580,10 @@ export function saveGuestProgress(item: ContinueWatchingItem) {
       items.push(item)
     }
 
-    localStorage.setItem(GUEST_PROGRESS_KEY, JSON.stringify(items))
+    // Cap at 20 items to prevent unbounded localStorage growth (remove oldest)
+    const capped = items.slice(-20)
+
+    localStorage.setItem(GUEST_PROGRESS_KEY, JSON.stringify(capped))
   } catch (e) {
     console.error('Failed to save guest progress:', e)
   }

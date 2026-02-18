@@ -2,19 +2,12 @@ import { useState } from 'react'
 import { Media } from '@/lib/config'
 import { Play, MoreVertical, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-type ContinueWatchingItem = {
-  tmdbId: number
-  mediaType: 'movie' | 'tv'
-  season?: number
-  episode?: number
-  progress: number
-}
+import { ContinueWatchingItem, getImageUrl } from '@/lib/api'
 
 interface Props {
   media: Media
   item: ContinueWatchingItem
-  onResume: (media: Media, season?: number, episode?: number) => void
+  onResume: (media: Media, season?: number, episode?: number, server?: string) => void
   onRemove: (item: ContinueWatchingItem) => void
 }
 
@@ -49,7 +42,7 @@ export function ContinueWatchingCard({
           active:opacity-100
           cursor-pointer
         "
-        onClick={() => onResume(media, item.season, item.episode)}
+        onClick={() => onResume(media, item.season, item.episode, item.server)}
       >
         <Play className="h-12 w-12 text-white fill-white mb-2" />
         {progressLabel && (
@@ -61,6 +54,7 @@ export function ContinueWatchingCard({
 
       {/* Menu Button */}
       <button
+        aria-label="More options"
         onClick={(e) => {
           e.stopPropagation()
           setMenuOpen((v) => !v)
@@ -111,12 +105,17 @@ export function ContinueWatchingCard({
       {/* Poster */}
       <div
         className="relative rounded-lg overflow-hidden cursor-pointer"
-        onClick={() => onResume(media, item.season, item.episode)}
+        onClick={() => onResume(media, item.season, item.episode, item.server)}
       >
         <img
-          src={`https://image.tmdb.org/t/p/w342${media.poster_path}`}
+          src={getImageUrl(media.poster_path, 'poster')}
           alt={title}
           className="w-full h-[240px] object-cover rounded-lg"
+          onError={(e) => {
+            const target = e.currentTarget
+            target.onerror = null // Prevent infinite loop
+            target.src = '/placeholder.svg'
+          }}
         />
 
         {/* Progress Bar at Bottom */}
