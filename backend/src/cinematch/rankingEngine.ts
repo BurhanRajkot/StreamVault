@@ -2,14 +2,13 @@
 // CineMatch AI — Ranking Engine
 // X Algorithm equivalent: Phoenix Ranking Transformer
 //
-// Implements a weighted multi-signal linear model inspired by
-// X's Phoenix scorer. Instead of a Grok transformer, we use
-// mathematically-principled signals that proxy the same predictions:
-//
-// score = w1 × genreAffinity     (proxy for P(like))
-//       + w2 × popularitySignal  (proxy for P(click))
-//       + w3 × freshnessSignal   (proxy for P(watch))
-//       + w4 × qualitySignal     (proxy for P(rate))
+// 6-signal weighted linear model:
+//   score = w1 × genreAffinity    (P(like) — personalization signal)
+//         + w2 × keywordAffinity  (P(like) — semantic matching, NEW)
+//         + w3 × castAffinity     (P(like) — creator/actor loyalty, NEW)
+//         + w4 × popularitySignal (P(click) — global appeal)
+//         + w5 × freshnessSignal  (P(watch) — recency preference)
+//         + w6 × qualitySignal    (P(rate) — sustained quality)
 //
 // Plus diversity penalty (Author Diversity Scorer equivalent)
 // to prevent genre echo-chambers.
@@ -18,114 +17,144 @@
 import { Candidate, ScoredCandidate, UserProfile } from './types'
 import { getMovieFeatures } from './featureStore'
 
-// ── Score Weights ──────────────────────────────────────────────
-// Tuned to favor personalized content while ensuring diversity
+// ── Score Weights — must sum to 1.0 ───────────────────────
 const WEIGHTS = {
-  genreAffinity:  0.42,  // Highest weight — personalization signal
-  popularity:     0.22,  // Global appeal
-  freshness:      0.20,  // Recency preference (Netflix finds new content performs better)
-  quality:        0.16,  // Vote-based quality signal
+  genreAffinity:   0.34,  // Highest — personalization backbone
+  keywordAffinity: 0.10,  // Semantic theme matching
+  castAffinity:    0.08,  // Actor/director loyalty signal
+  popularity:      0.18,  // Global appeal
+  freshness:       0.16,  // Recency preference
+  quality:         0.14,  // Vote-based quality
 } as const
 
-// Diversity penalty applied when 3+ consecutive same-genre items appear
+// Diversity penalty when 3+ consecutive candidates share the same dominant genre
 const DIVERSITY_PENALTY = 0.18
 
-// ── Freshness Decay ────────────────────────────────────────────
-// Exponential decay: content from last year scores near 1.0,
-// 5-year-old content scores ~0.3
+// ── Freshness ─────────────────────────────────────────────
+// Exponential decay — content from last year ~1.0, 5yr-old ~0.3
+// Half-life: 3 years (balanced for movies + long-running TV)
 function freshnessScore(releaseDate: string): number {
   if (!releaseDate) return 0.3
   const ageYears = (Date.now() - new Date(releaseDate).getTime()) / (365.25 * 86_400_000)
-  // Half-life of 3 years — adapts well for both movies and TV
   return Math.exp(-ageYears * Math.LN2 / 3)
 }
 
-// ── Popularity Signal ─────────────────────────────────────────
-// Log-normalized TMDB popularity to compress the extreme range
-// (popularity goes from ~1 to ~5000)
+// ── Popularity ────────────────────────────────────────────
+// Log-normalized TMDB popularity (range ~1..5000 → 0..1)
 const MAX_LOG_POP = Math.log1p(5000)
 function popularityScore(popularity: number): number {
   return Math.min(Math.log1p(popularity) / MAX_LOG_POP, 1.0)
 }
 
-// ── Quality Signal ────────────────────────────────────────────
-// Combines vote_average and vote_count into a Bayesian-ish estimate
-// Penalizes items with few votes to prevent gaming
+// ── Quality ───────────────────────────────────────────────
+// Bayesian-style estimate — penalizes items with few votes
 function qualityScore(voteAverage: number, voteCount: number): number {
-  const avgNorm = voteAverage / 10  // [0..1]
-  const confidenceBoost = Math.min(voteCount / 500, 1)  // plateaus at 500 votes
+  const avgNorm = voteAverage / 10
+  const confidenceBoost = Math.min(voteCount / 500, 1)
   return avgNorm * (0.7 + 0.3 * confidenceBoost)
 }
 
-// ── Genre Affinity (Cosine Similarity proxy) ──────────────────
-// Measures how well the candidate's genre set matches the user's
-// accumulated genre preference vector (from featureStore)
+// ── Genre Affinity ────────────────────────────────────────
+// Cosine similarity proxy: dot product of candidate genres × user genre vector
 function genreAffinityScore(
   candidateGenres: number[],
   userGenreVector: Record<number, number>,
 ): number {
   if (candidateGenres.length === 0 || Object.keys(userGenreVector).length === 0) {
-    return 0.3  // Neutral for cold-start
+    return 0.3  // Neutral default for cold-start
   }
-
-  // Dot product of candidate one-hot genres × user genre weights
   let dotProduct = 0
   for (const genreId of candidateGenres) {
     dotProduct += userGenreVector[genreId] ?? 0
   }
-
-  // Normalize by candidate genre count (cosine similarity approximation)
   return Math.min(dotProduct / candidateGenres.length, 1.0)
 }
 
-// ── Source Priority Boost ────────────────────────────────────
-// X's Weighted Scorer applies different base weights per source
-// (in-network Thunder posts scored higher than out-of-network)
+// ── Keyword Affinity ─────────────────────────────────────
+// Measures how well the candidate's themes match what the user has
+// enjoyed thematically (time travel, heist, based-on-book, etc.)
+function keywordAffinityScore(
+  candidateKeywords: number[] | undefined,
+  userKeywordVector: Record<number, number>,
+): number {
+  if (!candidateKeywords || candidateKeywords.length === 0) return 0.0
+  if (Object.keys(userKeywordVector).length === 0) return 0.0
+
+  let dotProduct = 0
+  for (const kwId of candidateKeywords) {
+    dotProduct += userKeywordVector[kwId] ?? 0
+  }
+  return Math.min(dotProduct / candidateKeywords.length, 1.0)
+}
+
+// ── Cast Affinity ─────────────────────────────────────────
+// Boosts candidates featuring actors/directors the user has
+// repeatedly watched (loyalty signal — very effective for franchises)
+function castAffinityScore(
+  candidateCastIds: number[] | undefined,
+  userCastVector: Record<number, number>,
+): number {
+  if (!candidateCastIds || candidateCastIds.length === 0) return 0.0
+  if (Object.keys(userCastVector).length === 0) return 0.0
+
+  let dotProduct = 0
+  for (const castId of candidateCastIds) {
+    dotProduct += userCastVector[castId] ?? 0
+  }
+  return Math.min(dotProduct / candidateCastIds.length, 1.0)
+}
+
+// ── Source Priority Boost ────────────────────────────────
+// X's Weighted Scorer — different base weights per source
 function sourceBoost(source: Candidate['source']): number {
   switch (source) {
     case 'tmdb_similar':         return 1.10  // Highest — directly related
-    case 'tmdb_recommendations': return 1.05  // Strong signal
+    case 'tmdb_recommendations': return 1.05  // Strong TMDB curation signal
+    case 'collaborative':        return 1.08  // Peer-based — high precision
     case 'trending':             return 0.95  // Global trending, less personal
     case 'popular_fallback':     return 0.85  // Cold-start fallback
-    case 'collaborative':        return 1.08  // Peer-based signal
     default:                     return 1.0
   }
 }
 
-// ── Source → Human Reason ────────────────────────────────────
-function sourceReason(source: Candidate['source'], _seedTitle?: string): string {
+// ── Source → Human Reason ────────────────────────────────
+function buildSourceReason(source: Candidate['source'], seedTitle?: string): string {
   switch (source) {
     case 'tmdb_similar':
-      return _seedTitle ? `Because you watched ${_seedTitle}` : 'Similar to what you watched'
+      return seedTitle ? `Because you watched ${seedTitle}` : 'Similar to what you watched'
     case 'tmdb_recommendations':
-      return _seedTitle ? `You might like this after ${_seedTitle}` : 'Hand-picked for you'
+      return seedTitle ? `You might like this after ${seedTitle}` : 'Curated for you'
+    case 'collaborative':
+      return 'Fans with your taste also loved this'
     case 'trending':
       return 'Trending this week'
     case 'popular_fallback':
       return 'Popular right now'
-    case 'collaborative':
-      return 'Fans of your genres also loved this'
     default:
       return 'Recommended for you'
   }
 }
 
-// ── Score a single candidate ──────────────────────────────────
+// ── Score a single candidate ──────────────────────────────
 export function scoreCandidate(
   candidate: Candidate,
   profile: UserProfile,
-  seedTitles: Map<string, string>,  // source+tmdbId → seed title for reason strings
+  seedTitles: Map<string, string>,
 ): ScoredCandidate {
-  const affinityScore = genreAffinityScore(candidate.genreIds, profile.genreVector)
+  const gAffinity = genreAffinityScore(candidate.genreIds, profile.genreVector)
+  const kwAffinity = keywordAffinityScore(candidate.keywords, profile.keywordVector)
+  const castAff = castAffinityScore(candidate.castIds, profile.castVector)
   const popScore = popularityScore(candidate.popularity)
   const freshScore = freshnessScore(candidate.releaseDate)
   const qualScore = qualityScore(candidate.voteAverage, candidate.voteCount)
 
   const rawScore =
-    WEIGHTS.genreAffinity * affinityScore +
-    WEIGHTS.popularity    * popScore      +
-    WEIGHTS.freshness     * freshScore    +
-    WEIGHTS.quality       * qualScore
+    WEIGHTS.genreAffinity   * gAffinity  +
+    WEIGHTS.keywordAffinity * kwAffinity +
+    WEIGHTS.castAffinity    * castAff    +
+    WEIGHTS.popularity      * popScore   +
+    WEIGHTS.freshness       * freshScore +
+    WEIGHTS.quality         * qualScore
 
   const boostedScore = rawScore * sourceBoost(candidate.source)
   const seedKey = `${candidate.source}:seed`
@@ -134,32 +163,28 @@ export function scoreCandidate(
   return {
     ...candidate,
     score: boostedScore,
-    genreAffinityScore: affinityScore,
+    genreAffinityScore: gAffinity,
+    keywordAffinityScore: kwAffinity,
+    castAffinityScore: castAff,
     popularityScore: popScore,
     freshnessScore: freshScore,
     qualityScore: qualScore,
-    sourceReason: sourceReason(candidate.source, seedTitle),
+    sourceReason: buildSourceReason(candidate.source, seedTitle),
   }
 }
 
-// ── Rank with Diversity ───────────────────────────────────────
-// X's Author Diversity Scorer — prevent genre echo-chambers
-// After scoring, apply a diversity re-ranking pass
+// ── Diversity Re-ranking ──────────────────────────────────
+// X's Author Diversity Scorer — prevents genre echo-chambers.
+// After initial sort, penalize 3+ consecutive items from the same genre.
 function applyDiversityReranking(scored: ScoredCandidate[]): ScoredCandidate[] {
-  // Sort by raw score first
   const sorted = [...scored].sort((a, b) => b.score - a.score)
-
-  // Track genre appearance counts for diversity penalty
   const genreCount: Record<number, number> = {}
 
   return sorted.map(candidate => {
     const dominantGenre = candidate.genreIds[0]
-
     if (dominantGenre !== undefined) {
       const count = genreCount[dominantGenre] || 0
-
       if (count >= 3) {
-        // Apply diversity penalty to prevent 10 consecutive thrillers
         const penalized = {
           ...candidate,
           score: candidate.score * (1 - DIVERSITY_PENALTY * Math.min(count - 2, 3)),
@@ -167,42 +192,48 @@ function applyDiversityReranking(scored: ScoredCandidate[]): ScoredCandidate[] {
         genreCount[dominantGenre] = count + 1
         return penalized
       }
-
       genreCount[dominantGenre] = count + 1
     }
-
     return candidate
-  }).sort((a, b) => b.score - a.score)  // Re-sort after diversity adjustment
+  }).sort((a, b) => b.score - a.score)
 }
 
-// ── Master Ranking Function ───────────────────────────────────
-// Equivalent to X's complete Scoring stage:
-// Phoenix Score → Weighted Score → Author Diversity Score → Sort
+// ── Master Ranking Function ───────────────────────────────
+// Pipeline: Phoenix Score → Weighted Score → Author Diversity Score → Sort
 export async function rankCandidates(
   candidates: Candidate[],
   profile: UserProfile,
 ): Promise<ScoredCandidate[]> {
-  // Build seed title map for human-readable reason strings
+  // Build seed title map for source reason strings
   const seedTitles = new Map<string, string>()
   for (const recent of profile.recentlyWatched) {
-    seedTitles.set(`tmdb_similar:seed`, recent.title)
-    seedTitles.set(`tmdb_recommendations:seed`, recent.title)
+    seedTitles.set('tmdb_similar:seed', recent.title)
+    seedTitles.set('tmdb_recommendations:seed', recent.title)
   }
 
-  // Score all candidates (parallel feature hydration for any missing genre data)
+  // Score all candidates in parallel; hydrate missing genre/keyword/cast data
   const scoringPromises = candidates.map(async (candidate) => {
-    // If genreIds are missing (some TMDB items omit them), hydrate from features
-    if (candidate.genreIds.length === 0) {
+    // Hydrate from TMDB if candidate is missing feature data
+    const needsHydration =
+      candidate.genreIds.length === 0 ||
+      !candidate.keywords ||
+      !candidate.castIds
+
+    if (needsHydration) {
       const features = await getMovieFeatures(candidate.tmdbId, candidate.mediaType)
       if (features) {
-        candidate = { ...candidate, genreIds: features.genreIds }
+        candidate = {
+          ...candidate,
+          genreIds: features.genreIds,
+          keywords: features.keywords,
+          castIds: features.castIds,
+        }
       }
     }
+
     return scoreCandidate(candidate, profile, seedTitles)
   })
 
   const scored = await Promise.all(scoringPromises)
-
-  // Apply diversity re-ranking (Author Diversity Scorer equivalent)
   return applyDiversityReranking(scored)
 }

@@ -2,18 +2,17 @@
 // CineMatch AI — Home Mixer (Orchestration Layer)
 // X Algorithm equivalent: Home Mixer
 //
-// Assembles the full recommendation pipeline in order:
+// Full recommendation pipeline in order:
 //   1. getUserProfile    (Query Hydration)
-//   2. fetchAllSources   (Candidate Sourcing — parallel)
-//   3. hydrateFeatures   (already done in featureStore)
-//   4. applyFilters      (Pre-Scoring Filters)
-//   5. rankCandidates    (Phoenix Scoring → Weighted → Diversity)
-//   6. selectTopK        (Final Selection)
+//   2. fetchAllSources   (5 parallel candidate sources)
+//   3. applyFilters      (Pre-Scoring Filters)
+//   4. rankCandidates    (6-signal Phoenix Scoring + Diversity)
+//   5. selectTopK        (Final Selection)
+//   6. buildSectionsV2   (Post-Selection UI grouping)
 //   7. persistCache      (Side Effect)
-//   8. Return sections   (Post-Selection: group into UI sections)
 // ============================================================
 
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '../lib/supabase'
 import NodeCache from 'node-cache'
 import { getUserProfile, invalidateUserProfile } from './featureStore'
 import { fetchAllSources } from './candidateSources'
@@ -26,30 +25,33 @@ import {
   UserProfile,
 } from './types'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-)
-
 // L1 in-memory cache — fastest serving layer (5 min TTL)
 const recCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const TOP_K = 40            // Total candidates to return
+const TOP_K = 50            // Total candidates to return (increased from 40)
 const SECTION_SIZE = 15     // Items per UI section
 const CACHE_TTL_DB = 300    // Seconds to persist in Supabase RecommendationCache
 
-// ── Section Grouping ──────────────────────────────────────────
-// Groups ranked candidates into named UI sections
-// "Because you watched X", "Trending this week", etc.
-function buildSections(
+// ── Section Builder V2 ────────────────────────────────────
+// Produces named, intent-driven UI row groups for the homepage.
+// Sections are ordered from most-personalized to least-personalized.
+function buildSectionsV2(
   ranked: ScoredCandidate[],
   profile: UserProfile,
 ): RecommendationSection[] {
   const sections: RecommendationSection[] = []
 
-  // "Because you watched X" sections — one per recent watch seed
-  const seedTitles = profile.recentlyWatched.slice(0, 2).map(r => r.title)
+  // ── "Recommended For You" — always first (top overall score) ──
+  const topPicks = ranked.slice(0, SECTION_SIZE)
+  sections.push({
+    title: 'Recommended For You',
+    items: topPicks,
+    source: 'tmdb_recommendations',
+  })
 
+  // ── "Because you watched X" — one section per seed title ──────
+  // Uses source = tmdb_similar, grouped by seed title match
+  const seedTitles = profile.recentlyWatched.slice(0, 2).map(r => r.title)
   for (const seedTitle of seedTitles) {
     const similar = ranked
       .filter(c =>
@@ -67,7 +69,48 @@ function buildSections(
     }
   }
 
-  // "Trending this week"
+  // ── "Fans Like You Also Watched" — collaborative source ───────
+  const collaborative = ranked
+    .filter(c => c.source === 'collaborative')
+    .slice(0, SECTION_SIZE)
+  if (collaborative.length >= 3) {
+    sections.push({
+      title: 'Fans Like You Also Watched',
+      items: collaborative,
+      source: 'collaborative',
+    })
+  }
+
+  // ── "Hidden Gems" — high quality, low mainstream popularity ───
+  // Quality signal > 0.70 AND popularity score < 0.35
+  // These are critically well-received but not algorithmically dominant
+  const hiddenGems = ranked
+    .filter(c => c.qualityScore > 0.70 && c.popularityScore < 0.35)
+    .sort((a, b) => b.qualityScore - a.qualityScore)
+    .slice(0, SECTION_SIZE)
+  if (hiddenGems.length >= 3) {
+    sections.push({
+      title: 'Hidden Gems',
+      items: hiddenGems,
+      source: 'tmdb_recommendations',
+    })
+  }
+
+  // ── "New Releases" — content from the last 6 months ──────────
+  const sixMonthsAgo = new Date(Date.now() - 180 * 86_400_000)
+  const newReleases = ranked
+    .filter(c => c.releaseDate && new Date(c.releaseDate) > sixMonthsAgo)
+    .sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime())
+    .slice(0, SECTION_SIZE)
+  if (newReleases.length >= 3) {
+    sections.push({
+      title: 'New Releases',
+      items: newReleases,
+      source: 'trending',
+    })
+  }
+
+  // ── "Trending This Week" — always present ─────────────────────
   const trending = ranked
     .filter(c => c.source === 'trending')
     .slice(0, SECTION_SIZE)
@@ -75,17 +118,13 @@ function buildSections(
     sections.push({ title: 'Trending This Week', items: trending, source: 'trending' })
   }
 
-  // "Recommended for you" — top scored regardless of source
-  const topPicks = ranked.slice(0, SECTION_SIZE)
-  sections.unshift({ title: 'Recommended For You', items: topPicks, source: 'tmdb_recommendations' })
-
   return sections
 }
 
-// ── Supabase Cache Persistence ────────────────────────────────
+// ── Supabase Cache Persistence ────────────────────────────
 async function persistToDb(userId: string, ranked: ScoredCandidate[]): Promise<void> {
   try {
-    await supabase
+    await supabaseAdmin
       .from('RecommendationCache')
       .upsert({
         userId,
@@ -98,17 +137,16 @@ async function persistToDb(userId: string, ranked: ScoredCandidate[]): Promise<v
   }
 }
 
-// ── Read from Supabase cache ──────────────────────────────────
+// ── Read from Supabase cache ──────────────────────────────
 async function readFromDb(userId: string): Promise<ScoredCandidate[] | null> {
   try {
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
       .from('RecommendationCache')
       .select('recommendations, computedAt, ttlSeconds')
       .eq('userId', userId)
       .single()
 
     if (!data) return null
-
     const ageSeconds = (Date.now() - new Date(data.computedAt).getTime()) / 1000
     if (ageSeconds > data.ttlSeconds) return null  // Stale
 
@@ -118,7 +156,7 @@ async function readFromDb(userId: string): Promise<ScoredCandidate[] | null> {
   }
 }
 
-// ── MAIN PIPELINE ─────────────────────────────────────────────
+// ── MAIN PIPELINE ─────────────────────────────────────────
 export async function getRecommendations(
   userId: string,
   options: { limit?: number; forceRefresh?: boolean } = {}
@@ -126,7 +164,7 @@ export async function getRecommendations(
   const limit = options.limit ?? TOP_K
   const startTime = Date.now()
 
-  // L1: In-memory cache hit (fastest path)
+  // L1: In-memory cache (fastest path — ~1ms)
   if (!options.forceRefresh) {
     const cached = recCache.get<ScoredCandidate[]>(userId)
     if (cached) {
@@ -134,7 +172,7 @@ export async function getRecommendations(
       return {
         userId,
         items: cached.slice(0, limit),
-        sections: buildSections(cached.slice(0, limit), profile),
+        sections: buildSectionsV2(cached.slice(0, limit), profile),
         computedAt: new Date().toISOString(),
         isPersonalized: !profile.isNewUser,
       }
@@ -144,7 +182,7 @@ export async function getRecommendations(
   // Step 1: Query Hydration — build user profile
   const profile = await getUserProfile(userId)
 
-  // L2: Supabase cache hit (fast path for returning users)
+  // L2: Supabase cache (fast path — ~50ms for returning users)
   if (!options.forceRefresh && !profile.isNewUser) {
     const dbCached = await readFromDb(userId)
     if (dbCached) {
@@ -152,107 +190,111 @@ export async function getRecommendations(
       return {
         userId,
         items: dbCached.slice(0, limit),
-        sections: buildSections(dbCached.slice(0, limit), profile),
+        sections: buildSectionsV2(dbCached.slice(0, limit), profile),
         computedAt: new Date().toISOString(),
         isPersonalized: true,
       }
     }
   }
 
-  // Step 2: Candidate Sourcing (Thunder + Phoenix retrieval in parallel)
+  // Step 2: Candidate Sourcing (5 parallel sources)
   const rawCandidates = await fetchAllSources(profile)
 
   // Step 3: Pre-Scoring Filters
   const filtered = applyFilters(rawCandidates, profile)
 
-  // Step 4: Phoenix-equivalent Ranking Engine
+  // Step 4: 6-Signal Ranking Engine
   const ranked = await rankCandidates(filtered, profile)
 
   // Step 5: Select Top-K
   const topK = ranked.slice(0, limit)
 
-  // Step 6: Side Effects — persist to cache (async, don't block response)
+  // Step 6: Persist to caches (async, non-blocking)
+  const pipelineMs = Date.now() - startTime
   recCache.set(userId, topK)
-  persistToDb(userId, topK).catch(() => {})  // Fire and forget
+  persistToDb(userId, topK).catch(() => {})
 
-  const computedAt = new Date().toISOString()
-
-  console.log(`[CineMatch] Pipeline completed in ${Date.now() - startTime}ms | ` +
-    `${rawCandidates.length} candidates → ${filtered.length} filtered → ${topK.length} ranked`)
+  console.log(
+    `[CineMatch] Pipeline: ${pipelineMs}ms | ` +
+    `${rawCandidates.length} raw → ${filtered.length} filtered → ${topK.length} ranked`
+  )
 
   return {
     userId,
     items: topK,
-    sections: buildSections(topK, profile),
-    computedAt,
+    sections: buildSectionsV2(topK, profile),
+    computedAt: new Date().toISOString(),
     isPersonalized: !profile.isNewUser,
+    pipelineMs,
   }
 }
 
-// ── Guest Recommendations (Cold-Start / No Auth) ──────────────
-// Equivalent to X's "For You" for logged-out users — globally trending + popular
+// ── Guest Recommendations (Cold-Start / No Auth) ──────────
+// Globally trending + popular blend for unauthenticated users.
+// Cached globally for 30 minutes (same content for everyone).
 export async function getGuestRecommendations(): Promise<RecommendationResult> {
   const GUEST_CACHE_KEY = '__guest__'
   const cached = recCache.get<ScoredCandidate[]>(GUEST_CACHE_KEY)
 
   if (cached) {
-    const emptyProfile = {
-      userId: 'guest',
-      genreVector: {},
-      watchedIds: new Set<number>(),
-      favoritedIds: new Set<number>(),
-      recentlyWatched: [],
-      isNewUser: true,
-    }
     return {
       userId: null,
       items: cached,
       sections: [
-        { title: 'Trending This Week', items: cached.slice(0, SECTION_SIZE), source: 'trending' },
-        { title: 'Popular Right Now', items: cached.slice(SECTION_SIZE, SECTION_SIZE * 2), source: 'popular_fallback' },
+        { title: 'Trending This Week', items: cached.filter(c => c.source === 'trending').slice(0, SECTION_SIZE), source: 'trending' },
+        { title: 'Popular Right Now', items: cached.filter(c => c.source === 'popular_fallback').slice(0, SECTION_SIZE), source: 'popular_fallback' },
+        { title: 'Top Rated', items: [...cached].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, SECTION_SIZE), source: 'tmdb_recommendations' },
       ],
       computedAt: new Date().toISOString(),
       isPersonalized: false,
     }
   }
 
-  const emptyProfile = {
+  const guestProfile = {
     userId: 'guest',
-    genreVector: {},
+    genreVector: {} as Record<number, number>,
+    keywordVector: {} as Record<number, number>,
+    castVector: {} as Record<number, number>,
     watchedIds: new Set<number>(),
     favoritedIds: new Set<number>(),
+    dislikedIds: new Set<number>(),
     recentlyWatched: [],
     isNewUser: true,
   }
 
-  const rawCandidates = await fetchAllSources(emptyProfile)
-  const filtered = applyFilters(rawCandidates, emptyProfile)
-  const ranked = await rankCandidates(filtered, emptyProfile)
+  const rawCandidates = await fetchAllSources(guestProfile)
+  const filtered = applyFilters(rawCandidates, guestProfile)
+  const ranked = await rankCandidates(filtered, guestProfile)
   const topK = ranked.slice(0, TOP_K)
 
-  // Cache globally for 30 minutes (same as TMDB cache)
-  recCache.set(GUEST_CACHE_KEY, topK, 1800)
+  recCache.set(GUEST_CACHE_KEY, topK, 1800)  // 30 min global cache
 
   return {
     userId: null,
     items: topK,
     sections: [
-      { title: 'Trending This Week', items: topK.slice(0, SECTION_SIZE), source: 'trending' },
-      { title: 'Popular Right Now', items: topK.slice(SECTION_SIZE, SECTION_SIZE * 2), source: 'popular_fallback' },
+      { title: 'Trending This Week', items: topK.filter(c => c.source === 'trending').slice(0, SECTION_SIZE), source: 'trending' },
+      { title: 'Popular Right Now', items: topK.filter(c => c.source === 'popular_fallback').slice(0, SECTION_SIZE), source: 'popular_fallback' },
+      { title: 'Top Rated', items: [...topK].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, SECTION_SIZE), source: 'tmdb_recommendations' },
     ],
     computedAt: new Date().toISOString(),
     isPersonalized: false,
   }
 }
 
-// ── Cache Invalidation ────────────────────────────────────────
-// Called when user posts a new interaction
+// ── Cache Invalidation ────────────────────────────────────
 export function invalidateRecommendationCache(userId: string): void {
   recCache.del(userId)
   invalidateUserProfile(userId)
-  // Also invalidate in Supabase (fire-and-forget)
-  void supabase
-    .from('RecommendationCache')
-    .delete()
-    .eq('userId', userId)
+  // Also delete stale Supabase cache (async, non-blocking)
+  void (async () => {
+    try {
+      await supabaseAdmin
+        .from('RecommendationCache')
+        .delete()
+        .eq('userId', userId)
+    } catch {
+      // Non-critical side-effect
+    }
+  })()
 }
