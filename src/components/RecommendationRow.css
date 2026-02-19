@@ -1,0 +1,208 @@
+/* ============================================================
+   CineMatch AI — RecommendationRow Styles
+   Cinematic Obsidian design system (true black, red accents)
+   ============================================================ */
+
+/* ── Section container ────────────────────────────────────── */
+.reco-row {
+  padding: 0 clamp(1rem, 4vw, 3rem);
+  margin-bottom: 2.5rem;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.reco-row__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.reco-row__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reco-row__icon {
+  color: #e50914;
+  flex-shrink: 0;
+}
+
+.reco-row__title {
+  font-size: clamp(1rem, 1.6vw, 1.35rem);
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60vw;
+}
+
+/* ── Scroll controls ──────────────────────────────────────── */
+.reco-row__controls {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.reco-row__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.reco-row__btn:hover {
+  background: rgba(229, 9, 20, 0.18);
+  border-color: rgba(229, 9, 20, 0.5);
+  color: #fff;
+}
+
+/* ── Horizontal scroll track ──────────────────────────────── */
+.reco-row__track {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.5rem;
+}
+
+.reco-row__track::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Individual card ──────────────────────────────────────── */
+.reco-card {
+  flex: 0 0 auto;
+  width: clamp(110px, 13vw, 180px);
+  scroll-snap-align: start;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+  transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.reco-card:hover {
+  transform: translateY(-4px) scale(1.03);
+  z-index: 2;
+}
+
+.reco-card:focus-visible {
+  outline: 2px solid #e50914;
+  outline-offset: 2px;
+}
+
+/* Poster wrapper */
+.reco-card__poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.reco-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: opacity 0.35s;
+}
+
+.reco-card__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1c1c1c 0%, #2a2a2a 100%);
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+/* Hover overlay */
+.reco-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.75) 0%,
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 0.25s;
+  display: flex;
+  align-items: flex-end;
+  padding: 0.5rem;
+}
+
+.reco-card:hover .reco-card__overlay {
+  opacity: 1;
+}
+
+.reco-card__score {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.reco-card__score-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e50914;
+  flex-shrink: 0;
+}
+
+/* Info below poster */
+.reco-card__info {
+  padding: 0.45rem 0.1rem 0;
+}
+
+.reco-card__name {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 0.15rem;
+}
+
+.reco-card__reason {
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+/* ── Mobile responsive tweaks ─────────────────────────────── */
+@media (max-width: 640px) {
+  .reco-row {
+    padding: 0 1rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .reco-card {
+    width: clamp(90px, 28vw, 130px);
+  }
+}
