@@ -1,6 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { logRecommendationInteraction } from '@/lib/api'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -160,6 +161,18 @@ export function useFavoritesInternal() {
         setFavorites((prev) =>
           prev.map((f) => (f.id === tempId ? newFav : f))
         )
+
+        // ── CineMatch: log favorite signal (fire-and-forget) ──
+        void (async () => {
+          try {
+            const token = await getAccessTokenSilently()
+            await logRecommendationInteraction(token, {
+              tmdbId,
+              mediaType,
+              eventType: 'favorite',
+            })
+          } catch { /* non-critical */ }
+        })()
 
         toast.success('Added to favorites')
       }

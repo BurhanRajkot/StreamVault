@@ -22,6 +22,7 @@ import downloadsRouter from './routes/downloads'
 import subscriptionsRouter from './routes/subscriptions'
 import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
+import recommendationsRouter from './routes/recommendations'
 
 const app = express()
 
@@ -91,6 +92,7 @@ app.use('/continue-watching', continueWatchingRouter)
 app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin routes first
 app.use('/subscriptions', subscriptionsRouter)
 app.use('/admin', adminRouter)
+app.use('/recommendations', recommendationsRouter)
 
 // START SERVER
 const HOST = '0.0.0.0'
