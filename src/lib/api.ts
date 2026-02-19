@@ -608,3 +608,89 @@ export function getGuestItemProgress(
   const items = getGuestProgress()
   return items.find((i) => i.tmdbId === tmdbId && i.mediaType === mediaType) || null
 }
+
+/* ======================================================
+   CINEMATCH AI — Recommendation API Client
+====================================================== */
+
+export type RecoMediaType = 'movie' | 'tv'
+
+export interface RecoItem {
+  tmdbId: number
+  mediaType: RecoMediaType
+  title: string
+  posterPath: string | null
+  backdropPath: string | null
+  overview: string
+  releaseDate: string
+  voteAverage: number
+  voteCount: number
+  popularity: number
+  genreIds: number[]
+  source: string
+  score: number
+  sourceReason: string
+}
+
+export interface RecoSection {
+  title: string
+  items: RecoItem[]
+  source: string
+}
+
+export interface RecommendationResult {
+  userId: string | null
+  items: RecoItem[]
+  sections: RecoSection[]
+  computedAt: string
+  isPersonalized: boolean
+}
+
+/** Fetch personalized recommendations for an authenticated user */
+export async function fetchRecommendations(
+  accessToken: string,
+  options: { limit?: number; forceRefresh?: boolean } = {}
+): Promise<RecommendationResult> {
+  const params = new URLSearchParams()
+  if (options.limit) params.set('limit', String(options.limit))
+  if (options.forceRefresh) params.set('refresh', 'true')
+
+  const res = await fetch(`${API_BASE}/recommendations?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Recommendation fetch failed: ${res.status}`)
+  return res.json()
+}
+
+/** Fetch cold-start recommendations for unauthenticated/guest users */
+export async function fetchGuestRecommendations(): Promise<RecommendationResult> {
+  const res = await fetch(`${API_BASE}/recommendations/guest`)
+  if (!res.ok) throw new Error(`Guest recommendation fetch failed: ${res.status}`)
+  return res.json()
+}
+
+/** Log a user interaction event for real-time recommendation updates */
+export async function logRecommendationInteraction(
+  accessToken: string,
+  event: {
+    tmdbId: number
+    mediaType: RecoMediaType
+    eventType: 'watch' | 'favorite' | 'click' | 'search' | 'rate'
+    progress?: number
+    rating?: number
+  }
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/recommendations/interaction`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(event),
+    })
+  } catch {
+    // Non-critical — fire and forget
+  }
+}
+
