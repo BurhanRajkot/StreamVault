@@ -18,6 +18,7 @@ import {
   saveGuestProgress,
   getGuestItemProgress,
   removeGuestProgress,
+  logRecommendationInteraction,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -209,6 +210,31 @@ export function PlayerModal({
       setCurrentSeasonEpisodes(currentSeason.episode_count)
     }
   }, [season, seasons])
+
+  /* ================= CINEMATCH: LOG WATCH EVENT ================= */
+
+  useEffect(() => {
+    // Only fire when playback genuinely starts
+    if (!isPlaying || !media || !isAuthenticated) return
+
+    // Fire-and-forget: non-critical, doesn't block UI
+    void (async () => {
+      try {
+        const token = await getAccessTokenSilently()
+        const mediaType = (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie'
+        await logRecommendationInteraction(token, {
+          tmdbId: media.id,
+          mediaType,
+          eventType: 'watch',
+          progress: 0,  // Will be updated by the heartbeat
+        })
+      } catch {
+        // Non-critical — never block playback
+      }
+    })()
+  // Only re-run when the playing state flips to true — NOT on every heartbeat tick
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying])
 
   /* ================= CONTINUE WATCHING HEARTBEAT ================= */
 
