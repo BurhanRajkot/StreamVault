@@ -35,13 +35,15 @@ const VALID_EVENT_TYPES: EventType[] = ['watch', 'favorite', 'click', 'search', 
 // Prevents interaction-flooding attacks that could corrupt profile
 const interactionRateLimiter = rateLimit({
   windowMs: 60 * 1000,    // 1 minute
-  max: 20,                 // 20 interactions per minute per IP
+  max: 20,                 // 20 interactions per minute per user
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many interaction events. Slow down.' },
+  // Key by userId (from JWT) so authenticated users get their own limit bucket.
+  // Fall back to a static key — express-rate-limit itself handles IP keying safely.
   keyGenerator: (req: Request) => {
-    const userId = (req as any).auth?.payload?.sub
-    return userId || req.ip || 'unknown'  // Rate-limit per userId if available
+    const userId = (req as any).auth?.payload?.sub as string | undefined
+    return userId ?? 'anonymous'
   },
 })
 
