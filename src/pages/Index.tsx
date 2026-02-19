@@ -90,6 +90,19 @@ const Index = () => {
     }
   }, [isAuthenticated, getAccessTokenSilently])
 
+  // Handle dislike on a recommendation card
+  const handleRecoDislike = useCallback(async (item: RecoItem) => {
+    if (!isAuthenticated) return
+    try {
+      const token = await getAccessTokenSilently()
+      logRecommendationInteraction(token, {
+        tmdbId: item.tmdbId,
+        mediaType: item.mediaType,
+        eventType: 'dislike',
+      })
+    } catch { /* non-critical */ }
+  }, [isAuthenticated, getAccessTokenSilently])
+
   const handleClosePlayer = () => {
     setSelectedMedia(null)
     setInitialSeason(undefined)
@@ -159,11 +172,16 @@ const Index = () => {
               )}
 
               {/* CineMatch AI — Recommendation Sections */}
-              {!searchQuery && !recoLoading && recoSections.map((section) => (
+              {!searchQuery && (recoLoading ? [
+                { title: 'Recommended For You', items: [], source: 'personal' },
+                { title: 'Because You Watched...', items: [], source: 'because_you_watched' },
+              ] : recoSections).map((section) => (
                 <RecommendationRow
                   key={section.title}
                   section={section}
                   onCardClick={handleRecoCardClick}
+                  onDislike={isAuthenticated ? handleRecoDislike : undefined}
+                  isLoading={recoLoading}
                 />
               ))}
 
