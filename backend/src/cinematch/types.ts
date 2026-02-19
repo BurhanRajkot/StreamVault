@@ -4,7 +4,7 @@
 // ============================================================
 
 export type MediaType = 'movie' | 'tv'
-export type EventType = 'watch' | 'favorite' | 'click' | 'search' | 'rate'
+export type EventType = 'watch' | 'favorite' | 'click' | 'search' | 'rate' | 'dislike'
 
 // A raw candidate retrieved from any source (pre-ranking)
 export interface Candidate {
@@ -19,6 +19,8 @@ export interface Candidate {
   voteCount: number
   popularity: number
   genreIds: number[]
+  keywords?: number[]   // TMDB keyword ids (optional — populated by featureStore)
+  castIds?: number[]    // Top-5 cast ids (optional — populated by featureStore)
   source: CandidateSource  // which pipeline stage produced this
 }
 
@@ -26,6 +28,8 @@ export interface Candidate {
 export interface ScoredCandidate extends Candidate {
   score: number
   genreAffinityScore: number
+  keywordAffinityScore: number
+  castAffinityScore: number
   popularityScore: number
   freshnessScore: number
   qualityScore: number
@@ -55,8 +59,11 @@ export interface InteractionEvent {
 export interface UserProfile {
   userId: string
   genreVector: Record<number, number>     // genreId → affinity weight [0..1]
+  keywordVector: Record<number, number>   // keywordId → affinity weight [0..1] (new)
+  castVector: Record<number, number>      // personId → affinity weight [0..1] (new)
   watchedIds: Set<number>                 // tmdbIds already seen
   favoritedIds: Set<number>              // tmdbIds in Favorites
+  dislikedIds: Set<number>               // tmdbIds explicitly disliked (new)
   recentlyWatched: RecentItem[]          // last N items for seeding similarity sources
   isNewUser: boolean                     // cold-start flag
 }
@@ -75,6 +82,7 @@ export interface RecommendationResult {
   sections: RecommendationSection[]  // For "Because you watched X" grouping
   computedAt: string
   isPersonalized: boolean
+  pipelineMs?: number  // Pipeline execution time in ms (for debug)
 }
 
 // UI section like "Because you watched Game of Thrones"
@@ -82,6 +90,17 @@ export interface RecommendationSection {
   title: string
   items: ScoredCandidate[]
   source: CandidateSource
+}
+
+// User taste profile exposed via GET /recommendations/profile
+export interface UserTasteProfile {
+  userId: string
+  interactionCount: number
+  topGenres: Array<{ genreId: number; name: string; weight: number }>
+  topKeywords: Array<{ keywordId: number; weight: number }>
+  topCastIds: Array<{ personId: number; weight: number }>
+  isNewUser: boolean
+  lastUpdated: string | null
 }
 
 // TMDB Genre definitions (subset of common genres)

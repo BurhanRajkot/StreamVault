@@ -2,15 +2,15 @@
 // CineMatch AI — Pre-Ranking Filters
 // X Algorithm equivalent: Pre-Scoring Filters stage in Home Mixer
 //
-// Filters run sequentially in a pipeline. Each filter is a pure
+// Filters run sequentially as a pipeline. Each filter is a pure
 // function: (candidates[], profile) → candidates[]
 // ============================================================
 
 import { Candidate, UserProfile } from './types'
 
-// ── FILTER 1: Deduplication ───────────────────────────────────
-// Same as X's DropDuplicatesFilter — remove duplicate tmdbIds
-// Keeps the first occurrence (highest-priority source wins)
+// ── FILTER 1: Deduplication ───────────────────────────────
+// Same as X's DropDuplicatesFilter — remove duplicate tmdbIds.
+// Keeps the first occurrence (highest-priority source wins).
 export function deduplicateFilter(candidates: Candidate[]): Candidate[] {
   const seen = new Set<string>()
   return candidates.filter(c => {
@@ -21,9 +21,9 @@ export function deduplicateFilter(candidates: Candidate[]): Candidate[] {
   })
 }
 
-// ── FILTER 2: Already Watched ─────────────────────────────────
+// ── FILTER 2: Already Watched ─────────────────────────────
 // X analog: PreviouslySeenPostsFilter
-// Remove content the user has significantly watched (>50% progress)
+// Remove content the user has significantly watched.
 export function alreadyWatchedFilter(
   candidates: Candidate[],
   profile: UserProfile,
@@ -31,8 +31,8 @@ export function alreadyWatchedFilter(
   return candidates.filter(c => !profile.watchedIds.has(c.tmdbId))
 }
 
-// ── FILTER 3: Already Favorited ───────────────────────────────
-// Don't recommend what's already in the user's favorites
+// ── FILTER 3: Already Favorited ───────────────────────────
+// Don't recommend what's already in the user's favorites.
 export function alreadyFavoritedFilter(
   candidates: Candidate[],
   profile: UserProfile,
@@ -40,9 +40,19 @@ export function alreadyFavoritedFilter(
   return candidates.filter(c => !profile.favoritedIds.has(c.tmdbId))
 }
 
-// ── FILTER 4: Quality Gate ────────────────────────────────────
-// X analog: CoreDataHydrationFilter — remove broken/incomplete candidates
-// Drop items with insufficient vote data or very low ratings
+// ── FILTER 4: Disliked Content ────────────────────────────
+// Hard-remove anything the user has explicitly disliked or rated 1-2 stars.
+// These are strong negative signals — never re-surface them.
+export function dislikedFilter(
+  candidates: Candidate[],
+  profile: UserProfile,
+): Candidate[] {
+  return candidates.filter(c => !profile.dislikedIds.has(c.tmdbId))
+}
+
+// ── FILTER 5: Quality Gate ────────────────────────────────
+// X analog: CoreDataHydrationFilter — drop broken/incomplete candidates.
+// Minimum thresholds: 20 votes, 3.5 avg rating, non-empty title.
 export function lowQualityFilter(candidates: Candidate[]): Candidate[] {
   return candidates.filter(c =>
     c.voteCount >= 20 &&
@@ -51,8 +61,8 @@ export function lowQualityFilter(candidates: Candidate[]): Candidate[] {
   )
 }
 
-// ── FILTER 5: Coming Soon / No Release Date ───────────────────
-// Drop items with no release date (unreleased / in production)
+// ── FILTER 6: Coming Soon / Unreleased ───────────────────
+// Drop items with no release date or future release dates.
 export function releasedFilter(candidates: Candidate[]): Candidate[] {
   const now = new Date()
   return candidates.filter(c => {
@@ -61,8 +71,9 @@ export function releasedFilter(candidates: Candidate[]): Candidate[] {
   })
 }
 
-// ── Master Filter Pipeline ────────────────────────────────────
-// Runs all filters in sequence — same as X's chained filter stages
+// ── Master Filter Pipeline ────────────────────────────────
+// Runs all filters in sequence — same as X's chained filter stages.
+// Order matters: dedup first (fastest), quality last (most expensive check).
 export function applyFilters(
   candidates: Candidate[],
   profile: UserProfile,
@@ -70,6 +81,7 @@ export function applyFilters(
   let filtered = deduplicateFilter(candidates)
   filtered = alreadyWatchedFilter(filtered, profile)
   filtered = alreadyFavoritedFilter(filtered, profile)
+  filtered = dislikedFilter(filtered, profile)     // NEW — hard block disliked content
   filtered = lowQualityFilter(filtered)
   filtered = releasedFilter(filtered)
   return filtered

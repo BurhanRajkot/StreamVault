@@ -675,7 +675,7 @@ export async function logRecommendationInteraction(
   event: {
     tmdbId: number
     mediaType: RecoMediaType
-    eventType: 'watch' | 'favorite' | 'click' | 'search' | 'rate'
+    eventType: 'watch' | 'favorite' | 'click' | 'search' | 'rate' | 'dislike'
     progress?: number
     rating?: number
   }
