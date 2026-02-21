@@ -20,7 +20,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import Downloads from './Downloads'
 
 const Index = () => {
-  const [mode, setMode] = useState<MediaMode>('movie')
+  const [mode, setMode] = useState<MediaMode>('home')
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
   const [playMode, setPlayMode] = useState<MediaMode>('movie')
   const [showDisclaimer, setShowDisclaimer] = useState(false)
@@ -128,7 +128,7 @@ const Index = () => {
         <MobileNav mode={mode} onModeChange={setMode} />
 
         {/* WIDER CONTAINER FOR LARGE MONITORS */}
-        <main className="w-full px-4 sm:px-6 flex-1 py-4">
+        <main className="w-full px-2 sm:px-4 flex-1 py-2">
           {mode === 'downloads' ? (
             <Downloads />
           ) : (

@@ -115,8 +115,8 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   // if (!isAuthenticated) return null // REMOVED THIS LINE
 
   return (
-    <section className="mb-8 sm:mb-10">
-      <div className="mb-3 flex flex-col gap-1 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="mb-5 sm:mb-6">
+      <div className="mb-2 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-bold sm:text-xl">▶ Continue Watching</h2>
         <span className="text-xs text-muted-foreground sm:text-sm">
           Pick up where you left off

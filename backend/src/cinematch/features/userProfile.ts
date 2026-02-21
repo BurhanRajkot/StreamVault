@@ -1,26 +1,12 @@
-// ============================================================
-// CineMatch AI — Feature Store
-// X Algorithm equivalent: User Feature Hydration + Movie Feature Store
-//
-// Reads user interaction history from Supabase to build:
-//   - genre affinity vector   (with exponential time-decay)
-//   - keyword affinity vector (with exponential time-decay)
-//   - cast/director affinity vector (with exponential time-decay)
-// ============================================================
-
-import { supabaseAdmin } from '../lib/supabase'
+import { supabaseAdmin } from '../../lib/supabase'
 import NodeCache from 'node-cache'
-import { UserProfile, RecentItem, MediaType } from './types'
+import { UserProfile, RecentItem, MediaType } from '../types'
+import { getMovieFeatures } from './movieFeatures'
 
-const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || ''
-const TMDB_BASE = 'https://api.themoviedb.org/3'
-
-// L1 in-memory cache for movie features (2hr TTL)
-const movieFeatureCache = new NodeCache({ stdTTL: 7200, checkperiod: 300 })
 // L1 for user profiles (5min TTL)
 const userProfileCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const MAX_RECENT_ITEMS = 5  // Seed candidate sources from last N watched
+const MAX_RECENT_ITEMS = 8  // Seed candidate sources from last N watched (up from 5)
 const DECAY_HALF_LIFE_DAYS = 30  // All vectors halve every 30 days
 
 // ── Time-decay factor ──────────────────────────────────────
@@ -39,63 +25,43 @@ function normalizeVector(vec: Record<number, number>): Record<number, number> {
   return normalized
 }
 
-// ── Movie Features (TMDB) ──────────────────────────────────
-export interface MovieFeatures {
-  tmdbId: number
-  mediaType: MediaType
-  genreIds: number[]
-  keywords: number[]         // TMDB keyword ids
-  castIds: number[]          // Top-5 cast member ids
-  directorId: number | null
-  popularity: number
-  voteAverage: number
-  voteCount: number
-  releaseDate: string
-  title: string
-  posterPath: string | null
-  backdropPath: string | null
-  overview: string
+// ── Seed genre vector from persisted DB profile (cold-start) ──
+// Prevents a totally empty vector on first request after login
+async function seedFromPersistedProfile(
+  userId: string,
+  genreVector: Record<number, number>
+): Promise<boolean> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('UserGenreProfile')
+      .select('genreMap')
+      .eq('userId', userId)
+      .single()
+
+    if (!data?.genreMap || typeof data.genreMap !== 'object') return false
+
+    // Seed with 50% weight (will be overridden as interactions accumulate)
+    for (const [genreId, weight] of Object.entries(data.genreMap as Record<string, number>)) {
+      genreVector[Number(genreId)] = (genreVector[Number(genreId)] || 0) + weight * 0.5
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
-export async function getMovieFeatures(
-  tmdbId: number,
-  mediaType: MediaType
-): Promise<MovieFeatures | null> {
-  const cacheKey = `${mediaType}:${tmdbId}`
-  const cached = movieFeatureCache.get<MovieFeatures>(cacheKey)
-  if (cached) return cached
-
-  try {
-    const url = `${TMDB_BASE}/${mediaType}/${tmdbId}?append_to_response=keywords,credits&api_key=${TMDB_API_KEY}`
-    const res = await fetch(url)
-    if (!res.ok) return null
-    const data = await res.json()
-
-    const genreIds: number[] = (data.genres || []).map((g: any) => g.id)
-    const rawKw = data.keywords?.keywords || data.keywords?.results || []
-    const keywords: number[] = rawKw.slice(0, 20).map((k: any) => k.id)
-    const cast = (data.credits?.cast || []).slice(0, 5)
-    const castIds: number[] = cast.map((c: any) => c.id)
-    const crew = data.credits?.crew || []
-    const director = crew.find((c: any) => c.job === 'Director' || c.job === 'Series Director')
-    const directorId: number | null = director?.id ?? null
-
-    const features: MovieFeatures = {
-      tmdbId, mediaType, genreIds, keywords, castIds, directorId,
-      popularity: data.popularity || 0,
-      voteAverage: data.vote_average || 0,
-      voteCount: data.vote_count || 0,
-      releaseDate: data.release_date || data.first_air_date || '',
-      title: data.title || data.name || '',
-      posterPath: data.poster_path || null,
-      backdropPath: data.backdrop_path || null,
-      overview: data.overview || '',
-    }
-
-    movieFeatureCache.set(cacheKey, features)
-    return features
-  } catch {
-    return null
+// ── Empty profile (guest / new user) ──────────────────────
+function emptyProfile(userId: string): UserProfile {
+  return {
+    userId,
+    genreVector: {},
+    keywordVector: {},
+    castVector: {},
+    watchedIds: new Set(),
+    favoritedIds: new Set(),
+    dislikedIds: new Set(),
+    recentlyWatched: [],
+    isNewUser: true,
   }
 }
 
@@ -106,13 +72,13 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   const cached = userProfileCache.get<UserProfile>(userId)
   if (cached) return cached
 
-  // Fetch all interaction events (last 200)
+  // Fetch all interaction events (last 500 for richer vectors)
   const { data: interactions, error } = await supabaseAdmin
     .from('UserInteractions')
     .select('tmdbId, mediaType, eventType, weight, createdAt, progress')
     .eq('userId', userId)
     .order('createdAt', { ascending: false })
-    .limit(200)
+    .limit(500)
 
   if (error || !interactions || interactions.length === 0) {
     return emptyProfile(userId)
@@ -217,47 +183,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   return profile
 }
 
-// ── Seed genre vector from persisted DB profile (cold-start) ──
-// Prevents a totally empty vector on first request after login
-async function seedFromPersistedProfile(
-  userId: string,
-  genreVector: Record<number, number>
-): Promise<boolean> {
-  try {
-    const { data } = await supabaseAdmin
-      .from('UserGenreProfile')
-      .select('genreMap')
-      .eq('userId', userId)
-      .single()
-
-    if (!data?.genreMap || typeof data.genreMap !== 'object') return false
-
-    // Seed with 50% weight (will be overridden as interactions accumulate)
-    for (const [genreId, weight] of Object.entries(data.genreMap as Record<string, number>)) {
-      genreVector[Number(genreId)] = (genreVector[Number(genreId)] || 0) + weight * 0.5
-    }
-    return true
-  } catch {
-    return false
-  }
-}
-
 // ── Invalidate user profile cache ──────────────────────────
 export function invalidateUserProfile(userId: string): void {
   userProfileCache.del(userId)
-}
-
-// ── Empty profile (guest / new user) ──────────────────────
-function emptyProfile(userId: string): UserProfile {
-  return {
-    userId,
-    genreVector: {},
-    keywordVector: {},
-    castVector: {},
-    watchedIds: new Set(),
-    favoritedIds: new Set(),
-    dislikedIds: new Set(),
-    recentlyWatched: [],
-    isNewUser: true,
-  }
 }

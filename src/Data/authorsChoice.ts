@@ -116,7 +116,6 @@ export const AUTHORS_CHOICE_DOCUMENTARIES: AuthorsChoiceItem[] = [
   { tmdbId: 79146, mediaType: 'tv', note: 'Food and culture.' }, // Chef's Table
   { tmdbId: 30975, mediaType: 'movie', note: 'Modern slavery.' }, // 13th
   { tmdbId: 76336, mediaType: 'tv', note: 'Nature at night.' }, // Night on Earth
-  { tmdbId: 91404, mediaType: 'movie', note: 'Fungi world.' }, // Fantastic Fungi
   { tmdbId: 86450, mediaType: 'movie', note: 'Social dilemma.' }, // The Social Dilemma
   { tmdbId: 31056, mediaType: 'movie', note: 'Food industry exposed.' }, // Food, Inc.
   { tmdbId: 15152, mediaType: 'movie', note: 'Dolphin cove secrets.' }, // The Cove
@@ -125,13 +124,10 @@ export const AUTHORS_CHOICE_DOCUMENTARIES: AuthorsChoiceItem[] = [
   { tmdbId: 325378, mediaType: 'movie', note: 'Mountain climbing thriller.' }, // Meru
   { tmdbId: 581859, mediaType: 'movie', note: 'Impossible climb.' }, // Free Solo
   { tmdbId: 201088, mediaType: 'movie', note: 'Vietnam war reality.' }, // The Act of Killing
-  { tmdbId: 192040, mediaType: 'movie', note: 'Performance of life.' }, // Jiro Dreams of Sushi
-  { tmdbId: 1214732, mediaType: 'tv', note: 'Life on our planet.' }, // Life on Our Planet
   { tmdbId: 219754, mediaType: 'tv', note: 'Prehistoric life.' }, // Prehistoric Planet
   { tmdbId: 800, mediaType: 'movie', note: 'Apollo 13 history.' }, // Apollo 11 (actually using 555604 but id 800 is a movie, let's use correct ID for Apollo 11 doc: 555604)
   { tmdbId: 555604, mediaType: 'movie', note: 'Moon landing restored.' }, // Apollo 11
   { tmdbId: 26162, mediaType: 'movie', note: 'Finance collapse.' }, // Inside Job
-  { tmdbId: 16949, mediaType: 'movie', note: 'Tightrope walk.' }, // Man on Wire
 ]
 
 // Default export can be a mix or just movies for backward compatibility

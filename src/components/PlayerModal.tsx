@@ -256,6 +256,14 @@ export function PlayerModal({
         try {
           const token = await getAccessTokenSilently()
           await updateContinueWatching(token, progressData)
+
+          // Also log to the recommendation engine to build the user's genre/keyword profile
+          await logRecommendationInteraction(token, {
+            tmdbId: media.id,
+            mediaType: progressData.mediaType,
+            eventType: 'watch',
+            progress: progressData.progress,
+          })
         } catch (err) {
           console.error('Failed to update continue watching:', err)
         }
@@ -323,6 +331,14 @@ export function PlayerModal({
         if (isAuthenticated) {
            const token = await getAccessTokenSilently()
            await updateContinueWatching(token, data)
+
+           // Log final progress to recommendation engine
+           await logRecommendationInteraction(token, {
+             tmdbId: media.id,
+             mediaType: data.mediaType,
+             eventType: 'watch',
+             progress: data.progress,
+           })
 
            if (nextProgress >= 0.95) {
              await removeContinueWatching(token, media.id, mediaType)
