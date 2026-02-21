@@ -175,6 +175,7 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
     watchedIds: new Set<number>(),
     favoritedIds: new Set<number>(),
     dislikedIds: new Set<number>(),
+    categoryDislikeCounts: {} as Record<string, number>,
     recentlyWatched: [],
     isNewUser: true,
   }
