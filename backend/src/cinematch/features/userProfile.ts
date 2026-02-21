@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../../lib/supabase'
 import NodeCache from 'node-cache'
 import { UserProfile, RecentItem, MediaType } from '../types'
 import { getMovieFeatures } from './movieFeatures'
+import { getCategoriesForGenres } from '../categories'
 
 // L1 for user profiles (5min TTL)
 const userProfileCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
@@ -24,6 +25,19 @@ function normalizeVector(vec: Record<number, number>): Record<number, number> {
   }
   return normalized
 }
+
+// ── Normalize genre vector preserving sign ─────────────────
+// Dislikes produce negative weights — dividing by absMax keeps
+// values in [-1, 1] so the ranker can penalize disliked genres.
+function normalizeGenreVector(vec: Record<number, number>): Record<number, number> {
+  const absMax = Math.max(...Object.values(vec).map(Math.abs), 1)
+  const normalized: Record<number, number> = {}
+  for (const [k, v] of Object.entries(vec)) {
+    normalized[Number(k)] = v / absMax
+  }
+  return normalized
+}
+
 
 // ── Seed genre vector from persisted DB profile (cold-start) ──
 // Prevents a totally empty vector on first request after login
@@ -60,6 +74,7 @@ function emptyProfile(userId: string): UserProfile {
     watchedIds: new Set(),
     favoritedIds: new Set(),
     dislikedIds: new Set(),
+    categoryDislikeCounts: {},
     recentlyWatched: [],
     isNewUser: true,
   }
@@ -90,6 +105,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   const watchedIds = new Set<number>()
   const favoritedIds = new Set<number>()
   const dislikedIds = new Set<number>()
+  const categoryDislikeCounts: Record<string, number> = {}
   const recentWatchMap = new Map<number, RecentItem>()
 
   // For cold-start: seed from persisted genre profile first
@@ -111,68 +127,89 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     const interaction = interactions[idx]
     const decay = timeDecay(interaction.createdAt)
 
-    // Skip disliked items from positive-signal accumulation
-    if (interaction.eventType === 'dislike') {
+    const isDislike = interaction.eventType === 'dislike'
+
+    if (isDislike) {
+      // Always record the disliked item so it's filtered out entirely
       dislikedIds.add(interaction.tmdbId)
-      continue
+    } else if (interaction.eventType === 'watch') {
+      watchedIds.add(interaction.tmdbId)
+    } else if (interaction.eventType === 'favorite') {
+      favoritedIds.add(interaction.tmdbId)
     }
 
-    const adjustedWeight = interaction.weight * decay
-
-    if (interaction.eventType === 'watch') watchedIds.add(interaction.tmdbId)
-    if (interaction.eventType === 'favorite') favoritedIds.add(interaction.tmdbId)
+    // Dislikes get a 1.5× negative penalty so a few dislikes of the same genre
+    // are enough to measurably shift the affinity vectors.
+    const adjustedWeight = isDislike
+      ? -0.6 * decay * 1.5
+      : interaction.weight * decay
 
     // Accumulate genre + keyword + cast vectors for top-30 interactions
+    // (includes dislikes so their genres get subtracted)
     if (idx < 30) {
       const result = featureBatch[idx]
       if (result.status === 'fulfilled' && result.value) {
         const features = result.value
 
-        // Genre vector
+        // Track per-category dislike count for category-level suppression
+        if (isDislike) {
+          const cats = getCategoriesForGenres(features.genreIds)
+          for (const cat of cats) {
+            categoryDislikeCounts[cat] = (categoryDislikeCounts[cat] || 0) + 1
+          }
+        }
+
+        // Genre vector — positive for liked/watched, negative for disliked
         for (const genreId of features.genreIds) {
           genreVector[genreId] = (genreVector[genreId] || 0) + adjustedWeight
         }
 
-        // Keyword affinity vector (top keywords from watched movies)
-        if (interaction.eventType === 'watch' || interaction.eventType === 'favorite') {
-          for (const kwId of features.keywords) {
-            keywordVector[kwId] = (keywordVector[kwId] || 0) + adjustedWeight
+        // Keyword and cast affinity only for positive signals
+        if (!isDislike) {
+          // Keyword affinity vector (top keywords from watched movies)
+          if (interaction.eventType === 'watch' || interaction.eventType === 'favorite') {
+            for (const kwId of features.keywords) {
+              keywordVector[kwId] = (keywordVector[kwId] || 0) + adjustedWeight
+            }
           }
-        }
 
-        // Cast affinity vector
-        if (interaction.eventType === 'watch' || interaction.eventType === 'favorite') {
-          for (const castId of features.castIds) {
-            castVector[castId] = (castVector[castId] || 0) + adjustedWeight
+          // Cast affinity vector
+          if (interaction.eventType === 'watch' || interaction.eventType === 'favorite') {
+            for (const castId of features.castIds) {
+              castVector[castId] = (castVector[castId] || 0) + adjustedWeight
+            }
+            // Director gets double weight (strong creative signal)
+            if (features.directorId) {
+              castVector[features.directorId] = (castVector[features.directorId] || 0) + adjustedWeight * 2
+            }
           }
-          // Director gets double weight (strong creative signal)
-          if (features.directorId) {
-            castVector[features.directorId] = (castVector[features.directorId] || 0) + adjustedWeight * 2
-          }
-        }
 
-        // Track recently watched for candidate seeding
-        if (interaction.eventType === 'watch' && !recentWatchMap.has(interaction.tmdbId)) {
-          recentWatchMap.set(interaction.tmdbId, {
-            tmdbId: interaction.tmdbId,
-            mediaType: interaction.mediaType as MediaType,
-            title: features.title,
-            weight: adjustedWeight,
-          })
+          // Track recently watched for candidate seeding
+          if (interaction.eventType === 'watch' && !recentWatchMap.has(interaction.tmdbId)) {
+            recentWatchMap.set(interaction.tmdbId, {
+              tmdbId: interaction.tmdbId,
+              mediaType: interaction.mediaType as MediaType,
+              title: features.title,
+              weight: adjustedWeight,
+            })
+          }
         }
       }
     }
   }
 
-  // Normalize all vectors to [0, 1]
+  // Normalize positive vectors to [0, 1].
+  // Genre vector may contain negative values (from dislikes) — normalize
+  // preserving sign so ranking can penalize disliked genres.
   const profile: UserProfile = {
     userId,
-    genreVector: normalizeVector(genreVector),
+    genreVector: normalizeGenreVector(genreVector),
     keywordVector: normalizeVector(keywordVector),
     castVector: normalizeVector(castVector),
     watchedIds,
     favoritedIds,
     dislikedIds,
+    categoryDislikeCounts,
     recentlyWatched: Array.from(recentWatchMap.values())
       .sort((a, b) => b.weight - a.weight)
       .slice(0, MAX_RECENT_ITEMS),
