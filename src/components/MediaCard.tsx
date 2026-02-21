@@ -96,21 +96,8 @@ export function MediaCard({
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
-          <div className="mb-2 flex items-center gap-2">
-            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span className="text-sm font-medium text-white">{rating}</span>
-          </div>
-
-          <h2 className="mb-2 line-clamp-2 max-w-2xl text-xl font-bold text-white sm:text-2xl">
-            {title}
-          </h2>
-
-          <p className="line-clamp-2 max-w-2xl text-sm text-white/80">
-            {media.overview || 'No description available.'}
-          </p>
-
-          <div className="mt-4 flex items-center gap-3">
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="mt-4 flex items-center justify-center gap-3">
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -231,11 +218,6 @@ export function MediaCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl bg-card border border-border/50">
       <div className="aspect-[2/3] animate-shimmer" />
-      <div className="space-y-2 p-3">
-        <div className="h-4 w-3/4 animate-shimmer rounded" />
-        <div className="h-3 w-full animate-shimmer rounded" />
-        <div className="h-3 w-2/3 animate-shimmer rounded" />
-      </div>
     </div>
   )
 }

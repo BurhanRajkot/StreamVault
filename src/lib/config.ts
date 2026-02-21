@@ -63,7 +63,7 @@ export const CONFIG = {
 }
 
 /* ONLY REQUIRED MODES */
-export type MediaMode = 'movie' | 'tv' | 'downloads' | 'documentary'
+export type MediaMode = 'home' | 'movie' | 'tv' | 'downloads' | 'documentary'
 
 export interface Genre {
   id: number

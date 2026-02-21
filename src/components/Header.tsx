@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react'
 import {
-  Film,
+  Clapperboard,
   Tv,
   Search,
   X,
@@ -67,7 +67,7 @@ export function Header({
   return (
         <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-all">
           {/* MATCH HEADER WIDTH WITH MAIN CONTENT */}
-          <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 xl:px-10 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
+          <div className="mx-auto w-full max-w-[1600px] px-2 sm:px-4 xl:px-8 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:py-0">
               {/* Logo + Mobile Favorites */}
               {/* Logo + Mobile Elements */}
               <div className="flex items-center justify-between w-full sm:w-auto">
@@ -75,10 +75,10 @@ export function Header({
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
                     <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-all duration-300 hover-glow">
-                      <Film className="h-6 w-6 text-white drop-shadow-md" />
+                      <Clapperboard className="h-6 w-6 text-white drop-shadow-md" />
                     </div>
                   </div>
-                  <h1 className="hidden text-xl font-bold tracking-tight sm:block">
+                  <h1 className="hidden text-xl font-bold tracking-tight lg:block">
                     <span className="text-white">Stream</span>
                     <span className="text-primary">Vault</span>
                   </h1>
@@ -150,7 +150,7 @@ export function Header({
 
             {/* Mobile Logo (Prominent) */}
               {/* Mobile Logo Removed from here as it is integrated above */}   {/* Right Side: Search + Actions */}
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2 lg:gap-6">
                 {/* Search */}
                 {mode !== 'downloads' && (
                   <form onSubmit={handleSubmit} className="relative flex w-full sm:w-auto group">
@@ -165,7 +165,7 @@ export function Header({
                           ? 'documentaries'
                           : 'movies'
                       }...`}
-                      className="h-10 w-full sm:w-64 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
+                      className="h-9 w-full sm:w-40 lg:w-64 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
                     />
                     {(inputValue || searchQuery) && (
                       <button
@@ -180,7 +180,7 @@ export function Header({
                 )}
 
                 {/* Desktop Favorites + Pricing + Auth */}
-                <div className="hidden sm:flex items-center gap-4">
+                <div className="hidden sm:flex items-center gap-2 lg:gap-4">
                   <Link to="/pricing">
                     <Button size="sm" variant="outline" className="relative overflow-hidden border border-golden-amber/30 text-golden-amber hover:bg-golden-amber/15 hover:border-golden-amber/60 hover:text-golden-amber transition-all duration-300 group hover:scale-105 active:scale-95 shadow-lg hover:shadow-golden-amber/25 h-9 rounded-lg px-4">
                       <div className="absolute inset-0 bg-gradient-to-r from-golden-amber/0 via-golden-amber/20 to-golden-amber/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />

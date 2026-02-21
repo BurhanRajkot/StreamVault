@@ -12,7 +12,6 @@ import {
   ChevronRight,
   Play,
   ThumbsDown,
-  Star,
   Sparkles,
   TrendingUp,
   Users,
@@ -35,6 +34,8 @@ function SectionIcon({ source }: { source: string }) {
   if (source === 'hidden_gems')   return <Gem  size={15} className="text-[#e50914] flex-shrink-0" />
   if (source === 'new_releases')  return <Clock size={15} className="text-[#e50914] flex-shrink-0" />
   if (source === 'trending')      return <TrendingUp size={15} className="text-[#e50914] flex-shrink-0" />
+  if (source === 'genre_discovery') return <Sparkles size={15} className="text-purple-400 flex-shrink-0" />
+  if (source === 'tmdb_similar' || source === 'tmdb_recommendations') return <Play size={15} className="text-[#e50914] flex-shrink-0" />
   return <Sparkles size={15} className="text-[#e50914] flex-shrink-0" />
 }
 
@@ -43,10 +44,6 @@ function RecoCardSkeleton() {
   return (
     <div className="flex-shrink-0 w-[clamp(110px,13vw,165px)]">
       <div className="aspect-[2/3] rounded-xl animate-shimmer bg-card border border-border/30" />
-      <div className="mt-2 space-y-1.5 px-0.5">
-        <div className="h-3 w-3/4 rounded animate-shimmer bg-card" />
-        <div className="h-2.5 w-1/2 rounded animate-shimmer bg-card" />
-      </div>
     </div>
   )
 }
@@ -72,12 +69,12 @@ export function RecommendationRow({
   if (!isLoading && section.items.length === 0) return null
 
   return (
-    <section className="relative mb-8 sm:mb-10">
+    <section className="relative mb-5 sm:mb-6">
       {/* ── Header ─────────────────────────────────────── */}
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <SectionIcon source={section.source} />
-          <h2 className="text-base sm:text-lg font-semibold text-foreground leading-tight truncate">
+          <h2 className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
             {section.title}
           </h2>
         </div>
@@ -137,8 +134,6 @@ function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
     ? getImageUrl(item.posterPath, 'poster')
     : null
 
-  const rating = item.voteAverage ? item.voteAverage.toFixed(1) : 'N/A'
-
   const handleDislike = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     setDisliked(true)
@@ -152,7 +147,7 @@ function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
     <button
       className={cn(
         'group relative flex-shrink-0 cursor-pointer text-left',
-        'w-[clamp(110px,13vw,165px)]',
+        'w-[clamp(120px,14vw,175px)]',
         'rounded-xl bg-card border border-border/50',
         'transition-all duration-300 ease-in-out',
         'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40',
@@ -183,12 +178,6 @@ function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
         {/* Gradient overlay on hover */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-        {/* Rating badge – top-left, identical to MediaCard */}
-        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-lg bg-background/90 backdrop-blur-sm px-2 py-1 text-xs font-medium shadow-lg">
-          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-          <span className="text-foreground">{rating}</span>
-        </div>
-
         {/* Dislike button – top-right, visible on hover */}
         {onDislike && (
           <button
@@ -212,18 +201,6 @@ function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
             <Play className="h-6 w-6 fill-white text-white" />
           </div>
         </div>
-      </div>
-
-      {/* ── Info below poster ──────────────────────────── */}
-      <div className="p-2.5 space-y-0.5">
-        <p className="text-xs font-medium text-foreground/90 truncate leading-snug">
-          {item.title}
-        </p>
-        {item.sourceReason && (
-          <p className="text-[0.65rem] text-muted-foreground truncate leading-snug">
-            {item.sourceReason}
-          </p>
-        )}
       </div>
     </button>
   )

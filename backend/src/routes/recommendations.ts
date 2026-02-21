@@ -16,9 +16,9 @@ import { Router, Request, Response } from 'express'
 import rateLimit from 'express-rate-limit'
 import { checkJwt } from '../middleware/auth'
 import { requireAdminAuth } from '../admin/middleware'
-import { getRecommendations, getGuestRecommendations, invalidateRecommendationCache } from '../cinematch/homeMixer'
-import { logInteraction } from '../cinematch/interactionTracker'
-import { getUserProfile } from '../cinematch/featureStore'
+import { getRecommendations, getGuestRecommendations, invalidateRecommendationCache } from '../cinematch/mixer/homeTimeline'
+import { logInteraction } from '../cinematch/tracking/events'
+import { getUserProfile } from '../cinematch/features'
 import { EventType, MediaType, TMDB_GENRES, UserTasteProfile } from '../cinematch/types'
 import { supabaseAdmin } from '../lib/supabase'
 import * as cache from '../services/cache'
@@ -133,7 +133,7 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
 
     // Format top genres with human-readable names
     const topGenres = Object.entries(profile.genreVector)
-      .sort(([, a], [, b]) => b - a)
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([genreId, weight]) => ({
         genreId: Number(genreId),
@@ -142,7 +142,7 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
       }))
 
     const topKeywords = Object.entries(profile.keywordVector)
-      .sort(([, a], [, b]) => b - a)
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([kwId, weight]) => ({
         keywordId: Number(kwId),
@@ -150,7 +150,7 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
       }))
 
     const topCastIds = Object.entries(profile.castVector)
-      .sort(([, a], [, b]) => b - a)
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([personId, weight]) => ({
         personId: Number(personId),
@@ -205,11 +205,10 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
   try {
     // Fire-and-forget — don't block the response on DB write
     logInteraction({ userId, tmdbId: parsedTmdbId, mediaType, eventType, progress, rating })
-      .catch(err => logger.error('CineMatch interaction log failed', { error: err?.message }))
+      .catch((err: any) => logger.error('CineMatch interaction log failed', { error: err?.message }))
 
-    // Invalidate route-level cache immediately (profile update is async)
-    const cacheKey = cache.generateCacheKey('recommendations', userId, '40')
-    cache.userData.del(cacheKey)
+    // Invalidate ALL route-level cache entries for this user
+    cache.userData.invalidateUser(userId)
 
     return res.status(202).json({ accepted: true })
   } catch (err: any) {
@@ -272,14 +271,14 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
       isPersonalized: result.isPersonalized,
       isNewUser: profile.isNewUser,
       genreVectorSample: Object.entries(profile.genreVector)
-        .sort(([, a], [, b]) => b - a)
+        .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
         .map(([g, w]) => ({ genre: TMDB_GENRES[Number(g)] || g, weight: w })),
       keywordVectorSize: Object.keys(profile.keywordVector).length,
       castVectorSize: Object.keys(profile.castVector).length,
       recentlyWatched: profile.recentlyWatched,
-      sectionTitles: result.sections.map(s => `${s.title} (${s.items.length} items)`),
-      topRanked: result.items.slice(0, 20).map(item => ({
+      sectionTitles: result.sections.map((s: any) => `${s.title} (${s.items.length} items)`),
+      topRanked: result.items.slice(0, 20).map((item: any) => ({
         title: item.title,
         source: item.source,
         score: Math.round(item.score * 1000) / 1000,

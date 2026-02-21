@@ -22,6 +22,41 @@ export async function fetchPopular(
     return { results: [], total_pages: 0 }
   }
 
+  // HOME MODE: Fetch Mix of Movies and TV
+  if (mode === 'home') {
+    let movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=popularity.desc&page=${page}`
+    let tvUrl = `${API_BASE}/tmdb/discover/tv?sort_by=popularity.desc&page=${page}`
+
+    if (providerId) {
+      const provider = getProviderById(providerId)
+      const region = provider?.region || WATCH_REGION
+      const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
+
+      movieUrl += providerParams
+      tvUrl += providerParams
+    }
+
+    try {
+      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
+      const movieData = await movieRes.json()
+      const tvData = await tvRes.json()
+
+      const movies = (movieData.results || []).map((m: any) => ({ ...m, media_type: 'movie' }))
+      const tv = (tvData.results || []).map((t: any) => ({ ...t, media_type: 'tv' }))
+
+      let combined = [...movies, ...tv]
+      combined.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+
+      return {
+        results: combined,
+        total_pages: Math.max(movieData.total_pages || 0, tvData.total_pages || 0),
+      }
+    } catch (e) {
+      console.error('Home fetch failed', e)
+      return { results: [], total_pages: 0 }
+    }
+  }
+
   // DOCUMENTARY MODE: Fetch Mix of Movies (99) and TV (99)
   if (mode === 'documentary') {
     let movieUrl = `${API_BASE}/tmdb/discover/movie?with_genres=99&sort_by=popularity.desc&page=${page}`
@@ -112,6 +147,51 @@ export async function fetchRecentlyAdded(
   const todayStr = today.toISOString().split('T')[0]
   const monthsAgoStr = monthsAgo.toISOString().split('T')[0]
 
+  // HOME MODE: Fetch Recent Movies and TV
+  if (mode === 'home') {
+    let movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=primary_release_date.desc&page=1`
+    movieUrl += `&primary_release_date.gte=${monthsAgoStr}&primary_release_date.lte=${todayStr}`
+    movieUrl += `&vote_count.gte=20`
+
+    let tvUrl = `${API_BASE}/tmdb/discover/tv?sort_by=first_air_date.desc&page=1`
+    tvUrl += `&first_air_date.gte=${monthsAgoStr}&first_air_date.lte=${todayStr}`
+    tvUrl += `&vote_count.gte=20`
+
+    if (providerId) {
+        const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
+        movieUrl += providerParams
+        tvUrl += providerParams
+    }
+
+    try {
+      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
+
+      const movieData = await movieRes.json()
+      const tvData = await tvRes.json()
+
+      const movies = (movieData.results || []).map((m: any) => ({
+        ...m,
+        media_type: 'movie',
+        date: new Date(m.release_date || m.primary_release_date || 0)
+      }))
+
+      const tv = (tvData.results || []).map((t: any) => ({
+        ...t,
+        media_type: 'tv',
+        date: new Date(t.first_air_date || 0)
+      }))
+
+      let combined = [...movies, ...tv]
+      combined.sort((a, b) => b.date.getTime() - a.date.getTime())
+
+      return combined
+
+    } catch (e) {
+      console.error('Home recently added fetch failed', e)
+      return []
+    }
+  }
+
   // DOCUMENTARY MODE: Fetch Recent Movies (99) and TV (99)
   if (mode === 'documentary') {
     let movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=primary_release_date.desc&page=1`
@@ -192,9 +272,9 @@ export async function fetchRecentlyAdded(
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   if (mode === 'downloads') return []
 
-  // Documentaries: Use Popular as Trending (Discovery with genre)
-  if (mode === 'documentary') {
-    const data = await fetchPopular('documentary', 1)
+  // Documentaries and Home: Use Popular as Trending
+  if (mode === 'documentary' || mode === 'home') {
+    const data = await fetchPopular(mode, 1)
     return data.results.slice(0, 10) // Top 10 for carousel
   }
 
@@ -223,7 +303,7 @@ export async function searchMedia(
   // Let's just search 'multi' or 'movie'?
   // Search API doesn't support genre filter easily.
   // For now, let's search 'movie' as fallback (most user intent)
-  const searchMode = mode === 'documentary' ? 'movie' : mode
+  const searchMode = (mode === 'documentary' || mode === 'home') ? 'movie' : mode
 
   const url = `${API_BASE}/tmdb/search/${searchMode}?query=${encodeURIComponent(
     query

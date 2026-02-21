@@ -22,9 +22,6 @@ interface UseRecommendationsReturn {
   refresh: () => void
 }
 
-// Session-level in-memory cache (cleared on page reload)
-const sessionCache = new Map<string, { data: RecommendationResult; fetchedAt: number }>()
-const SESSION_CACHE_TTL = 5 * 60 * 1000  // 5 minutes
 
 export function useRecommendations(): UseRecommendationsReturn {
   const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently } = useAuth0()
@@ -36,8 +33,6 @@ export function useRecommendations(): UseRecommendationsReturn {
   const abortRef = useRef<AbortController | null>(null)
 
   const refresh = useCallback(() => {
-    // Clear session cache so next fetch re-runs pipeline
-    sessionCache.clear()
     setRefreshTick(t => t + 1)
   }, [])
 
@@ -51,18 +46,7 @@ export function useRecommendations(): UseRecommendationsReturn {
     async function load() {
       setIsLoading(true)
       setError(null)
-
       try {
-        const cacheKey = isAuthenticated ? 'authed' : 'guest'
-        const cached = sessionCache.get(cacheKey)
-
-        if (cached && Date.now() - cached.fetchedAt < SESSION_CACHE_TTL) {
-          setSections(cached.data.sections)
-          setIsPersonalized(cached.data.isPersonalized)
-          setIsLoading(false)
-          return
-        }
-
         let result: RecommendationResult
 
         if (isAuthenticated) {
@@ -72,7 +56,6 @@ export function useRecommendations(): UseRecommendationsReturn {
           result = await fetchGuestRecommendations()
         }
 
-        sessionCache.set(cacheKey, { data: result, fetchedAt: Date.now() })
         setSections(result.sections)
         setIsPersonalized(result.isPersonalized)
       } catch (err: any) {

@@ -22,6 +22,8 @@ export interface Candidate {
   keywords?: number[]   // TMDB keyword ids (optional — populated by featureStore)
   castIds?: number[]    // Top-5 cast ids (optional — populated by featureStore)
   source: CandidateSource  // which pipeline stage produced this
+  seedTitle?: string   // The title that triggered this candidate (for "Because you watched" grouping)
+  seedMediaType?: MediaType // The media type of the seed item
 }
 
 // A candidate after feature hydration + scoring
@@ -34,6 +36,7 @@ export interface ScoredCandidate extends Candidate {
   freshnessScore: number
   qualityScore: number
   sourceReason: string  // Human-readable "Because you watched X"
+  seedTitle?: string    // Propagated from Candidate
 }
 
 // What source produced the candidate
@@ -43,6 +46,7 @@ export type CandidateSource =
   | 'trending'
   | 'popular_fallback'
   | 'collaborative'
+  | 'genre_discovery'
 
 // Interaction event to be logged
 export interface InteractionEvent {

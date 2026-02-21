@@ -146,6 +146,7 @@
     body {
       @apply bg-background text-foreground antialiased;
       font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 1.06rem; /* Slight bump from default 1rem */
       letter-spacing: -0.015em;
 
       /* Performance Optimization: Use pseudo-element for fixed background */

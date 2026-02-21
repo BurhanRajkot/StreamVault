@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { X, Play } from 'lucide-react'
+import { X, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Media, CONFIG, MediaMode } from '@/lib/config'
-import { getImageUrl, fetchMediaDetails } from '@/lib/api'
+import { getImageUrl, fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { HoverVideoPlayer } from './HoverVideoPlayer'
+import { useAuth0 } from '@auth0/auth0-react'
 
 interface QuickViewModalProps {
   media: Media
@@ -15,6 +16,9 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
   const [details, setDetails] = useState<Media | null>(null)
   const [provider, setProvider] = useState('vidsrc_pro')
   const [isVisible, setIsVisible] = useState(false)
+  const [feedback, setFeedback] = useState<'rate' | 'dislike' | null>(null)
+
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
   const mode: MediaMode = media.media_type as MediaMode || (media.first_air_date ? 'tv' : 'movie')
 
@@ -25,11 +29,29 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
       .then(setDetails)
       .catch((error) => {
         console.error('Failed to fetch media details:', error)
-        // Continue without details - graceful degradation
       })
 
     return () => clearTimeout(timer)
   }, [media.id, mode])
+
+  const handleFeedback = async (type: 'rate' | 'dislike') => {
+    if (!isAuthenticated) return
+
+    // Optimistic UI toggle
+    setFeedback((prev) => (prev === type ? null : type))
+
+    try {
+      const token = await getAccessTokenSilently()
+      await logRecommendationInteraction(token, {
+        tmdbId: media.id,
+        mediaType: mode as 'movie' | 'tv',
+        eventType: type,
+        ...(type === 'rate' && { rating: 5 }) // 'rate' with 5 stars = Loved it
+      })
+    } catch (err) {
+      console.error('Feedback failed', err)
+    }
+  }
 
   const providers = Object.entries(CONFIG.PROVIDER_NAMES)
   const backdrop = getImageUrl(media.backdrop_path || media.poster_path, 'backdrop')
@@ -83,30 +105,58 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2">
-          {/* Play Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onPlay(media, provider)
-            }}
-            className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-200 text-black font-semibold py-2.5 rounded-md transition active:scale-95"
-          >
-            <Play size={18} fill="currentColor" />
-            Play
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1">
+            {/* Play Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onPlay(media, provider)
+              }}
+              className="flex-shrink-0 flex items-center justify-center gap-2 bg-white hover:bg-gray-200 text-black font-semibold px-6 py-2.5 rounded-md transition active:scale-95"
+            >
+              <Play size={18} fill="currentColor" />
+              Play
+            </button>
 
-          {/* Server Selector */}
-          <select
-            value={provider}
-            onChange={(e) => setProvider(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            className="px-3 py-2.5 bg-[#2a2a2a] border border-gray-700 hover:border-gray-500 text-white text-sm rounded-md transition cursor-pointer"
-          >
-            {providers.map(([key, name]) => (
-              <option key={key} value={key}>{name}</option>
-            ))}
-          </select>
+            {/* Server Selector */}
+            <select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="px-3 py-2.5 flex-1 bg-[#2a2a2a] border border-gray-700 hover:border-gray-500 text-white text-sm rounded-md transition cursor-pointer"
+            >
+              {providers.map(([key, name]) => (
+                <option key={key} value={key}>{name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Feedback Buttons */}
+          {isAuthenticated && (
+            <div className="flex items-center gap-2 ml-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleFeedback('dislike'); }}
+                className={cn(
+                  "p-2.5 rounded-full border border-gray-600 transition",
+                  feedback === 'dislike' ? "bg-white text-black" : "text-white hover:border-white"
+                )}
+                title="Not for me"
+              >
+                <ThumbsDown size={18} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleFeedback('rate'); }}
+                className={cn(
+                  "p-2.5 rounded-full border border-gray-600 transition",
+                  feedback === 'rate' ? "bg-white text-black" : "text-white hover:border-white"
+                )}
+                title="Loved it!"
+              >
+                <ThumbsUp size={18} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Description */}
