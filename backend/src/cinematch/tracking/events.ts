@@ -118,6 +118,12 @@ async function updateGenreProfileIncremental(
   const features = await getMovieFeatures(tmdbId, mediaType)
   if (!features || features.genreIds.length === 0) return
 
+  // Dislike events get a 1.5× penalty multiplier so that a few dislikes
+  // of the same genre are enough to noticeably shift the profile.
+  const effectiveWeight = interactionWeight < 0
+    ? interactionWeight * 1.5
+    : interactionWeight
+
   try {
     // Read existing persisted profile (may be null for new user)
     const { data: existing } = await supabaseAdmin
@@ -131,17 +137,15 @@ async function updateGenreProfileIncremental(
         ? existing.genreMap as Record<string, number>
         : {}
 
-    // Exponential moving average blend for each genre this movie belongs to
-    // EMA constant: 0.9 (slow-moving, avoids one movie hijacking the profile)
-    // Negative interactions (dislike/bad-rate) push scores DOWN
+    // Exponential moving average blend for each genre this movie belongs to.
+    // Negative weights (dislike / low rating) push genre scores DOWN.
+    // Clamped to [-1, 1] to prevent unbounded drift.
     const updatedMap = { ...existingMap }
     for (const genreId of features.genreIds) {
       const key = String(genreId)
       const current = updatedMap[key] ?? 0
-      // Blend: move current value toward interactionWeight
-      updatedMap[key] = 0.85 * current + 0.15 * Math.max(interactionWeight, 0)
-      // Floor at 0 — genre weights should never go negative in the DB
-      if (updatedMap[key] < 0.01) updatedMap[key] = 0
+      const blended = 0.85 * current + 0.15 * effectiveWeight
+      updatedMap[key] = Math.max(-1, Math.min(1, blended))
     }
 
     await supabaseAdmin

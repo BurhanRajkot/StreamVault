@@ -270,6 +270,7 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
       pipelineMs: result.pipelineMs,
       isPersonalized: result.isPersonalized,
       isNewUser: profile.isNewUser,
+      categoryDislikeCounts: profile.categoryDislikeCounts,
       genreVectorSample: Object.entries(profile.genreVector)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
