@@ -66,26 +66,24 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   const getTitle = () => {
     switch (mode) {
       case 'movie':
-        return '🎬 Author’s Choice: Movies'
+        return "🎬 Author's Choice: Movies"
       case 'tv':
-        return '📺 Author’s Choice: TV Shows'
+        return "📺 Author's Choice: TV Shows"
       case 'documentary':
-        return '🌍 Author’s Choice: Documentaries'
+        return "🌍 Author's Choice: Documentaries"
       default:
-        return '👑 Author’s Choice'
+        return "👑 Author's Choice"
     }
   }
 
   return (
-    <section className="relative mb-10">
+    <section className="relative mb-6">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">{getTitle()}</h2>
-          <p className="text-sm text-muted-foreground">
-            Hand-picked recommendations by the creator of StreamVault
-          </p>
-        </div>
+      <div className="mb-4 flex flex-row items-end justify-between gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-none">{getTitle()}</h2>
+        <p className="text-xs sm:text-sm text-muted-foreground text-right shrink-0">
+          Hand-picked recommendations by the creator of StreamVault
+        </p>
       </div>
 
       {/* Left Arrow */}

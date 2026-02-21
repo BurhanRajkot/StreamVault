@@ -19,10 +19,11 @@
 //   search       → 0.2  (intent signal)
 // ============================================================
 
-import { supabaseAdmin } from '../lib/supabase'
-import { EventType, MediaType, InteractionEvent } from './types'
-import { getMovieFeatures } from './featureStore'
-import { invalidateRecommendationCache } from './homeMixer'
+import { supabaseAdmin } from '../../lib/supabase'
+import { EventType, MediaType, InteractionEvent } from '../types'
+import { getMovieFeatures } from '../features'
+import { invalidateRecommendationCache } from '../mixer/homeTimeline'
+import { invalidateUserProfile } from '../features/userProfile'
 
 // ── Event Weight Map ──────────────────────────────────────
 const BASE_WEIGHTS: Record<EventType, number> = {
@@ -92,8 +93,9 @@ export async function logInteraction(event: {
     return
   }
 
-  // Invalidate caches so next request gets fresh personalized picks
+  // Invalidate ALL caches so next request rebuilds profile from DB
   invalidateRecommendationCache(event.userId)
+  invalidateUserProfile(event.userId)
 
   // Update UserGenreProfile incrementally (async, non-blocking)
   updateGenreProfileIncremental(event.userId, event.tmdbId, event.mediaType, weight)

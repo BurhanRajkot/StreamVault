@@ -8,9 +8,10 @@ interface MediaTypeSwitcherProps {
 
 export function MediaTypeSwitcher({ mode, onModeChange }: MediaTypeSwitcherProps) {
   const modes = [
+    { id: 'home', label: 'Home' },
     { id: 'movie', label: 'Movies' },
-    { id: 'tv', label: 'TV Shows' },
-    { id: 'documentary', label: 'Documentaries' }, // New Section
+    { id: 'tv', label: 'TV' },
+    { id: 'documentary', label: 'Docs' }, // New Section
     { id: 'downloads', label: 'Downloads' },
   ]
 
