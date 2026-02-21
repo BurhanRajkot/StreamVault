@@ -62,12 +62,13 @@ export interface InteractionEvent {
 // User profile built from interaction history
 export interface UserProfile {
   userId: string
-  genreVector: Record<number, number>     // genreId → affinity weight [0..1]
-  keywordVector: Record<number, number>   // keywordId → affinity weight [0..1] (new)
-  castVector: Record<number, number>      // personId → affinity weight [0..1] (new)
+  genreVector: Record<number, number>     // genreId → affinity weight [-1..1]
+  keywordVector: Record<number, number>   // keywordId → affinity weight [0..1]
+  castVector: Record<number, number>      // personId → affinity weight [0..1]
   watchedIds: Set<number>                 // tmdbIds already seen
   favoritedIds: Set<number>              // tmdbIds in Favorites
-  dislikedIds: Set<number>               // tmdbIds explicitly disliked (new)
+  dislikedIds: Set<number>               // tmdbIds explicitly disliked
+  categoryDislikeCounts: Record<string, number>  // category key → lifetime dislike count
   recentlyWatched: RecentItem[]          // last N items for seeding similarity sources
   isNewUser: boolean                     // cold-start flag
 }
