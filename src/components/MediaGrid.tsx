@@ -54,7 +54,7 @@ export function MediaGrid({
   return (
     <section className="animate-fade-in">
       {title && (
-        <h2 className="mb-4 text-lg font-bold text-foreground sm:mb-6 sm:text-2xl">
+        <h2 className="mb-2 text-lg font-bold text-foreground sm:mb-4 sm:text-xl">
           {title}
         </h2>
       )}

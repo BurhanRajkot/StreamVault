@@ -41,9 +41,9 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
   if (!isLoading && items.length === 0) return null
 
   return (
-    <section className="relative mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <section className="relative mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <Calendar className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />

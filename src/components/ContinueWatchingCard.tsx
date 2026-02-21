@@ -147,11 +147,6 @@ export function ContinueWatchingCard({
           </div>
         )}
       </div>
-
-      {/* Title */}
-      <p className="mt-2 text-xs font-medium text-foreground line-clamp-1">
-        {title}
-      </p>
     </div>
   )
 }
