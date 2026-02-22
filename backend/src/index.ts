@@ -23,6 +23,7 @@ import subscriptionsRouter from './routes/subscriptions'
 import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
 import recommendationsRouter from './routes/recommendations'
+import dislikesRouter from './routes/dislikes'
 
 const app = express()
 
@@ -93,6 +94,7 @@ app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin
 app.use('/subscriptions', subscriptionsRouter)
 app.use('/admin', adminRouter)
 app.use('/recommendations', recommendationsRouter)
+app.use('/dislikes', dislikesRouter)
 
 // START SERVER
 const HOST = '0.0.0.0'
