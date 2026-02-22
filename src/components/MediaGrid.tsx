@@ -74,12 +74,12 @@ export function MediaGrid({
           2xl:grid-cols-8
         "
       >
-        {media.map((item) => (
-          <MediaCard key={item.id} media={item} onClick={onMediaClick} />
+        {media.map((item, index) => (
+          <MediaCard key={item.id} media={item} onClick={onMediaClick} priority={index < 6} />
         ))}
 
         {isLoading &&
-          Array.from({ length: 12 }).map((_, i) => (
+          Array.from({ length: typeof window !== 'undefined' && window.innerWidth < 640 ? 6 : 12 }).map((_, i) => (
             <MediaCardSkeleton key={`skeleton-${i}`} />
           ))}
       </div>
