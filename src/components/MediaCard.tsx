@@ -12,12 +12,14 @@ interface MediaCardProps {
   media: Media
   onClick: (media: Media) => void
   variant?: 'default' | 'hero'
+  priority?: boolean
 }
 
 export function MediaCard({
   media,
   onClick,
   variant = 'default',
+  priority = false,
 }: MediaCardProps) {
   const title = media.title || media.name || 'Unknown'
   const rating = media.vote_average ? media.vote_average.toFixed(1) : 'N/A'
@@ -155,8 +157,9 @@ export function MediaCard({
           <img
             src={imageUrl}
             alt={title}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:brightness-110"
+            loading={priority ? 'eager' : 'lazy'}
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-700 sm:group-hover:scale-110 sm:group-hover:brightness-110"
           />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />

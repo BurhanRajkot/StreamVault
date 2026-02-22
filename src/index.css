@@ -152,6 +152,18 @@
       /* Performance Optimization: Use pseudo-element for fixed background */
       position: relative;
       min-height: 100vh;
+
+      /* Mobile: eliminate 300ms tap delay */
+      touch-action: manipulation;
+
+      /* Mobile: prevent rubber-band scroll showing background */
+      overscroll-behavior: none;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        font-size: 1rem; /* Reset to base to avoid overflow in small cards */
+      }
     }
 
     body::before {
@@ -181,6 +193,16 @@
             radial-gradient(circle at 85% 30%, hsl(199 89% 48% / 0.08), transparent 25%),
             radial-gradient(circle at 50% 80%, hsl(250 60% 60% / 0.05), transparent 40%),
             hsl(224 71% 4%);
+    }
+
+    /* Mobile: Simplified background for performance */
+    @media (max-width: 640px) {
+      body::before {
+        background: hsl(210 40% 98%);
+      }
+      .dark body::before {
+        background: hsl(224 71% 4%);
+      }
     }
 
     h1, h2, h3, h4, h5, h6 {

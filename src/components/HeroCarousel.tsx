@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Media } from '@/lib/config'
 import { MediaCard } from './MediaCard'
@@ -11,6 +11,7 @@ interface HeroCarouselProps {
 
 export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const touchStartX = useRef<number | null>(null)
 
   useEffect(() => {
     if (items.length === 0) return
@@ -36,10 +37,27 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
     setCurrentIndex((prev) => (prev + 1) % displayItems.length)
   }
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return
+    const delta = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(delta) > 40) {
+      delta > 0 ? goToNext() : goToPrev()
+    }
+    touchStartX.current = null
+  }
+
   return (
     <section className="relative mb-6">
       {/* TALLER HERO ON XL / 2XL SCREENS */}
-      <div className="relative h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl">
+      <div
+        className="relative h-[240px] sm:h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {displayItems.map((item, index) => (
           <div
             key={item.id}
@@ -64,14 +82,14 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
         {/* Navigation */}
         <button
           onClick={goToPrev}
-          className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
+          className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden sm:flex"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
 
         <button
           onClick={goToNext}
-          className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow"
+          className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden sm:flex"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
