@@ -56,7 +56,10 @@ export function PlayerModal({
   initialEpisode,
   initialServer,
 }: PlayerModalProps) {
-  const [provider, setProvider] = useState('vidsrc_pro')
+  const [provider, setProvider] = useState(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 850;
+    return initialServer || (isMobile ? 'vidfast_pro' : 'vidsrc_pro');
+  })
   const [season, setSeason] = useState(initialSeason || 1)
   const [episode, setEpisode] = useState(initialEpisode || 1)
   const [malId, setMalId] = useState('')
@@ -103,7 +106,8 @@ export function PlayerModal({
       // 1. Initialize State
       // Provider is per-item: use the server saved for THIS specific media item.
       // Falls back to 'vidsrc_pro' if no server was previously saved for it.
-      const effectiveProvider = initialServer || 'vidsrc_pro'
+      const isMobile = typeof window !== 'undefined' && window.innerWidth <= 850;
+      const effectiveProvider = initialServer || (isMobile ? 'vidfast_pro' : 'vidsrc_pro')
       setProvider(effectiveProvider)
       setSeason(initialSeason || 1)
       setEpisode(initialEpisode || 1)
