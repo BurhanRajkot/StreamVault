@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react'
-import { Play, Star, Heart } from 'lucide-react'
+import { Play, Star, Heart, ThumbsDown } from 'lucide-react'
 import { Media } from '@/lib/config'
 import { getImageUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
+import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
 import { HoverVideoPlayer } from './HoverVideoPlayer'
 import { QuickViewModal } from './QuickViewModal'
@@ -26,6 +27,7 @@ export function MediaCard({
 
   const { isAuthenticated } = useAuth0()
   const { toggleFavorite, isFavorited } = useFavorites()
+  const { toggleDislike, isDisliked } = useDislikes()
   const [isExpanded, setIsExpanded] = useState(false)
   const [showQuickView, setShowQuickView] = useState(false)
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
@@ -36,10 +38,16 @@ export function MediaCard({
    */
   const mediaType: 'movie' | 'tv' = media.release_date ? 'movie' : 'tv'
   const favorited = isFavorited(media.id, mediaType)
+  const disliked = isDisliked(media.id, mediaType)
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation()
     toggleFavorite(media.id, mediaType)
+  }
+
+  const handleDislike = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    toggleDislike(media.id, mediaType)
   }
 
   /* ================= HOVER LOGIC ================= */
@@ -150,7 +158,8 @@ export function MediaCard({
         onMouseLeave={handleMouseLeave}
         className={cn(
           'group relative cursor-pointer rounded-lg md:rounded-xl bg-card border border-border/50 transition-all duration-300 ease-in-out',
-          showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden'
+          showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',
+          disliked && 'grayscale contrast-125 opacity-70 hover:opacity-100 hover:grayscale-0'
         )}
       >
         <div className="relative aspect-[2/3] overflow-hidden rounded-lg md:rounded-xl">
@@ -165,22 +174,42 @@ export function MediaCard({
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />
 
           {isAuthenticated && (
-            <button
-              onClick={handleFavorite}
-              className={cn(
-                'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
-                'p-3 md:p-2',
-                'md:opacity-0 md:group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
-              )}
-            >
-              <Heart
+            <div className="absolute right-2 top-2 z-10 flex flex-col gap-2">
+              <button
+                onClick={handleFavorite}
                 className={cn(
-                  'transition-all',
-                  'h-5 w-5 md:h-4 md:w-4',
-                  favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
+                  'rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
+                  'p-3 md:p-2',
+                  'md:opacity-0 md:group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
                 )}
-              />
-            </button>
+              >
+                <Heart
+                  className={cn(
+                    'transition-all',
+                    'h-5 w-5 md:h-4 md:w-4',
+                    favorited ? 'fill-red-500 text-red-500' : 'text-red-500'
+                  )}
+                />
+              </button>
+              <button
+                onClick={handleDislike}
+                className={cn(
+                  'rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
+                  'p-3 md:p-2',
+                  'md:opacity-0 md:group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
+                )}
+              >
+                <ThumbsDown
+                  className={cn(
+                    'transition-all',
+                    'h-5 w-5 md:h-4 md:w-4',
+                    disliked
+                      ? 'fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] scale-110'
+                      : 'text-zinc-400 hover:text-white'
+                  )}
+                />
+              </button>
+            </div>
           )}
 
           {/* Hover Video Player - Removed for 'Poster Only' requirement */}
