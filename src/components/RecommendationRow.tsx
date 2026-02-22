@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { RecoSection, RecoItem, getImageUrl } from '../lib/api'
 import { cn } from '../lib/utils'
+import { useDislikes } from '../context/DislikesContext'
 
 interface RecommendationRowProps {
   section: RecoSection
@@ -68,6 +69,8 @@ export function RecommendationRow({
 
   if (!isLoading && section.items.length === 0) return null
 
+  const { isDisliked, toggleDislike } = useDislikes()
+
   return (
     <section className="relative mb-5 sm:mb-6">
       {/* ── Header ─────────────────────────────────────── */}
@@ -111,7 +114,11 @@ export function RecommendationRow({
                 key={`${item.mediaType}:${item.tmdbId}`}
                 item={item}
                 onClick={onCardClick}
-                onDislike={onDislike}
+                onDislike={() => {
+                  onDislike?.(item)
+                  toggleDislike(item.tmdbId, item.mediaType)
+                }}
+                isDisliked={isDisliked(item.tmdbId, item.mediaType)}
               />
             ))}
       </div>
@@ -124,11 +131,11 @@ interface RecoCardProps {
   item: RecoItem
   onClick: (item: RecoItem) => void
   onDislike?: (item: RecoItem) => void
+  isDisliked?: boolean
 }
 
-function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
+function RecoCard({ item, onClick, onDislike, isDisliked = false }: RecoCardProps) {
   const [imgError, setImgError] = useState(false)
-  const [disliked, setDisliked] = useState(false)
 
   const imgSrc = !imgError && item.posterPath
     ? getImageUrl(item.posterPath, 'poster')
@@ -136,12 +143,8 @@ function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
 
   const handleDislike = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    setDisliked(true)
     onDislike?.(item)
   }, [item, onDislike])
-
-  // Fade out after dislike so it gracefully disappears
-  if (disliked) return null
 
   return (
     <button
@@ -152,6 +155,7 @@ function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
         'transition-all duration-300 ease-in-out',
         'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40',
         'active:scale-[0.97] overflow-hidden',
+        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100 hover:grayscale-0'
       )}
       style={{ scrollSnapAlign: 'start' }}
       onClick={() => onClick(item)}
@@ -187,11 +191,18 @@ function RecoCard({ item, onClick, onDislike }: RecoCardProps) {
               'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm shadow-lg',
               'p-2',
               'opacity-0 group-hover:opacity-100 transition-all duration-200',
-              'hover:scale-110 hover:bg-destructive/20 hover:text-destructive',
-              'active:scale-95',
+              'hover:scale-110 active:scale-95',
+              isDisliked ? 'bg-background' : 'hover:bg-background'
             )}
           >
-            <ThumbsDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <ThumbsDown
+              className={cn(
+                'h-4 w-4 transition-all',
+                isDisliked
+                  ? 'fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] scale-110'
+                  : 'text-zinc-400 hover:text-white'
+              )}
+            />
           </button>
         )}
 
