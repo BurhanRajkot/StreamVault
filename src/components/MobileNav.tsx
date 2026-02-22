@@ -1,4 +1,4 @@
-import { Film, Tv, Download, Heart } from 'lucide-react'
+import { Film, Tv, Download, Heart, Home } from 'lucide-react'
 import { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { Link, useLocation } from 'react-router-dom'
@@ -13,6 +13,13 @@ export function MobileNav({ mode, onModeChange }: MobileNavProps) {
   const isFavorites = location.pathname === '/favorites'
 
   const navItems = [
+    {
+      id: 'home',
+      label: 'Home',
+      icon: Home,
+      action: () => onModeChange('home'),
+      isActive: mode === 'home' && !isFavorites,
+    },
     {
       id: 'movie',
       label: 'Movies',
@@ -30,7 +37,7 @@ export function MobileNav({ mode, onModeChange }: MobileNavProps) {
     {
       id: 'documentary',
       label: 'Docs',
-      icon: Film, // Reusing Film icon for simplicity, or could import Video
+      icon: Film,
       action: () => onModeChange('documentary'),
       isActive: mode === 'documentary' && !isFavorites,
     },
