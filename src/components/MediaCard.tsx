@@ -159,7 +159,7 @@ export function MediaCard({
         className={cn(
           'group relative cursor-pointer rounded-lg md:rounded-xl bg-card border border-border/50 transition-all duration-300 ease-in-out',
           showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',
-          disliked && 'grayscale contrast-125 opacity-70 hover:opacity-100 hover:grayscale-0'
+          disliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
         )}
       >
         <div className="relative aspect-[2/3] overflow-hidden rounded-lg md:rounded-xl">
