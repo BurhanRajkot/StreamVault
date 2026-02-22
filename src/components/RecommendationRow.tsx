@@ -155,7 +155,7 @@ function RecoCard({ item, onClick, onDislike, isDisliked = false }: RecoCardProp
         'transition-all duration-300 ease-in-out',
         'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40',
         'active:scale-[0.97] overflow-hidden',
-        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100 hover:grayscale-0'
+        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
       )}
       style={{ scrollSnapAlign: 'start' }}
       onClick={() => onClick(item)}
