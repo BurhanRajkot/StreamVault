@@ -106,14 +106,6 @@
   z-index: 1;
 }
 
-.gooey-nav-container .effect.text {
-  color: white;
-  transition: color 0.3s ease;
-}
-
-.gooey-nav-container .effect.text.active {
-  color: black;
-}
 
 
 /* Refined Filter - Uses SVG to remove black box artifact */

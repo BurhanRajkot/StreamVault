@@ -25,7 +25,6 @@ const GooeyNav = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLUListElement>(null);
   const filterRef = useRef<HTMLSpanElement>(null);
-  const textRef = useRef<HTMLSpanElement>(null);
   const [activeIndex, setActiveIndex] = useState(initialActiveIndex);
 
   const noise = (n = 1) => n / 2 - Math.random() * n;
@@ -89,7 +88,7 @@ const GooeyNav = ({
   };
 
   const updateEffectPosition = (element: HTMLElement) => {
-    if (!containerRef.current || !filterRef.current || !textRef.current) return;
+    if (!containerRef.current || !filterRef.current) return;
     const containerRect = containerRef.current.getBoundingClientRect();
     const pos = element.getBoundingClientRect();
 
@@ -100,8 +99,6 @@ const GooeyNav = ({
       height: `${pos.height}px`
     };
     Object.assign(filterRef.current.style, styles);
-    Object.assign(textRef.current.style, styles);
-    textRef.current.innerText = element.innerText;
   };
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, index: number) => {
@@ -118,12 +115,7 @@ const GooeyNav = ({
       particles.forEach(p => filterRef.current?.removeChild(p));
     }
 
-    if (textRef.current) {
-      textRef.current.classList.remove('active');
 
-      void textRef.current.offsetWidth;
-      textRef.current.classList.add('active');
-    }
 
     if (filterRef.current) {
       makeParticles(filterRef.current);
@@ -148,7 +140,6 @@ const GooeyNav = ({
     const activeLi = navRef.current.querySelectorAll('li')[activeIndex];
     if (activeLi) {
       updateEffectPosition(activeLi as HTMLElement);
-      textRef.current?.classList.add('active');
     }
 
     const resizeObserver = new ResizeObserver(() => {
@@ -183,7 +174,6 @@ const GooeyNav = ({
         </ul>
       </nav>
       <span className="effect filter" ref={filterRef} />
-      <span className="effect text" ref={textRef} />
     </div>
   );
 };
