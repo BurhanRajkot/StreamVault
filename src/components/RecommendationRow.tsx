@@ -17,6 +17,8 @@ import {
   Users,
   Gem,
   Clock,
+  Tag,
+  UserCircle,
 } from 'lucide-react'
 import { RecoSection, RecoItem, getImageUrl } from '../lib/api'
 import { cn } from '../lib/utils'
@@ -36,6 +38,8 @@ function SectionIcon({ source }: { source: string }) {
   if (source === 'new_releases')  return <Clock size={15} className="text-[#e50914] flex-shrink-0" />
   if (source === 'trending')      return <TrendingUp size={15} className="text-[#e50914] flex-shrink-0" />
   if (source === 'genre_discovery') return <Sparkles size={15} className="text-purple-400 flex-shrink-0" />
+  if (source === 'keyword_discovery') return <Tag size={15} className="text-emerald-400 flex-shrink-0" />
+  if (source === 'cast_discovery')  return <UserCircle size={15} className="text-blue-400 flex-shrink-0" />
   if (source === 'tmdb_similar' || source === 'tmdb_recommendations') return <Play size={15} className="text-[#e50914] flex-shrink-0" />
   return <Sparkles size={15} className="text-[#e50914] flex-shrink-0" />
 }

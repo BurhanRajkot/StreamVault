@@ -87,7 +87,60 @@ export function buildSections(
     }
   }
 
-  // ── 3. Collaborative — "Fans with your taste" ─────────────
+  // ── 3. Keyword Discovery — "Top {Keyword} Picks" ──────────
+  const keywordMap = new Map<string, ScoredCandidate[]>()
+
+  for (const c of ranked) {
+    if (c.source === 'keyword_discovery' && c.seedTitle) {
+      if (!keywordMap.has(c.seedTitle)) {
+        keywordMap.set(c.seedTitle, [])
+      }
+      const section = keywordMap.get(c.seedTitle)!
+      if (!usedIds.has(c.tmdbId) && section.length < MAX_SECTION_SIZE) {
+        section.push(c)
+        usedIds.add(c.tmdbId)
+      }
+    }
+  }
+
+  for (const [keywordName, items] of keywordMap.entries()) {
+    if (items.length >= MIN_SECTION_SIZE) {
+      sections.push({
+        title: `Top ${keywordName} Picks For You`,
+        items: items.sort((a, b) => b.score - a.score),
+        source: 'keyword_discovery',
+      })
+    }
+  }
+
+  // ── 4. Cast Discovery — "Starring {Actor}" ───────────────
+  const castMap = new Map<string, ScoredCandidate[]>()
+
+  for (const c of ranked) {
+    if (c.source === 'cast_discovery' && c.seedTitle) {
+      if (!castMap.has(c.seedTitle)) {
+        castMap.set(c.seedTitle, [])
+      }
+      const section = castMap.get(c.seedTitle)!
+      if (!usedIds.has(c.tmdbId) && section.length < MAX_SECTION_SIZE) {
+        section.push(c)
+        usedIds.add(c.tmdbId)
+      }
+    }
+  }
+
+  for (const [seedTitle, items] of castMap.entries()) {
+    if (items.length >= MIN_SECTION_SIZE) {
+      sections.push({
+        title: seedTitle, // "Starring Actor Name"
+        items: items.sort((a, b) => b.score - a.score),
+        source: 'cast_discovery',
+      })
+    }
+  }
+
+
+  // ── 5. Collaborative — "Fans with your taste" ─────────────
   const collabItems = ranked
     .filter((c) => c.source === 'collaborative' && !usedIds.has(c.tmdbId))
     .slice(0, MAX_SECTION_SIZE)
