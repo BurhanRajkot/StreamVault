@@ -19,13 +19,17 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
     media.media_type ||
     (media.first_air_date ? "tv" : "movie")
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 850;
+  const movieProvider = isMobile ? CONFIG.STREAM_PROVIDERS.vidfast_pro_movie : CONFIG.STREAM_PROVIDERS.vidsrc_pro_movie;
+  const tvProvider = isMobile ? CONFIG.STREAM_PROVIDERS.vidfast_pro : CONFIG.STREAM_PROVIDERS.vidsrc_pro;
+
   const url =
     mediaType === "movie"
-      ? CONFIG.STREAM_PROVIDERS.vidsrc_pro_movie.replace(
+      ? movieProvider.replace(
           "{tmdbId}",
           String(media.id)
         )
-      : CONFIG.STREAM_PROVIDERS.vidsrc_pro
+      : tvProvider
           .replace("{tmdbId}", String(media.id))
           .replace("{season}", "1")
           .replace("{episode}", "1")
