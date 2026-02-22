@@ -577,7 +577,7 @@ export function PlayerModal({
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-6">
+        <div className="p-2 sm:p-4 md:p-6">
           {!isPlaying ? (
             /* ===== PRE-PLAY UI ===== */
             <div className="space-y-6">
@@ -735,7 +735,7 @@ export function PlayerModal({
                     <button
                       onClick={handlePrevEpisode}
                       disabled={season === 1 && episode === 1}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50 hover:bg-secondary/80 transition-colors"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50 hover:bg-secondary/80 transition-colors min-w-[44px] min-h-[44px]"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
@@ -746,7 +746,7 @@ export function PlayerModal({
 
                     <button
                       onClick={handleNextEpisode}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm hover:bg-secondary/80 transition-colors"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm hover:bg-secondary/80 transition-colors min-w-[44px] min-h-[44px]"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
@@ -765,6 +765,7 @@ export function PlayerModal({
               <div
                 ref={playerRef}
                 className="aspect-video w-full overflow-hidden rounded-lg border-none bg-black relative shadow-2xl"
+                style={{ touchAction: 'none' }}
               >
                 {/* Loading overlay removed per user request */}
 
