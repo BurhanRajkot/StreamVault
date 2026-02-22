@@ -34,7 +34,6 @@
 .gooey-nav-container nav {
   display: flex;
   position: relative;
-  transform: translate3d(0, 0, 0.01px);
 }
 
 .gooey-nav-container nav ul {
@@ -59,6 +58,10 @@
     box-shadow 0.3s ease;
   box-shadow: 0 0 0.5px 1.5px transparent;
   color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .gooey-nav-container nav ul li a {
@@ -110,7 +113,6 @@
 
 /* Refined Filter - Uses SVG to remove black box artifact */
 .gooey-nav-container .effect.filter {
-  filter: url(#goo);
   opacity: 1;
 }
 
