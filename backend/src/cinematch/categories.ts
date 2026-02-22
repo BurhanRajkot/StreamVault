@@ -26,6 +26,10 @@ export const CATEGORIES = {
   superhero:   { name: 'Superhero',        genres: new Set([28, 878]) },
   reality:     { name: 'Reality TV',       genres: new Set([10764, 10767]) },
   war:         { name: 'War',              genres: new Set([10752, 36]) },
+  mystery:     { name: 'Mystery',          genres: new Set([9648]) },
+  history:     { name: 'History',          genres: new Set([36]) },
+  music:       { name: 'Music',            genres: new Set([10402]) },
+  western:     { name: 'Western',          genres: new Set([37]) },
 } as const
 
 export type CategoryKey = keyof typeof CATEGORIES

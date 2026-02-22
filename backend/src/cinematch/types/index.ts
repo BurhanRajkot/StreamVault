@@ -47,6 +47,8 @@ export type CandidateSource =
   | 'popular_fallback'
   | 'collaborative'
   | 'genre_discovery'
+  | 'keyword_discovery'
+  | 'cast_discovery'
 
 // Interaction event to be logged
 export interface InteractionEvent {
