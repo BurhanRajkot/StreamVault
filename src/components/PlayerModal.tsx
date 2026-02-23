@@ -226,7 +226,7 @@ export function PlayerModal({
       try {
         const token = isAuthenticated ? await getAccessTokenSilently() : null
         const mediaType = (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie'
-        await logRecommendationInteraction(token, {
+        logRecommendationInteraction(token, {
           tmdbId: media.id,
           mediaType,
           eventType: 'watch',
@@ -263,7 +263,7 @@ export function PlayerModal({
           await updateContinueWatching(token, progressData)
 
           // Also log to the recommendation engine to build the user's genre/keyword profile
-          await logRecommendationInteraction(token, {
+          logRecommendationInteraction(token, {
             tmdbId: media.id,
             mediaType: progressData.mediaType,
             eventType: 'watch',
@@ -278,7 +278,7 @@ export function PlayerModal({
         saveGuestProgress(progressData)
 
         // Log telemetry for ML model
-        await logRecommendationInteraction(null, {
+        logRecommendationInteraction(null, {
           tmdbId: media.id,
           mediaType: progressData.mediaType,
           eventType: 'watch',
@@ -348,7 +348,7 @@ export function PlayerModal({
            await updateContinueWatching(token, data)
 
            // Log final progress to recommendation engine
-           await logRecommendationInteraction(token, {
+           logRecommendationInteraction(token, {
              tmdbId: media.id,
              mediaType: data.mediaType,
              eventType: 'watch',
@@ -364,7 +364,7 @@ export function PlayerModal({
            saveGuestProgress(data)
 
            // Log final progress telemetry for ML model
-           await logRecommendationInteraction(null, {
+           logRecommendationInteraction(null, {
              tmdbId: media.id,
              mediaType: data.mediaType,
              eventType: 'watch',

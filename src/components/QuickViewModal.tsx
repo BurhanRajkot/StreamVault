@@ -45,7 +45,7 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
 
     try {
       const token = await getAccessTokenSilently()
-      await logRecommendationInteraction(token, {
+      logRecommendationInteraction(token, {
         tmdbId: media.id,
         mediaType: mode as 'movie' | 'tv',
         eventType: type,
