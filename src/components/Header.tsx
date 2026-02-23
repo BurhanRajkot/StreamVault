@@ -24,6 +24,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaTypeSwitcher } from './MediaTypeSwitcher'
 import { ThemeToggle } from './ThemeToggle'
+import { DynamicSearchBar } from './search/DynamicSearchBar'
+import { Media } from '@/lib/config'
 
 
 interface HeaderProps {
@@ -32,6 +34,7 @@ interface HeaderProps {
   onSearch: (query: string) => void
   searchQuery: string
   onClearSearch: () => void
+  onMediaSelect?: (media: Media) => void
 }
 
 export function Header({
@@ -40,22 +43,9 @@ export function Header({
   onSearch,
   searchQuery,
   onClearSearch,
+  onMediaSelect,
 }: HeaderProps) {
-  const [inputValue, setInputValue] = useState('')
   const { user, isAuthenticated, logout } = useAuth0()
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    if (inputValue.trim()) onSearch(inputValue.trim())
-  }
-
-  const handleClear = () => {
-    setInputValue('')
-    onClearSearch()
-  }
-
-
-
   const initials =
     user?.name
       ?.split(' ')
@@ -153,30 +143,13 @@ export function Header({
               <div className="flex items-center gap-2 lg:gap-6">
                 {/* Search */}
                 {mode !== 'downloads' && (
-                  <form onSubmit={handleSubmit} className="relative flex w-full sm:w-auto group">
-                    <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-all duration-300 group-focus-within:scale-110" />
-                    <input
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      placeholder={`Search ${
-                        mode === 'tv'
-                          ? 'shows'
-                          : mode === 'documentary'
-                          ? 'documentaries'
-                          : 'movies'
-                      }...`}
-                      className="h-9 w-full sm:w-40 lg:w-64 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60"
-                    />
-                    {(inputValue || searchQuery) && (
-                      <button
-                        type="button"
-                        onClick={handleClear}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:scale-110 transition-all duration-200 active:scale-90"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </form>
+                  <DynamicSearchBar
+                    mode={mode}
+                    onSearch={onSearch}
+                    searchQuery={searchQuery}
+                    onClearSearch={onClearSearch}
+                    onMediaSelect={onMediaSelect}
+                  />
                 )}
 
                 {/* Desktop Favorites + Pricing + Auth */}
