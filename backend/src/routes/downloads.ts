@@ -139,6 +139,12 @@ async function streamDownloadFromStorage(res: any, filename: string) {
   }
 }
 
+// Map the hardcoded public download directly above the wildcard route to bypass checkAuth
+router.get('/hardcoded-mumbai-mafia/file', downloadRateLimiter, (req, res) => {
+  logger.info('Public file download access', { filename: 'Mumbai Mafia' })
+  return res.redirect('https://drive.google.com/uc?export=download&id=1ZKfHMswUcdHhOsRfnwWmyHN5pd-qD0Et')
+})
+
 router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   const { id } = req.params
   let filename = ''
@@ -161,9 +167,6 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   // 2. Auth checks
   if (req.admin) {
     logger.info('Admin file download access', { filename })
-    if (id === 'hardcoded-mumbai-mafia') {
-      return res.redirect('https://drive.google.com/uc?export=download&id=1ZKfHMswUcdHhOsRfnwWmyHN5pd-qD0Et')
-    }
     return streamDownloadFromStorage(res, filename)
   }
 
@@ -173,10 +176,6 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
 
   const isPaid = await isPaidUser(userId)
   if (!isPaid) return res.status(403).json({ error: 'Downloads are only available for premium users.' })
-
-  if (id === 'hardcoded-mumbai-mafia') {
-    return res.redirect('https://drive.google.com/uc?export=download&id=1ZKfHMswUcdHhOsRfnwWmyHN5pd-qD0Et')
-  }
 
   return streamDownloadFromStorage(res, filename)
 })
