@@ -23,13 +23,13 @@ export function ThemeToggle() {
       Math.max(y, window.innerHeight - y)
     );
 
-    // @ts-ignore: Transition API
+    // Transition API
     if (!document.startViewTransition) {
       setTheme(isDark ? "light" : "dark");
       return;
     }
 
-    // @ts-ignore: Transition API
+    // Transition API
     const transition = document.startViewTransition(() => {
       setTheme(isDark ? "light" : "dark");
     });
