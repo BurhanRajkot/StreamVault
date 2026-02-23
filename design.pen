@@ -1,4 +1,577 @@
 {
   "version": "2.8",
-  "children": []
+  "children": [
+    {
+      "type": "frame",
+      "id": "s0Hn7",
+      "x": 0,
+      "y": 0,
+      "name": "Movie Details",
+      "width": 1440,
+      "fill": "#0B0F19",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "E1mJC",
+          "name": "Hero",
+          "width": "fill_container",
+          "height": 600,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "./images/generated-1771834575790.png",
+            "mode": "fill"
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "5VnRa",
+              "name": "Overlay",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": {
+                "type": "gradient",
+                "gradientType": "linear",
+                "enabled": true,
+                "rotation": 0,
+                "size": {
+                  "height": 1
+                },
+                "colors": []
+              },
+              "layout": "vertical",
+              "padding": [
+                40,
+                64
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "0dvpR",
+                  "name": "Content Area",
+                  "width": 800,
+                  "layout": "vertical",
+                  "gap": 24,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "reol7",
+                      "name": "Title",
+                      "fill": "#FFFFFF",
+                      "content": "STAR DUST",
+                      "fontFamily": "Outfit",
+                      "fontSize": 72,
+                      "fontWeight": "800"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QZg3p",
+                      "name": "Metadata",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "OcrJS",
+                          "name": "Year",
+                          "fill": "#A1A1AA",
+                          "content": "2026",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "c2BVo",
+                          "name": "Rating",
+                          "cornerRadius": 4,
+                          "padding": [
+                            2,
+                            6
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "fiiON",
+                              "name": "Text",
+                              "fill": "#A1A1AA",
+                              "content": "TV-MA",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "ICG3x",
+                          "name": "Duration",
+                          "fill": "#A1A1AA",
+                          "content": "2h 14m",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "doY32",
+                          "name": "Quality",
+                          "cornerRadius": 4,
+                          "padding": [
+                            2,
+                            6
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "oIoTZ",
+                              "name": "Text",
+                              "fill": "#A1A1AA",
+                              "content": "4K HDR",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "MojHK",
+                      "name": "Synopsis",
+                      "fill": "#D4D4D8",
+                      "content": "When a team of rogue astronauts discovers an anomaly at the edge\nof the galaxy, they must race against time to prevent a cosmic event\nthat could unravel the fabric of reality itself. A visually stunning\njourney through the unknown.",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cMUPk",
+                      "name": "Actions",
+                      "gap": 16,
+                      "padding": [
+                        16,
+                        0,
+                        0,
+                        0
+                      ],
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "7NnZQ",
+                          "name": "Play",
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 8,
+                          "gap": 12,
+                          "padding": [
+                            16,
+                            40
+                          ],
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "NHs13",
+                              "name": "Icon",
+                              "width": 0,
+                              "height": 0,
+                              "iconFontFamily": "Material Symbols Rounded",
+                              "fill": "#0B0F19"
+                            },
+                            {
+                              "type": "text",
+                              "id": "wV22Z",
+                              "name": "Text",
+                              "fill": "#0B0F19",
+                              "content": "Play Now",
+                              "fontFamily": "Inter",
+                              "fontSize": 18,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "oQSGb",
+                          "name": "Trailer",
+                          "cornerRadius": 8,
+                          "gap": 12,
+                          "padding": [
+                            14,
+                            32
+                          ],
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "8SkIE",
+                              "name": "Icon",
+                              "width": 0,
+                              "height": 0,
+                              "iconFontFamily": "Material Symbols Rounded",
+                              "fill": "#FFFFFF"
+                            },
+                            {
+                              "type": "text",
+                              "id": "wHemP",
+                              "name": "Text",
+                              "fill": "#FFFFFF",
+                              "content": "More Info",
+                              "fontFamily": "Inter",
+                              "fontSize": 18,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FNvnx",
+          "name": "Tabs",
+          "width": "fill_container",
+          "gap": 40,
+          "padding": [
+            0,
+            64,
+            16,
+            64
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "3GT3H",
+              "name": "Tab 1",
+              "fill": "#FFFFFF",
+              "content": "Episodes",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "id": "i8f1r",
+              "name": "Active Indicator",
+              "fill": "#FFFFFF",
+              "width": 100,
+              "height": 2
+            },
+            {
+              "type": "text",
+              "id": "g16K2",
+              "name": "Tab 2",
+              "fill": "#A1A1AA",
+              "content": "More Like This",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "tWfWO",
+              "name": "Tab 3",
+              "fill": "#A1A1AA",
+              "content": "Details",
+              "fontFamily": "Inter",
+              "fontSize": 20,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "pYDBu",
+          "name": "Episodes List",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            16,
+            64,
+            64,
+            64
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "d7nd2",
+              "name": "Episode 1",
+              "width": "fill_container",
+              "fill": "#18181B",
+              "cornerRadius": 8,
+              "gap": 24,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Mzsux",
+                  "name": "Number",
+                  "fill": "#71717A",
+                  "content": "1",
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "q5ppx",
+                  "name": "Image",
+                  "width": 160,
+                  "height": 90,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "./images/generated-1771834402485.png",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 4
+                },
+                {
+                  "type": "frame",
+                  "id": "z9sQK",
+                  "name": "Content",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "S6k8P",
+                      "name": "Title Row",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "QuNra",
+                          "name": "Title",
+                          "fill": "#FFFFFF",
+                          "content": "The Pilot",
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "33Ecw",
+                          "name": "Duration",
+                          "fill": "#A1A1AA",
+                          "content": "45m",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "NX4aU",
+                      "name": "Desc",
+                      "fill": "#A1A1AA",
+                      "content": "The crew awakens from cryosleep to find their ship adrift in an\nunknown sector. Initial attempts to contact command fail.",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uL9vs",
+              "name": "Episode 2",
+              "width": "fill_container",
+              "fill": "#0B0F19",
+              "cornerRadius": 8,
+              "gap": 24,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "9ZsjS",
+                  "name": "Number",
+                  "fill": "#71717A",
+                  "content": "2",
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "HejxA",
+                  "name": "Image",
+                  "width": 160,
+                  "height": 90,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "./images/generated-1771834410144.png",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 4
+                },
+                {
+                  "type": "frame",
+                  "id": "WUUvc",
+                  "name": "Content",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ebtWJ",
+                      "name": "Title Row",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "1b6s4",
+                          "name": "Title",
+                          "fill": "#DADADA",
+                          "content": "Into the Void",
+                          "fontFamily": "Inter",
+                          "fontSize": 18,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "9w0n9",
+                          "name": "Duration",
+                          "fill": "#A1A1AA",
+                          "content": "47m",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "UAn0E",
+                      "name": "Desc",
+                      "fill": "#A1A1AA",
+                      "content": "Tensions rise as the life support systems begin to fail. A risky\nspacewalk is required to patch the hull breach.",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "LnIJi",
+          "name": "Actors Grid",
+          "width": "fill_container",
+          "gap": 32,
+          "padding": [
+            0,
+            64,
+            64,
+            64
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "nmtrA",
+              "name": "Actor 1",
+              "width": 120,
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Abzc4",
+                  "name": "a1Img",
+                  "width": 90,
+                  "height": 90,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "./images/generated-1771834483007.png",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 45
+                },
+                {
+                  "type": "text",
+                  "id": "m7cdY",
+                  "name": "a1Name",
+                  "fill": "#FFFFFF",
+                  "content": "Elara Vance",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "3VPQF",
+                  "name": "a1Role",
+                  "fill": "#A1A1AA",
+                  "content": "Commander",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "mJN0o",
+              "name": "Actor 2",
+              "width": 120,
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Nnp92",
+                  "name": "a2Img",
+                  "width": 90,
+                  "height": 90,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "./images/generated-1771834490075.png",
+                    "mode": "fill"
+                  },
+                  "cornerRadius": 45
+                },
+                {
+                  "type": "text",
+                  "id": "FKcp7",
+                  "name": "a2Name",
+                  "fill": "#FFFFFF",
+                  "content": "Jaxon Reed",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "jDnhj",
+                  "name": "a2Role",
+                  "fill": "#A1A1AA",
+                  "content": "Pilot",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

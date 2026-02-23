@@ -166,7 +166,7 @@ export function useFavoritesInternal() {
         void (async () => {
           try {
             const token = await getAccessTokenSilently()
-            await logRecommendationInteraction(token, {
+            logRecommendationInteraction(token, {
               tmdbId,
               mediaType,
               eventType: 'favorite',
