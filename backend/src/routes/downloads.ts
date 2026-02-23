@@ -162,8 +162,7 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   if (req.admin) {
     logger.info('Admin file download access', { filename })
     if (id === 'hardcoded-mumbai-mafia') {
-      const filePath = path.join(__dirname, '../../Downloads', filename)
-      return res.download(filePath, filename)
+      return res.redirect('https://drive.google.com/uc?export=download&id=1ZKfHMswUcdHhOsRfnwWmyHN5pd-qD0Et')
     }
     return streamDownloadFromStorage(res, filename)
   }
@@ -176,8 +175,7 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   if (!isPaid) return res.status(403).json({ error: 'Downloads are only available for premium users.' })
 
   if (id === 'hardcoded-mumbai-mafia') {
-    const filePath = path.join(__dirname, '../../Downloads', filename)
-    return res.download(filePath, filename)
+    return res.redirect('https://drive.google.com/uc?export=download&id=1ZKfHMswUcdHhOsRfnwWmyHN5pd-qD0Et')
   }
 
   return streamDownloadFromStorage(res, filename)
