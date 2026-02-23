@@ -69,6 +69,10 @@ export async function logInteraction(event: {
   os?: string
   browser?: string
   country?: string
+  networkType?: string
+  browserLanguage?: string
+  localHour?: number
+  timezone?: string
 }): Promise<void> {
   const weight = computeWeight(event.eventType, event.progress, event.rating)
 
@@ -85,6 +89,10 @@ export async function logInteraction(event: {
     os: event.os,
     browser: event.browser,
     country: event.country,
+    networkType: event.networkType,
+    browserLanguage: event.browserLanguage,
+    localHour: event.localHour,
+    timezone: event.timezone,
   }
 
   const { error } = await supabaseAdmin
