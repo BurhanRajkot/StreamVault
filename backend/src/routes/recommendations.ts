@@ -60,8 +60,11 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     const forceRefresh = req.query.refresh === 'true'
     const limit = Math.min(Number(req.query.limit) || 40, 100)
 
+    // A/B Testing Flag: "try_ml_vector=true" to force use of Two-Tower + pgvector
+    const tryMlVector = req.query.try_ml_vector === 'true'
+
     // L1 route-level cache check (before pipeline — ~0ms)
-    const cacheKey = cache.generateCacheKey('recommendations', userId, String(limit))
+    const cacheKey = cache.generateCacheKey('recommendations', userId, String(limit), String(tryMlVector))
     if (!forceRefresh) {
       const cached = cache.userData.get(cacheKey)
       if (cached) {
@@ -71,11 +74,14 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
       }
     }
 
-    const result = await getRecommendations(userId, { limit, forceRefresh })
+    // Pipeline execution — If tryMlVector is true, the timeline mixer will source
+    // directly from Supabase pgvector using the matched ML embedding.
+    const result = await getRecommendations(userId, { limit, forceRefresh, useVectorML: tryMlVector })
 
     cache.userData.set(cacheKey, result, 300)
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('X-CineMatch-Pipeline', result.pipelineMs !== undefined ? `live-${result.pipelineMs}ms` : 'live')
+    if (tryMlVector) res.setHeader('X-CineMatch-Engine', 'two-tower-ann')
     res.setHeader('Cache-Control', 'private, max-age=300')
     return res.json(result)
   } catch (err: any) {
@@ -182,7 +188,20 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
   const userId = (req as any).auth?.payload?.sub as string | undefined
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
-  const { tmdbId, mediaType, eventType, progress, rating } = req.body
+  const {
+    tmdbId,
+    mediaType,
+    eventType,
+    progress,
+    rating,
+    selectedServer,
+    deviceType,
+    os,
+    browser,
+  } = req.body
+
+  // Parse country from Cloudflare/Vercel headers if available, or fallback to body
+  const country = (req.headers['cf-ipcountry'] as string) || (req.headers['x-vercel-ip-country'] as string) || req.body.country
 
   // Validate inputs
   const parsedTmdbId = Number(tmdbId)
@@ -204,8 +223,19 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
 
   try {
     // Fire-and-forget — don't block the response on DB write
-    logInteraction({ userId, tmdbId: parsedTmdbId, mediaType, eventType, progress, rating })
-      .catch((err: any) => logger.error('CineMatch interaction log failed', { error: err?.message }))
+    logInteraction({
+      userId,
+      tmdbId: parsedTmdbId,
+      mediaType,
+      eventType,
+      progress,
+      rating,
+      selectedServer,
+      deviceType,
+      os,
+      browser,
+      country
+    }).catch((err: any) => logger.error('CineMatch interaction log failed', { error: err?.message }))
 
     // Invalidate ALL route-level cache entries for this user
     cache.userData.invalidateUser(userId)
