@@ -27,9 +27,11 @@ export function getDeviceContext() {
   let timezone = 'Unknown';
   try {
     timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch (e) {}
+  } catch (e) {
+    // Ignore error, fallback to 'Unknown'
+  }
 
-  // @ts-ignore
+  // @ts-expect-error - navigator.connection is non-standard
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   const networkType = connection ? connection.effectiveType : 'Unknown';
 

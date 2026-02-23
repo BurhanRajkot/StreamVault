@@ -71,9 +71,9 @@ export function RecommendationRow({
     })
   }
 
-  if (!isLoading && section.items.length === 0) return null
-
   const { isDisliked, toggleDislike } = useDislikes()
+
+  if (!isLoading && section.items.length === 0) return null
 
   return (
     <section className="relative mb-5 sm:mb-6">
