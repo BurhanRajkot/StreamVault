@@ -189,9 +189,9 @@ export function PlayerModal({
             await playerRef.current?.requestFullscreen()
 
             // 2. Lock Orientation to Landscape (Android/Chrome mostly)
-            // @ts-ignore - screen.orientation type definition might be missing
+            // @ts-expect-error - screen.orientation type definition might be missing
             if (screen.orientation && screen.orientation.lock) {
-              // @ts-ignore
+              // @ts-expect-error - lock may be unavailable
               await screen.orientation.lock('landscape').catch(() => {
                 // Orientation lock failed (expected on some devices/browsers)
               })
@@ -849,7 +849,7 @@ export function PlayerModal({
                   loading="eager"
                   referrerPolicy="origin"
                   style={{ border: 'none' }}
-                  // @ts-ignore - fetchpriority and importance are valid attributes but not in TypeScript types yet
+                  // @ts-expect-error - fetchpriority and importance are valid attributes but not in TypeScript types yet
                   fetchpriority="high"
                   importance="high"
                   onLoad={() => {

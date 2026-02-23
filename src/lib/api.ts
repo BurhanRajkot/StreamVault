@@ -44,7 +44,7 @@ export async function fetchPopular(
       const movies = (movieData.results || []).map((m: any) => ({ ...m, media_type: 'movie' }))
       const tv = (tvData.results || []).map((t: any) => ({ ...t, media_type: 'tv' }))
 
-      let combined = [...movies, ...tv]
+      const combined = [...movies, ...tv]
       combined.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
 
       return {
@@ -81,7 +81,7 @@ export async function fetchPopular(
       const tv = (tvData.results || []).map((t: any) => ({ ...t, media_type: 'tv' }))
 
       // Combine
-      let combined = [...movies, ...tv]
+      const combined = [...movies, ...tv]
 
       // Sort by popularity (descending)
       combined.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
@@ -181,7 +181,7 @@ export async function fetchRecentlyAdded(
         date: new Date(t.first_air_date || 0)
       }))
 
-      let combined = [...movies, ...tv]
+      const combined = [...movies, ...tv]
       combined.sort((a, b) => b.date.getTime() - a.date.getTime())
 
       return combined
@@ -232,7 +232,7 @@ export async function fetchRecentlyAdded(
       }))
 
       // Combine and Sort by Date (Newest First)
-      let combined = [...movies, ...tv]
+      const combined = [...movies, ...tv]
       combined.sort((a, b) => b.date.getTime() - a.date.getTime())
 
       return combined
