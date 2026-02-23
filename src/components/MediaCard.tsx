@@ -89,6 +89,13 @@ export function MediaCard({
           selectedServer: provider,
         }).catch(console.error)
       }).catch(console.error)
+    } else {
+      logRecommendationInteraction(null, {
+        tmdbId: media.id,
+        mediaType: mediaType,
+        eventType: 'click',
+        selectedServer: provider,
+      }).catch(console.error)
     }
 
     onClick(media)
