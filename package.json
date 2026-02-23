@@ -53,6 +53,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.29.3",
+    "fuse.js": "^7.1.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.563.0",
     "motion": "^12.29.2",
@@ -68,6 +69,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "use-debounce": "^10.1.0",
     "vaul": "^0.9.9",
     "zod": "^3.25.76"
   },
