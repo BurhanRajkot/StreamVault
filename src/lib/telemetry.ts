@@ -22,5 +22,16 @@ export function getDeviceContext() {
   else if (ua.indexOf('Edge') !== -1) browser = 'Edge';
   else if (ua.indexOf('Trident') !== -1) browser = 'Internet Explorer';
 
-  return { deviceType, os, browser };
+  const browserLanguage = navigator.language || 'Unknown';
+  const localHour = new Date().getHours();
+  let timezone = 'Unknown';
+  try {
+    timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch (e) {}
+
+  // @ts-ignore
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const networkType = connection ? connection.effectiveType : 'Unknown';
+
+  return { deviceType, os, browser, browserLanguage, localHour, timezone, networkType };
 }

@@ -219,12 +219,12 @@ export function PlayerModal({
 
   useEffect(() => {
     // Only fire when playback genuinely starts
-    if (!isPlaying || !media || !isAuthenticated) return
+    if (!isPlaying || !media) return
 
     // Fire-and-forget: non-critical, doesn't block UI
     void (async () => {
       try {
-        const token = await getAccessTokenSilently()
+        const token = isAuthenticated ? await getAccessTokenSilently() : null
         const mediaType = (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie'
         await logRecommendationInteraction(token, {
           tmdbId: media.id,
@@ -276,6 +276,15 @@ export function PlayerModal({
       } else {
         // GUEST MODE: Save to localStorage
         saveGuestProgress(progressData)
+
+        // Log telemetry for ML model
+        await logRecommendationInteraction(null, {
+          tmdbId: media.id,
+          mediaType: progressData.mediaType,
+          eventType: 'watch',
+          progress: progressData.progress,
+          selectedServer: provider,
+        })
       }
     }
 
@@ -353,6 +362,16 @@ export function PlayerModal({
         } else {
            // GUEST MODE
            saveGuestProgress(data)
+
+           // Log final progress telemetry for ML model
+           await logRecommendationInteraction(null, {
+             tmdbId: media.id,
+             mediaType: data.mediaType,
+             eventType: 'watch',
+             progress: data.progress,
+             selectedServer: provider,
+           })
+
            if (nextProgress >= 0.95) {
              removeGuestProgress(media.id, mediaType)
            }
@@ -479,6 +498,13 @@ export function PlayerModal({
             eventType: 'click', // Using click as a proxy for server change
             selectedServer: newProvider,
           }).catch(console.error)
+        }).catch(console.error)
+      } else {
+        logRecommendationInteraction(null, {
+          tmdbId: media.id,
+          mediaType: mode === 'tv' ? 'tv' : 'movie',
+          eventType: 'click',
+          selectedServer: newProvider,
         }).catch(console.error)
       }
     }

@@ -198,6 +198,10 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
     deviceType,
     os,
     browser,
+    networkType,
+    browserLanguage,
+    localHour,
+    timezone,
   } = req.body
 
   // Parse country from Cloudflare/Vercel headers if available, or fallback to body
@@ -234,7 +238,11 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
       deviceType,
       os,
       browser,
-      country
+      country,
+      networkType,
+      browserLanguage,
+      localHour,
+      timezone
     }).catch((err: any) => logger.error('CineMatch interaction log failed', { error: err?.message }))
 
     // Invalidate ALL route-level cache entries for this user
@@ -244,6 +252,88 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
   } catch (err: any) {
     logger.error('CineMatch interaction error', { error: err?.message })
     return res.status(500).json({ error: 'Failed to log interaction' })
+  }
+})
+
+// ── POST /recommendations/guest/interaction ──────────────────
+// Log a guest interaction event, strictly for ML telemetry.
+// Rate-limited to prevent flooding.
+router.post('/guest/interaction', interactionRateLimiter, async (req: Request, res: Response) => {
+  const {
+    sessionId,
+    tmdbId,
+    mediaType,
+    eventType,
+    progress,
+    rating,
+    selectedServer,
+    deviceType,
+    os,
+    browser,
+    networkType,
+    browserLanguage,
+    localHour,
+    timezone,
+  } = req.body
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'sessionId required for guest tracking' })
+  }
+
+  // Parse country from Cloudflare/Vercel headers if available, or fallback to body
+  const country = (req.headers['cf-ipcountry'] as string) || (req.headers['x-vercel-ip-country'] as string) || req.body.country
+
+  // Validate inputs
+  const parsedTmdbId = Number(tmdbId)
+  if (!Number.isInteger(parsedTmdbId) || parsedTmdbId <= 0) {
+    return res.status(400).json({ error: 'Invalid tmdbId' })
+  }
+  if (!VALID_MEDIA_TYPES.includes(mediaType)) {
+    return res.status(400).json({ error: `Invalid mediaType. Must be: ${VALID_MEDIA_TYPES.join(', ')}` })
+  }
+  if (!VALID_EVENT_TYPES.includes(eventType)) {
+    return res.status(400).json({ error: `Invalid eventType. Must be: ${VALID_EVENT_TYPES.join(', ')}` })
+  }
+  if (progress !== undefined && (typeof progress !== 'number' || progress < 0 || progress > 1)) {
+    return res.status(400).json({ error: 'Invalid progress: must be 0..1' })
+  }
+  if (rating !== undefined && (typeof rating !== 'number' || rating < 1 || rating > 5)) {
+    return res.status(400).json({ error: 'Invalid rating: must be 1..5' })
+  }
+
+  try {
+    // For guests, we skip `logInteraction` (which updates profile/UserInteractions)
+    // and ONLY send telemetry to `ml_interactions`.
+
+    // We import this directly up top, but to be sure we have the function:
+    const guestEvent: any = {
+      userId: null,
+      sessionId,
+      tmdbId: parsedTmdbId,
+      mediaType,
+      eventType,
+      progress,
+      rating,
+      selectedServer,
+      deviceType,
+      os,
+      browser,
+      country,
+      networkType,
+      browserLanguage,
+      localHour,
+      timezone,
+      weight: 0.1 // Base weight for logging ML, doesn't matter much for guests since they don't have personal profiles
+    }
+
+    // Fire and forget
+    const { logMLInteraction } = require('../cinematch/ml/telemetry')
+    logMLInteraction(guestEvent)
+
+    return res.status(202).json({ accepted: true })
+  } catch (err: any) {
+    logger.error('CineMatch guest interaction error', { error: err?.message })
+    return res.status(500).json({ error: 'Failed to log guest interaction' })
   }
 })
 

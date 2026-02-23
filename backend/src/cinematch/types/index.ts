@@ -52,7 +52,8 @@ export type CandidateSource =
 
 // Interaction event to be logged
 export interface InteractionEvent {
-  userId: string
+  userId: string | null  // null for guests
+  sessionId?: string     // guest session ID
   tmdbId: number
   mediaType: MediaType
   eventType: EventType
@@ -65,6 +66,10 @@ export interface InteractionEvent {
   os?: string
   browser?: string
   country?: string
+  networkType?: string
+  browserLanguage?: string
+  localHour?: number
+  timezone?: string
 }
 
 // User profile built from interaction history
