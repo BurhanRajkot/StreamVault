@@ -753,7 +753,7 @@ import { getDeviceContext } from './telemetry'
 
 /** Log a user interaction event for real-time recommendation updates */
 export async function logRecommendationInteraction(
-  accessToken: string,
+  accessToken: string | null | undefined,
   event: {
     tmdbId: number
     mediaType: RecoMediaType
@@ -767,14 +767,34 @@ export async function logRecommendationInteraction(
     const context = getDeviceContext();
     const payload = { ...event, ...context };
 
-    await fetch(`${API_BASE}/recommendations/interaction`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
+    if (accessToken) {
+      // Authenticated User Tracking
+      await fetch(`${API_BASE}/recommendations/interaction`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+    } else {
+      // Guest Tracking for ML Model Telemetry
+      let sessionId = localStorage.getItem('guest_session_id');
+      if (!sessionId) {
+        sessionId = crypto.randomUUID();
+        localStorage.setItem('guest_session_id', sessionId);
+      }
+
+      const guestPayload = { ...payload, sessionId };
+
+      await fetch(`${API_BASE}/recommendations/guest/interaction`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(guestPayload),
+      })
+    }
   } catch {
     // Non-critical — fire and forget
   }
