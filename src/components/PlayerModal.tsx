@@ -231,6 +231,7 @@ export function PlayerModal({
           mediaType,
           eventType: 'watch',
           progress: 0,  // Will be updated by the heartbeat
+          selectedServer: provider,
         })
       } catch {
         // Non-critical — never block playback
@@ -267,6 +268,7 @@ export function PlayerModal({
             mediaType: progressData.mediaType,
             eventType: 'watch',
             progress: progressData.progress,
+            selectedServer: provider,
           })
         } catch (err) {
           console.error('Failed to update continue watching:', err)
@@ -342,6 +344,7 @@ export function PlayerModal({
              mediaType: data.mediaType,
              eventType: 'watch',
              progress: data.progress,
+             selectedServer: provider,
            })
 
            if (nextProgress >= 0.95) {
@@ -466,6 +469,18 @@ export function PlayerModal({
         media,
       })
       setEmbedUrl(url)
+
+      // LOG: User changed server (strong ML signal for failure of previous server)
+      if (isAuthenticated) {
+        getAccessTokenSilently().then(token => {
+          logRecommendationInteraction(token, {
+            tmdbId: media.id,
+            mediaType: mode === 'tv' ? 'tv' : 'movie',
+            eventType: 'click', // Using click as a proxy for server change
+            selectedServer: newProvider,
+          }).catch(console.error)
+        }).catch(console.error)
+      }
     }
   }
 

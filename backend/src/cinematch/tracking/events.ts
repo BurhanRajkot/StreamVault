@@ -24,6 +24,7 @@ import { EventType, MediaType, InteractionEvent } from '../types'
 import { getMovieFeatures } from '../features'
 import { invalidateRecommendationCache } from '../mixer/homeTimeline'
 import { invalidateUserProfile } from '../features/userProfile'
+import { logMLInteraction } from '../ml/telemetry'
 
 // ── Event Weight Map ──────────────────────────────────────
 const BASE_WEIGHTS: Record<EventType, number> = {
@@ -63,6 +64,11 @@ export async function logInteraction(event: {
   eventType: EventType
   progress?: number
   rating?: number
+  selectedServer?: string
+  deviceType?: string
+  os?: string
+  browser?: string
+  country?: string
 }): Promise<void> {
   const weight = computeWeight(event.eventType, event.progress, event.rating)
 
@@ -74,6 +80,11 @@ export async function logInteraction(event: {
     weight,
     progress: event.progress,
     rating: event.rating,
+    selectedServer: event.selectedServer,
+    deviceType: event.deviceType,
+    os: event.os,
+    browser: event.browser,
+    country: event.country,
   }
 
   const { error } = await supabaseAdmin
@@ -92,6 +103,9 @@ export async function logInteraction(event: {
     console.error('[CineMatch] Interaction log error:', error.message)
     return
   }
+
+  // Delegate ML training tracking to the dedicated ML module
+  logMLInteraction(row);
 
   // Invalidate ALL caches so next request rebuilds profile from DB
   invalidateRecommendationCache(event.userId)

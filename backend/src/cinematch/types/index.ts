@@ -59,6 +59,12 @@ export interface InteractionEvent {
   weight: number
   progress?: number
   rating?: number
+  // Rich ML Telemetry Context
+  selectedServer?: string
+  deviceType?: string
+  os?: string
+  browser?: string
+  country?: string
 }
 
 // User profile built from interaction history
