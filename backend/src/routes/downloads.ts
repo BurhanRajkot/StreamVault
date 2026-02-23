@@ -49,6 +49,13 @@ function injectHardcodedDownloads(results: any[]): any[] {
       quality: '2160p IMAX BluRay',
       filename: 'Interstellar.2014.IMAX.2160p.10bit.HDR.BluRay.6CH.x265.torrent',
       createdAt: '2024-01-02T00:00:00.000Z'
+    },
+    {
+      id: 'hardcoded-mumbai-mafia',
+      title: 'Mumbai Mafia: Police vs The Underworld',
+      quality: '1080p WEBRip',
+      filename: 'Mumbai.Mafia.Police.vs.The.Underworld.2023.1080p.WEBRip.x264-RARBG-xpost.mp4',
+      createdAt: '2024-01-03T00:00:00.000Z'
     }
   ]
 
@@ -155,6 +162,8 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
     filename = 'The.Godfather.1972.REMASTERED.1080p.10bit.BluRay.6CH.x265.torrent'
   } else if (id === 'hardcoded-interstellar') {
     filename = 'Interstellar.2014.IMAX.2160p.10bit.HDR.BluRay.6CH.x265.torrent'
+  } else if (id === 'hardcoded-mumbai-mafia') {
+    filename = 'Mumbai.Mafia.Police.vs.The.Underworld.2023.1080p.WEBRip.x264-RARBG-xpost.mp4'
   } else {
     // Fetch from DB
     const { data: item } = await supabaseAdmin
@@ -170,6 +179,10 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   // 2. Auth checks
   if (req.admin) {
     logger.info('Admin file download access', { filename })
+    if (id === 'hardcoded-mumbai-mafia') {
+      const filePath = path.join(__dirname, '../../Downloads', filename)
+      return res.download(filePath, filename)
+    }
     return streamDownloadFromStorage(res, filename)
   }
 
@@ -179,6 +192,11 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
 
   const isPaid = await isPaidUser(userId)
   if (!isPaid) return res.status(403).json({ error: 'Downloads are only available for premium users.' })
+
+  if (id === 'hardcoded-mumbai-mafia') {
+    const filePath = path.join(__dirname, '../../Downloads', filename)
+    return res.download(filePath, filename)
+  }
 
   return streamDownloadFromStorage(res, filename)
 })
