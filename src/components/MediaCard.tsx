@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Play, Star, Heart, ThumbsDown } from 'lucide-react'
 import { Media } from '@/lib/config'
-import { getImageUrl } from '@/lib/api'
+import { getImageUrl, logRecommendationInteraction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
@@ -25,7 +25,7 @@ export function MediaCard({
   const title = media.title || media.name || 'Unknown'
   const rating = media.vote_average ? media.vote_average.toFixed(1) : 'N/A'
 
-  const { isAuthenticated } = useAuth0()
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { toggleFavorite, isFavorited } = useFavorites()
   const { toggleDislike, isDisliked } = useDislikes()
   const [isExpanded, setIsExpanded] = useState(false)
@@ -79,6 +79,18 @@ export function MediaCard({
     if (provider) {
       localStorage.setItem('stream_provider', provider)
     }
+
+    if (isAuthenticated) {
+      getAccessTokenSilently().then(token => {
+        logRecommendationInteraction(token, {
+          tmdbId: media.id,
+          mediaType: mediaType,
+          eventType: 'click',
+          selectedServer: provider,
+        }).catch(console.error)
+      }).catch(console.error)
+    }
+
     onClick(media)
     setShowQuickView(false)
   }

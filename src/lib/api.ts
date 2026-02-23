@@ -749,6 +749,8 @@ export async function fetchGuestRecommendations(): Promise<RecommendationResult>
   return res.json()
 }
 
+import { getDeviceContext } from './telemetry'
+
 /** Log a user interaction event for real-time recommendation updates */
 export async function logRecommendationInteraction(
   accessToken: string,
@@ -758,16 +760,20 @@ export async function logRecommendationInteraction(
     eventType: 'watch' | 'favorite' | 'click' | 'search' | 'rate' | 'dislike'
     progress?: number
     rating?: number
+    selectedServer?: string
   }
 ): Promise<void> {
   try {
+    const context = getDeviceContext();
+    const payload = { ...event, ...context };
+
     await fetch(`${API_BASE}/recommendations/interaction`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(event),
+      body: JSON.stringify(payload),
     })
   } catch {
     // Non-critical — fire and forget

@@ -71,7 +71,7 @@ async function readFromDb(userId: string): Promise<ScoredCandidate[] | null> {
 // ── MAIN PIPELINE ─────────────────────────────────────────
 export async function getRecommendations(
   userId: string,
-  options: { limit?: number; forceRefresh?: boolean } = {}
+  options: { limit?: number; forceRefresh?: boolean; useVectorML?: boolean } = {}
 ): Promise<RecommendationResult> {
   const limit = options.limit ?? TOP_K
   const startTime = Date.now()
@@ -109,8 +109,8 @@ export async function getRecommendations(
     }
   }
 
-  // Step 2: Candidate Sourcing (5 parallel sources)
-  const rawCandidates = await fetchAllSources(profile)
+  // Step 2: Candidate Sourcing (5 parallel sources or pure Vector ML source)
+  const rawCandidates = await fetchAllSources(profile, options.useVectorML)
 
   // Step 3: Pre-Scoring Filters
   const filtered = applyFilters(rawCandidates, profile)
