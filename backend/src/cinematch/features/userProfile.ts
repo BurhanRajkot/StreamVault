@@ -71,6 +71,8 @@ function emptyProfile(userId: string): UserProfile {
     genreVector: {},
     keywordVector: {},
     castVector: {},
+    directorVector: {},
+    decadeVector: {},
     watchedIds: new Set(),
     favoritedIds: new Set(),
     dislikedIds: new Set(),
@@ -102,6 +104,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   const genreVector: Record<number, number> = {}
   const keywordVector: Record<number, number> = {}
   const castVector: Record<number, number> = {}
+  const directorVector: Record<number, number> = {}
+  const decadeVector: Record<number, number> = {}
   const watchedIds = new Set<number>()
   const favoritedIds = new Set<number>()
   const dislikedIds = new Set<number>()
@@ -159,31 +163,44 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
           }
         }
 
+        // Extract decade
+        let decade = 0
+        if (features.releaseDate) {
+          const year = parseInt(features.releaseDate.split('-')[0] || '0', 10)
+          if (year > 1900) {
+            decade = Math.floor(year / 10) * 10
+          }
+        }
+
         // Genre vector — positive for liked/watched, negative for disliked
         for (const genreId of features.genreIds) {
           genreVector[genreId] = (genreVector[genreId] || 0) + adjustedWeight
         }
 
-        // Keyword and cast affinity only for positive signals
+        // Apply keyword, cast, director, and decade vectors symmetrically
+        // both positive tracking and negative penalties
+
+        // Keyword affinity vector
+        for (const kwId of features.keywords) {
+          keywordVector[kwId] = (keywordVector[kwId] || 0) + adjustedWeight
+        }
+
+        // Cast affinity vector
+        for (const castId of features.castIds) {
+          castVector[castId] = (castVector[castId] || 0) + adjustedWeight
+        }
+
+        // Director vector (gets 2x weight as it's a strong trait)
+        if (features.directorId) {
+          directorVector[features.directorId] = (directorVector[features.directorId] || 0) + (adjustedWeight * 2)
+        }
+
+        // Decade vector
+        if (decade > 0) {
+          decadeVector[decade] = (decadeVector[decade] || 0) + adjustedWeight
+        }
+
         if (!isDislike) {
-          // Keyword affinity vector (top keywords from watched movies)
-          if (interaction.eventType === 'watch' || interaction.eventType === 'favorite') {
-            for (const kwId of features.keywords) {
-              keywordVector[kwId] = (keywordVector[kwId] || 0) + adjustedWeight
-            }
-          }
-
-          // Cast affinity vector
-          if (interaction.eventType === 'watch' || interaction.eventType === 'favorite') {
-            for (const castId of features.castIds) {
-              castVector[castId] = (castVector[castId] || 0) + adjustedWeight
-            }
-            // Director gets double weight (strong creative signal)
-            if (features.directorId) {
-              castVector[features.directorId] = (castVector[features.directorId] || 0) + adjustedWeight * 2
-            }
-          }
-
           // Track recently watched for candidate seeding
           if (interaction.eventType === 'watch' && !recentWatchMap.has(interaction.tmdbId)) {
             recentWatchMap.set(interaction.tmdbId, {
@@ -204,8 +221,10 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   const profile: UserProfile = {
     userId,
     genreVector: normalizeGenreVector(genreVector),
-    keywordVector: normalizeVector(keywordVector),
-    castVector: normalizeVector(castVector),
+    keywordVector: normalizeGenreVector(keywordVector),
+    castVector: normalizeGenreVector(castVector),
+    directorVector: normalizeGenreVector(directorVector),
+    decadeVector: normalizeGenreVector(decadeVector),
     watchedIds,
     favoritedIds,
     dislikedIds,

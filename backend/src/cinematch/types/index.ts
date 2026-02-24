@@ -21,6 +21,8 @@ export interface Candidate {
   genreIds: number[]
   keywords?: number[]   // TMDB keyword ids (optional — populated by featureStore)
   castIds?: number[]    // Top-5 cast ids (optional — populated by featureStore)
+  directorId?: number | null // Optional — populated by featureStore
+  decade?: number       // Optional — populated by featureStore
   source: CandidateSource  // which pipeline stage produced this
   seedTitle?: string   // The title that triggered this candidate (for "Because you watched" grouping)
   seedMediaType?: MediaType // The media type of the seed item
@@ -32,6 +34,8 @@ export interface ScoredCandidate extends Candidate {
   genreAffinityScore: number
   keywordAffinityScore: number
   castAffinityScore: number
+  directorAffinityScore: number
+  decadeAffinityScore: number
   popularityScore: number
   freshnessScore: number
   qualityScore: number
@@ -78,6 +82,8 @@ export interface UserProfile {
   genreVector: Record<number, number>     // genreId → affinity weight [-1..1]
   keywordVector: Record<number, number>   // keywordId → affinity weight [0..1]
   castVector: Record<number, number>      // personId → affinity weight [0..1]
+  directorVector: Record<number, number>  // directorId → affinity weight [0..1]
+  decadeVector: Record<number, number>    // decade start year → affinity weight [0..1]
   watchedIds: Set<number>                 // tmdbIds already seen
   favoritedIds: Set<number>              // tmdbIds in Favorites
   dislikedIds: Set<number>               // tmdbIds explicitly disliked
@@ -117,6 +123,8 @@ export interface UserTasteProfile {
   topGenres: Array<{ genreId: number; name: string; weight: number }>
   topKeywords: Array<{ keywordId: number; weight: number }>
   topCastIds: Array<{ personId: number; weight: number }>
+  topDirectors: Array<{ personId: number; weight: number }>
+  topDecades: Array<{ decade: number; weight: number }>
   isNewUser: boolean
   lastUpdated: string | null
 }
