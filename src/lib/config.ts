@@ -94,6 +94,8 @@ export interface Media {
   release_date?: string
   first_air_date?: string
   media_type?: string
+  runtime?: number
+  episode_run_time?: number[]
   genres?: Genre[]
   credits?: {
     cast: Cast[]
