@@ -68,7 +68,29 @@ function castAffinityScore(
   for (const castId of candidateCastIds) {
     dotProduct += userCastVector[castId] ?? 0
   }
-  return Math.min(dotProduct / candidateCastIds.length, 1.0)
+  return Math.max(Math.min(dotProduct / candidateCastIds.length, 1.0), -1.0)
+}
+
+// ── Director Affinity ─────────────────────────────────────
+function directorAffinityScore(
+  directorId: number | null | undefined,
+  userDirectorVector: Record<number, number>,
+): number {
+  if (!directorId) return 0.0
+  if (Object.keys(userDirectorVector).length === 0) return 0.0
+  const score = userDirectorVector[directorId] ?? 0
+  return Math.max(Math.min(score, 1.0), -1.0)
+}
+
+// ── Decade Affinity ───────────────────────────────────────
+function decadeAffinityScore(
+  decade: number | undefined,
+  userDecadeVector: Record<number, number>,
+): number {
+  if (!decade) return 0.0
+  if (Object.keys(userDecadeVector).length === 0) return 0.0
+  const score = userDecadeVector[decade] ?? 0
+  return Math.max(Math.min(score, 1.0), -1.0)
 }
 
 // ── Source Priority Boost ────────────────────────────────
@@ -111,9 +133,14 @@ export function scoreCandidate(
   profile: UserProfile,
   weights: RankingWeights,
 ): ScoredCandidate {
-  const gAffinity = genreAffinityScore(candidate.genreIds, profile.genreVector)
-  const kwAffinity = keywordAffinityScore(candidate.keywords, profile.keywordVector)
+  // Allow genre, keyword, cast, director, decade to be negative for disliked items
+  const gAffinity = Math.max(genreAffinityScore(candidate.genreIds, profile.genreVector), -1.0)
+  const kwAffinity = Math.max(keywordAffinityScore(candidate.keywords, profile.keywordVector), -1.0)
+
   const castAff = castAffinityScore(candidate.castIds, profile.castVector)
+  const dirAff = directorAffinityScore(candidate.directorId, profile.directorVector)
+  const decAff = decadeAffinityScore(candidate.decade, profile.decadeVector)
+
   const popScore = popularityScore(candidate.popularity)
   const freshScore = freshnessScore(candidate.releaseDate)
   const qualScore = qualityScore(candidate.voteAverage, candidate.voteCount)
@@ -122,6 +149,8 @@ export function scoreCandidate(
     weights.genreAffinity   * gAffinity  +
     weights.keywordAffinity * kwAffinity +
     weights.castAffinity    * castAff    +
+    0.15                    * dirAff     + // Fixed weight for director
+    0.10                    * decAff     + // Fixed weight for decade
     weights.popularity      * popScore   +
     weights.freshness       * freshScore +
     weights.quality         * qualScore
@@ -136,6 +165,8 @@ export function scoreCandidate(
     genreAffinityScore: gAffinity,
     keywordAffinityScore: kwAffinity,
     castAffinityScore: castAff,
+    directorAffinityScore: dirAff,
+    decadeAffinityScore: decAff,
     popularityScore: popScore,
     freshnessScore: freshScore,
     qualityScore: qualScore,
