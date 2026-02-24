@@ -776,7 +776,7 @@ export function PlayerModal({
                     <button
                       onClick={handlePrevEpisode}
                       disabled={season === 1 && episode === 1}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50 hover:bg-secondary/80 transition-colors min-w-[44px] min-h-[44px]"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm disabled:opacity-50 hover:bg-secondary/80 transition-colors"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
@@ -787,7 +787,7 @@ export function PlayerModal({
 
                     <button
                       onClick={handleNextEpisode}
-                      className="rounded-lg bg-secondary px-3 py-2 text-sm hover:bg-secondary/80 transition-colors min-w-[44px] min-h-[44px]"
+                      className="rounded-lg bg-secondary px-3 py-2 text-sm hover:bg-secondary/80 transition-colors"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
