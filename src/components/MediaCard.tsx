@@ -32,6 +32,7 @@ export function MediaCard({
   const [showQuickView, setShowQuickView] = useState(false)
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
   const quickViewTimeout = useRef<NodeJS.Timeout | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
 
   /**
    * TMDB media type detection
@@ -169,6 +170,7 @@ export function MediaCard({
   return (
     <>
       <div
+        ref={cardRef}
         onClick={(e) => {
           e.stopPropagation()
           onClick(media)
@@ -258,6 +260,7 @@ export function MediaCard({
             media={media}
             onClose={() => setShowQuickView(false)}
             onPlay={handleQuickViewPlay}
+            triggerRef={cardRef}
           />
         )}
       </div>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Media, CONFIG, MediaMode } from '@/lib/config'
 import { getImageUrl, fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
@@ -10,9 +11,10 @@ interface QuickViewModalProps {
   media: Media
   onClose: () => void
   onPlay: (media: Media, providerVal?: string) => void
+  triggerRef: React.RefObject<HTMLElement>
 }
 
-export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) {
+export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickViewModalProps) {
   const [details, setDetails] = useState<Media | null>(null)
   const [provider, setProvider] = useState(() => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 850;
@@ -20,6 +22,7 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
   })
   const [isVisible, setIsVisible] = useState(false)
   const [feedback, setFeedback] = useState<'rate' | 'dislike' | null>(null)
+  const [modalStyle, setModalStyle] = useState<React.CSSProperties>({})
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
@@ -36,6 +39,37 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
 
     return () => clearTimeout(timer)
   }, [media.id, mode])
+
+  useLayoutEffect(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+
+      const modalWidth = 420
+
+      // Calculate top and left to center over the trigger
+      // Taking into account current scroll position
+      const scrollY = window.scrollY || window.pageYOffset
+      const scrollX = window.scrollX || window.pageXOffset
+
+      let left = scrollX + rect.left + (rect.width / 2) - (modalWidth / 2)
+      let top = scrollY + rect.top - (modalWidth * 0.5) // Approximate height shift
+
+      // Prevent clipping on left/right screen edges
+      const margin = 20
+      if (left < scrollX + margin) left = scrollX + margin
+      if (left + modalWidth > scrollX + window.innerWidth - margin) {
+        left = scrollX + window.innerWidth - modalWidth - margin
+      }
+
+      setModalStyle({
+        position: 'absolute',
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${modalWidth}px`,
+        zIndex: 1000,
+      })
+    }
+  }, [triggerRef])
 
   const handleFeedback = async (type: 'rate' | 'dislike') => {
     if (!isAuthenticated) return
@@ -62,14 +96,14 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
   const year = media.release_date?.split('-')[0] || media.first_air_date?.split('-')[0]
   const rating = (media.vote_average * 10).toFixed(0)
 
-  return (
+  return createPortal(
     <div
       className={cn(
-        "absolute z-[100] w-[420px] flex flex-col rounded-lg bg-[#181818] shadow-2xl transition-all duration-300 overflow-hidden",
-        "top-[-50%] left-1/2 -translate-x-1/2",
+        "flex flex-col rounded-lg bg-[#181818] shadow-2xl transition-all duration-300 overflow-hidden",
         isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
       )}
       style={{
+        ...modalStyle,
         boxShadow: '0 8px 32px rgba(0,0,0,0.8)'
       }}
       onMouseLeave={onClose}
@@ -169,6 +203,7 @@ export function QuickViewModal({ media, onClose, onPlay }: QuickViewModalProps) 
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
