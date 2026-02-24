@@ -155,9 +155,6 @@
 
       /* Mobile: eliminate 300ms tap delay */
       touch-action: manipulation;
-
-      /* Mobile: prevent rubber-band scroll showing background */
-      overscroll-behavior: none;
     }
 
     @media (max-width: 640px) {
