@@ -1,12 +1,4 @@
-// ============================================================
-// CineMatch AI — RecommendationRow Component
-// Netflix-style "Because you watched X" horizontal scroll row.
-// Design matches the existing MediaCard / AuthorsChoiceSection
-// look: dark obsidian theme, red accent, skeleton loading,
-// hover → play overlay, dislike button (thumbs down).
-// ============================================================
-
-import React, { useRef, useState, useCallback } from 'react'
+import React, { useRef, useState, useCallback, useEffect } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,6 +15,7 @@ import {
 import { RecoSection, RecoItem, getImageUrl } from '../lib/api'
 import { cn } from '../lib/utils'
 import { useDislikes } from '../context/DislikesContext'
+import { motion, useAnimation, useMotionValue } from 'framer-motion'
 
 interface RecommendationRowProps {
   section: RecoSection
@@ -60,14 +53,50 @@ export function RecommendationRow({
   onDislike,
   isLoading = false,
 }: RecommendationRowProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const [carouselWidth, setCarouselWidth] = useState(0)
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const innerTrackRef = useRef<HTMLDivElement>(null)
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (!scrollRef.current) return
-    const amount = scrollRef.current.clientWidth * 0.75
-    scrollRef.current.scrollBy({
-      left: direction === 'right' ? amount : -amount,
-      behavior: 'smooth',
+  // Custom physics controller for imperative button scrolling
+  const controls = useAnimation()
+  const x = useMotionValue(0)
+
+  // Is the user actively dragging? Prevent click events if so.
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Measure the true width of the content vs the container to set drag constraints
+  useEffect(() => {
+    if (carouselRef.current && innerTrackRef.current) {
+      setCarouselWidth(
+        innerTrackRef.current.scrollWidth - carouselRef.current.offsetWidth
+      )
+    }
+  }, [section.items, isLoading])
+
+  const handleArrowScroll = (direction: 'left' | 'right') => {
+    if (!carouselRef.current) return
+
+    // Get the actual mathematical value of the current physical location
+    const currentX = x.get()
+    const shiftAmount = carouselRef.current.offsetWidth * 0.75
+
+    let targetX = direction === 'right' ? currentX - shiftAmount : currentX + shiftAmount
+
+    // Clamp targets so the buttons don't fire physics past the constraints
+    if (targetX > 0) targetX = 0
+    if (targetX < -carouselWidth) targetX = -carouselWidth
+
+    // Apply the heavy physics snap action
+    controls.start({
+        x: targetX,
+        transition: {
+            type: "spring",
+            bounce: 0,
+            duration: 0.6, // Slower, heavier slide
+            mass: 0.8,
+            stiffness: 70,
+            damping: 15
+        }
     })
   }
 
@@ -86,17 +115,17 @@ export function RecommendationRow({
           </h2>
         </div>
 
-        {/* Arrow buttons – same style as AuthorsChoiceSection */}
+        {/* Arrow buttons */}
         <div className="flex gap-1.5 flex-shrink-0 ml-3">
           <button
-            onClick={() => scroll('left')}
+            onClick={() => handleArrowScroll('left')}
             aria-label="Scroll left"
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all hover:scale-110 active:scale-95"
           >
             <ChevronLeft size={18} />
           </button>
           <button
-            onClick={() => scroll('right')}
+            onClick={() => handleArrowScroll('right')}
             aria-label="Scroll right"
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all hover:scale-110 active:scale-95"
           >
@@ -105,26 +134,48 @@ export function RecommendationRow({
         </div>
       </div>
 
-      {/* ── Scroll track ───────────────────────────────── */}
+      {/* ── Outer Carousel Bounds (Used for measurement and hiding off-screen stuff) ── */}
       <div
-        ref={scrollRef}
-        className="flex gap-3 overflow-x-auto scroll-smooth pb-3 no-scrollbar"
-        style={{ scrollSnapType: 'x mandatory' }}
+        ref={carouselRef}
+        className="overflow-hidden pb-4"
+        style={{ touchAction: "pan-y" }} // Tell the browser: we handle X, you handle Y scrolling
       >
-        {isLoading
-          ? Array.from({ length: 8 }).map((_, i) => <RecoCardSkeleton key={i} />)
-          : section.items.map((item) => (
-              <RecoCard
-                key={`${item.mediaType}:${item.tmdbId}`}
-                item={item}
-                onClick={onCardClick}
-                onDislike={() => {
-                  onDislike?.(item)
-                  toggleDislike(item.tmdbId, item.mediaType)
-                }}
-                isDisliked={isDisliked(item.tmdbId, item.mediaType)}
-              />
-            ))}
+        {/* ── Inner Physics Track ───────────────────────────────── */}
+        <motion.div
+          ref={innerTrackRef}
+          className="flex gap-3 cursor-grab active:cursor-grabbing w-max pr-10" // Allow enough right padding so the last item breathes
+          drag="x"
+          dragConstraints={{ right: 0, left: -carouselWidth }}
+          // Here is the requested custom TikTok/Netflix Physics Math:
+          dragElastic={0.15} // How far past the end can you 'rubberband' pull it?
+          dragTransition={{
+              bounceStiffness: 200, // How aggressively it snaps back if pulled out of bounds
+              bounceDamping: 20,    // Friction against the bounce. Lower = wobblier
+              timeConstant: 350,    // Momentum loss over time (higher = glides further)
+              power: 0.5            // Sensitivity of velocity transfer map
+          }}
+          style={{ x }}
+          animate={controls}
+          onDragStart={() => setIsDragging(true)}
+          // Slight delay on turning off dragging to prevent click firing on release
+          onDragEnd={() => setTimeout(() => setIsDragging(false), 50)}
+        >
+          {isLoading
+            ? Array.from({ length: 8 }).map((_, i) => <RecoCardSkeleton key={i} />)
+            : section.items.map((item) => (
+                <RecoCard
+                  key={`${item.mediaType}:${item.tmdbId}`}
+                  item={item}
+                  isDragging={isDragging}
+                  onClick={onCardClick}
+                  onDislike={() => {
+                    onDislike?.(item)
+                    toggleDislike(item.tmdbId, item.mediaType)
+                  }}
+                  isDisliked={isDisliked(item.tmdbId, item.mediaType)}
+                />
+              ))}
+        </motion.div>
       </div>
     </section>
   )
@@ -133,12 +184,13 @@ export function RecommendationRow({
 // ── Individual card ────────────────────────────────────────
 interface RecoCardProps {
   item: RecoItem
+  isDragging?: boolean
   onClick: (item: RecoItem) => void
   onDislike?: (item: RecoItem) => void
   isDisliked?: boolean
 }
 
-function RecoCard({ item, onClick, onDislike, isDisliked = false }: RecoCardProps) {
+function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = false }: RecoCardProps) {
   const [imgError, setImgError] = useState(false)
 
   const imgSrc = !imgError && item.posterPath
@@ -149,6 +201,14 @@ function RecoCard({ item, onClick, onDislike, isDisliked = false }: RecoCardProp
     e.stopPropagation()
     onDislike?.(item)
   }, [item, onDislike])
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (isDragging) {
+      e.preventDefault()
+      return
+    }
+    onClick(item)
+  }
 
   return (
     <button
@@ -162,7 +222,7 @@ function RecoCard({ item, onClick, onDislike, isDisliked = false }: RecoCardProp
         isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
       )}
       style={{ scrollSnapAlign: 'start' }}
-      onClick={() => onClick(item)}
+      onClick={handleClick}
       aria-label={`Play ${item.title}`}
     >
       {/* ── Poster ─────────────────────────────────────── */}
