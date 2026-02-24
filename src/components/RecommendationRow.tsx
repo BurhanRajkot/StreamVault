@@ -203,7 +203,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
   }, [item, onDislike])
 
   const handleClick = (e: React.MouseEvent) => {
-    if (isDragging) {
+    if (isDragging || isDisliked) {
       e.preventDefault()
       return
     }
@@ -218,8 +218,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
         'rounded-xl bg-card border border-border/50',
         'transition-all duration-300 ease-in-out',
         'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40',
-        'active:scale-[0.97] overflow-hidden',
-        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
+        'active:scale-[0.97] overflow-hidden'
       )}
       style={{ scrollSnapAlign: 'start' }}
       onClick={handleClick}
@@ -243,11 +242,8 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
           </div>
         )}
 
-        {/* Gradient overlay on hover */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-
         {/* Dislike button – top-right, visible on hover */}
-        {onDislike && (
+        {onDislike && !isDisliked && (
           <button
             onClick={handleDislike}
             aria-label={`Not interested in ${item.title}`}
@@ -256,26 +252,35 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
               'p-2',
               'opacity-0 group-hover:opacity-100 transition-all duration-200',
               'hover:scale-110 active:scale-95',
-              isDisliked ? 'bg-background' : 'hover:bg-background'
+              'hover:bg-background'
             )}
           >
-            <ThumbsDown
-              className={cn(
-                'h-4 w-4 transition-all',
-                isDisliked
-                  ? 'fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] scale-110'
-                  : 'text-zinc-400 hover:text-white'
-              )}
-            />
+            <ThumbsDown className="h-4 w-4 text-zinc-400 hover:text-white transition-all" />
           </button>
         )}
 
         {/* Play overlay – center, on hover */}
-        <div className="absolute inset-0 hidden md:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-          <div className="rounded-full bg-primary/90 backdrop-blur-sm p-3.5 shadow-xl">
-            <Play className="h-6 w-6 fill-white text-white" />
+        {!isDisliked && (
+          <div className="absolute inset-0 hidden md:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+            <div className="rounded-full bg-primary/90 backdrop-blur-sm p-3.5 shadow-xl">
+              <Play className="h-6 w-6 fill-white text-white" />
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Disliked Overlay */}
+        {isDisliked && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm transition-all duration-300">
+            <ThumbsDown className="h-8 w-8 text-muted-foreground mb-2" />
+            <span className="text-xs font-semibold text-muted-foreground text-center px-2">Not Interested</span>
+            <button
+              onClick={handleDislike}
+              className="mt-3 rounded-full bg-secondary px-4 py-1.5 text-xs font-bold text-white hover:bg-secondary/80 transition-colors shadow-lg active:scale-95"
+            >
+              Undo
+            </button>
+          </div>
+        )}
       </div>
     </button>
   )
