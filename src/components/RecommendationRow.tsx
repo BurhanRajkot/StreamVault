@@ -16,6 +16,7 @@ import { RecoSection, RecoItem, getImageUrl } from '../lib/api'
 import { cn } from '../lib/utils'
 import { useDislikes } from '../context/DislikesContext'
 import { motion, useAnimation, useMotionValue } from 'framer-motion'
+import { QuickViewModal } from './QuickViewModal'
 
 interface RecommendationRowProps {
   section: RecoSection
@@ -192,6 +193,21 @@ interface RecoCardProps {
 
 function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = false }: RecoCardProps) {
   const [imgError, setImgError] = useState(false)
+  const [showQuickView, setShowQuickView] = useState(false)
+  const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
+  const cardRef = useRef<HTMLButtonElement>(null)
+
+  const handleMouseEnter = () => {
+    if (window.innerWidth < 768) return
+    hoverTimeout.current = setTimeout(() => {
+      setShowQuickView(true)
+    }, 1500)
+  }
+
+  const handleMouseLeave = () => {
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
+    setShowQuickView(false)
+  }
 
   const imgSrc = !imgError && item.posterPath
     ? getImageUrl(item.posterPath, 'poster')
@@ -212,13 +228,15 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
 
   return (
     <button
+      ref={cardRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className={cn(
         'group relative flex-shrink-0 cursor-pointer text-left',
         'w-[clamp(120px,14vw,175px)]',
         'rounded-xl bg-card border border-border/50',
         'transition-all duration-300 ease-in-out',
-        'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40',
-        'active:scale-[0.97] overflow-hidden'
+        showQuickView ? 'z-50' : 'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden'
       )}
       style={{ scrollSnapAlign: 'start' }}
       onClick={handleClick}
@@ -282,6 +300,25 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
           </div>
         )}
       </div>
+
+      {showQuickView && (
+        <QuickViewModal
+          media={{
+            id: item.tmdbId,
+            title: item.title,
+            poster_path: item.posterPath,
+            backdrop_path: item.backdropPath,
+            overview: item.overview,
+            vote_average: item.voteAverage,
+            release_date: item.mediaType === 'movie' ? item.releaseDate : undefined,
+            first_air_date: item.mediaType === 'tv' ? item.releaseDate : undefined,
+            media_type: item.mediaType,
+          }}
+          onClose={() => setShowQuickView(false)}
+          onPlay={() => onClick(item)}
+          triggerRef={cardRef}
+        />
+      )}
     </button>
   )
 }

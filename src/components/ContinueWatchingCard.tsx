@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Media } from '@/lib/config'
 import { Play, MoreVertical, Trash2 } from 'lucide-react'
+import { QuickViewModal } from './QuickViewModal'
 import { cn } from '@/lib/utils'
 import { ContinueWatchingItem, getImageUrl } from '@/lib/api'
 
@@ -18,6 +19,21 @@ export function ContinueWatchingCard({
   onRemove,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showQuickView, setShowQuickView] = useState(false)
+  const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  const handleMouseEnter = () => {
+    if (window.innerWidth < 768) return
+    hoverTimeout.current = setTimeout(() => {
+      setShowQuickView(true)
+    }, 1500)
+  }
+
+  const handleMouseLeave = () => {
+    if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
+    setShowQuickView(false)
+  }
 
   const title = media.title || media.name || 'Unknown'
 
@@ -31,7 +47,12 @@ export function ContinueWatchingCard({
   const progressLabel = getProgressLabel()
 
   return (
-    <div className="group relative w-[160px] flex-shrink-0">
+    <div
+      ref={cardRef}
+      className={cn("group relative w-[160px] flex-shrink-0 cursor-pointer", showQuickView ? "z-50" : "z-0")}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       {/* Play Overlay (hover + touch) */}
       <div
         className="
@@ -147,6 +168,18 @@ export function ContinueWatchingCard({
           </div>
         )}
       </div>
+
+      {showQuickView && (
+        <QuickViewModal
+          media={media}
+          onClose={() => setShowQuickView(false)}
+          onPlay={() => {
+            setShowQuickView(false)
+            onResume(media, item.season, item.episode, item.server)
+          }}
+          triggerRef={cardRef}
+        />
+      )}
     </div>
   )
 }
