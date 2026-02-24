@@ -22,6 +22,8 @@ export const CONFIG = {
         'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy:
         'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+      vidsrc_net:
+        'https://vidsrc.net/embed/tv/{tmdbId}/{season}/{episode}',
 
       /* ================= MOVIE ================= */
       vidsrc_pro_movie: 'https://vidsrc.to/embed/movie/{tmdbId}',
@@ -32,24 +34,27 @@ export const CONFIG = {
         'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy_movie:
         'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+      vidsrc_net_movie: 'https://vidsrc.net/embed/movie/{tmdbId}',
     },
 
   PROVIDER_NAMES: {
     vidsrc_pro: 'VidSrc Pro',
     vidfast_pro: 'VidFast Pro',
-    vidsrc_icu: 'VidSrc ICU',
+    vidsrc_icu: 'VidSrc ICU (DOWN)',
     vidlink_pro: 'VidLink Pro',
     vidsrc_cc: 'VidSrc CC',
     videasy: 'Videasy',
+    vidsrc_net: 'VidSrc Net',
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
     vidsrc_pro: { quality: '🌟 Latest/Best', seekSupport: 'excellent', description: 'Latest quality streams' },
     vidfast_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Best for seeking' },
-    vidsrc_icu: { quality: '✓ Good', seekSupport: 'good', description: 'Reliable streaming' },
+    vidsrc_icu: { quality: '❌ Offline', seekSupport: 'poor', description: 'Currently down' },
     vidlink_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Fast buffering' },
     vidsrc_cc: { quality: '✓ Good', seekSupport: 'good', description: 'Stable playback' },
     videasy: { quality: '✓ Good', seekSupport: 'medium', description: 'Standard quality' },
+    vidsrc_net: { quality: '🌟 Reliable', seekSupport: 'good', description: 'Alternative VidSrc' },
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
 
   STREAMING_DOMAINS: [
@@ -59,6 +64,7 @@ export const CONFIG = {
     'vidlink.pro',
     'vidsrc.cc',
     'player.videasy.net',
+    'vidsrc.net',
   ],
 }
 
