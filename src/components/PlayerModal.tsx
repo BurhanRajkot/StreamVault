@@ -12,13 +12,14 @@ import { Media, MediaMode, CONFIG } from '@/lib/config'
 import {
   buildEmbedUrl,
   fetchTVSeasons,
-  updateContinueWatching,
   removeContinueWatching,
+  updateContinueWatching,
   fetchExistingProgress,
-  saveGuestProgress,
   getGuestItemProgress,
+  saveGuestProgress,
   removeGuestProgress,
   logRecommendationInteraction,
+  fetchMediaDetails,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -74,6 +75,12 @@ export function PlayerModal({
   const [isLoading, setIsLoading] = useState(false)
   const playerRef = useRef<HTMLDivElement>(null)
 
+  // Dynamic Progress Tracking
+  const sessionStartTime = useRef<number | null>(null)
+  const accumulatedTime = useRef<number>(0)
+  const mediaRuntime = useRef<number>(120) // Default 120 mins for movies, 45 for TV
+  const existingProgress = useRef<number>(0)
+
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
   /* ================= FETCH SEASONS (OPTIMIZED) ================= */
@@ -114,6 +121,41 @@ export function PlayerModal({
       setStreamError(false)
       setIsLoading(false)
       document.body.style.overflow = 'hidden'
+
+      // Reset dynamic trackers
+      sessionStartTime.current = null
+      accumulatedTime.current = 0
+      mediaRuntime.current = mode === 'movie' ? 120 : 45
+      existingProgress.current = 0
+
+      // Fetch precise runtime and existing progress
+      if (media) {
+        fetchMediaDetails(mode, media.id).then(details => {
+          if (details) {
+            if (mode === 'movie' && details.runtime) {
+              mediaRuntime.current = details.runtime
+            } else if (mode === 'tv' && details.episode_run_time && details.episode_run_time.length > 0) {
+              mediaRuntime.current = details.episode_run_time[0]
+            }
+          }
+        }).catch(() => {})
+
+        void (async () => {
+          const mediaType = (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie'
+          let existing: any = null
+          if (isAuthenticated) {
+            try {
+              const token = await getAccessTokenSilently()
+              existing = await fetchExistingProgress(token, media.id, mediaType)
+            } catch {}
+          } else {
+            existing = getGuestItemProgress(media.id, mediaType)
+          }
+          if (existing) {
+             existingProgress.current = existing.progress || 0
+          }
+        })()
+      }
 
       // 2. Auto-Start Playback (ONLY FOR MOVIES)
       if (media && mode === 'movie') {
@@ -237,9 +279,41 @@ export function PlayerModal({
         // Non-critical — never block playback
       }
     })()
+
+    // Start tracking session time
+    sessionStartTime.current = Date.now()
+
+    return () => {
+      if (sessionStartTime.current) {
+         accumulatedTime.current += Date.now() - sessionStartTime.current
+         sessionStartTime.current = null
+      }
+    }
   // Only re-run when the playing state flips to true — NOT on every heartbeat tick
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying])
+
+  /* ================= DYNAMIC PROGRESS CALCULATOR ================= */
+
+  const calculateDynamicProgress = useCallback(() => {
+    // Force final flush
+    if (sessionStartTime.current) {
+        accumulatedTime.current += Date.now() - sessionStartTime.current
+        sessionStartTime.current = null
+    }
+
+    // Convert accumulated MS to Minutes
+    const minsWatched = accumulatedTime.current / 1000 / 60
+    let addedProgress = minsWatched / mediaRuntime.current
+
+    // Safety boundaries
+    if (isNaN(addedProgress) || addedProgress < 0) addedProgress = 0
+
+    let newProgress = existingProgress.current + addedProgress
+    if (newProgress > 0.95) newProgress = 0.95
+
+    return newProgress
+  }, [])
 
   /* ================= CONTINUE WATCHING HEARTBEAT ================= */
 
@@ -248,12 +322,13 @@ export function PlayerModal({
 
     const saveProgress = async () => {
       // Data to save
+      const dynamicProg = calculateDynamicProgress()
       const progressData = {
         tmdbId: media.id,
         mediaType: (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie',
         season: mode === 'tv' ? season : undefined,
         episode: mode === 'tv' ? episode : undefined,
-        progress: 0.5,
+        progress: dynamicProg > 0 ? dynamicProg : 0.05,
         server: provider,
       }
 
@@ -313,33 +388,14 @@ export function PlayerModal({
     setTimeout(async () => {
       try {
         const mediaType = (mode === 'tv' ? 'tv' : 'movie') as 'tv' | 'movie'
-        let nextProgress = 0.5 // Default for TV
-
-        if (mode === 'movie') {
-          let existing: any = null
-
-          if (isAuthenticated) {
-            const token = await getAccessTokenSilently()
-            existing = await fetchExistingProgress(token, media.id, mediaType)
-          } else {
-            existing = getGuestItemProgress(media.id, mediaType)
-          }
-
-          if (!existing) {
-            nextProgress = 0.1
-          } else if (existing.progress < 0.5) {
-            nextProgress = 0.5
-          } else {
-            nextProgress = 0.9
-          }
-        }
+        const finalProgress = calculateDynamicProgress()
 
         const data = {
           tmdbId: media.id,
           mediaType,
           season: mode === 'tv' ? season : undefined,
           episode: mode === 'tv' ? episode : undefined,
-          progress: nextProgress,
+          progress: finalProgress || 0.05,
           server: provider,
         }
 
@@ -356,7 +412,7 @@ export function PlayerModal({
              selectedServer: provider,
            })
 
-           if (nextProgress >= 0.95) {
+           if (finalProgress >= 0.95) {
              await removeContinueWatching(token, media.id, mediaType)
            }
         } else {
@@ -372,7 +428,7 @@ export function PlayerModal({
              selectedServer: provider,
            })
 
-           if (nextProgress >= 0.95) {
+           if (finalProgress >= 0.95) {
              removeGuestProgress(media.id, mediaType)
            }
         }
@@ -414,21 +470,39 @@ export function PlayerModal({
 
       if (isAuthenticated) {
         try {
+          const finalProgress = calculateDynamicProgress()
           const token = await getAccessTokenSilently()
           await updateContinueWatching(token, {
             tmdbId: media.id,
             mediaType: 'tv',
-            season: s,
-            episode: ep,
-            progress: 0.5,
+            season: season, // Save for the PREVIOUS episode the user was watching
+            episode: episode, // Save for the PREVIOUS episode the user was watching
+            progress: finalProgress || 0.05,
             server: provider,
           })
         } catch (err) {
-          console.error('Failed to update episode:', err)
+          console.error('Failed to update previous episode:', err)
         }
+      } else {
+         const finalProgress = calculateDynamicProgress()
+         saveGuestProgress({
+            tmdbId: media.id,
+            mediaType: 'tv',
+            season: season, // previous
+            episode: episode, // previous
+            progress: finalProgress || 0.05,
+            server: provider,
+         })
+      }
+
+      // Reset tracking for the NEW episode
+      accumulatedTime.current = 0
+      existingProgress.current = 0
+      if (isPlaying) {
+         sessionStartTime.current = Date.now()
       }
     },
-    [media, mode, provider, malId, subOrDub, isAuthenticated, getAccessTokenSilently]
+    [media, mode, provider, malId, subOrDub, isAuthenticated, getAccessTokenSilently, calculateDynamicProgress, season, episode, isPlaying]
   )
 
   const handlePlay = () => {
