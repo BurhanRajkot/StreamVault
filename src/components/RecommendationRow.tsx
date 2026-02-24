@@ -138,13 +138,13 @@ export function RecommendationRow({
       <div
         ref={carouselRef}
         className="overflow-hidden pb-4"
-        style={{ touchAction: "pan-y" }} // Tell the browser: we handle X, you handle Y scrolling
       >
         {/* ── Inner Physics Track ───────────────────────────────── */}
         <motion.div
           ref={innerTrackRef}
           className="flex gap-3 cursor-grab active:cursor-grabbing w-max pr-10" // Allow enough right padding so the last item breathes
           drag="x"
+          dragDirectionLock
           dragConstraints={{ right: 0, left: -carouselWidth }}
           // Here is the requested custom TikTok/Netflix Physics Math:
           dragElastic={0.15} // How far past the end can you 'rubberband' pull it?
