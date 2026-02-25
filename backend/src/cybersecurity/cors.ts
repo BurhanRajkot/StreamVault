@@ -70,7 +70,8 @@ export const corsMiddleware = cors({
 /**
  * Preflight handler for OPTIONS requests
  * Required for complex requests (POST with JSON, custom headers, etc.)
+ * Uses the same origin whitelist as corsMiddleware — no open wildcards.
  */
-export const corsPreflightHandler = cors()
+export const corsPreflightHandler = corsMiddleware
 
 export default corsMiddleware
