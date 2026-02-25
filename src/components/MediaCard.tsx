@@ -35,9 +35,14 @@ export function MediaCard({
   const cardRef = useRef<HTMLDivElement>(null)
 
   /**
-   * TMDB media type detection
+   * TMDB media type detection — use explicit media_type first,
+   * then fall back to date-based heuristic (movies have release_date, TV has first_air_date).
    */
-  const mediaType: 'movie' | 'tv' = media.release_date ? 'movie' : 'tv'
+  const mediaType: 'movie' | 'tv' =
+    (media.media_type === 'movie' || media.media_type === 'tv')
+      ? media.media_type
+      : media.release_date && !media.first_air_date ? 'movie' : 'tv'
+
   const favorited = isFavorited(media.id, mediaType)
   const disliked = isDisliked(media.id, mediaType)
 
