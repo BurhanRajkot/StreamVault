@@ -65,6 +65,20 @@ router.post('/', checkJwt, async (req, res) => {
     ? server
     : null
 
+  // Validate season and episode are positive integers if provided
+  if (season !== undefined && season !== null) {
+    const parsedSeason = Number(season)
+    if (!Number.isInteger(parsedSeason) || parsedSeason <= 0 || parsedSeason > 1000) {
+      return res.status(400).json({ error: 'Invalid season: must be a positive integer' })
+    }
+  }
+  if (episode !== undefined && episode !== null) {
+    const parsedEpisode = Number(episode)
+    if (!Number.isInteger(parsedEpisode) || parsedEpisode <= 0 || parsedEpisode > 10000) {
+      return res.status(400).json({ error: 'Invalid episode: must be a positive integer' })
+    }
+  }
+
   const { data: existing } = await supabaseAdmin
     .from('ContinueWatching')
     .select('id')

@@ -39,7 +39,7 @@ export default function Pricing() {
 
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { user, isAuthenticated, loginWithRedirect } = useAuth0()
+  const { user, isAuthenticated, loginWithRedirect, getAccessTokenSilently } = useAuth0()
 
   useEffect(() => {
     fetchPlans()
@@ -74,11 +74,20 @@ export default function Pricing() {
 
     setSubmitting(true)
     try {
+      // Get the auth token so the backend can derive userId from JWT
+      let headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      try {
+        const token = await getAccessTokenSilently()
+        headers['Authorization'] = `Bearer ${token}`
+      } catch {
+        // Proceed without token for unauthenticated users (backend handles null userId)
+      }
+
       const res = await fetch(`${API_URL}/subscriptions/manual-request`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          userId: user?.sub,
+          // userId is intentionally omitted — backend derives it from the JWT
           email: user?.email,
           planId: selectedPlan.id,
           transactionId: transactionId
@@ -107,6 +116,7 @@ export default function Pricing() {
       setSubmitting(false)
     }
   }
+
 
   return (
     <>
