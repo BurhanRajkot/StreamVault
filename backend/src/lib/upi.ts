@@ -1,10 +1,16 @@
 // UPI Payment Configuration
+// All values MUST be set via environment variables — no hardcoded PII
+if (!process.env.UPI_ID || !process.env.UPI_PAYEE_NAME) {
+  console.warn('[UPI] WARNING: UPI_ID or UPI_PAYEE_NAME env vars are not set. Payment QR codes will be broken.')
+}
+
 export const UPI_CONFIG = {
-  upiId: process.env.UPI_ID || 'gamershomeyt0520@okhdfcbank',
-  payeeName: process.env.UPI_PAYEE_NAME || 'burhanuddin rajkotwala',
-  phoneNumber: process.env.UPI_PHONE_NUMBER || '9867721328',
+  upiId: process.env.UPI_ID || '',
+  payeeName: process.env.UPI_PAYEE_NAME || 'StreamVault',
+  phoneNumber: process.env.UPI_PHONE_NUMBER || '',
   currency: 'INR',
 }
+
 
 export const SUBSCRIPTION_PLANS = {
   monthly: {

@@ -7,18 +7,17 @@ import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import AdminLoginModal from '@/components/AdminLoginModal'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+
 type EnrichedDownload = DownloadItem & {
   posterPath: string | null
 }
-
-const TMDB_BASE = 'https://api.themoviedb.org/3'
-const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY // SAFE WAY
 
 // Clean title: remove year, quality, brackets, etc.
 function cleanTitle(raw: string) {
   return raw
     .replace(/\(\d{4}\)/g, '')        // remove (2014)
-    .replace(/\[\.*?\]/g, '')        // remove [1080p]
+    .replace(/\[.*?\]/g, '')          // remove [1080p]
     .replace(/1080p|720p|2160p/gi, '')
     .replace(/bluray|webrip|hdrip/gi, '')
     .replace(/\s+/g, ' ')
@@ -27,30 +26,23 @@ function cleanTitle(raw: string) {
 
 async function fetchPoster(title: string): Promise<string | null> {
   try {
-    if (!TMDB_KEY) {
-      console.error('TMDB API KEY is missing')
-      return null
-    }
-
     const cleaned = cleanTitle(title)
-
-    const url = `${TMDB_BASE}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(
-      cleaned
-    )}`
-
-    const res = await fetch(url)
+    // Route through backend proxy to avoid exposing TMDB key in the browser bundle
+    const res = await fetch(
+      `${API_URL}/tmdb/search/movie?query=${encodeURIComponent(cleaned)}`
+    )
+    if (!res.ok) return null
     const data = await res.json()
-
     if (data.results && data.results.length > 0) {
       return data.results[0].poster_path || null
     }
-
     return null
   } catch (err) {
     console.error('Poster fetch failed for:', title, err)
     return null
   }
 }
+
 
 const Downloads = () => {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()

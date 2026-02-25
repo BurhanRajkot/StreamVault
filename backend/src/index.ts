@@ -24,6 +24,7 @@ import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
 import recommendationsRouter from './routes/recommendations'
 import dislikesRouter from './routes/dislikes'
+import { requireAdminAuth } from './admin/middleware'
 
 const app = express()
 
@@ -49,8 +50,8 @@ app.use(apiRateLimiter)
 
 // 6. Body parsing with size limits (prevent DoS attacks)
 app.post('/subscriptions/webhook', express.raw({ type: 'application/json', limit: '1mb' }))
-app.use(express.json({ limit: '10mb' })) // Reasonable limit for API requests
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(express.json({ limit: '1mb' })) // Tight limit to prevent DoS
+app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
 const PORT = process.env.PORT || 4000
 
@@ -76,8 +77,8 @@ app.get('/health', (_req, res) => {
   })
 })
 
-// CACHE STATS ENDPOINT (FOR MONITORING)
-app.get('/cache-stats', (_req, res) => {
+// CACHE STATS ENDPOINT (FOR MONITORING - ADMIN ONLY)
+app.get('/cache-stats', requireAdminAuth, (_req, res) => {
   const stats = getCacheStats()
   res.status(200).json({
     stats,

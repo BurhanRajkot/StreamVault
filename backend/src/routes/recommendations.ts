@@ -23,6 +23,8 @@ import { EventType, MediaType, TMDB_GENRES, UserTasteProfile } from '../cinematc
 import { supabaseAdmin } from '../lib/supabase'
 import * as cache from '../services/cache'
 import { logger } from '../lib/logger'
+import { logMLInteraction } from '../cinematch/ml/telemetry'
+
 
 const router = Router()
 
@@ -163,15 +165,34 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
         weight: Math.round(weight * 100) / 100,
       }))
 
+    const topDirectors = Object.entries(profile.directorVector || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([personId, weight]) => ({
+        personId: Number(personId),
+        weight: Math.round(weight * 100) / 100,
+      }))
+
+    const topDecades = Object.entries(profile.decadeVector || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([decade, weight]) => ({
+        decade: Number(decade),
+        weight: Math.round(weight * 100) / 100,
+      }))
+
     const tasteProfile: UserTasteProfile = {
       userId,
       interactionCount: interactionCount || 0,
       topGenres,
       topKeywords,
       topCastIds,
+      topDirectors,
+      topDecades,
       isNewUser: profile.isNewUser,
       lastUpdated: lastInteraction?.createdAt || null,
     }
+
 
     res.setHeader('Cache-Control', 'private, max-age=60')
     return res.json(tasteProfile)
@@ -304,8 +325,6 @@ router.post('/guest/interaction', interactionRateLimiter, async (req: Request, r
   try {
     // For guests, we skip `logInteraction` (which updates profile/UserInteractions)
     // and ONLY send telemetry to `ml_interactions`.
-
-    // We import this directly up top, but to be sure we have the function:
     const guestEvent: any = {
       userId: null,
       sessionId,
@@ -327,7 +346,6 @@ router.post('/guest/interaction', interactionRateLimiter, async (req: Request, r
     }
 
     // Fire and forget
-    const { logMLInteraction } = require('../cinematch/ml/telemetry')
     logMLInteraction(guestEvent)
 
     return res.status(202).json({ accepted: true })

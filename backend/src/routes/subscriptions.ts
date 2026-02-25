@@ -3,7 +3,9 @@ import { v4 as uuidv4 } from 'uuid'
 import { SUBSCRIPTION_PLANS, UPI_CONFIG } from '../lib/upi'
 import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
+import { checkJwt } from '../middleware/auth'
 import QRCode from 'qrcode'
+import { strictRateLimiter } from '../cybersecurity'
 
 const router = express.Router()
 
@@ -42,16 +44,26 @@ router.get('/plans', async (_req, res) => {
 })
 
 // Submit manual payment request
-router.post('/manual-request', async (req, res) => {
+// checkJwt is optional here (userId may be unauthenticated in manual flow)
+// but we NEVER trust userId from body — we derive it from the token if available
+router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => {
   try {
-    const { userId, email, planId, transactionId } = req.body
+    // userId must come from the verified JWT, never from the body
+    const userId = (req as any).auth?.payload?.sub || null
+    const { email, planId, transactionId } = req.body
 
-    if (!userId || !planId || !transactionId) {
-      return res.status(400).json({ error: 'Missing required fields' })
+    if (!planId || !transactionId) {
+      return res.status(400).json({ error: 'Missing required fields: planId and transactionId' })
     }
 
     if (!['basic', 'premium'].includes(planId)) {
       return res.status(400).json({ error: 'Invalid planId' })
+    }
+
+    // Sanitize transactionId: only allow alphanumeric, hyphens, underscores (max 100 chars)
+    const sanitizedTxId = String(transactionId).replace(/[^a-zA-Z0-9-_]/g, '').slice(0, 100)
+    if (!sanitizedTxId || sanitizedTxId.length < 4) {
+      return res.status(400).json({ error: 'Invalid transactionId format' })
     }
 
     const plan = SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS]
@@ -60,7 +72,7 @@ router.post('/manual-request', async (req, res) => {
     const { data: existing } = await supabaseAdmin
       .from('subscription_requests')
       .select('id')
-      .eq('transaction_id', transactionId)
+      .eq('transaction_id', sanitizedTxId)
       .single()
 
     if (existing) {
@@ -72,12 +84,12 @@ router.post('/manual-request', async (req, res) => {
       .from('subscription_requests')
       .insert({
         id: uuidv4(),
-        user_id: userId,
-        email: email, // Optional, for context
+        user_id: userId, // from JWT, or null if not logged in
+        email: typeof email === 'string' ? email.slice(0, 254) : null, // sanitize
         plan_id: planId,
         amount: plan.price,
         currency: plan.currency,
-        transaction_id: transactionId,
+        transaction_id: sanitizedTxId,
         status: 'pending',
         created_at: new Date().toISOString()
       })
@@ -89,7 +101,7 @@ router.post('/manual-request', async (req, res) => {
     logger.info('Manual payment request submitted', {
       userId,
       planId,
-      transactionId
+      transactionId: sanitizedTxId
     })
 
     res.json({

@@ -172,6 +172,8 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
     genreVector: {} as Record<number, number>,
     keywordVector: {} as Record<number, number>,
     castVector: {} as Record<number, number>,
+    directorVector: {} as Record<string, number>,
+    decadeVector: {} as Record<string, number>,
     watchedIds: new Set<number>(),
     favoritedIds: new Set<number>(),
     dislikedIds: new Set<number>(),

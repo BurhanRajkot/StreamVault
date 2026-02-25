@@ -1,8 +1,12 @@
 import express from 'express'
 import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
+import { requireAdminAuth } from '../admin/middleware'
 
 const router = express.Router()
+
+// Apply admin authentication to all routes in this router
+router.use(requireAdminAuth)
 
 // Get all pending requests
 router.get('/requests', async (req, res) => {

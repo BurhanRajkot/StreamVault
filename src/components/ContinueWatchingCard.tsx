@@ -50,8 +50,7 @@ export function ContinueWatchingCard({
     ? (media.episode_run_time?.[0] || 45)
     : (media.runtime || 120)
 
-  const watchedMinutes = Math.round(item.progress * runtime)
-  const remainingMinutes = Math.max(0, runtime - watchedMinutes)
+  const remainingMinutes = Math.max(0, runtime - Math.round(item.progress * runtime))
 
   const formatTime = (mins: number) => {
     if (mins < 60) return `${mins}m`

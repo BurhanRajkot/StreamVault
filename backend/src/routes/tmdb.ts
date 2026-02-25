@@ -4,8 +4,12 @@ import { logger } from '../lib/logger'
 
 const router = Router()
 
-const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || '668a0dd95d2a554867a2c610467fb934'
+const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
+
+if (!TMDB_API_KEY) {
+  throw new Error('CRITICAL: VITE_TMDB_API_KEY environment variable is not set. Server cannot start without it.')
+}
 
 /**
  * Fetch from TMDB with caching, retry logic, and rate limit handling
@@ -189,8 +193,14 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid media type' })
   }
 
+  // Validate id is a safe positive integer to prevent path injection
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || parsedId > 100_000_000) {
+    return res.status(400).json({ error: 'Invalid media id: must be a positive integer' })
+  }
+
   try {
-    const data = await fetchTMDB(`/${mediaType}/${id}`)
+    const data = await fetchTMDB(`/${mediaType}/${parsedId}`)
     res.setHeader('Cache-Control', 'public, max-age=7200, stale-while-revalidate=14400') // 2hr cache, 4hr stale
     res.json(data)
   } catch (error) {
@@ -209,8 +219,14 @@ router.get('/:mediaType/:id/watch/providers', async (req: Request, res: Response
     return res.status(400).json({ error: 'Invalid media type' })
   }
 
+  // Validate id is a safe positive integer to prevent path injection
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || parsedId > 100_000_000) {
+    return res.status(400).json({ error: 'Invalid media id: must be a positive integer' })
+  }
+
   try {
-    const data = await fetchTMDB(`/${mediaType}/${id}/watch/providers`)
+    const data = await fetchTMDB(`/${mediaType}/${parsedId}/watch/providers`)
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200') // 1hr cache, 2hr stale
     res.json(data)
   } catch (error) {
@@ -225,8 +241,14 @@ router.get('/:mediaType/:id/watch/providers', async (req: Request, res: Response
 router.get('/tv/:id/seasons', async (req: Request, res: Response) => {
   const { id } = req.params
 
+  // Validate id is a safe positive integer to prevent path injection
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || parsedId > 100_000_000) {
+    return res.status(400).json({ error: 'Invalid media id: must be a positive integer' })
+  }
+
   try {
-    const cacheKey = cache.generateCacheKey('seasons', id)
+    const cacheKey = cache.generateCacheKey('seasons', String(parsedId))
     const cached = cache.seasons.get(cacheKey)
 
     if (cached) {
@@ -234,7 +256,7 @@ router.get('/tv/:id/seasons', async (req: Request, res: Response) => {
       return res.json(cached)
     }
 
-    const data = await fetchTMDB(`/tv/${id}`)
+    const data = await fetchTMDB(`/tv/${parsedId}`)
     const seasons = data.seasons?.filter((s: any) => s.season_number > 0) || []
 
     cache.seasons.set(cacheKey, seasons, 7200) // 2 hours TTL

@@ -34,8 +34,19 @@ export const helmetMiddleware = helmet({
       connectSrc: ["'self'", "https://api.themoviedb.org", process.env.FRONTEND_URL || ""].filter(src => src !== ""),
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
-      mediaSrc: ["'self'", "blob:"],
-      frameSrc: ["'self'"],
+      mediaSrc: ["'self'", "blob:", "https:"],
+      // Allow all streaming provider iframes
+      frameSrc: [
+        "'self'",
+        "https://vidsrc.to",
+        "https://vidsrc.icu",
+        "https://vidfast.pro",
+        "https://vidlink.pro",
+        "https://vidsrc.cc",
+        "https://player.videasy.net",
+        "https://vidsrc.net",
+        "https://v2.vidsrc.me",
+      ],
     },
   } : false, // Disable CSP in development for easier debugging
 
