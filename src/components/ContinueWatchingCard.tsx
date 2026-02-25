@@ -37,7 +37,6 @@ export function ContinueWatchingCard({
 
   const title = media.title || media.name || 'Unknown'
 
-  // Calculate label based on progress
   const getProgressLabel = () => {
     if (item.progress < 0.2) return 'Start'
     if (item.progress >= 0.2 && item.progress < 0.8) return 'Resume'
@@ -45,6 +44,21 @@ export function ContinueWatchingCard({
   }
 
   const progressLabel = getProgressLabel()
+
+  // Calculate mathematically accurate progress string
+  const runtime = item.mediaType === 'tv'
+    ? (media.episode_run_time?.[0] || 45)
+    : (media.runtime || 120)
+
+  const watchedMinutes = Math.round(item.progress * runtime)
+  const remainingMinutes = Math.max(0, runtime - watchedMinutes)
+
+  const formatTime = (mins: number) => {
+    if (mins < 60) return `${mins}m`
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return m > 0 ? `${h}h ${m}m` : `${h}h`
+  }
 
   return (
     <div
@@ -140,11 +154,16 @@ export function ContinueWatchingCard({
         />
 
         {/* Progress Bar at Bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/50">
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 backdrop-blur-sm transition-all duration-300 group-hover:h-1.5">
           <div
-            className="h-full bg-primary transition-all"
-            style={{ width: `${item.progress * 100}%` }}
+            className="h-full bg-primary transition-all duration-300 rounded-r-full shadow-[0_0_8px_var(--theme-primary)]"
+            style={{ width: `${item.progress * 100}%`, boxShadow: '0 0 10px rgba(225, 9, 20, 0.5)' }}
           />
+
+          {/* Exact Time Remaining (Appears on Hover) */}
+          <div className="absolute right-2 bottom-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 text-[10px] font-bold text-white bg-black/80 px-2 py-1 rounded shadow-[0_2px_8px_rgba(0,0,0,0.8)] pointer-events-none whitespace-nowrap border border-white/10">
+            {remainingMinutes === 0 ? 'Finishing...' : `${formatTime(remainingMinutes)} left`}
+          </div>
         </div>
 
         {/* Episode Badge for TV Shows */}
