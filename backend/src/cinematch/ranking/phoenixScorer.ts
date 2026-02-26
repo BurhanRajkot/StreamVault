@@ -134,12 +134,15 @@ export function scoreCandidate(
   weights: RankingWeights,
 ): ScoredCandidate {
   // Allow genre, keyword, cast, director, decade to be negative for disliked items
-  const gAffinity = Math.max(genreAffinityScore(candidate.genreIds, profile.genreVector), -1.0)
-  const kwAffinity = Math.max(keywordAffinityScore(candidate.keywords, profile.keywordVector), -1.0)
+  // Amplify affinities so likes/dislikes have a stronger pull on the final score
+  const amplify = (val: number) => val < 0 ? val * 1.5 : val * 1.2;
 
-  const castAff = castAffinityScore(candidate.castIds, profile.castVector)
-  const dirAff = directorAffinityScore(candidate.directorId, profile.directorVector)
-  const decAff = decadeAffinityScore(candidate.decade, profile.decadeVector)
+  const gAffinity = Math.max(amplify(genreAffinityScore(candidate.genreIds, profile.genreVector)), -1.5)
+  const kwAffinity = Math.max(amplify(keywordAffinityScore(candidate.keywords, profile.keywordVector)), -1.5)
+
+  const castAff = Math.max(amplify(castAffinityScore(candidate.castIds, profile.castVector)), -1.5)
+  const dirAff = Math.max(amplify(directorAffinityScore(candidate.directorId, profile.directorVector)), -1.5)
+  const decAff = Math.max(amplify(decadeAffinityScore(candidate.decade, profile.decadeVector)), -1.5)
 
   const popScore = popularityScore(candidate.popularity)
   const freshScore = freshnessScore(candidate.releaseDate)
