@@ -17,7 +17,7 @@
 import { ScoredCandidate, UserProfile, RecommendationSection } from '../types'
 
 const MIN_SECTION_SIZE = 5   // Don't display a section with fewer than this many items
-const MAX_SECTION_SIZE = 20  // Cap each section at this for frontend
+const MAX_SECTION_SIZE = 40  // Cap each section at this for frontend
 
 export function buildSections(
   ranked: ScoredCandidate[],

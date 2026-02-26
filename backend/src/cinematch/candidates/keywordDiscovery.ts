@@ -46,7 +46,7 @@ export async function keywordDiscoverySource(profile: UserProfile): Promise<Cand
         const movieData = await fetchTMDB(
           `/discover/movie?sort_by=vote_average.desc&with_keywords=${keyword.id}&vote_count.gte=100&page=1`
         )
-        const movieCandidates = ((movieData.results || []) as any[]).slice(0, 10).map((r: any) => {
+        const movieCandidates = ((movieData.results || []) as any[]).map((r: any) => {
           const c = mapTMDBItem(r, 'movie', 'keyword_discovery')
           if (!c) return null
           return { ...c, seedTitle: formattedName } as Candidate
@@ -56,7 +56,7 @@ export async function keywordDiscoverySource(profile: UserProfile): Promise<Cand
         const tvData = await fetchTMDB(
           `/discover/tv?sort_by=vote_average.desc&with_keywords=${keyword.id}&vote_count.gte=50&page=1`
         )
-        const tvCandidates = ((tvData.results || []) as any[]).slice(0, 10).map((r: any) => {
+        const tvCandidates = ((tvData.results || []) as any[]).map((r: any) => {
           const c = mapTMDBItem(r, 'tv', 'keyword_discovery')
           if (!c) return null
           return { ...c, seedTitle: formattedName } as Candidate

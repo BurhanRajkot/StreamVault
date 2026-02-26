@@ -32,7 +32,7 @@ export async function genreDiscoverySource(profile: UserProfile): Promise<Candid
       fetchTMDB(
         `/discover/movie?sort_by=vote_average.desc&with_genres=${genre.id}&vote_count.gte=200&page=1`
       ).then((data) =>
-        ((data.results || []) as any[]).slice(0, 15).map((r: any) => {
+        ((data.results || []) as any[]).map((r: any) => {
           const c = mapTMDBItem(r, 'movie', 'genre_discovery')
           if (!c) return null
           return { ...c, seedTitle: genre.name } as Candidate
@@ -42,7 +42,7 @@ export async function genreDiscoverySource(profile: UserProfile): Promise<Candid
       fetchTMDB(
         `/discover/tv?sort_by=vote_average.desc&with_genres=${genre.id}&vote_count.gte=100&page=1`
       ).then((data) =>
-        ((data.results || []) as any[]).slice(0, 15).map((r: any) => {
+        ((data.results || []) as any[]).map((r: any) => {
           const c = mapTMDBItem(r, 'tv', 'genre_discovery')
           if (!c) return null
           return { ...c, seedTitle: genre.name } as Candidate

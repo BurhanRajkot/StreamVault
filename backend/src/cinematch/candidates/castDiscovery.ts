@@ -37,7 +37,7 @@ export async function castDiscoverySource(profile: UserProfile): Promise<Candida
         const movieData = await fetchTMDB(
           `/discover/movie?sort_by=vote_average.desc&with_cast=${castMem.id}&vote_count.gte=200&page=1`
         )
-        const movieCandidates = ((movieData.results || []) as any[]).slice(0, 15).map((r: any) => {
+        const movieCandidates = ((movieData.results || []) as any[]).map((r: any) => {
           const c = mapTMDBItem(r, 'movie', 'cast_discovery')
           if (!c) return null
           return { ...c, seedTitle: `Starring ${personName}` } as Candidate
