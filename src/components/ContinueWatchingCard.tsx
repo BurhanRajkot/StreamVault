@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Media } from '@/lib/config'
 import { Play, MoreVertical, Trash2 } from 'lucide-react'
 import { QuickViewModal } from './QuickViewModal'
@@ -22,6 +22,31 @@ export function ContinueWatchingCard({
   const [showQuickView, setShowQuickView] = useState(false)
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const [isRemoved, setIsRemoved] = useState(false)
+  const removeTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (removeTimeout.current) clearTimeout(removeTimeout.current)
+    }
+  }, [])
+
+  const handleRemoveInitiate = () => {
+    setIsRemoved(true)
+    setMenuOpen(false)
+    removeTimeout.current = setTimeout(() => {
+      onRemove(item)
+    }, 4500)
+  }
+
+  const handleUndo = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsRemoved(false)
+    if (removeTimeout.current) {
+      clearTimeout(removeTimeout.current)
+      removeTimeout.current = null
+    }
+  }
 
   const handleMouseEnter = () => {
     if (window.innerWidth < 768) return
@@ -87,24 +112,26 @@ export function ContinueWatchingCard({
       </div>
 
       {/* Menu Button */}
-      <button
-        aria-label="More options"
-        onClick={(e) => {
-          e.stopPropagation()
-          setMenuOpen((v) => !v)
-        }}
-        className="
-          absolute right-2 top-2 z-20
-          rounded-full bg-black/70 p-1.5
-          text-white
-          opacity-0 group-hover:opacity-100
-          transition
-          active:opacity-100
-          active:scale-95
-        "
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
+      {!isRemoved && (
+        <button
+          aria-label="More options"
+          onClick={(e) => {
+            e.stopPropagation()
+            setMenuOpen((v) => !v)
+          }}
+          className="
+            absolute right-2 top-2 z-20
+            rounded-full bg-black/70 p-1.5
+            text-white
+            opacity-0 group-hover:opacity-100
+            transition
+            active:opacity-100
+            active:scale-95
+          "
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+      )}
 
       {/* Menu */}
       {menuOpen && (
@@ -116,9 +143,9 @@ export function ContinueWatchingCard({
           />
           <div className="absolute right-2 top-10 z-30 w-44 rounded-md border border-border bg-card shadow-lg">
             <button
-              onClick={() => {
-                onRemove(item)
-                setMenuOpen(false)
+              onClick={(e) => {
+                e.stopPropagation()
+                handleRemoveInitiate()
               }}
               className="
                 flex w-full items-center gap-2
@@ -139,7 +166,13 @@ export function ContinueWatchingCard({
       {/* Poster */}
       <div
         className="relative rounded-lg overflow-hidden cursor-pointer"
-        onClick={() => onResume(media, item.season, item.episode, item.server)}
+        onClick={(e) => {
+          if (isRemoved) {
+            e.preventDefault()
+            return
+          }
+          onResume(media, item.season, item.episode, item.server)
+        }}
       >
         <img
           src={getImageUrl(media.poster_path, 'poster')}
@@ -183,6 +216,20 @@ export function ContinueWatchingCard({
             )}
           >
             {progressLabel}
+          </div>
+        )}
+
+        {/* Removed Overlay */}
+        {isRemoved && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm transition-all duration-300">
+            <Trash2 className="h-8 w-8 text-muted-foreground mb-2" />
+            <span className="text-xs font-semibold text-muted-foreground text-center px-2">Removed</span>
+            <button
+              onClick={handleUndo}
+              className="mt-3 rounded-full bg-secondary px-4 py-1.5 text-xs font-bold text-white hover:bg-secondary/80 transition-colors shadow-lg active:scale-95"
+            >
+              Undo
+            </button>
           </div>
         )}
       </div>
