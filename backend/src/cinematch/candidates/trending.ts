@@ -8,12 +8,12 @@ export async function trendingSource(primaryMediaType: MediaType = 'movie'): Pro
   ])
 
   const movies = movieData.status === 'fulfilled'
-    ? (movieData.value.results || []).slice(0, 10)
+    ? (movieData.value.results || [])
         .map((r: any) => mapTMDBItem(r, 'movie', 'trending')).filter(Boolean)
     : []
 
   const tv = tvData.status === 'fulfilled'
-    ? (tvData.value.results || []).slice(0, 10)
+    ? (tvData.value.results || [])
         .map((r: any) => mapTMDBItem(r, 'tv', 'trending')).filter(Boolean)
     : []
 
