@@ -29,7 +29,7 @@ import { buildSections } from './sectionBuilder'
 // L1 in-memory cache — fastest serving layer (5 min TTL)
 const recCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const TOP_K = 80            // Total candidates to return
+const TOP_K = 300           // Total candidates to return
 const CACHE_TTL_DB = 300    // Seconds to persist in Supabase RecommendationCache
 
 
@@ -149,10 +149,10 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
   const cached = recCache.get<ScoredCandidate[]>(GUEST_CACHE_KEY)
 
   if (cached) {
-    const trendingItems = cached.filter(c => c.source === 'trending').slice(0, 20)
-    const popularItems = cached.filter(c => c.source === 'popular_fallback').slice(0, 20)
-    const topRated = [...cached].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, 20)
-    const genreItems = cached.filter(c => c.source === 'genre_discovery').slice(0, 20)
+    const trendingItems = cached.filter(c => c.source === 'trending').slice(0, 40)
+    const popularItems = cached.filter(c => c.source === 'popular_fallback').slice(0, 40)
+    const topRated = [...cached].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, 40)
+    const genreItems = cached.filter(c => c.source === 'genre_discovery').slice(0, 40)
     return {
       userId: null,
       items: cached,
@@ -190,10 +190,10 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
   recCache.set(GUEST_CACHE_KEY, topK, 1800)  // 30 min global cache
 
   // For guests: build richer sections from available content
-  const trendingItems = topK.filter(c => c.source === 'trending').slice(0, 20)
-  const popularItems = topK.filter(c => c.source === 'popular_fallback').slice(0, 20)
-  const topRatedItems = [...topK].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, 20)
-  const genreItems = topK.filter(c => c.source === 'genre_discovery').slice(0, 20)
+  const trendingItems = topK.filter(c => c.source === 'trending').slice(0, 40)
+  const popularItems = topK.filter(c => c.source === 'popular_fallback').slice(0, 40)
+  const topRatedItems = [...topK].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, 40)
+  const genreItems = topK.filter(c => c.source === 'genre_discovery').slice(0, 40)
 
   const guestSections = [
     trendingItems.length >= 5 ? { title: 'Trending This Week', items: trendingItems, source: 'trending' as const } : null,
