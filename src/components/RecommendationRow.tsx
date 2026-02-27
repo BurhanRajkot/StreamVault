@@ -199,6 +199,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
 
   const handleMouseEnter = () => {
     if (window.innerWidth < 768) return
+    if (isDisliked) return // Prevent QuickView if disliked
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
     }, 1500)
@@ -237,7 +238,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
         'rounded-xl bg-card border border-border/50',
         'transition-all duration-300 ease-in-out',
         showQuickView ? 'z-50' : 'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden',
-        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
+        isDisliked && 'grayscale contrast-125 opacity-50 pointer-events-none'
       )}
       style={{ scrollSnapAlign: 'start' }}
       onClick={handleClick}
@@ -258,6 +259,17 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
             <span className="text-3xl font-bold text-muted-foreground/30">
               {item.title.charAt(0).toUpperCase()}
             </span>
+          </div>
+        )}
+
+        {/* Play Overlay (hover + touch) */}
+        {!isDisliked && (
+          <div
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none"
+          >
+            <div className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:scale-110 hover:bg-white">
+              <Play className="h-6 w-6 text-black fill-black ml-0.5" />
+            </div>
           </div>
         )}
 
