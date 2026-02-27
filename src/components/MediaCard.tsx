@@ -61,6 +61,7 @@ export function MediaCard({
   const handleMouseEnter = () => {
     if (variant === 'hero') return
     if (window.innerWidth < 768) return
+    if (disliked) return // Prevent quick view for disliked items
 
     // Stage 1: Card Expansion (1.5s)
     hoverTimeout.current = setTimeout(() => {
@@ -185,7 +186,7 @@ export function MediaCard({
         className={cn(
           'group relative cursor-pointer rounded-lg md:rounded-xl bg-card border border-border/50 transition-all duration-300 ease-in-out',
           showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',
-          disliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
+          disliked && 'grayscale contrast-125 opacity-50'
         )}
       >
         <div className="relative aspect-[2/3] overflow-hidden rounded-lg md:rounded-xl">
@@ -198,6 +199,17 @@ export function MediaCard({
           />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />
+
+          {/* Play Overlay (hover + touch) */}
+          {!disliked && (
+            <div
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 md:group-hover:opacity-100 transition-all duration-300 pointer-events-none"
+            >
+              <div className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 md:group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:bg-white hover:scale-110">
+                <Play className="h-6 w-6 text-black fill-black ml-0.5" />
+              </div>
+            </div>
+          )}
 
           {isAuthenticated && (
             <div className="absolute right-2 top-2 z-10 flex flex-col gap-2">
