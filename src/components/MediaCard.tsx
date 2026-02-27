@@ -184,7 +184,8 @@ export function MediaCard({
         onMouseLeave={handleMouseLeave}
         className={cn(
           'group relative cursor-pointer rounded-lg md:rounded-xl bg-card border border-border/50 transition-all duration-300 ease-in-out',
-          showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden'
+          showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',
+          disliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
         )}
       >
         <div className="relative aspect-[2/3] overflow-hidden rounded-lg md:rounded-xl">
@@ -247,34 +248,15 @@ export function MediaCard({
             <span className="text-foreground">{rating}</span>
           </div>
 
-          {/* Disliked Overlay */}
-          {disliked && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm transition-all duration-300">
-              <ThumbsDown className="h-8 w-8 text-muted-foreground mb-2" />
-              <span className="text-xs font-semibold text-muted-foreground text-center px-2">Not Interested</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toggleDislike(media.id, mediaType)
-                }}
-                className="mt-3 rounded-full bg-secondary px-4 py-1.5 text-xs font-bold text-white hover:bg-secondary/80 transition-colors shadow-lg active:scale-95"
-              >
-                Undo
-              </button>
-            </div>
-          )}
-
           {/* Play button overlay */}
-          {!disliked && (
-            <div className={cn(
-              "absolute inset-0 hidden md:flex items-center justify-center transition-opacity duration-300",
-               !showQuickView ? "opacity-0 group-hover:opacity-100" : "opacity-0"
-            )}>
-              <div className="rounded-full bg-primary/90 backdrop-blur-sm p-4 shadow-xl">
-                <Play className="h-8 w-8 fill-white text-white" />
-              </div>
+          <div className={cn(
+            "absolute inset-0 hidden md:flex items-center justify-center transition-opacity duration-300",
+             !showQuickView ? "opacity-0 group-hover:opacity-100" : "opacity-0"
+          )}>
+            <div className="rounded-full bg-primary/90 backdrop-blur-sm p-4 shadow-xl">
+              <Play className="h-8 w-8 fill-white text-white" />
             </div>
-          )}
+          </div>
         </div>
 
         {/* Quick View Overlay */}
