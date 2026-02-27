@@ -248,15 +248,7 @@ export function MediaCard({
             <span className="text-foreground">{rating}</span>
           </div>
 
-          {/* Play button overlay */}
-          <div className={cn(
-            "absolute inset-0 hidden md:flex items-center justify-center transition-opacity duration-300",
-             !showQuickView ? "opacity-0 group-hover:opacity-100" : "opacity-0"
-          )}>
-            <div className="rounded-full bg-primary/90 backdrop-blur-sm p-4 shadow-xl">
-              <Play className="h-8 w-8 fill-white text-white" />
-            </div>
-          </div>
+
         </div>
 
         {/* Quick View Overlay */}
