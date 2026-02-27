@@ -278,12 +278,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
           </button>
         )}
 
-        {/* Play overlay – center, on hover */}
-        <div className="absolute inset-0 hidden md:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-          <div className="rounded-full bg-primary/90 backdrop-blur-sm p-3.5 shadow-xl">
-            <Play className="h-6 w-6 fill-white text-white" />
-          </div>
-        </div>
+
       </div>
 
       {showQuickView && (
