@@ -68,19 +68,19 @@ export function ContinueWatchingCard({
     >
       {/* Play Overlay (hover + touch) */}
       <div
-        className="
-          absolute inset-0 z-10 flex flex-col items-center justify-center
-          rounded-lg bg-black/70
-          opacity-0 group-hover:opacity-100
-          transition
-          active:opacity-100
-          cursor-pointer
-        "
-        onClick={() => onResume(media, item.season, item.episode, item.server)}
+        className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none"
       >
-        <Play className="h-12 w-12 text-white fill-white mb-2" />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onResume(media, item.season, item.episode, item.server);
+          }}
+          className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:scale-110 hover:bg-white mb-2"
+        >
+          <Play className="h-6 w-6 text-black fill-black ml-0.5" />
+        </button>
         {progressLabel && (
-          <span className="text-xs font-semibold text-white bg-black/50 px-2 py-1 rounded">
+          <span className="text-[10px] font-bold text-white bg-black/80 px-2.5 py-1 rounded shadow-lg pointer-events-none">
             {progressLabel}
           </span>
         )}
@@ -173,19 +173,8 @@ export function ContinueWatchingCard({
           </div>
         )}
 
-        {/* Progress Label Badge */}
-        {progressLabel && (
-          <div
-            className={cn(
-              'absolute top-2 left-2 px-2 py-1 rounded text-xs font-semibold',
-              progressLabel === 'Start'
-                ? 'bg-green-500/90 text-white'
-                : 'bg-primary/90 text-primary-foreground'
-            )}
-          >
-            {progressLabel}
-          </div>
-        )}
+        {/* Progress Label Badge - removed from corner since it's centered under play button now */}
+
 
       </div>
 
