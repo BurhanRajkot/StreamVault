@@ -63,10 +63,10 @@ export function MediaCard({
     if (window.innerWidth < 768) return
     if (disliked) return // Prevent quick view for disliked items
 
-    // Stage 1: Card Expansion (1.5s)
+    // Stage 1: Card Expansion (2.5s)
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
-    }, 1500)
+    }, 2500)
 
     // Stage 2: Quick View Modal - Removed (Consolidated to single 3.5s trigger)
     // quickViewTimeout.current = setTimeout(() => {
@@ -179,6 +179,7 @@ export function MediaCard({
         ref={cardRef}
         onClick={(e) => {
           e.stopPropagation()
+          if (disliked) return
           onClick(media)
         }}
         onMouseEnter={handleMouseEnter}
@@ -186,7 +187,7 @@ export function MediaCard({
         className={cn(
           'group relative cursor-pointer rounded-lg md:rounded-xl bg-card border border-border/50 transition-all duration-300 ease-in-out',
           showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',
-          disliked && 'grayscale contrast-125 opacity-50'
+          disliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
         )}
       >
         <div className="relative aspect-[2/3] overflow-hidden rounded-lg md:rounded-xl">

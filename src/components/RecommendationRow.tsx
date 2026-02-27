@@ -202,7 +202,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
     if (isDisliked) return // Prevent QuickView if disliked
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
-    }, 1500)
+    }, 2500)
   }
 
   const handleMouseLeave = () => {
@@ -238,7 +238,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
         'rounded-xl bg-card border border-border/50',
         'transition-all duration-300 ease-in-out',
         showQuickView ? 'z-50' : 'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden',
-        isDisliked && 'grayscale contrast-125 opacity-50 pointer-events-none'
+        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
       )}
       style={{ scrollSnapAlign: 'start' }}
       onClick={handleClick}
@@ -274,7 +274,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
         )}
 
         {/* Dislike button – top-right, visible on hover */}
-        {onDislike && !isDisliked && (
+        {onDislike && (
           <button
             onClick={handleDislike}
             aria-label={`Not interested in ${item.title}`}
@@ -283,10 +283,17 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
               'p-2',
               'opacity-0 group-hover:opacity-100 transition-all duration-200',
               'hover:scale-110 active:scale-95',
-              'hover:bg-background'
+              'hover:bg-background cursor-pointer'
             )}
           >
-            <ThumbsDown className="h-4 w-4 text-zinc-400 hover:text-white transition-all" />
+            <ThumbsDown
+              className={cn(
+                'transition-all h-4 w-4',
+                isDisliked
+                  ? 'fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] scale-110'
+                  : 'text-zinc-400 hover:text-white'
+              )}
+            />
           </button>
         )}
 
