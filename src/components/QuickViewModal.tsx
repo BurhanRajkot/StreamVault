@@ -52,7 +52,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
       const scrollX = window.scrollX || window.pageXOffset
 
       let left = scrollX + rect.left + (rect.width / 2) - (modalWidth / 2)
-      let top = scrollY + rect.top - (modalWidth * 0.5) // Approximate height shift
+      const top = scrollY + rect.top - (modalWidth * 0.5) // Approximate height shift
 
       // Prevent clipping on left/right screen edges
       const margin = 20

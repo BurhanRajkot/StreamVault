@@ -78,6 +78,7 @@ import { verifyAdminToken, AdminTokenPayload } from '../admin/auth'
 
 // Extend Express Request type to include admin payload
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       admin?: AdminTokenPayload

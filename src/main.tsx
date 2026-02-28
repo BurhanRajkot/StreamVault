@@ -8,7 +8,6 @@ import { ThemeProvider } from 'next-themes'
 
 import App from './App'
 import './index.css'
-import { FavoritesProvider } from '@/context/FavoritesContext'
 import { Toaster } from '@/components/ui/sonner'
 
 // Suppress Chrome extension errors that are unrelated to our app
@@ -38,10 +37,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           useRefreshTokens
         >
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <FavoritesProvider>
-              <App />
-              <Toaster />
-            </FavoritesProvider>
+            <App />
+            <Toaster />
           </ThemeProvider>
         </Auth0Provider>
       </BrowserRouter>

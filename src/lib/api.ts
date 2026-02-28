@@ -310,6 +310,10 @@ export async function searchMedia(
   )}&page=${page}`
 
   const res = await fetch(url)
+  if (!res.ok) {
+    console.error('searchMedia failed:', res.status, res.statusText)
+    return { results: [], total_pages: 0 }
+  }
   const data = await res.json()
 
   return {
@@ -324,7 +328,7 @@ export async function fetchMediaDetails(
 ): Promise<Media | null> {
   if (mode === 'downloads' || !id) return null
 
-  const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar`
+  const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar,images&include_image_language=en,null`
   const res = await fetch(url)
   if (!res.ok) {
     console.error(`fetchMediaDetails failed for ${mode}/${id}:`, res.status)
@@ -369,7 +373,7 @@ export async function fetchTVSeasons(
 
 export function getImageUrl(
   path: string | null,
-  size: 'poster' | 'backdrop' | 'thumbnail' = 'poster'
+  size: 'poster' | 'backdrop' | 'thumbnail' | 'logo' = 'poster'
 ): string {
   if (!path) return '/placeholder.svg'
   return `${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES[size]}${path}`
@@ -751,6 +755,21 @@ export async function fetchGuestRecommendations(): Promise<RecommendationResult>
 
 import { getDeviceContext } from './telemetry'
 
+// Module-level guest session ID singleton — initialized once, reused across all interactions
+const getGuestSessionId = (() => {
+  let id: string | null = null
+  return () => {
+    if (!id) {
+      id = localStorage.getItem('guest_session_id')
+      if (!id) {
+        id = crypto.randomUUID()
+        localStorage.setItem('guest_session_id', id)
+      }
+    }
+    return id
+  }
+})()
+
 /** Log a user interaction event for real-time recommendation updates */
 export async function logRecommendationInteraction(
   accessToken: string | null | undefined,
@@ -779,12 +798,7 @@ export async function logRecommendationInteraction(
       })
     } else {
       // Guest Tracking for ML Model Telemetry
-      let sessionId = localStorage.getItem('guest_session_id');
-      if (!sessionId) {
-        sessionId = crypto.randomUUID();
-        localStorage.setItem('guest_session_id', sessionId);
-      }
-
+      const sessionId = getGuestSessionId()
       const guestPayload = { ...payload, sessionId };
 
       await fetch(`${API_BASE}/recommendations/guest/interaction`, {

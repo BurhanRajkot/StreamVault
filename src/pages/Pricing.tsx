@@ -75,7 +75,7 @@ export default function Pricing() {
     setSubmitting(true)
     try {
       // Get the auth token so the backend can derive userId from JWT
-      let headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       try {
         const token = await getAccessTokenSilently()
         headers['Authorization'] = `Bearer ${token}`

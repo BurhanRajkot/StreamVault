@@ -45,7 +45,8 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
     if (touchStartX.current === null) return
     const delta = touchStartX.current - e.changedTouches[0].clientX
     if (Math.abs(delta) > 40) {
-      delta > 0 ? goToNext() : goToPrev()
+      if (delta > 0) goToNext()
+      else goToPrev()
     }
     touchStartX.current = null
   }
