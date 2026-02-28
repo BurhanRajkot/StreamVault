@@ -28,8 +28,8 @@ import { requireAdminAuth } from './admin/middleware'
 
 const app = express()
 
-// Trust proxy (required for Render/Vercel/Heroku reverse proxy)
-app.set('trust proxy', true)
+// Trust exactly one upstream proxy (Render/Vercel/Heroku load balancer)
+app.set('trust proxy', 1)
 
 // SECURITY: Apply security middleware in order
 // 1. HTTPS Enforcement - Redirect HTTP to HTTPS in production

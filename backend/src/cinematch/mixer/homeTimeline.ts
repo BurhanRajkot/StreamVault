@@ -126,10 +126,7 @@ export async function getRecommendations(
   recCache.set(userId, topK)
   persistToDb(userId, topK).catch(() => {})
 
-  console.log(
-    `[CineMatch] Pipeline: ${pipelineMs}ms | ` +
-    `${rawCandidates.length} raw → ${filtered.length} filtered → ${topK.length} ranked`
-  )
+  // Profiling removed for production
 
   return {
     userId,
