@@ -200,7 +200,21 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
   }
 
   try {
-    const data = await fetchTMDB(`/${mediaType}/${parsedId}`)
+    let url = `/${mediaType}/${parsedId}`
+    const queryParts: string[] = []
+
+    if (req.query.append_to_response) {
+      queryParts.push(`append_to_response=${req.query.append_to_response}`)
+    }
+    if (req.query.include_image_language) {
+      queryParts.push(`include_image_language=${req.query.include_image_language}`)
+    }
+
+    if (queryParts.length > 0) {
+      url += `?${queryParts.join('&')}`
+    }
+
+    const data = await fetchTMDB(url)
     res.setHeader('Cache-Control', 'public, max-age=7200, stale-while-revalidate=14400') // 2hr cache, 4hr stale
     res.json(data)
   } catch (error) {

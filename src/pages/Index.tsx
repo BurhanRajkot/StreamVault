@@ -6,7 +6,6 @@ import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { HeroCarousel } from '@/components/HeroCarousel'
 import { MediaGrid } from '@/components/MediaGrid'
-import { PlayerModal } from '@/components/PlayerModal'
 import { DisclaimerModal } from '@/components/DisclaimerModal'
 import { Footer } from '@/components/Footer'
 import { AuthorsChoiceSection } from '@/components/AuthorsChoiceSection'
@@ -14,6 +13,7 @@ import { ContinueWatchingSection } from '@/components/ContinueWatchingSection'
 import { PlatformSelector } from '@/components/PlatformSelector'
 import { RecentlyAddedSection } from '@/components/RecentlyAddedSection'
 import { RecommendationRow } from '@/components/RecommendationRow'
+import { MovieDetailModal } from '@/components/MovieDetailModal'
 import { useRecommendations } from '@/hooks/useRecommendations'
 import { logRecommendationInteraction, RecoItem } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -21,10 +21,11 @@ import Downloads from './Downloads'
 
 const Index = () => {
   const [mode, setMode] = useState<MediaMode>('home')
-  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
-  const [playMode, setPlayMode] = useState<MediaMode>('movie')
   const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
+
+  const [detailMedia, setDetailMedia] = useState<Media | null>(null)
+  const [detailMode, setDetailMode] = useState<MediaMode>('movie')
 
   const [initialSeason, setInitialSeason] = useState<number | undefined>()
   const [initialEpisode, setInitialEpisode] = useState<number | undefined>()
@@ -53,11 +54,20 @@ const Index = () => {
 
   const handleMediaClick = (media: Media, season?: number, episode?: number, server?: string) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
-    setPlayMode(detectedMode)
-    setSelectedMedia(media)
+
+    setDetailMode(detectedMode)
+    setDetailMedia(media)
     setInitialSeason(season)
     setInitialEpisode(episode)
     setInitialServer(server)
+  }
+
+  const handleCloseDetail = () => {
+    setDetailMedia(null)
+    setInitialSeason(undefined)
+    setInitialEpisode(undefined)
+    setInitialServer(undefined)
+    setRefreshKey(prev => prev + 1)
   }
 
   // Handle click on a CineMatch recommendation card
@@ -103,13 +113,7 @@ const Index = () => {
     } catch { /* non-critical */ }
   }, [isAuthenticated, getAccessTokenSilently])
 
-  const handleClosePlayer = () => {
-    setSelectedMedia(null)
-    setInitialSeason(undefined)
-    setInitialEpisode(undefined)
-    setInitialServer(undefined)
-    setRefreshKey(prev => prev + 1) // Trigger Continue Watching refresh
-  }
+  // Removed handleClosePlayer since PlayerModal is removed
 
   return (
     <>
@@ -198,15 +202,15 @@ const Index = () => {
 
         <Footer />
 
-        {selectedMedia && (
-          <PlayerModal
-            media={selectedMedia}
-            mode={playMode}
-            isOpen={true}
-            onClose={handleClosePlayer}
+        {detailMedia && (
+          <MovieDetailModal
+            media={detailMedia}
+            mode={detailMode}
+            onClose={handleCloseDetail}
             initialSeason={initialSeason}
             initialEpisode={initialEpisode}
             initialServer={initialServer}
+            autoPlay={initialSeason !== undefined || initialEpisode !== undefined || initialServer !== undefined}
           />
         )}
 

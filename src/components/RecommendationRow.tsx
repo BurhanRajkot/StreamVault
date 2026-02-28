@@ -195,7 +195,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
   const [imgError, setImgError] = useState(false)
   const [showQuickView, setShowQuickView] = useState(false)
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
-  const cardRef = useRef<HTMLButtonElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
 
   const handleMouseEnter = () => {
     if (window.innerWidth < 768) return
@@ -228,7 +228,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
   }
 
   return (
-    <button
+    <div
       ref={cardRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -318,6 +318,6 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
           triggerRef={cardRef}
         />
       )}
-    </button>
+    </div>
   )
 }

@@ -5,8 +5,9 @@ export const CONFIG = {
   IMG_BASE_URL: 'https://image.tmdb.org/t/p',
   IMG_SIZES: {
     poster: '/w500',
-    backdrop: '/original',
+    backdrop: '/w1280',
     thumbnail: '/w342',
+    logo: '/w500',
   },
 
     STREAM_PROVIDERS: {
@@ -77,6 +78,14 @@ export interface Cast {
   profile_path: string | null
 }
 
+export interface Crew {
+  id: number
+  name: string
+  job: string
+  department: string
+  profile_path: string | null
+}
+
 export interface Media {
   id: number
   title?: string
@@ -89,9 +98,16 @@ export interface Media {
   first_air_date?: string
   media_type?: string
   runtime?: number
+  tagline?: string
+  number_of_seasons?: number
   episode_run_time?: number[]
   genres?: Genre[]
   credits?: {
     cast: Cast[]
+    crew: Crew[]
+  }
+  images?: {
+    logos: { file_path: string; iso_639_1: string | null }[]
+    backdrops: { file_path: string }[]
   }
 }

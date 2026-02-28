@@ -15,11 +15,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Code splitting for better caching
     rollupOptions: {
       output: {
         manualChunks: {
-          // Vendor chunks for better caching
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': [
             '@radix-ui/react-dialog',
@@ -29,19 +27,21 @@ export default defineConfig(({ mode }) => ({
           ],
           'auth-vendor': ['@auth0/auth0-react'],
           'query-vendor': ['@tanstack/react-query'],
+          'motion-vendor': ['framer-motion'],
         },
       },
     },
-    // Chunk size warnings
     chunkSizeWarningLimit: 1000,
-    // Minification
     minify: 'terser',
     terserOptions: {
       compress: {
         drop_console: mode === 'production',
+        drop_debugger: true,
+        pure_funcs: mode === 'production' ? ['console.log', 'console.info', 'console.debug', 'console.warn'] : [],
+        passes: 2, // second pass catches more dead code
       },
+      mangle: true,
     },
-    // Source maps for production debugging (can be disabled for smaller builds)
     sourcemap: mode === 'development',
   },
 }));

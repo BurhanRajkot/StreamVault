@@ -53,10 +53,18 @@ router.post('/approve', async (req, res) => {
 
     if (updateError) throw updateError
 
-    // 3. TODO: Activate user's subscription in your main users table
-    // For now we just mark the request as approved.
-    // In a real app, you would do:
-    // await supabaseAdmin.from('users').update({ subscription_plan: request.plan_id }).eq('id', request.user_id)
+    // 3. Activate user's subscription in the main users table
+    if (request.plan_id && request.user_id) {
+      const { error: userUpdateError } = await supabaseAdmin
+        .from('users')
+        .update({ subscription_plan: request.plan_id })
+        .eq('id', request.user_id)
+
+      if (userUpdateError) {
+        logger.error('Failed to update user subscription plan but request was approved', { error: userUpdateError.message, userId: request.user_id })
+        // We still continue since the request table is updated
+      }
+    }
 
     logger.info('Approved subscription request', { requestId })
     res.json({ success: true })
