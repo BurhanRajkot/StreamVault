@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { fetchMediaDetails } from '@/lib/api'
 import { Media, MediaMode } from '@/lib/config'
-import { PlayerModal } from '@/components/PlayerModal'
+import { MovieDetailModal } from '@/components/MovieDetailModal'
 
 const Watch = () => {
   const { mediaType, tmdbId } = useParams<{
@@ -18,16 +18,16 @@ const Watch = () => {
     fetchMediaDetails(mediaType, Number(tmdbId)).then(setMedia)
   }, [mediaType, tmdbId])
 
-  if (!mediaType) return null
+  if (!mediaType || !media) return null
 
   const mode: MediaMode = mediaType
 
   return (
-    <PlayerModal
+    <MovieDetailModal
       media={media}
       mode={mode}
-      isOpen={true}
       onClose={() => navigate(-1)}
+      autoPlay={true}
     />
   )
 }
