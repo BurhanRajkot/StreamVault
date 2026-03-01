@@ -110,4 +110,16 @@ export interface Media {
     logos: { file_path: string; iso_639_1: string | null }[]
     backdrops: { file_path: string }[]
   }
+  release_dates?: {
+    results: {
+      iso_3166_1: string
+      release_dates: { certification: string }[]
+    }[]
+  }
+  content_ratings?: {
+    results: {
+      iso_3166_1: string
+      rating: string
+    }[]
+  }
 }
