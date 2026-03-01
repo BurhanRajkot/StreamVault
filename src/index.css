@@ -1,8 +1,90 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* =======================
+   TAILWIND THEME CONFIG
+   (Replaces tailwind.config.ts)
+======================= */
+
+@theme {
+  /* Container */
+  --container-center: true;
+  --container-padding: 2rem;
+  --container-2xl: 1400px;
+
+  /* Colors — shadcn/ui semantic tokens */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  /* Custom brand colors */
+  --color-deep-purple: hsl(var(--deep-purple));
+  --color-golden-amber: hsl(var(--golden-amber));
+  --color-coral-pink: hsl(var(--coral-pink));
+  --color-emerald-teal: hsl(var(--emerald-teal));
+  --color-vivid-orange: hsl(var(--vivid-orange));
+
+  /* Sidebar colors */
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Border radius */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Font families */
+  --font-family-sans: Archivo, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-display: Space Grotesk, Archivo, sans-serif;
+
+  /* Keyframes */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
+/* Dark mode variant */
+@variant dark (&:where(.dark, .dark *));
 
 /* =======================
    THEME VARIABLES
@@ -11,49 +93,39 @@
 @layer base {
   :root {
       /* LIGHT MODE VARIABLES (Blue/White/Slate Theme) */
-      /* Background: Very soft blue-white or pure white */
       --background: 210 40% 98%;
-      /* Foreground: Deep slate blue for text */
       --foreground: 222 47% 11%;
 
-      /* Card: Pure white */
       --card: 0 0% 100%;
       --card-foreground: 222 47% 11%;
 
-      /* Popover: Pure white */
       --popover: 0 0% 100%;
       --popover-foreground: 222 47% 11%;
 
-      /* Primary: Vivid Blue */
       --primary: 221 83% 53%;
       --primary-foreground: 210 40% 98%;
 
-      /* Secondary: Soft slate-blue grey */
       --secondary: 210 40% 96%;
       --secondary-foreground: 222 47% 11%;
 
-      /* Muted: Subtle grey */
       --muted: 210 40% 96%;
       --muted-foreground: 215 16% 47%;
 
-      /* Accent: Cyan/Teal (Subtle highlight) */
       --accent: 199 89% 48%;
       --accent-foreground: 0 0% 100%;
 
       --destructive: 0 84% 60%;
       --destructive-foreground: 210 40% 98%;
 
-      /* Borders: Crisp soft grey */
       --border: 214 32% 91%;
       --input: 214 32% 91%;
       --ring: 221 83% 53%;
 
-      /* SHARPER RADIUS - Tuned to 12px (Sweet Spot) */
       --radius: 0.75rem;
 
-      /* Premium color palette (Blue/Modern) */
-      --deep-purple: 221 83% 53%; /* Remapped to primary blue for backward compat */
-      --golden-amber: 199 89% 48%; /* Remapped to cyan */
+      /* Premium color palette */
+      --deep-purple: 221 83% 53%;
+      --golden-amber: 199 89% 48%;
       --coral-pink: 350 85% 65%;
       --emerald-teal: 170 75% 42%;
       --vivid-orange: 28 100% 60%;
@@ -76,33 +148,38 @@
       --shadow-glow-amber: 0 0 30px hsl(199 89% 48% / 0.15);
       --shadow-card: 0 4px 6px -1px hsl(222 47% 11% / 0.05), 0 2px 4px -2px hsl(222 47% 11% / 0.05);
       --shadow-elevated: 0 10px 15px -3px hsl(222 47% 11% / 0.08), 0 4px 6px -4px hsl(222 47% 11% / 0.08);
+
+      /* Sidebar */
+      --sidebar-background: 210 40% 98%;
+      --sidebar-foreground: 222 47% 11%;
+      --sidebar-primary: 221 83% 53%;
+      --sidebar-primary-foreground: 210 40% 98%;
+      --sidebar-accent: 210 40% 96%;
+      --sidebar-accent-foreground: 222 47% 11%;
+      --sidebar-border: 214 32% 91%;
+      --sidebar-ring: 221 83% 53%;
   }
 
   .dark {
       /* DARK MODE VARIABLES */
-      /* Background: Deep Slate/Navy (Rich & creative dark base) */
       --background: 224 71% 4%;
       --foreground: 210 40% 98%;
 
-      /* Card: Slightly lighter slate */
       --card: 222 47% 6%;
       --card-foreground: 210 40% 98%;
 
       --popover: 222 47% 8%;
       --popover-foreground: 210 40% 98%;
 
-      /* Primary: Vivid Blue */
       --primary: 221 83% 53%;
       --primary-foreground: 0 0% 100%;
 
-      /* Secondary: Dark slate */
       --secondary: 217 33% 15%;
       --secondary-foreground: 210 40% 98%;
 
       --muted: 217 33% 15%;
       --muted-foreground: 215 20% 65%;
 
-      /* Accent: Cyan */
       --accent: 199 89% 48%;
       --accent-foreground: 222 47% 3%;
 
@@ -131,6 +208,16 @@
       --shadow-glow-amber: 0 0 40px hsl(199 89% 48% / 0.2);
       --shadow-card: 0 10px 40px -10px hsl(0 0% 0% / 0.5);
       --shadow-elevated: 0 20px 40px -10px hsl(0 0% 0% / 0.6);
+
+      /* Sidebar (Dark) */
+      --sidebar-background: 222 47% 6%;
+      --sidebar-foreground: 210 40% 98%;
+      --sidebar-primary: 221 83% 53%;
+      --sidebar-primary-foreground: 0 0% 100%;
+      --sidebar-accent: 217 33% 15%;
+      --sidebar-accent-foreground: 210 40% 98%;
+      --sidebar-border: 217 33% 20%;
+      --sidebar-ring: 221 83% 53%;
   }
 }
 
@@ -146,10 +233,9 @@
     body {
       @apply bg-background text-foreground antialiased;
       font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 1.06rem; /* Slight bump from default 1rem */
+      font-size: 1.06rem;
       letter-spacing: -0.015em;
 
-      /* Performance Optimization: Use pseudo-element for fixed background */
       position: relative;
       min-height: 100vh;
 
@@ -159,7 +245,7 @@
 
     @media (max-width: 640px) {
       body {
-        font-size: 1rem; /* Reset to base to avoid overflow in small cards */
+        font-size: 1rem;
       }
     }
 
@@ -169,7 +255,7 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 100%; /* Ensures it covers viewport */
+      height: 100%;
       z-index: -1;
       pointer-events: none;
       transition: opacity 0.5s ease-in-out, background 0.5s ease-in-out;
@@ -480,4 +566,3 @@
 ::view-transition-new(root) {
   z-index: 1;
 }
-
