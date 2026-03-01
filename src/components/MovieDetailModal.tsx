@@ -156,6 +156,24 @@ export function MovieDetailModal({
   const match = (rating * 10).toFixed(0) + '%'
   const year = (media.release_date || media.first_air_date || '').split('-')[0] || ''
 
+  let contentRating = 'NR'
+  if (mode === 'movie' || media.media_type === 'movie') {
+    if (media.release_dates?.results) {
+      const usRelease = media.release_dates.results.find((r: any) => r.iso_3166_1 === 'US')
+      if (usRelease && usRelease.release_dates.length > 0) {
+        const cert = usRelease.release_dates.find((d: any) => d.certification)?.certification
+        if (cert) contentRating = cert
+      }
+    }
+  } else {
+    if (media.content_ratings?.results) {
+      const usRating = media.content_ratings.results.find((r: any) => r.iso_3166_1 === 'US')
+      if (usRating && usRating.rating) {
+        contentRating = usRating.rating
+      }
+    }
+  }
+
   let durationStr = ''
   if (media.runtime) {
     const hours = Math.floor(media.runtime / 60)
@@ -246,7 +264,7 @@ export function MovieDetailModal({
                 </div>
               )}
               <div className="px-2.5 py-1 border border-white/20 rounded text-xs tracking-widest uppercase bg-white/5">
-                PG-13
+                {contentRating}
               </div>
             </div>
           </motion.div>
