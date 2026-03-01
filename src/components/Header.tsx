@@ -166,8 +166,8 @@ export function Header({
 
                   {isAuthenticated && (
                     <Link to="/favorites">
-                      <Button size="icon" variant="secondary" className="hover:scale-105 active:scale-95 transition-all duration-200 shadow-md border border-border/50 h-9 w-9 rounded-lg">
-                        <Heart className="h-4 w-4 fill-coral-pink text-coral-pink" />
+                      <Button size="icon" variant="secondary" className="hover:scale-105 active:scale-95 transition-all duration-200 shadow-md border border-border/50 h-10 w-10 rounded-full">
+                        <Heart className="h-5 w-5 fill-coral-pink text-coral-pink" />
                         <span className="sr-only">Favorites</span>
                       </Button>
                     </Link>
