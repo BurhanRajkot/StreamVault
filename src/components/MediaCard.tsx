@@ -118,53 +118,67 @@ export function MediaCard({
       media.backdrop_path || media.poster_path,
       'backdrop'
     )
+    const certification = media.release_dates?.results.find(
+      (r) => r.iso_3166_1 === 'US'
+    )?.release_dates[0]?.certification || media.content_ratings?.results.find(
+      (r) => r.iso_3166_1 === 'US'
+    )?.rating || 'NR'
+
+    const releaseYear = media.release_date
+      ? new Date(media.release_date).getFullYear()
+      : media.first_air_date
+      ? new Date(media.first_air_date).getFullYear()
+      : ''
 
     return (
       <div
         onClick={() => onClick(media)}
-        className="relative h-full w-full cursor-pointer overflow-hidden active:scale-[0.99]"
+        className="relative h-full w-full cursor-pointer overflow-hidden active:scale-[0.99] group/hero"
       >
         <img
           src={backdrop}
           alt={title}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-[10s] group-hover/hero:scale-110"
         />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/20 to-transparent transition-opacity duration-300 pointer-events-none" />
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onClick(media)
-              }}
-              className="group/btn flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-500 to-primary bg-[length:200%_100%] px-8 py-3 text-sm font-bold text-white shadow-lg shadow-primary/30 transition-all hover:shadow-2xl hover:shadow-primary/50 hover:scale-105 active:scale-95 hover:bg-[100%_0]"
-            >
-              <Play className="h-4 w-4 fill-current transition-transform group-hover/btn:scale-125" />
-              Watch Now
-            </button>
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 lg:p-8 flex flex-col justify-end h-full">
+          <div className="space-y-2 sm:space-y-3 mb-2 transform transition-all duration-300 translate-y-2 opacity-0 group-hover/hero:translate-y-0 group-hover/hero:opacity-100 sm:translate-y-0 sm:opacity-100">
+            {/* Title */}
+            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white drop-shadow-md leading-tight line-clamp-2">
+              {title}
+            </h2>
 
-            {isAuthenticated && (
+            {/* Metadata Badges Row */}
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-zinc-200">
+              <div className="flex items-center gap-1">
+                <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-yellow-400 text-yellow-400" />
+                <span>{rating}</span>
+              </div>
+
+              {releaseYear && (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+                  <span>{releaseYear}</span>
+                </>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 pt-1">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  toggleFavorite(media.id, mediaType)
+                  onClick(media)
                 }}
-                className={cn(
-                  'rounded-full bg-background/80 backdrop-blur-sm p-2.5 shadow-lg transition-all active:scale-95 hover:scale-110 hover:bg-background cursor-pointer'
-                )}
+                className="flex items-center justify-center gap-2 rounded bg-primary px-5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-primary/90 transition-colors"
               >
-                <Heart
-                  className={cn(
-                    'h-5 w-5 transition-all',
-                    favorited
-                      ? 'fill-red-500 text-red-500'
-                      : 'text-red-500'
-                  )}
-                />
+                <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />
+                Play
               </button>
-            )}
+            </div>
           </div>
         </div>
       </div>
