@@ -1,6 +1,6 @@
 import { Candidate, ScoredCandidate, UserProfile } from '../types'
 import { getMovieFeatures } from '../features'
-import { scoreCandidate } from './phoenixScorer'
+import { scoreCandidate, buildSessionContext, SessionContext } from './phoenixScorer'
 import { applyDiversityReranking } from './diversityReranker'
 import { computeDynamicWeights } from './dynamicWeights'
 
@@ -11,6 +11,12 @@ export async function rankCandidates(
 ): Promise<ScoredCandidate[]> {
   // Compute dynamic weights based on profile richness
   const dynamicWeights = computeDynamicWeights(profile)
+
+  // ── Phase 2: Build session context from last 3 watched ──
+  // This enables session momentum — if you just watched 2 crime thrillers,
+  // the ranker will give a small additive boost to more crime thrillers.
+  // Runs in parallel with feature hydration below.
+  const sessionContextPromise = buildSessionContext(profile)
 
   // Score all candidates in parallel; hydrate missing genre/keyword/cast data
   const scoringPromises = candidates.map(async (candidate) => {
@@ -52,11 +58,20 @@ export async function rankCandidates(
         }
     }
 
-    // noteworthy: seedTitle is already on the candidate (set by tmdbSimilar,
-    // tmdbRecommendations, genreDiscovery) — scorer just reads it through
-    return scoreCandidate(candidate, profile, dynamicWeights)
+    return candidate
   })
 
-  const scored = await Promise.all(scoringPromises)
-  return applyDiversityReranking(scored)
+  // Wait for both feature hydration and session context in parallel
+  const [hydratedCandidates, sessionContext] = await Promise.all([
+    Promise.all(scoringPromises),
+    sessionContextPromise,
+  ])
+
+  // Score all hydrated candidates with session context signal
+  const scored = hydratedCandidates.map(candidate =>
+    scoreCandidate(candidate, profile, dynamicWeights, sessionContext)
+  )
+
+  // Apply three-stage diversity reranking: genre saturation + novelty + serendipity
+  return applyDiversityReranking(scored, profile)
 }

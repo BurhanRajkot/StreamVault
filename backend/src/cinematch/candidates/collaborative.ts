@@ -2,47 +2,81 @@ import { supabaseAdmin } from '../../lib/supabase'
 import { Candidate, UserProfile, MediaType } from '../types'
 import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
 
+// ============================================================
+// CineMatch — Collaborative Source (Phase 3: Multi-Signal Peer Similarity)
+//
+// Previous: cosine similarity over genre vectors ONLY.
+// Now: weighted combination of genre + keyword + cast vectors.
+//
+//   sim(u, peer) = 0.50 × genre_cos + 0.30 × keyword_cos + 0.20 × cast_cos
+//
+// This catches peers who share niche interests (same actors, same keywords)
+// even when their broad genre taste diverges — e.g. two users who both love
+// 1980s Hong Kong action cinema but have divergent genre vectors (action vs drama).
+// ============================================================
+
+function cosineSimilarity(
+  vecA: Record<string | number, number>,
+  vecB: Record<string | number, number>,
+): number {
+  const keysA = Object.keys(vecA)
+  if (keysA.length === 0) return 0
+
+  const magA = Math.sqrt(keysA.reduce((s, k) => s + (vecA[k] ?? 0) ** 2, 0))
+  if (magA === 0) return 0
+
+  const keysB = Object.keys(vecB)
+  const magB = Math.sqrt(keysB.reduce((s, k) => s + (vecB[k] ?? 0) ** 2, 0))
+  if (magB === 0) return 0
+
+  let dot = 0
+  for (const k of keysA) {
+    dot += (vecA[k] ?? 0) * (vecB[String(k)] ?? 0)
+  }
+  return dot / (magA * magB)
+}
+
 export async function collaborativeSource(profile: UserProfile): Promise<Candidate[]> {
   // Skip for empty profiles — no useful signal
   if (Object.keys(profile.genreVector).length === 0) return []
 
   try {
-    // Step 1: Fetch all peer genre profiles (max 500 rows — sufficient for current scale)
+    // Step 1: Fetch peer profiles — now includes genreMap, keywordMap, castMap
     const { data: peers, error } = await supabaseAdmin
       .from('UserGenreProfile')
-      .select('userId, genreMap')
+      .select('userId, genreMap, keywordMap, castMap')
       .neq('userId', profile.userId)
       .limit(500)
 
     if (error || !peers || peers.length === 0) return []
 
-    // Step 2: Compute cosine similarity for each peer
-    const userGenreKeys = Object.keys(profile.genreVector).map(Number)
-    const userMagnitude = Math.sqrt(
-      userGenreKeys.reduce((sum, g) => sum + (profile.genreVector[g] ?? 0) ** 2, 0)
-    )
-    if (userMagnitude === 0) return []
-
+    // Step 2: Compute multi-signal cosine similarity for each peer
     const peerSimilarities: Array<{ userId: string; similarity: number }> = peers
       .filter(p => p.genreMap && typeof p.genreMap === 'object')
       .map(peer => {
-        const peerMap = peer.genreMap as Record<string, number>
+        const genreMap = peer.genreMap as Record<string, number>
+        const keywordMap = (peer.keywordMap as Record<string, number> | null) ?? {}
+        const castMap = (peer.castMap as Record<string, number> | null) ?? {}
 
-        // Dot product
-        let dot = 0
-        for (const g of userGenreKeys) {
-          dot += (profile.genreVector[g] ?? 0) * (peerMap[String(g)] ?? 0)
-        }
+        // Genre similarity (primary signal — always present)
+        const genreSim = cosineSimilarity(profile.genreVector, genreMap)
 
-        // Peer magnitude
-        const peerMagnitude = Math.sqrt(
-          Object.values(peerMap).reduce((sum, v) => sum + v ** 2, 0)
-        )
+        // Keyword similarity (secondary signal — may be absent for new users)
+        const keywordSim = Object.keys(keywordMap).length > 0
+          ? cosineSimilarity(profile.keywordVector, keywordMap)
+          : 0
 
-        const similarity = peerMagnitude > 0 ? dot / (userMagnitude * peerMagnitude) : 0
-        return { userId: peer.userId as string, similarity }
+        // Cast similarity (tertiary signal — actor affinity)
+        const castSim = Object.keys(castMap).length > 0
+          ? cosineSimilarity(profile.castVector, castMap)
+          : 0
+
+        // Weighted combination: genre dominant, keyword secondary, cast tertiary
+        const combinedSim = 0.50 * genreSim + 0.30 * keywordSim + 0.20 * castSim
+
+        return { userId: peer.userId as string, similarity: combinedSim }
       })
-      .filter((p: any) => p.similarity > 0.4) // Only significantly similar peers
+      .filter((p: any) => p.similarity > 0.35) // Slightly lower threshold due to richer vector
       .sort((a: any, b: any) => b.similarity - a.similarity)
       .slice(0, 10) // Top-10 peers
 
@@ -54,7 +88,7 @@ export async function collaborativeSource(profile: UserProfile): Promise<Candida
 
     const { data: peerInteractions, error: intError } = await supabaseAdmin
       .from('UserInteractions')
-      .select('tmdbId, mediaType, weight')
+      .select('userId, tmdbId, mediaType, weight')
       .in('userId', peerUserIds)
       .gte('weight', 0.8)  // Only strongly positive interactions
       .gte('createdAt', ninetyDaysAgo)
@@ -63,30 +97,34 @@ export async function collaborativeSource(profile: UserProfile): Promise<Candida
 
     if (intError || !peerInteractions || peerInteractions.length === 0) return []
 
-    // Step 4: Aggregate by tmdbId (count how many peers watched it)
-    const tmdbScores = new Map<string, { tmdbId: number; mediaType: MediaType; peerCount: number }>()
+    // Step 4: Aggregate by tmdbId — weight by peer similarity, not just count
+    const peerSimMap = new Map(peerSimilarities.map(p => [p.userId, p.similarity]))
+    const tmdbScores = new Map<string, { tmdbId: number; mediaType: MediaType; weightedScore: number }>()
 
     for (const interaction of peerInteractions) {
       const key = `${interaction.mediaType}:${interaction.tmdbId}`
+
       // Skip content the current user already watched or disliked
       if (profile.watchedIds.has(interaction.tmdbId)) continue
       if (profile.dislikedIds.has(interaction.tmdbId)) continue
 
+      const peerWeight = peerSimMap.get(interaction.userId) ?? 0.5
+
       const existing = tmdbScores.get(key)
       if (existing) {
-        existing.peerCount++
+        existing.weightedScore += interaction.weight * peerWeight
       } else {
         tmdbScores.set(key, {
           tmdbId: interaction.tmdbId,
           mediaType: interaction.mediaType as MediaType,
-          peerCount: 1,
+          weightedScore: interaction.weight * peerWeight,
         })
       }
     }
 
-    // Step 5: Fetch TMDB metadata for top collaborative candidates
+    // Step 5: Fetch TMDB metadata for top similarity-weighted candidates
     const topCandidates = Array.from(tmdbScores.values())
-      .sort((a, b) => b.peerCount - a.peerCount)
+      .sort((a, b) => b.weightedScore - a.weightedScore)
       .slice(0, 20)
 
     const candidateResults = await Promise.allSettled(
