@@ -53,6 +53,7 @@ export type CandidateSource =
   | 'genre_discovery'
   | 'keyword_discovery'
   | 'cast_discovery'
+  | 'graph_traversal'
 
 // Interaction event to be logged
 export interface InteractionEvent {

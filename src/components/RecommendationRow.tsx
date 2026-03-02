@@ -20,7 +20,7 @@ import { QuickViewModal } from './QuickViewModal'
 
 interface RecommendationRowProps {
   section: RecoSection
-  onCardClick: (item: RecoItem) => void
+  onCardClick: (item: RecoItem, index: number, source: string) => void
   onDislike?: (item: RecoItem) => void
   isLoading?: boolean
 }
@@ -163,10 +163,12 @@ export function RecommendationRow({
         >
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <RecoCardSkeleton key={i} />)
-            : section.items.map((item) => (
+            : section.items.map((item, index) => (
                 <RecoCard
                   key={`${item.mediaType}:${item.tmdbId}`}
                   item={item}
+                  index={index}
+                  source={section.source}
                   isDragging={isDragging}
                   onClick={onCardClick}
                   onDislike={() => {
@@ -185,13 +187,15 @@ export function RecommendationRow({
 // ── Individual card ────────────────────────────────────────
 interface RecoCardProps {
   item: RecoItem
+  index: number
+  source: string
   isDragging?: boolean
-  onClick: (item: RecoItem) => void
+  onClick: (item: RecoItem, index: number, source: string) => void
   onDislike?: (item: RecoItem) => void
   isDisliked?: boolean
 }
 
-function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = false }: RecoCardProps) {
+function RecoCard({ item, index, source, isDragging = false, onClick, onDislike, isDisliked = false }: RecoCardProps) {
   const [imgError, setImgError] = useState(false)
   const [showQuickView, setShowQuickView] = useState(false)
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
@@ -224,7 +228,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
       e.preventDefault()
       return
     }
-    onClick(item)
+    onClick(item, index, source)
   }
 
   return (
@@ -314,7 +318,7 @@ function RecoCard({ item, isDragging = false, onClick, onDislike, isDisliked = f
             media_type: item.mediaType,
           }}
           onClose={() => setShowQuickView(false)}
-          onPlay={() => onClick(item)}
+          onPlay={() => onClick(item, index, source)}
           triggerRef={cardRef}
         />
       )}

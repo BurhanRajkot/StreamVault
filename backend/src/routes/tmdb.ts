@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import * as cache from '../services/cache'
 import { logger } from '../lib/logger'
+import { hybridSearch } from '../cinematch/search/hybridSearch'
 
 const router = Router()
 
@@ -153,6 +154,35 @@ router.get('/trending/:mediaType', async (req: Request, res: Response) => {
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch trending media' })
+  }
+})
+
+/**
+ * GET /tmdb/search/hybrid
+ * BM25 + TMDB multi-search with hybrid scoring (relevance + popularity blend)
+ * This is the upgraded search route for the CineMatch discovery engine.
+ */
+router.get('/search/hybrid', async (req: Request, res: Response) => {
+  const query = req.query.query as string
+  const page = parseInt((req.query.page as string) || '1', 10)
+  const mediaOnly = req.query.mediaOnly === 'true'
+  const mediaType = req.query.mediaType as 'movie' | 'tv' | undefined
+
+  if (!query || query.trim().length === 0) {
+    return res.status(400).json({ error: 'Query parameter required' })
+  }
+
+  if (mediaType && mediaType !== 'movie' && mediaType !== 'tv') {
+    return res.status(400).json({ error: 'mediaType must be movie or tv' })
+  }
+
+  try {
+    const results = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType })
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=900')
+    res.json({ results, total_results: results.length, query })
+  } catch (error: any) {
+    logger.error('Hybrid search error', { error: error.message, query })
+    res.status(500).json({ error: 'Hybrid search failed' })
   }
 })
 

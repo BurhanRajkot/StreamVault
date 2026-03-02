@@ -25,6 +25,7 @@ import { getMovieFeatures } from '../features'
 import { invalidateRecommendationCache } from '../mixer/homeTimeline'
 import { invalidateUserProfile } from '../features/userProfile'
 import { logMLInteraction } from '../ml/telemetry'
+import { logPositionImpression } from '../ranking/positionBias'
 
 // ── Event Weight Map ──────────────────────────────────────
 const BASE_WEIGHTS: Record<EventType, number> = {
@@ -73,6 +74,9 @@ export async function logInteraction(event: {
   browserLanguage?: string
   localHour?: number
   timezone?: string
+  // Phase 4: Position bias tracking fields
+  displayPosition?: number    // 0-indexed position where the item appeared in the list
+  recommendationSource?: string  // Source tag from ScoredCandidate.source
 }): Promise<void> {
   const weight = computeWeight(event.eventType, event.progress, event.rating)
 
@@ -114,6 +118,22 @@ export async function logInteraction(event: {
 
   // Delegate ML training tracking to the dedicated ML module
   logMLInteraction(row);
+
+  // Phase 4: Log position impression for IPS bias correction (non-blocking)
+  // Only log for clicks and watches (positive engagement with observed items)
+  if (
+    event.displayPosition !== undefined &&
+    (event.eventType === 'click' || event.eventType === 'watch' || event.eventType === 'favorite')
+  ) {
+    logPositionImpression({
+      userId: event.userId,
+      tmdbId: event.tmdbId,
+      mediaType: event.mediaType,
+      displayPosition: event.displayPosition,
+      clicked: true,  // Only called for positive events
+      source: event.recommendationSource,
+    }).catch(() => {})
+  }
 
   // Invalidate ALL caches so next request rebuilds profile from DB
   invalidateRecommendationCache(event.userId)

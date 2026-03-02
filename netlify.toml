@@ -1,24 +1,16 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = """
-      frame-src 'self' https: http: data: blob:;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: data: blob:;
-      connect-src 'self' https: http: wss: ws: data: blob: https://api.themoviedb.org https://*.supabase.co https://*.auth0.com https://vidfast.pro https://vidsrc.icu https://vidlink.pro https://vidsrc.cc https://player.videasy.net https://*.vidfast.pro https://*.vidsrc.icu https://*.vidlink.pro https://*.vidsrc.cc https://*.videasy.net https://streamvault-backend-bq9p.onrender.com https://vercel.live https://*.vercel.live wss://*.pusher.com https://*.jwpltx.com https://*.jwplayer.com https://*.cloudflareinsights.com https://entitlements.jwplayer.com https://prd.jwpltx.com https://lightningbolt.site https://*.lightningbolt.site;
-      img-src 'self' data: https: http: blob:;
-      media-src 'self' https: http: blob: data:;
-      style-src 'self' 'unsafe-inline' https: http: data:;
-      font-src 'self' data: https: http:;
-      worker-src 'self' blob:;
-      child-src 'self' https: http: data: blob:;
-    """
+    Content-Security-Policy = "default-src 'self'; frame-src 'self' https://vidsrc.to https://*.vidsrc.to https://vidfast.pro https://*.vidfast.pro https://vidsrc.icu https://*.vidsrc.icu https://vidlink.pro https://*.vidlink.pro https://vidsrc.cc https://*.vidsrc.cc https://player.videasy.net https://*.videasy.net https://vidsrc.net https://*.vidsrc.net https://v2.vidsrc.me https://vercel.live https://*.vercel.live; script-src 'self' 'unsafe-inline' https://vercel.live https://*.vercel.live; connect-src 'self' https://api.themoviedb.org https://*.supabase.co https://*.auth0.com https://streamvault-backend-bq9p.onrender.com https://vercel.live https://*.vercel.live wss://*.supabase.co; img-src 'self' data: https://image.tmdb.org https://*.googleusercontent.com blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; object-src 'none';"
     X-Frame-Options = "SAMEORIGIN"
-    Referrer-Policy = "no-referrer-when-downgrade"
+    Referrer-Policy = "no-referrer"
     Cross-Origin-Embedder-Policy = "unsafe-none"
     Cross-Origin-Opener-Policy = "unsafe-none"
+    X-Content-Type-Options = "nosniff"
     Permissions-Policy = "accelerometer=*, autoplay=*, clipboard-write=*, encrypted-media=*, gyroscope=*, picture-in-picture=*, fullscreen=*"
 
 [build]
   command = "npm run build"
   publish = "dist"
+
 
