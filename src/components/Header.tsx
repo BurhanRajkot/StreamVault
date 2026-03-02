@@ -35,6 +35,7 @@ interface HeaderProps {
   searchQuery: string
   onClearSearch: () => void
   onMediaSelect?: (media: Media) => void
+  onLogoClick?: () => void
 }
 
 export function Header({
@@ -44,6 +45,7 @@ export function Header({
   searchQuery,
   onClearSearch,
   onMediaSelect,
+  onLogoClick,
 }: HeaderProps) {
   const { user, isAuthenticated, logout } = useAuth0()
   const initials =
@@ -61,7 +63,14 @@ export function Header({
               {/* Logo + Mobile Favorites */}
               {/* Logo + Mobile Elements */}
               <div className="flex items-center justify-between w-full sm:w-auto">
-                <a href="/" className="flex items-center gap-3 group hover-group">
+                <Link
+                  to="/"
+                  onClick={(e) => {
+                    if (onLogoClick) onLogoClick()
+                    else onClearSearch()
+                  }}
+                  className="flex items-center gap-3 group hover-group"
+                >
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
                     <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-all duration-300 hover-glow">
@@ -72,7 +81,7 @@ export function Header({
                     <span className="text-white">Stream</span>
                     <span className="text-primary">Vault</span>
                   </h1>
-                </a>
+                </Link>
 
                 {/* Mobile: Profile/Login (Left) */}
                 <div className="sm:hidden flex items-center gap-3">
