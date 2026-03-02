@@ -128,10 +128,110 @@ function buildSourceReason(source: Candidate['source'], seedTitle?: string): str
   }
 }
 
+// ── Session Context ───────────────────────────────────────
+// Tracks what the user is engaging with RIGHT NOW in this session,
+// enabling "session momentum" — if you just watched 2 crime thrillers,
+// the next recommendation should lean into that intent.
+export interface SessionContext {
+  /** Genre IDs from items watched/clicked in the current session */
+  sessionGenreIds: number[]
+  /** Cast IDs from items watched/clicked in the current session */
+  sessionCastIds: number[]
+  /** Keyword IDs from items watched/clicked in the current session */
+  sessionKeywordIds: number[]
+}
+
+// ── Session Momentum Score ────────────────────────────────
+// Boosts candidates whose genres/cast overlap with the current session.
+// This is additive on top of the base score so it can't dominate —
+// it's a tiebreaker for candidates with similar long-term affinity.
+//
+// Max additive boost: +0.20 (when full genre + cast + keyword overlap)
+function sessionMomentumScore(
+  candidate: Candidate,
+  session: SessionContext,
+): number {
+  if (
+    session.sessionGenreIds.length === 0 &&
+    session.sessionCastIds.length === 0 &&
+    session.sessionKeywordIds.length === 0
+  ) {
+    return 0 // No session context yet — skip signal
+  }
+
+  let score = 0
+
+  // Genre overlap — up to 0.10
+  if (session.sessionGenreIds.length > 0 && candidate.genreIds.length > 0) {
+    const sessionGenreSet = new Set(session.sessionGenreIds)
+    const overlap = candidate.genreIds.filter(g => sessionGenreSet.has(g)).length
+    const overlapRatio = overlap / Math.max(candidate.genreIds.length, 1)
+    score += 0.10 * overlapRatio
+  }
+
+  // Cast overlap — up to 0.06
+  if (session.sessionCastIds.length > 0 && candidate.castIds && candidate.castIds.length > 0) {
+    const sessionCastSet = new Set(session.sessionCastIds)
+    const overlap = candidate.castIds.filter(c => sessionCastSet.has(c)).length
+    const overlapRatio = overlap / Math.max(candidate.castIds.length, 1)
+    score += 0.06 * overlapRatio
+  }
+
+  // Keyword overlap — up to 0.04
+  if (session.sessionKeywordIds.length > 0 && candidate.keywords && candidate.keywords.length > 0) {
+    const sessionKwSet = new Set(session.sessionKeywordIds)
+    const overlap = candidate.keywords.filter(k => sessionKwSet.has(k)).length
+    const overlapRatio = overlap / Math.max(candidate.keywords.length, 1)
+    score += 0.04 * overlapRatio
+  }
+
+  return score
+}
+
+// ── Build Session Context from recently watched ───────────
+// Extracts the session genre/cast/keyword fingerprint from the
+// user's last N interactions stored in the profile's recentlyWatched list.
+// We resolve features for the top 3 recent items to build session context.
+export async function buildSessionContext(profile: UserProfile): Promise<SessionContext> {
+  const sessionContext: SessionContext = {
+    sessionGenreIds: [],
+    sessionCastIds: [],
+    sessionKeywordIds: [],
+  }
+
+  // Use only the 3 most recent items for strong recency signal
+  const recentItems = profile.recentlyWatched.slice(0, 3)
+  if (recentItems.length === 0) return sessionContext
+
+  const featureResults = await Promise.allSettled(
+    recentItems.map(item => getMovieFeatures(item.tmdbId, item.mediaType))
+  )
+
+  const sessionGenreSet = new Set<number>()
+  const sessionCastSet = new Set<number>()
+  const sessionKwSet = new Set<number>()
+
+  for (const result of featureResults) {
+    if (result.status === 'fulfilled' && result.value) {
+      const f = result.value
+      f.genreIds.forEach(g => sessionGenreSet.add(g))
+      f.castIds.forEach(c => sessionCastSet.add(c))
+      f.keywords.forEach(k => sessionKwSet.add(k))
+    }
+  }
+
+  return {
+    sessionGenreIds: Array.from(sessionGenreSet),
+    sessionCastIds: Array.from(sessionCastSet),
+    sessionKeywordIds: Array.from(sessionKwSet),
+  }
+}
+
 export function scoreCandidate(
   candidate: Candidate,
   profile: UserProfile,
   weights: RankingWeights,
+  session: SessionContext = { sessionGenreIds: [], sessionCastIds: [], sessionKeywordIds: [] },
 ): ScoredCandidate {
   // Allow genre, keyword, cast, director, decade to be negative for disliked items
   // Amplify affinities so likes/dislikes have a stronger pull on the final score
@@ -160,11 +260,17 @@ export function scoreCandidate(
 
   const boostedScore = rawScore * sourceBoost(candidate.source)
 
+  // ── Session Momentum Additive Boost ──────────────────────
+  // Added AFTER source boost multiplication so it can't be zeroed
+  // out by a weak source multiplier. This is a pure contextual signal.
+  const sessionBoost = sessionMomentumScore(candidate, session)
+  const finalScore = boostedScore + sessionBoost
+
   // The seedTitle is passed through from the Candidate (set by tmdbSimilar/Recommendations/genreDiscovery)
   // This is what enables sectionBuilder to create "Because you watched Game of Thrones" groupings
   return {
     ...candidate,
-    score: boostedScore,
+    score: finalScore,
     genreAffinityScore: gAffinity,
     keywordAffinityScore: kwAffinity,
     castAffinityScore: castAff,

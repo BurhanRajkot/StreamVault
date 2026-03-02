@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // Target modern browsers only — avoids legacy polyfill bloat
+    target: 'esnext',
+    // Inline assets smaller than 4kb directly into the HTML (icons, tiny SVGs)
+    assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -29,6 +33,8 @@ export default defineConfig(({ mode }) => ({
           'auth-vendor': ['@auth0/auth0-react'],
           'query-vendor': ['@tanstack/react-query'],
           'motion-vendor': ['framer-motion'],
+          'charts-vendor': ['recharts'],
+          'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
         },
       },
     },
@@ -46,3 +52,4 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
   },
 }));
+

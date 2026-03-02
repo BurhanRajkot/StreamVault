@@ -780,6 +780,8 @@ export async function logRecommendationInteraction(
     progress?: number
     rating?: number
     selectedServer?: string
+    displayPosition?: number
+    recommendationSource?: string
   }
 ): Promise<void> {
   try {

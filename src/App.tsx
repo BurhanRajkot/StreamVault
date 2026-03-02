@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { HelmetProvider } from 'react-helmet-async'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Routes, Route } from 'react-router-dom'
 
 import Index from './pages/Index'
@@ -20,14 +19,13 @@ import { FavoritesProvider } from './context/FavoritesContext'
 import { DislikesProvider } from './context/DislikesContext'
 import { SmoothScrollProvider } from './components/SmoothScrollProvider'
 
-const queryClient = new QueryClient()
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export default function App() {
   // FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
     fetch(`${API_BASE}/health`).catch(() => {
-      // silently ignore errors
+      // silently ignore errors — backend may not be running locally
     })
   }, [])
 
@@ -35,31 +33,30 @@ export default function App() {
     <ErrorBoundary>
       <SmoothScrollProvider>
         <HelmetProvider>
-          <QueryClientProvider client={queryClient}>
-            <FavoritesProvider>
-              <DislikesProvider>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/downloads" element={<Downloads />} />
-                  <Route path="/favorites" element={<Favorites />} />
-                  <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/pricing" element={<Pricing />} />
-                  <Route path="/subscription/success" element={<SubscriptionSuccess />} />
-                  <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <FavoritesProvider>
+            <DislikesProvider>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/downloads" element={<Downloads />} />
+                <Route path="/favorites" element={<Favorites />} />
+                <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
-                  {/* Error Pages for Testing */}
-                  <Route path="/error/500" element={<ServerError />} />
-                  <Route path="/error/403" element={<AccessDenied />} />
+                {/* Error Pages for Testing */}
+                <Route path="/error/500" element={<ServerError />} />
+                <Route path="/error/403" element={<AccessDenied />} />
 
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </DislikesProvider>
-            </FavoritesProvider>
-          </QueryClientProvider>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </DislikesProvider>
+          </FavoritesProvider>
         </HelmetProvider>
       </SmoothScrollProvider>
     </ErrorBoundary>
   )
 }
+

@@ -71,7 +71,7 @@ const Index = () => {
   }
 
   // Handle click on a CineMatch recommendation card
-  const handleRecoCardClick = useCallback(async (item: RecoItem) => {
+  const handleRecoCardClick = useCallback(async (item: RecoItem, index: number, source: string) => {
     const mediaForPlayer: Media = {
       id: item.tmdbId,
       title: item.mediaType === 'movie' ? item.title : undefined as any,
@@ -95,6 +95,8 @@ const Index = () => {
           tmdbId: item.tmdbId,
           mediaType: item.mediaType,
           eventType: 'click',
+          displayPosition: index,
+          recommendationSource: source,
         })
       } catch { /* non-critical */ }
     }
