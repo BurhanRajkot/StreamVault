@@ -70,6 +70,15 @@ const Index = () => {
     setRefreshKey(prev => prev + 1)
   }
 
+  const handleLogoClick = () => {
+    setMode('home')
+    setSelectedProvider(null)
+    clearSearch()
+    handleCloseDetail()
+    // Scroll to top smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   // Handle click on a CineMatch recommendation card
   const handleRecoCardClick = useCallback(async (item: RecoItem, index: number, source: string) => {
     const mediaForPlayer: Media = {
@@ -130,6 +139,7 @@ const Index = () => {
           onSearch={search}
           searchQuery={searchQuery}
           onClearSearch={clearSearch}
+          onLogoClick={handleLogoClick}
         />
         <MobileNav mode={mode} onModeChange={setMode} />
 
