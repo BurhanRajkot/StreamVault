@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Lenis from '@studio-freight/lenis'
 import { CircularRating } from './CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
-import { fetchMediaDetails, getImageUrl, fetchTVSeasons, buildEmbedUrl } from '@/lib/api'
+import { fetchMediaDetails, getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
@@ -58,10 +58,13 @@ export function MovieDetailModal({
     return initialServer || (isMobile ? 'vidfast_pro' : 'vidsrc_pro')
   })
 
-  const { isAuthenticated } = useAuth0()
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { toggleFavorite, isFavorited } = useFavorites()
   const { toggleDislike, isDisliked } = useDislikes()
   const [isLiked, setIsLiked] = useState(false)
+
+  // Track if we have already logged a watch event for this session/media
+  const hasLoggedWatch = useRef(false)
 
   const typedMode = mode as 'movie' | 'tv'
   const favorited = isFavorited(initialMedia.id, typedMode)
@@ -71,8 +74,38 @@ export function MovieDetailModal({
     if (isPlaying) {
       const url = buildEmbedUrl(mode, server, media.id, { season, episode, media })
       setEmbedUrl(url)
+
+      // Log the watch event once when playback starts
+      if (!hasLoggedWatch.current) {
+        hasLoggedWatch.current = true
+
+        const logWatch = async () => {
+          try {
+            if (isAuthenticated) {
+              const token = await getAccessTokenSilently()
+              await logRecommendationInteraction(token, {
+                tmdbId: media.id,
+                mediaType: typedMode,
+                eventType: 'watch',
+                selectedServer: server,
+              })
+            } else {
+              await logRecommendationInteraction(null, {
+                tmdbId: media.id,
+                mediaType: typedMode,
+                eventType: 'watch',
+                selectedServer: server,
+              })
+            }
+          } catch (err) {
+            console.error('Failed to log watch event:', err)
+          }
+        }
+
+        logWatch()
+      }
     }
-  }, [isPlaying, server, media, mode, season, episode])
+  }, [isPlaying, server, media, mode, season, episode, isAuthenticated, getAccessTokenSilently, typedMode])
 
   // Lock body scroll
   useEffect(() => {
