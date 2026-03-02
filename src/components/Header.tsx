@@ -61,7 +61,7 @@ export function Header({
               {/* Logo + Mobile Favorites */}
               {/* Logo + Mobile Elements */}
               <div className="flex items-center justify-between w-full sm:w-auto">
-                <Link to="/" className="flex items-center gap-3 group hover-group">
+                <a href="/" className="flex items-center gap-3 group hover-group">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
                     <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-all duration-300 hover-glow">
@@ -72,7 +72,7 @@ export function Header({
                     <span className="text-white">Stream</span>
                     <span className="text-primary">Vault</span>
                   </h1>
-                </Link>
+                </a>
 
                 {/* Mobile: Profile/Login (Left) */}
                 <div className="sm:hidden flex items-center gap-3">
