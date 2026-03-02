@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Play, Clock, Calendar, ChevronLeft, Share2, Heart, ThumbsUp, ThumbsDown, Server, SkipForward, SkipBack } from 'lucide-react'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Lenis from '@studio-freight/lenis'
 import { CircularRating } from './CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
