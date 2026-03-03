@@ -30,6 +30,7 @@ const Index = () => {
   const [initialSeason, setInitialSeason] = useState<number | undefined>()
   const [initialEpisode, setInitialEpisode] = useState<number | undefined>()
   const [initialServer, setInitialServer] = useState<string | undefined>()
+  const [initialAutoPlay, setInitialAutoPlay] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
@@ -52,7 +53,7 @@ const Index = () => {
     }
   }, [])
 
-  const handleMediaClick = (media: Media, season?: number, episode?: number, server?: string) => {
+  const handleMediaClick = (media: Media, season?: number, episode?: number, server?: string, forceAutoPlay?: boolean) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
 
     setDetailMode(detectedMode)
@@ -60,6 +61,7 @@ const Index = () => {
     setInitialSeason(season)
     setInitialEpisode(episode)
     setInitialServer(server)
+    setInitialAutoPlay(forceAutoPlay || false)
   }
 
   const handleCloseDetail = () => {
@@ -67,6 +69,7 @@ const Index = () => {
     setInitialSeason(undefined)
     setInitialEpisode(undefined)
     setInitialServer(undefined)
+    setInitialAutoPlay(false)
     setRefreshKey(prev => prev + 1)
   }
 
@@ -222,7 +225,7 @@ const Index = () => {
             initialSeason={initialSeason}
             initialEpisode={initialEpisode}
             initialServer={initialServer}
-            autoPlay={initialSeason !== undefined || initialEpisode !== undefined || initialServer !== undefined}
+            autoPlay={initialAutoPlay || initialSeason !== undefined || initialEpisode !== undefined || initialServer !== undefined}
           />
         )}
 

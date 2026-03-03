@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 interface HeroCarouselProps {
   items: Media[]
-  onMediaClick: (media: Media) => void
+  onMediaClick: (media: Media, season?: number, episode?: number, server?: string, autoPlay?: boolean) => void
 }
 
 export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
