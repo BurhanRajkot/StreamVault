@@ -11,7 +11,7 @@ import { QuickViewModal } from './QuickViewModal'
 
 interface MediaCardProps {
   media: Media
-  onClick: (media: Media) => void
+  onClick: (media: Media, season?: number, episode?: number, server?: string, autoPlay?: boolean) => void
   variant?: 'default' | 'hero'
   priority?: boolean
 }
@@ -171,7 +171,7 @@ export function MediaCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  onClick(media)
+                  onClick(media, undefined, undefined, undefined, true)
                 }}
                 className="flex items-center justify-center gap-2 rounded bg-primary px-5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-primary/90 transition-colors"
               >
