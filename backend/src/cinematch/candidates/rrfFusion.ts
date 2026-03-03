@@ -38,7 +38,7 @@ export function rrfFuse(
   // Map from unique key → { candidate, rrfScore }
   const scoreMap = new Map<string, { candidate: Candidate; rrfScore: number }>()
 
-  for (const { candidates } of sourceLists) {
+  for (const { source, candidates } of sourceLists) {
     for (let rank = 0; rank < candidates.length; rank++) {
       const c = candidates[rank]
       const key = `${c.mediaType}:${c.tmdbId}`
@@ -47,12 +47,30 @@ export function rrfFuse(
       const existing = scoreMap.get(key)
       if (existing) {
         existing.rrfScore += contribution
-        // If this source has a higher-priority seedTitle, prefer it
-        if (!existing.candidate.seedTitle && c.seedTitle) {
-          existing.candidate = { ...existing.candidate, seedTitle: c.seedTitle }
+
+        // Accumulate all source memberships
+        if (!existing.candidate.sources!.includes(source)) {
+          existing.candidate.sources!.push(source)
+        }
+
+        // Accumulate per-source seed titles so sectionBuilder can use them
+        if (c.seedTitle && !existing.candidate.seedTitles![source]) {
+          existing.candidate.seedTitles![source] = c.seedTitle
         }
       } else {
-        scoreMap.set(key, { candidate: { ...c }, rrfScore: contribution })
+        // First time we see this candidate — initialise sources and seedTitles
+        const seedTitles: Partial<Record<CandidateSource, string>> = {}
+        if (c.seedTitle) seedTitles[source] = c.seedTitle
+
+        scoreMap.set(key, {
+          candidate: {
+            ...c,
+            source,           // primary source (first seen)
+            sources: [source],
+            seedTitles,
+          },
+          rrfScore: contribution,
+        })
       }
     }
   }
