@@ -337,6 +337,22 @@ export async function fetchMediaDetails(
   return res.json()
 }
 
+export async function fetchMediaBasicDetails(
+  mode: MediaMode,
+  id: number
+): Promise<Media | null> {
+  if (mode === 'downloads' || !id) return null
+
+  // Omitting appended relationships reduces TMDB response from ~120KB to ~2KB each!
+  const url = `${API_BASE}/tmdb/${mode}/${id}?include_image_language=en,null`
+  const res = await fetch(url)
+  if (!res.ok) {
+    console.error(`fetchMediaBasicDetails failed for ${mode}/${id}:`, res.status)
+    return null
+  }
+  return res.json()
+}
+
 export async function fetchMediaVideos(
   mode: MediaMode,
   id: number
