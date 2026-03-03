@@ -23,8 +23,10 @@ export interface Candidate {
   castIds?: number[]    // Top-5 cast ids (optional — populated by featureStore)
   directorId?: number | null // Optional — populated by featureStore
   decade?: number       // Optional — populated by featureStore
-  source: CandidateSource  // which pipeline stage produced this
+  source: CandidateSource  // Primary source (first to surface this candidate)
+  sources?: CandidateSource[] // ALL sources that contributed this candidate (populated by rrfFuse)
   seedTitle?: string   // The title that triggered this candidate (for "Because you watched" grouping)
+  seedTitles?: Partial<Record<CandidateSource, string>> // Per-source seed titles (populated by rrfFuse)
   seedMediaType?: MediaType // The media type of the seed item
 }
 
