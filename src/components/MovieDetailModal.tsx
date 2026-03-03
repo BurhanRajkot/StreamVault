@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Lenis from '@studio-freight/lenis'
 import { CircularRating } from './CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
-import { fetchMediaDetails, getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction } from '@/lib/api'
+import { fetchMediaDetails, getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
@@ -70,6 +70,41 @@ export function MovieDetailModal({
   const favorited = isFavorited(initialMedia.id, typedMode)
   const disliked = isDisliked(initialMedia.id, typedMode)
 
+  // --- CONTINUE WATCHING PROGRESS TRACKING ---
+  // Since the player is a cross-origin iframe we can't read playback time.
+  // We use time-based heuristics instead.
+  const watchStartTimeRef = useRef<number | null>(null) // ms since epoch when current ep started
+  const startSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevEpisodeRef = useRef<{ season: number; episode: number } | null>(null)
+
+  // Persist progress for any episode (handles auth + guest)
+  const saveProgress = React.useCallback(
+    async (s: number, ep: number, prog: number) => {
+      if (mode !== 'movie' && mode !== 'tv') return
+      const item = {
+        tmdbId: media.id,
+        mediaType: typedMode,
+        season: mode === 'tv' ? s : undefined,
+        episode: mode === 'tv' ? ep : undefined,
+        progress: prog,
+        server,
+      }
+      try {
+        if (isAuthenticated) {
+          const token = await getAccessTokenSilently({
+            authorizationParams: { audience: import.meta.env.VITE_AUTH0_AUDIENCE },
+          })
+          await updateContinueWatching(token, item)
+        } else {
+          saveGuestProgress(item)
+        }
+      } catch (err) {
+        console.error('Failed to save continue watching progress:', err)
+      }
+    },
+    [media.id, typedMode, mode, server, isAuthenticated, getAccessTokenSilently]
+  )
+
   useEffect(() => {
     if (isPlaying) {
       const url = buildEmbedUrl(mode, server, media.id, { season, episode, media })
@@ -106,6 +141,45 @@ export function MovieDetailModal({
       }
     }
   }, [isPlaying, server, media, mode, season, episode, isAuthenticated, getAccessTokenSilently, typedMode])
+
+  // Save progress=0.1 after 30 seconds of playback (marks episode as "started")
+  useEffect(() => {
+    if (!isPlaying) return
+
+    // Record when this episode started
+    watchStartTimeRef.current = Date.now()
+
+    // Clear any existing start timer
+    if (startSaveTimerRef.current) clearTimeout(startSaveTimerRef.current)
+
+    startSaveTimerRef.current = setTimeout(() => {
+      saveProgress(season, episode, 0.1)
+    }, 30_000) // 30 seconds
+
+    return () => {
+      if (startSaveTimerRef.current) clearTimeout(startSaveTimerRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, season, episode])
+
+  // When the user skips to another episode while playing:
+  //  - mark the OLD episode as finished (0.99)
+  //  - record the NEW episode as started (0.1) via the timer above
+  useEffect(() => {
+    if (!isPlaying) {
+      prevEpisodeRef.current = null
+      return
+    }
+
+    const prev = prevEpisodeRef.current
+    if (prev && (prev.season !== season || prev.episode !== episode)) {
+      // Mark previous episode as done
+      saveProgress(prev.season, prev.episode, 0.99)
+    }
+
+    prevEpisodeRef.current = { season, episode }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [season, episode, isPlaying])
 
   // Lock body scroll
   useEffect(() => {
@@ -496,7 +570,16 @@ export function MovieDetailModal({
         {/* ── Top Navigation (always visible, non-scrolling) ── */}
         <div className="absolute top-0 left-0 right-0 px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-50 pointer-events-none">
           <button
-            onClick={onClose}
+            onClick={() => {
+              // Save mid-watch progress (0.5) when user closes after >= 30s
+              if (isPlaying && watchStartTimeRef.current) {
+                const elapsed = Date.now() - watchStartTimeRef.current
+                if (elapsed >= 30_000) {
+                  saveProgress(season, episode, 0.5)
+                }
+              }
+              onClose()
+            }}
             className="pointer-events-auto flex items-center gap-2 text-sm font-medium tracking-widest uppercase text-white/70 hover:text-white transition-colors group"
           >
             <div className="p-3 rounded-full border border-white/20 group-hover:border-white/50 transition-colors backdrop-blur-sm bg-black/20">
