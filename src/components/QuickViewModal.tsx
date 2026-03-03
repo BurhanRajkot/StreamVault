@@ -6,6 +6,7 @@ import { getImageUrl, fetchMediaDetails, logRecommendationInteraction } from '@/
 import { cn } from '@/lib/utils'
 import { HoverVideoPlayer } from './HoverVideoPlayer'
 import { useAuth0 } from '@auth0/auth0-react'
+import { useDislikes } from '@/context/DislikesContext'
 
 interface QuickViewModalProps {
   media: Media
@@ -25,8 +26,10 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
   const [modalStyle, setModalStyle] = useState<React.CSSProperties>({})
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+  const { isDisliked, toggleDislike } = useDislikes()
 
-  const mode: MediaMode = media.media_type as MediaMode || (media.first_air_date ? 'tv' : 'movie')
+  const mode = (media.media_type === 'tv' || media.first_air_date ? 'tv' : 'movie') as 'movie' | 'tv'
+  const disliked = isDisliked(media.id, mode)
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 20)
@@ -100,7 +103,8 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
     <div
       className={cn(
         "flex flex-col rounded-lg bg-[#181818] shadow-2xl transition-all duration-300 overflow-hidden",
-        isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+        isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0",
+        disliked && "grayscale contrast-125 opacity-70"
       )}
       style={{
         ...modalStyle,
@@ -173,14 +177,14 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
           {isAuthenticated && (
             <div className="flex items-center gap-2 ml-2">
               <button
-                onClick={(e) => { e.stopPropagation(); handleFeedback('dislike'); }}
+                onClick={(e) => { e.stopPropagation(); toggleDislike(media.id, mode); }}
                 className={cn(
                   "p-2.5 rounded-full border border-gray-600 transition",
-                  feedback === 'dislike' ? "bg-white text-black" : "text-white hover:border-white"
+                  disliked ? "bg-[#333] text-gray-300 border-gray-500 shadow-inner" : "text-white hover:border-white"
                 )}
                 title="Not for me"
               >
-                <ThumbsDown size={18} />
+                <ThumbsDown size={18} className={disliked ? "fill-gray-300" : ""} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleFeedback('rate'); }}

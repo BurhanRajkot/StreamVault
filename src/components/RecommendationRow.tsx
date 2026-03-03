@@ -206,7 +206,7 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
     if (isDisliked) return // Prevent QuickView if disliked
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
-    }, 2500)
+    }, 1500)
   }
 
   const handleMouseLeave = () => {
