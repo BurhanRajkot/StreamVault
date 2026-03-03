@@ -104,7 +104,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
       className={cn(
         "flex flex-col rounded-lg bg-[#181818] shadow-2xl transition-all duration-300 overflow-hidden",
         isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0",
-        disliked && "grayscale contrast-125 opacity-70"
+        disliked && "grayscale contrast-125 opacity-70 hover:opacity-100"
       )}
       style={{
         ...modalStyle,
