@@ -36,3 +36,36 @@ $ concurrently "bun run dev:frontend" "bun run dev:backend" --names "frontend,ba
 [backend]   delayMs: 2000,
 [backend] }
 [frontend] 5:51:17 PM [vite] (client) page reload frontend_backend.txt
+[frontend] 6:12:31 PM [vite] (client) hmr update /src/components/MediaCard.tsx, /src/index.css
+[frontend] 6:12:31 PM [vite] (client) page reload frontend_backend.txt
+[backend] [33m[WARN][0m 2026-03-03T12:42:34.367Z - TMDB connection reset, retrying {
+[backend]   attempt: 1,
+[backend]   maxRetries: 3,
+[backend]   delayMs: 1000,
+[backend] }
+[frontend] 6:12:34 PM [vite] (client) page reload frontend_backend.txt
+[backend] [33m[WARN][0m 2026-03-03T12:42:34.536Z - TMDB connection reset, retrying {
+[backend]   attempt: 1,
+[backend]   maxRetries: 3,
+[backend]   delayMs: 1000,
+[backend] }
+[frontend] 6:12:34 PM [vite] (client) page reload frontend_backend.txt
+[frontend] 6:12:34 PM [vite] (client) hmr update /src/components/RecommendationRow.tsx, /src/index.css
+[frontend] 6:12:34 PM [vite] (client) page reload frontend_backend.txt
+[frontend] 6:12:36 PM [vite] (client) hmr update /src/components/ContinueWatchingCard.tsx, /src/index.css
+[frontend] 6:12:36 PM [vite] (client) page reload frontend_backend.txt
+[frontend] 6:13:25 PM [vite] (client) hmr update /src/components/QuickViewModal.tsx, /src/index.css
+[frontend] 6:13:25 PM [vite] (client) page reload frontend_backend.txt
+[frontend] 6:13:53 PM [vite] (client) hmr update /src/components/QuickViewModal.tsx, /src/index.css
+[frontend] 6:13:53 PM [vite] (client) page reload frontend_backend.txt
+[backend] [33m[WARN][0m 2026-03-03T12:51:22.354Z - TMDB connection reset, retrying {
+[backend]   attempt: 1,
+[backend]   maxRetries: 3,
+[backend]   delayMs: 1000,
+[backend] }
+[backend] [33m[WARN][0m 2026-03-03T12:51:22.359Z - TMDB connection reset, retrying {
+[backend]   attempt: 1,
+[backend]   maxRetries: 3,
+[backend]   delayMs: 1000,
+[backend] }
+[frontend] 6:21:22 PM [vite] (client) page reload frontend_backend.txt

@@ -63,10 +63,10 @@ export function MediaCard({
     if (window.innerWidth < 768) return
     if (disliked) return // Prevent quick view for disliked items
 
-    // Stage 1: Card Expansion (2.5s)
+    // Stage 1: Card Expansion (1.5s)
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
-    }, 2500)
+    }, 1500)
 
     // Stage 2: Quick View Modal - Removed (Consolidated to single 3.5s trigger)
     // quickViewTimeout.current = setTimeout(() => {

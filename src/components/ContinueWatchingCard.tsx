@@ -27,7 +27,7 @@ export function ContinueWatchingCard({
     if (window.innerWidth < 768) return
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
-    }, 2500)
+    }, 1500)
   }
 
   const handleMouseLeave = () => {
