@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import {
   fetchContinueWatching,
-  fetchMediaDetails,
+  fetchMediaBasicDetails,
   removeContinueWatching,
   getGuestProgress,
   removeGuestProgress,
@@ -49,12 +49,12 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
           data = getGuestProgress()
         }
 
-        // Hide almost-finished items (Netflix behavior)
-        const filtered = data.filter((i) => i.progress < 0.95)
+        // Hide almost-finished items (Netflix behavior) and cap max items locally natively.
+        const filtered = data.filter((i) => i.progress < 0.95).slice(0, 10)
 
         const resolved = await Promise.all(
           filtered.map(async (item) => {
-            const media = await fetchMediaDetails(item.mediaType, item.tmdbId)
+            const media = await fetchMediaBasicDetails(item.mediaType, item.tmdbId)
             if (!media) return null
             return { media, item }
           })
@@ -112,7 +112,6 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   }
 
   // Render for both guests and logged-in users
-  // if (!isAuthenticated) return null // REMOVED THIS LINE
 
   return (
     <section className="mb-5 sm:mb-6">
