@@ -61,7 +61,6 @@ export function MediaCard({
   const handleMouseEnter = () => {
     if (variant === 'hero') return
     if (window.innerWidth < 768) return
-    if (disliked) return // Prevent quick view for disliked items
 
     // Stage 1: Card Expansion (1.5s)
     hoverTimeout.current = setTimeout(() => {
@@ -193,7 +192,6 @@ export function MediaCard({
         ref={cardRef}
         onClick={(e) => {
           e.stopPropagation()
-          if (disliked) return
           onClick(media)
         }}
         onMouseEnter={handleMouseEnter}

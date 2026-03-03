@@ -203,7 +203,6 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
 
   const handleMouseEnter = () => {
     if (window.innerWidth < 768) return
-    if (isDisliked) return // Prevent QuickView if disliked
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
     }, 1500)
@@ -224,7 +223,7 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
   }, [item, onDislike])
 
   const handleClick = (e: React.MouseEvent) => {
-    if (isDragging || isDisliked) {
+    if (isDragging) {
       e.preventDefault()
       return
     }
