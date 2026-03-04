@@ -20,8 +20,8 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
     (media.first_air_date ? "tv" : "movie")
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 850;
-  const movieProvider = isMobile ? CONFIG.STREAM_PROVIDERS.vidfast_pro_movie : CONFIG.STREAM_PROVIDERS.vidsrc_pro_movie;
-  const tvProvider = isMobile ? CONFIG.STREAM_PROVIDERS.vidfast_pro : CONFIG.STREAM_PROVIDERS.vidsrc_pro;
+  const movieProvider = isMobile ? CONFIG.STREAM_PROVIDERS.vidfast_pro_movie : CONFIG.STREAM_PROVIDERS.vidlink_pro_movie;
+  const tvProvider = isMobile ? CONFIG.STREAM_PROVIDERS.vidfast_pro : CONFIG.STREAM_PROVIDERS.vidlink_pro;
 
   const url =
     mediaType === "movie"

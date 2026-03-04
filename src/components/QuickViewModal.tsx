@@ -19,7 +19,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
   const [details, setDetails] = useState<Media | null>(null)
   const [provider, setProvider] = useState(() => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 850;
-    return isMobile ? 'vidfast_pro' : 'vidsrc_pro';
+    return isMobile ? 'vidfast_pro' : 'vidlink_pro';
   })
   const [isVisible, setIsVisible] = useState(false)
   const [feedback, setFeedback] = useState<'rate' | 'dislike' | null>(null)

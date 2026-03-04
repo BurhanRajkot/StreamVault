@@ -36,10 +36,10 @@ export const CONFIG = {
     },
 
   PROVIDER_NAMES: {
-    vidsrc_pro: 'VidSrc Pro',
+    vidlink_pro: 'VidLink Pro',
     vidfast_pro: 'VidFast Pro',
     vidsrc_icu: 'VidSrc ICU',
-    vidlink_pro: 'VidLink Pro',
+    vidsrc_pro: 'VidSrc Pro',
     vidsrc_cc: 'VidSrc CC',
     videasy: 'Videasy',
   } as Record<string, string>,
