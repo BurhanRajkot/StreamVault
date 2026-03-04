@@ -309,6 +309,99 @@ export function MovieDetailModal({
                : (noLangLogo ? getImageUrl(noLangLogo.file_path, 'logo') : getImageUrl(logos[0].file_path, 'logo'))
   }
 
+  // Helper to get seasons sorted by season number (ascending)
+  const getSortedSeasons = () =>
+    [...seasons].sort((a, b) => a.season_number - b.season_number)
+
+  // Episode navigation within and across seasons
+  const handleSkipNext = () => {
+    const sorted = getSortedSeasons()
+
+    // Fallback: if we don't have season metadata, clamp within currentSeasonEpisodes
+    if (!sorted.length) {
+      setEpisode(prev => Math.min(currentSeasonEpisodes, prev + 1))
+      return
+    }
+
+    const currentIndex = sorted.findIndex(s => s.season_number === season)
+    const isKnownSeason = currentIndex !== -1
+
+    if (!isKnownSeason) {
+      setEpisode(prev => Math.min(currentSeasonEpisodes, prev + 1))
+      return
+    }
+
+    // If there is another episode in the current season, just advance
+    if (episode < currentSeasonEpisodes) {
+      setEpisode(episode + 1)
+      return
+    }
+
+    // We are at the last episode of this season – try to move to the next season
+    const isLastSeason = currentIndex === sorted.length - 1
+    if (isLastSeason) {
+      // Already at the final episode of the final season – do nothing
+      return
+    }
+
+    const nextSeason = sorted[currentIndex + 1]
+    setSeason(nextSeason.season_number)
+    setEpisode(1)
+  }
+
+  const handleSkipPrev = () => {
+    const sorted = getSortedSeasons()
+
+    // Fallback when no season information is available
+    if (!sorted.length) {
+      setEpisode(prev => Math.max(1, prev - 1))
+      return
+    }
+
+    const currentIndex = sorted.findIndex(s => s.season_number === season)
+    const isKnownSeason = currentIndex !== -1
+
+    if (!isKnownSeason) {
+      setEpisode(prev => Math.max(1, prev - 1))
+      return
+    }
+
+    // If there is a previous episode in the current season, just go back
+    if (episode > 1) {
+      setEpisode(episode - 1)
+      return
+    }
+
+    // We are at episode 1 – try to go to the previous season's last episode
+    const isFirstSeason = currentIndex === 0
+    if (isFirstSeason) {
+      // Already at the very first episode of the very first season – do nothing
+      return
+    }
+
+    const prevSeason = sorted[currentIndex - 1]
+    const prevSeasonEpisodes = prevSeason.episode_count || 1
+    setSeason(prevSeason.season_number)
+    setEpisode(prevSeasonEpisodes)
+  }
+
+  // Disabled states for navigation buttons
+  const sortedSeasons = getSortedSeasons()
+  const firstSeasonNumber = sortedSeasons[0]?.season_number
+  const lastSeasonNumber = sortedSeasons[sortedSeasons.length - 1]?.season_number
+  const lastSeasonEpisodes =
+    sortedSeasons[sortedSeasons.length - 1]?.episode_count || currentSeasonEpisodes
+
+  const isAtAbsoluteFirstEpisode =
+    !sortedSeasons.length
+      ? episode <= 1
+      : season === firstSeasonNumber && episode <= 1
+
+  const isAtAbsoluteLastEpisode =
+    !sortedSeasons.length
+      ? episode >= currentSeasonEpisodes
+      : season === lastSeasonNumber && episode >= lastSeasonEpisodes
+
   // Helper to render the details grid for both views
   const renderDetails = (isPrePlay: boolean) => (
     <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-20 items-end", !isPrePlay && "mt-12 mb-16 px-2")}>
@@ -655,16 +748,16 @@ export function MovieDetailModal({
                         <div className="flex items-center gap-6 w-full lg:w-auto">
                           <div className="flex items-center gap-2 bg-black/40 rounded-full p-1.5 border border-white/5 shrink-0">
                             <button
-                              onClick={() => setEpisode(Math.max(1, episode - 1))}
-                              disabled={episode <= 1}
+                              onClick={handleSkipPrev}
+                              disabled={isAtAbsoluteFirstEpisode}
                               className="p-3 rounded-full hover:bg-white/10 disabled:opacity-30 transition-colors"
                             >
                               <SkipBack className="w-5 h-5" />
                             </button>
                             <div className="w-px h-6 bg-white/10" />
                             <button
-                              onClick={() => setEpisode(Math.min(currentSeasonEpisodes, episode + 1))}
-                              disabled={episode >= currentSeasonEpisodes}
+                              onClick={handleSkipNext}
+                              disabled={isAtAbsoluteLastEpisode}
                               className="p-3 rounded-full hover:bg-white/10 disabled:opacity-30 transition-colors"
                             >
                               <SkipForward className="w-5 h-5" />
