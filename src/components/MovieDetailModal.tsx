@@ -55,7 +55,7 @@ export function MovieDetailModal({
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 850
-    return initialServer || (isMobile ? 'vidfast_pro' : 'vidsrc_pro')
+    return initialServer || (isMobile ? 'vidfast_pro' : 'vidlink_pro')
   })
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
