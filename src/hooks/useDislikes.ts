@@ -47,7 +47,7 @@ export function useDislikesInternal() {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [dislikes, setDislikes] = useState<DislikeItem[]>([])
 
-  const getHeaders = async () => {
+  const getHeaders = useCallback(async () => {
     const audience = import.meta.env.VITE_AUTH0_AUDIENCE
 
     const token = audience
@@ -60,7 +60,7 @@ export function useDislikesInternal() {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     }
-  }
+  }, [getAccessTokenSilently])
 
   const loadDislikes = useCallback(async () => {
     if (!isAuthenticated) {
@@ -82,7 +82,7 @@ export function useDislikesInternal() {
       console.error('Failed to load dislikes:', err)
       setDislikes([])
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, getHeaders])
 
   useEffect(() => {
     loadDislikes()

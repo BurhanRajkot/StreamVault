@@ -35,7 +35,7 @@ const Favorites = () => {
     }
 
     loadFavorites()
-  }, [favorites, isAuthenticated])
+  }, [favorites, isAuthenticated, loginWithRedirect])
 
   return (
     <>

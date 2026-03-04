@@ -50,12 +50,7 @@ const GooeyNav = ({
     }
   };
 
-  useEffect(() => {
-    if (!navRef.current || !containerRef.current) return;
-    // Removed resize observer since effect spans are removed.
-  }, [activeIndex]);
-
-  // Sync internal state if initialActiveIndex changes
+  // Removed empty useEffect for activeIndex  // Sync internal state if initialActiveIndex changes
   useEffect(() => {
       if (activeIndex !== initialActiveIndex) {
           setActiveIndex(initialActiveIndex);
