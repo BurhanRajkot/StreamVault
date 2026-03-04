@@ -48,7 +48,7 @@ export function useFavoritesInternal() {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [favorites, setFavorites] = useState<Favorite[]>([])
 
-  const getHeaders = async () => {
+  const getHeaders = useCallback(async () => {
     const audience = import.meta.env.VITE_AUTH0_AUDIENCE
 
     const token = audience
@@ -61,7 +61,7 @@ export function useFavoritesInternal() {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     }
-  }
+  }, [getAccessTokenSilently])
 
   const loadFavorites = useCallback(async () => {
     if (!isAuthenticated) {
@@ -83,7 +83,7 @@ export function useFavoritesInternal() {
       console.error('Failed to load favorites:', err)
       setFavorites([])
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, getHeaders])
 
   useEffect(() => {
     loadFavorites()
