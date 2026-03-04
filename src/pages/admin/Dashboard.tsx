@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Check, X, Loader2, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -35,11 +35,7 @@ export default function AdminDashboard() {
   const [processingId, setProcessingId] = useState<string | null>(null)
   const { toast } = useToast()
 
-  useEffect(() => {
-    fetchRequests()
-  }, [])
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/subscriptions/admin/requests`)
       if (!res.ok) throw new Error('Failed to fetch requests')
@@ -54,7 +50,11 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
+
+  useEffect(() => {
+    fetchRequests()
+  }, [fetchRequests])
 
   const handleAction = async (requestId: string, action: 'approve' | 'reject') => {
     setProcessingId(requestId)

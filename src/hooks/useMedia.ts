@@ -97,6 +97,7 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
 
     loadTrending();
     loadMedia(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, providerId]);
 
   // -----------------------------
@@ -106,6 +107,7 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
     if (page > 1) {
       loadMedia(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   // -----------------------------

@@ -22,16 +22,16 @@ const VALUE_PROPS = [
   { icon: Sparkles, text: "Premium ad-free experience" },
 ];
 
+const headlines = [
+  "Your Entertainment Journey Starts Here",
+  "Thousands of Movies Await You",
+  "Binge-Worthy TV Shows, Anytime",
+];
+
 export default function Login() {
   const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0();
   const navigate = useNavigate();
   const [activeText, setActiveText] = useState(0);
-
-  const headlines = [
-    "Your Entertainment Journey Starts Here",
-    "Thousands of Movies Await You",
-    "Binge-Worthy TV Shows, Anytime",
-  ];
 
   useEffect(() => {
     if (isAuthenticated) {
