@@ -12,6 +12,7 @@
 import { Helmet } from 'react-helmet-async'
 import { SEO } from './constants'
 import type { Media } from '@/lib/config'
+import { slugify } from '@/lib/utils'
 
 interface MovieMetaProps {
   media: Media
@@ -38,7 +39,7 @@ export function MovieMeta({ media, mediaType }: MovieMetaProps) {
     : SEO.DEFAULT_OG_IMAGE
 
   // Canonical URL for this specific watch page
-  const canonical = `${SEO.SITE_URL}/watch/${mediaType}/${media.id}`
+  const canonical = `${SEO.SITE_URL}/watch/${mediaType}/${media.id}-${slugify(title)}`
 
   // og:type differs for movies vs TV episodes
   const ogType = mediaType === 'movie' ? 'video.movie' : 'video.episode'

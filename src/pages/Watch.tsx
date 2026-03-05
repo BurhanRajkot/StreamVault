@@ -1,24 +1,41 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useLocation, useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { fetchMediaDetails } from '@/lib/api'
 import { Media, MediaMode } from '@/lib/config'
 import { MovieDetailModal } from '@/components/MovieDetailModal'
 import { MovieMeta } from '@/seo/MovieMeta'
 import { MovieJsonLd, VideoObjectJsonLd, WatchActionJsonLd } from '@/seo/JsonLd'
+import { slugify } from '@/lib/utils'
 
 const Watch = () => {
-  const { mediaType, tmdbId } = useParams<{
+  const { mediaType, idAndSlug } = useParams<{
     mediaType: 'movie' | 'tv'
-    tmdbId: string
+    idAndSlug: string
   }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const { season, episode, server, autoPlay } = location.state || {}
   const [media, setMedia] = useState<Media | null>(null)
+
+  const tmdbId = idAndSlug ? idAndSlug.split('-')[0] : ''
 
   useEffect(() => {
     if (!mediaType || !tmdbId) return
 
     fetchMediaDetails(mediaType, Number(tmdbId)).then(setMedia)
   }, [mediaType, tmdbId])
+
+  useEffect(() => {
+    if (media && mediaType && idAndSlug) {
+      const title = media.title || media.name || ''
+      if (title) {
+        const expectedSlug = `${media.id}-${slugify(title)}`
+        if (idAndSlug !== expectedSlug) {
+          navigate(`/watch/${mediaType}/${expectedSlug}`, { replace: true })
+        }
+      }
+    }
+  }, [media, mediaType, idAndSlug, navigate])
 
   if (!mediaType || !media) return null
 
@@ -39,7 +56,10 @@ const Watch = () => {
         media={media}
         mode={mode}
         onClose={() => navigate(-1)}
-        autoPlay={true}
+        initialSeason={season}
+        initialEpisode={episode}
+        initialServer={server}
+        autoPlay={autoPlay || season !== undefined || episode !== undefined || server !== undefined || true}
       />
     </>
   )
