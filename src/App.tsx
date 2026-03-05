@@ -39,7 +39,7 @@ export default function App() {
                 <Route path="/" element={<Index />} />
                 <Route path="/downloads" element={<Downloads />} />
                 <Route path="/favorites" element={<Favorites />} />
-                <Route path="/watch/:mediaType/:tmdbId" element={<Watch />} />
+                <Route path="/watch/:mediaType/:idAndSlug" element={<Watch />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/pricing" element={<Pricing />} />

@@ -17,6 +17,8 @@ import { MovieDetailModal } from '@/components/MovieDetailModal'
 import { useRecommendations } from '@/hooks/useRecommendations'
 import { logRecommendationInteraction, RecoItem } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
+import { useNavigate } from 'react-router-dom'
+import { slugify } from '@/lib/utils'
 import Downloads from './Downloads'
 
 const Index = () => {
@@ -24,15 +26,9 @@ const Index = () => {
   const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
 
-  const [detailMedia, setDetailMedia] = useState<Media | null>(null)
-  const [detailMode, setDetailMode] = useState<MediaMode>('movie')
-
-  const [initialSeason, setInitialSeason] = useState<number | undefined>()
-  const [initialEpisode, setInitialEpisode] = useState<number | undefined>()
-  const [initialServer, setInitialServer] = useState<string | undefined>()
-  const [initialAutoPlay, setInitialAutoPlay] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
+  const navigate = useNavigate()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { sections: recoSections, isLoading: recoLoading } = useRecommendations()
 
@@ -55,29 +51,16 @@ const Index = () => {
 
   const handleMediaClick = (media: Media, season?: number, episode?: number, server?: string, forceAutoPlay?: boolean) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
+    const slug = slugify(media.title || media.name || '')
+    const url = `/watch/${detectedMode}/${media.id}${slug ? '-' + slug : ''}`
 
-    setDetailMode(detectedMode)
-    setDetailMedia(media)
-    setInitialSeason(season)
-    setInitialEpisode(episode)
-    setInitialServer(server)
-    setInitialAutoPlay(forceAutoPlay || false)
-  }
-
-  const handleCloseDetail = () => {
-    setDetailMedia(null)
-    setInitialSeason(undefined)
-    setInitialEpisode(undefined)
-    setInitialServer(undefined)
-    setInitialAutoPlay(false)
-    setRefreshKey(prev => prev + 1)
+    navigate(url, { state: { season, episode, server, autoPlay: forceAutoPlay } })
   }
 
   const handleLogoClick = () => {
     setMode('home')
     setSelectedProvider(null)
     clearSearch()
-    handleCloseDetail()
     // Scroll to top smoothly
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -217,18 +200,6 @@ const Index = () => {
         </main>
 
         <Footer />
-
-        {detailMedia && (
-          <MovieDetailModal
-            media={detailMedia}
-            mode={detailMode}
-            onClose={handleCloseDetail}
-            initialSeason={initialSeason}
-            initialEpisode={initialEpisode}
-            initialServer={initialServer}
-            autoPlay={initialAutoPlay || initialSeason !== undefined || initialEpisode !== undefined || initialServer !== undefined}
-          />
-        )}
 
         <DisclaimerModal
           isOpen={showDisclaimer}

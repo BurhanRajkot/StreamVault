@@ -17,6 +17,7 @@
 import { Helmet } from 'react-helmet-async'
 import { SEO } from './constants'
 import type { Media } from '@/lib/config'
+import { slugify } from '@/lib/utils'
 
 interface JsonLdProps {
   media: Media
@@ -39,7 +40,7 @@ export function MovieJsonLd({ media, mediaType }: JsonLdProps) {
     name: title,
     image: posterUrl,
     description: media.overview || '',
-    url: `${SEO.SITE_URL}/watch/${mediaType}/${media.id}`,
+    url: `${SEO.SITE_URL}/watch/${mediaType}/${media.id}-${slugify(title)}`,
     ...(year && { dateCreated: year }),
     ...(director && {
       director: {
@@ -81,7 +82,7 @@ export function VideoObjectJsonLd({ media, mediaType }: JsonLdProps) {
   const uploadDate =
     media.release_date || media.first_air_date || new Date().toISOString().split('T')[0]
 
-  const embedUrl = `${SEO.SITE_URL}/watch/${mediaType}/${media.id}`
+  const embedUrl = `${SEO.SITE_URL}/watch/${mediaType}/${media.id}-${slugify(title)}`
 
   const schema = {
     '@context': 'https://schema.org',
@@ -105,7 +106,7 @@ export function VideoObjectJsonLd({ media, mediaType }: JsonLdProps) {
 
 export function WatchActionJsonLd({ media, mediaType }: JsonLdProps) {
   const title = media.title || media.name || 'Unknown Title'
-  const watchUrl = `${SEO.SITE_URL}/watch/${mediaType}/${media.id}`
+  const watchUrl = `${SEO.SITE_URL}/watch/${mediaType}/${media.id}-${slugify(title)}`
 
   const schema = {
     '@context': 'https://schema.org',
