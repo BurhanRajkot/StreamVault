@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { fetchMediaDetails } from '@/lib/api'
 import { Media, MediaMode } from '@/lib/config'
 import { MovieDetailModal } from '@/components/MovieDetailModal'
+import { MovieMeta } from '@/seo/MovieMeta'
+import { MovieJsonLd, VideoObjectJsonLd, WatchActionJsonLd } from '@/seo/JsonLd'
 
 const Watch = () => {
   const { mediaType, tmdbId } = useParams<{
@@ -21,14 +23,25 @@ const Watch = () => {
   if (!mediaType || !media) return null
 
   const mode: MediaMode = mediaType
+  const typedMediaType = mediaType as 'movie' | 'tv'
 
   return (
-    <MovieDetailModal
-      media={media}
-      mode={mode}
-      onClose={() => navigate(-1)}
-      autoPlay={true}
-    />
+    <>
+      {/* Dynamic per-movie SEO meta tags */}
+      <MovieMeta media={media} mediaType={typedMediaType} />
+
+      {/* Schema.org structured data for Google rich results */}
+      <MovieJsonLd media={media} mediaType={typedMediaType} />
+      <VideoObjectJsonLd media={media} mediaType={typedMediaType} />
+      <WatchActionJsonLd media={media} mediaType={typedMediaType} />
+
+      <MovieDetailModal
+        media={media}
+        mode={mode}
+        onClose={() => navigate(-1)}
+        autoPlay={true}
+      />
+    </>
   )
 }
 

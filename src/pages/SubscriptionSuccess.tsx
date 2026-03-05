@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Helmet } from 'react-helmet-async'
+import { PageMeta } from '@/seo/PageMeta'
 import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/Footer'
@@ -57,9 +57,10 @@ export default function SubscriptionSuccess() {
 
   return (
     <>
-      <Helmet>
-        <title>{isManual ? 'Payment Submitted - StreamVault' : 'Subscription Success - StreamVault'}</title>
-      </Helmet>
+      <PageMeta
+        title={isManual ? 'Payment Submitted' : 'Subscription Confirmed'}
+        noindex
+      />
 
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
         <main className="flex-1 flex items-center justify-center px-4 py-16">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Helmet } from 'react-helmet-async'
+import { PageMeta } from '@/seo/PageMeta'
 import { Media, MediaMode } from '@/lib/config'
 import { useMedia } from '@/hooks/useMedia'
 import { Header } from '@/components/Header'
@@ -131,9 +131,10 @@ const Index = () => {
 
   return (
     <>
-      <Helmet>
-        <title>StreamVault</title>
-      </Helmet>
+      <PageMeta
+        title="Watch Movies, TV Shows & Anime"
+        description="StreamVault — Browse thousands of movies, TV shows, and anime. Stream instantly for free with no sign-up."
+      />
 
       <div className="flex min-h-screen flex-col">
         <Header

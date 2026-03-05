@@ -1,0 +1,53 @@
+# StreamVault — robots.txt
+# Controls which pages search engine bots are allowed to crawl.
+# Full spec: https://developers.google.com/search/docs/crawling-indexing/robots/intro
+
+# ─── Default: All Crawlers ──────────────────────────────────────────────────
+User-agent: *
+
+# Block private / authenticated pages (zero SEO value)
+Disallow: /admin/
+Disallow: /admin
+Disallow: /login
+Disallow: /login/
+Disallow: /signup
+Disallow: /signup/
+Disallow: /subscription/success
+
+# Block query-param traps that generate duplicate content
+# (internal search, sort, and filter URLs create infinite URL spaces)
+Disallow: /*?search=
+Disallow: /*?sort=
+Disallow: /*?filter=
+Disallow: /*?page=
+
+# ─── AI Crawlers — Permitted (for LLM / AI Overview citations) ─────────────
+# GPTBot (OpenAI), PerplexityBot, ClaudeBot, Google-Extended are allowed
+# so StreamVault can be cited as a "where to watch" source in AI answers.
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+# ─── Aggressive SEO scrapers — Block (protect server resources) ────────────
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# ─── Sitemap Location ───────────────────────────────────────────────────────
+Sitemap: https://stream-vault-7u6q.vercel.app/sitemap.xml

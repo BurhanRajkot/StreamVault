@@ -6,8 +6,12 @@ import { Search, Download, Crown, ShieldCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import AdminLoginModal from '@/components/AdminLoginModal'
+import { PageMeta } from '@/seo/PageMeta'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+
+// Define an in-memory poster cache so we don't spam the API for identical downloads
+const posterCache = new Map<string, string | null>()
 
 type EnrichedDownload = DownloadItem & {
   posterPath: string | null
@@ -25,8 +29,10 @@ function cleanTitle(raw: string) {
 }
 
 async function fetchPoster(title: string): Promise<string | null> {
+  const cleaned = cleanTitle(title)
+  if (posterCache.has(cleaned)) return posterCache.get(cleaned)!
+
   try {
-    const cleaned = cleanTitle(title)
     // Route through backend proxy to avoid exposing TMDB key in the browser bundle
     const res = await fetch(
       `${API_URL}/tmdb/search/movie?query=${encodeURIComponent(cleaned)}`
@@ -34,15 +40,17 @@ async function fetchPoster(title: string): Promise<string | null> {
     if (!res.ok) return null
     const data = await res.json()
     if (data.results && data.results.length > 0) {
-      return data.results[0].poster_path || null
+      const path = data.results[0].poster_path || null
+      posterCache.set(cleaned, path)
+      return path
     }
+    posterCache.set(cleaned, null)
     return null
   } catch (err) {
     console.error('Poster fetch failed for:', title, err)
     return null
   }
 }
-
 
 const Downloads = () => {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
@@ -246,7 +254,9 @@ const Downloads = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <PageMeta title="Downloads" noindex />
+      <div className="space-y-6">
       {/* Search Bar */}
       {/* Search Bar (Updated match Header) */}
       <div className="relative max-w-md group">
@@ -332,6 +342,7 @@ const Downloads = () => {
         </p>
       )}
     </div>
+    </>
   )
 }
 
