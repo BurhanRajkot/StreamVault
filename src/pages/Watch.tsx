@@ -55,11 +55,17 @@ const Watch = () => {
       <MovieDetailModal
         media={media}
         mode={mode}
-        onClose={() => navigate(-1)}
+        onClose={() => {
+          if (window.history.length <= 2) {
+            navigate('/', { replace: true })
+          } else {
+            navigate(-1)
+          }
+        }}
         initialSeason={season}
         initialEpisode={episode}
         initialServer={server}
-        autoPlay={autoPlay || season !== undefined || episode !== undefined || server !== undefined || true}
+        autoPlay={autoPlay || season !== undefined || episode !== undefined || server !== undefined}
       />
     </>
   )
