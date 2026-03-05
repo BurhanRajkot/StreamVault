@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Helmet } from 'react-helmet-async'
+import { PageMeta } from '@/seo/PageMeta'
 import { Check, X, Loader2, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -87,9 +87,7 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <Helmet>
-        <title>Admin Dashboard - StreamVault</title>
-      </Helmet>
+      <PageMeta title="Admin Dashboard" noindex />
 
       <div className="min-h-screen flex flex-col bg-background">
         <header className="border-b border-border/40 bg-background/80 backdrop-blur-xl">
