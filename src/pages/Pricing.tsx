@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Helmet } from 'react-helmet-async'
+import { PageMeta } from '@/seo/PageMeta'
 import { Check, Sparkles, Zap, Loader2, Crown, QrCode } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -120,9 +120,10 @@ export default function Pricing() {
 
   return (
     <>
-      <Helmet>
-        <title>Pricing - StreamVault</title>
-      </Helmet>
+      <PageMeta
+        title="Pricing — Choose Your Plan"
+        description="Unlock premium streaming on StreamVault. Choose from monthly or quarterly plans and get unlimited access to movies, TV shows, and anime."
+      />
 
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
         <header className="border-b border-border/40 bg-background/80 backdrop-blur-xl">
