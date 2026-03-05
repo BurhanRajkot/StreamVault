@@ -692,7 +692,9 @@ export function MovieDetailModal({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const url = `${window.location.origin}/watch/${typedMode}/${initialMedia.id}`;
+                const title = initialMedia.title || initialMedia.name || '';
+                const slug = title ? `-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}` : '';
+                const url = `${window.location.origin}/watch/${typedMode}/${initialMedia.id}${slug}`;
                 navigator.clipboard.writeText(url);
                 setIsCopied(true);
                 toast.success('Link copied to clipboard!');
