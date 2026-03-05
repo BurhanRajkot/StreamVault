@@ -8,6 +8,7 @@ import { PageMeta } from '@/seo/PageMeta'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { slugify } from '@/lib/utils'
 
 const Favorites = () => {
   const { isAuthenticated, loginWithRedirect } = useAuth0()
@@ -69,9 +70,11 @@ const Favorites = () => {
             isLoading={loading}
             hasMore={false}
             onLoadMore={() => {}}
-            onMediaClick={(media) =>
-              navigate(`/watch/${media.title ? 'movie' : 'tv'}/${media.id}`)
-            }
+            onMediaClick={(media) => {
+              const type = media.title ? 'movie' : 'tv'
+              const slug = slugify(media.title || media.name || '')
+              navigate(`/watch/${type}/${media.id}-${slug}`)
+            }}
           />
         )}
       </div>
