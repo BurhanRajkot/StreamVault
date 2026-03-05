@@ -4,7 +4,7 @@ import { Media } from '@/lib/config'
 import { fetchMediaDetails } from '@/lib/api'
 import { MediaGrid } from '@/components/MediaGrid'
 import { useAuth0 } from '@auth0/auth0-react'
-import { Helmet } from 'react-helmet-async'
+import { PageMeta } from '@/seo/PageMeta'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -39,9 +39,11 @@ const Favorites = () => {
 
   return (
     <>
-      <Helmet>
-        <title>My Favorites • StreamVault</title>
-      </Helmet>
+      <PageMeta
+        title="My Favorites"
+        description="Your private list of saved movies and TV shows on StreamVault."
+        noindex
+      />
 
       <div className="container py-6">
         {/* Back Button */}

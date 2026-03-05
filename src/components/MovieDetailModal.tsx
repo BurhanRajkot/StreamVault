@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Play, Clock, Calendar, ChevronLeft, Share2, Heart, ThumbsUp, ThumbsDown, Server, SkipForward, SkipBack } from 'lucide-react'
+import { Play, Clock, Calendar, ChevronLeft, Share2, Heart, ThumbsUp, ThumbsDown, Server, SkipForward, SkipBack, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import Lenis from '@studio-freight/lenis'
 import { CircularRating } from './CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
@@ -62,6 +63,7 @@ export function MovieDetailModal({
   const { toggleFavorite, isFavorited } = useFavorites()
   const { toggleDislike, isDisliked } = useDislikes()
   const [isLiked, setIsLiked] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
 
   // Track if we have already logged a watch event for this session/media
   const hasLoggedWatch = useRef(false)
@@ -687,8 +689,18 @@ export function MovieDetailModal({
             >
               <Heart className={cn('w-6 h-6 transition-colors', favorited ? 'fill-red-500 text-red-500' : 'group-hover:text-red-500')} />
             </button>
-            <button className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-white/70 hover:text-white bg-black/20">
-              <Share2 className="w-6 h-6" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const url = `${window.location.origin}/watch/${typedMode}/${initialMedia.id}`;
+                navigator.clipboard.writeText(url);
+                setIsCopied(true);
+                toast.success('Link copied to clipboard!');
+                setTimeout(() => setIsCopied(false), 2000);
+              }}
+              className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-white/70 hover:text-white bg-black/20 cursor-pointer transition-all"
+            >
+              {isCopied ? <Check className="w-6 h-6 text-green-500" /> : <Share2 className="w-6 h-6" />}
             </button>
           </div>
         </div>
