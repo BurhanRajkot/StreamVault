@@ -5,7 +5,7 @@ export const CONFIG = {
   IMG_BASE_URL: 'https://image.tmdb.org/t/p',
   IMG_SIZES: {
     poster: '/w500',
-    backdrop: '/w1280',
+    backdrop: '/w780',
     thumbnail: '/w342',
     logo: '/w500',
   },
