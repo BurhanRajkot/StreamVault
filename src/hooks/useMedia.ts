@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchPopular, fetchTrending, searchMedia } from "@/lib/api";
 import { Media, MediaMode } from "@/lib/config";
 
@@ -22,6 +22,12 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchMode, setIsSearchMode] = useState(false);
+
+  // Refs so closures always get fresh values without needing to be in dep arrays
+  const isSearchModeRef = useRef(isSearchMode);
+  const searchQueryRef = useRef(searchQuery);
+  isSearchModeRef.current = isSearchMode;
+  searchQueryRef.current = searchQuery;
 
   // -----------------------------
   // MAIN LOADER (Popular or Search)
@@ -141,13 +147,29 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
   // -----------------------------
   // CLEAR SEARCH → RESTORE POPULAR
   // -----------------------------
-  const clearSearch = useCallback(() => {
+  const clearSearch = useCallback(async () => {
+    // Reset all search state immediately
     setSearchQuery("");
     setIsSearchMode(false);
+    isSearchModeRef.current = false;
+    searchQueryRef.current = "";
     setPage(1);
+    setMedia([]); // Wipe search results from screen instantly
+    setTotalPages(1);
 
-    loadMedia(true);
-  }, [loadMedia]);
+    // Directly fetch popular — bypass loadMedia closure (which may still be stale)
+    if (mode === "downloads") return;
+    setIsLoading(true);
+    try {
+      const data = await fetchPopular(mode, 1, providerId);
+      setMedia(data.results);
+      setTotalPages(data.total_pages || 1);
+    } catch (err) {
+      console.error("Media load error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [mode, providerId]);
 
   // -----------------------------
   // LOAD MORE FOR INFINITE SCROLL

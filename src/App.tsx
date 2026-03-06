@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { HelmetProvider } from 'react-helmet-async'
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
 import Favorites from './pages/Favorites'
