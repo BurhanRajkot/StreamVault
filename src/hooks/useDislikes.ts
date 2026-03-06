@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -46,6 +46,8 @@ async function retryWithBackoff<T>(
 export function useDislikesInternal() {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [dislikes, setDislikes] = useState<DislikeItem[]>([])
+  // Track in-flight requests to prevent race conditions from rapid double-clicks
+  const pendingRef = useRef<Set<string>>(new Set())
 
   const getHeaders = useCallback(async () => {
     const audience = import.meta.env.VITE_AUTH0_AUDIENCE
@@ -97,6 +99,11 @@ export function useDislikesInternal() {
       return
     }
 
+    // Prevent rapid double-clicks from sending concurrent requests for the same item
+    const pendingKey = `${mediaType}:${tmdbId}`
+    if (pendingRef.current.has(pendingKey)) return
+    pendingRef.current.add(pendingKey)
+
     // Optimistic update
     const existing = dislikes.find(
       (d) => d.tmdbId === tmdbId && d.mediaType === mediaType
@@ -123,7 +130,7 @@ export function useDislikesInternal() {
           })
 
           if (!res.ok) {
-            if (res.status === 404) return // Already deleted
+            if (res.status === 404) return // Already deleted — treat as success
             const errorText = await res.text()
             const error: any = new Error(errorText)
             error.status = res.status
@@ -143,14 +150,16 @@ export function useDislikesInternal() {
             body: JSON.stringify({ tmdbId, mediaType }),
           })
 
-          if (!res.ok) {
-            const errorText = await res.text()
-            const error: any = new Error(errorText)
-            error.status = res.status
-            throw error
+          // 200 means the backend found an existing record (idempotent) — still a success
+          // 201 means freshly created — both return the dislike object
+          if (res.status === 200 || res.status === 201) {
+            return res.json()
           }
 
-          return res.json()
+          const errorText = await res.text()
+          const error: any = new Error(errorText)
+          error.status = res.status
+          throw error
         })
 
         // Replace temp ID with real ID from backend
@@ -158,7 +167,7 @@ export function useDislikesInternal() {
           prev.map((d) => (d.id === tempId ? newDislike : d))
         )
 
-        toast.success('We\'ll show you less of this')
+        toast.success("We'll show you less of this")
       }
     } catch (err: any) {
       console.error('Dislike toggle failed:', err)
@@ -171,6 +180,9 @@ export function useDislikesInternal() {
         setDislikes((prev) => prev.filter((d) => d.id !== tempId))
         toast.error('Failed to log dislike')
       }
+    } finally {
+      // Always clear the in-flight guard when done
+      pendingRef.current.delete(pendingKey)
     }
   }
 
