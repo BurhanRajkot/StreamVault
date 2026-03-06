@@ -83,6 +83,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
         {/* Navigation */}
         <button
           onClick={goToPrev}
+          aria-label="Previous slide"
           className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden sm:flex"
         >
           <ChevronLeft className="h-5 w-5" />
@@ -90,6 +91,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
 
         <button
           onClick={goToNext}
+          aria-label="Next slide"
           className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden sm:flex"
         >
           <ChevronRight className="h-5 w-5" />
