@@ -1,5 +1,5 @@
 import { useLocation, useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { fetchMediaDetails } from '@/lib/api'
 import { Media, MediaMode } from '@/lib/config'
 import { MovieDetailModal } from '@/components/MovieDetailModal'
@@ -16,6 +16,8 @@ const Watch = () => {
   const location = useLocation()
   const { season, episode, server, autoPlay } = location.state || {}
   const [media, setMedia] = useState<Media | null>(null)
+
+  const initialHistoryLength = useRef(window.history.length)
 
   const tmdbId = idAndSlug ? idAndSlug.split('-')[0] : ''
 
@@ -59,7 +61,8 @@ const Watch = () => {
           if (window.history.length <= 2) {
             navigate('/', { replace: true })
           } else {
-            navigate(-1)
+            const stepsBack = window.history.length - initialHistoryLength.current + 1
+            navigate(-stepsBack)
           }
         }}
         initialSeason={season}

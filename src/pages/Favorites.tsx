@@ -5,7 +5,7 @@ import { fetchMediaDetails } from '@/lib/api'
 import { MediaGrid } from '@/components/MediaGrid'
 import { useAuth0 } from '@auth0/auth0-react'
 import { PageMeta } from '@/seo/PageMeta'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { slugify } from '@/lib/utils'
@@ -14,6 +14,7 @@ const Favorites = () => {
   const { isAuthenticated, loginWithRedirect } = useAuth0()
   const { favorites } = useFavorites()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [media, setMedia] = useState<Media[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,7 +74,7 @@ const Favorites = () => {
             onMediaClick={(media) => {
               const type = media.title ? 'movie' : 'tv'
               const slug = slugify(media.title || media.name || '')
-              navigate(`/watch/${type}/${media.id}-${slug}`)
+              navigate(`/watch/${type}/${media.id}-${slug}`, { state: { backgroundLocation: location } })
             }}
           />
         )}
