@@ -138,6 +138,10 @@ export function MediaCard({
         <img
           src={backdrop}
           alt={title}
+          width={780}
+          height={439}
+          fetchPriority="high"
+          decoding="sync"
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-[10s] group-hover/hero:scale-110"
         />
 
@@ -207,6 +211,8 @@ export function MediaCard({
           <img
             src={imageUrl}
             alt={title}
+            width={500}
+            height={750}
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
             className="h-full w-full object-cover transition-transform duration-700 sm:group-hover:scale-110 sm:group-hover:brightness-110"
@@ -229,6 +235,7 @@ export function MediaCard({
             <div className="absolute right-2 top-2 z-10 flex flex-col gap-2">
               <button
                 onClick={handleFavorite}
+                aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
                 className={cn(
                   'rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
                   'p-3 md:p-2',
@@ -245,6 +252,7 @@ export function MediaCard({
               </button>
               <button
                 onClick={handleDislike}
+                aria-label={disliked ? 'Remove dislike' : 'Dislike this title'}
                 className={cn(
                   'rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
                   'p-3 md:p-2',

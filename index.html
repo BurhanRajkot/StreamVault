@@ -24,19 +24,28 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>" />
     <link rel="canonical" href="https://stream-vault-7u6q.vercel.app" />
 
+    <!-- Preconnect to Google Fonts (non-blocking font loading) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Load fonts non-blocking: media="print" trick avoids render-blocking -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" />
+    </noscript>
+
     <!-- Preconnect to TMDB image CDN for faster image loading -->
     <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
     <link rel="dns-prefetch" href="https://image.tmdb.org" />
 
-    <!-- Preconnect to streaming providers for faster video loading -->
+    <!-- Preconnect to top 2 streaming providers only (PSI warns if >4 total) -->
     <link rel="preconnect" href="https://vidsrc.to" crossorigin />
     <link rel="preconnect" href="https://vidfast.pro" crossorigin />
-    <link rel="preconnect" href="https://vidsrc.icu" crossorigin />
-    <link rel="preconnect" href="https://vidlink.pro" crossorigin />
-    <link rel="preconnect" href="https://vidsrc.cc" crossorigin />
-    <link rel="preconnect" href="https://player.videasy.net" crossorigin />
-    <link rel="dns-prefetch" href="https://vidsrc.to" />
-    <link rel="dns-prefetch" href="https://vidfast.pro" />
+    <!-- DNS prefetch for remaining providers (no TCP overhead) -->
     <link rel="dns-prefetch" href="https://vidsrc.icu" />
     <link rel="dns-prefetch" href="https://vidlink.pro" />
     <link rel="dns-prefetch" href="https://vidsrc.cc" />
