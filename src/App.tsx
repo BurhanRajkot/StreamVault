@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { HelmetProvider } from 'react-helmet-async'
-import { Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
 import Favorites from './pages/Favorites'
@@ -21,6 +21,42 @@ import { SmoothScrollProvider } from './components/SmoothScrollProvider'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
+const AppContent = () => {
+  const location = useLocation()
+  const backgroundLocation = location.state && location.state.backgroundLocation
+
+  return (
+    <>
+      <Routes location={backgroundLocation || location}>
+        <Route path="/" element={<Index />} />
+        <Route path="/downloads" element={<Downloads />} />
+        <Route path="/favorites" element={<Favorites />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+        {/* Fallback pattern for direct links to Watch page */}
+        <Route path="/watch/:mediaType/:idAndSlug" element={<Watch />} />
+
+        {/* Error Pages for Testing */}
+        <Route path="/error/500" element={<ServerError />} />
+        <Route path="/error/403" element={<AccessDenied />} />
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+
+      {/* Render Watch modal overlaid securely on background */}
+      {backgroundLocation && (
+        <Routes>
+          <Route path="/watch/:mediaType/:idAndSlug" element={<Watch />} />
+        </Routes>
+      )}
+    </>
+  )
+}
+
 export default function App() {
   // FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
@@ -35,23 +71,7 @@ export default function App() {
         <HelmetProvider>
           <FavoritesProvider>
             <DislikesProvider>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/downloads" element={<Downloads />} />
-                <Route path="/favorites" element={<Favorites />} />
-                <Route path="/watch/:mediaType/:idAndSlug" element={<Watch />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/pricing" element={<Pricing />} />
-                <Route path="/subscription/success" element={<SubscriptionSuccess />} />
-                <Route path="/admin/dashboard" element={<AdminDashboard />} />
-
-                {/* Error Pages for Testing */}
-                <Route path="/error/500" element={<ServerError />} />
-                <Route path="/error/403" element={<AccessDenied />} />
-
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <AppContent />
             </DislikesProvider>
           </FavoritesProvider>
         </HelmetProvider>
