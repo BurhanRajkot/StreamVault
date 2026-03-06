@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { PageMeta } from '@/seo/PageMeta'
 import { Media, MediaMode } from '@/lib/config'
 import { useMedia } from '@/hooks/useMedia'
@@ -17,7 +18,6 @@ import { MovieDetailModal } from '@/components/MovieDetailModal'
 import { useRecommendations } from '@/hooks/useRecommendations'
 import { logRecommendationInteraction, RecoItem } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
-import { useNavigate } from 'react-router-dom'
 import { slugify } from '@/lib/utils'
 import Downloads from './Downloads'
 
@@ -28,6 +28,7 @@ const Index = () => {
 
   const [refreshKey, setRefreshKey] = useState(0)
 
+  const location = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { sections: recoSections, isLoading: recoLoading } = useRecommendations()
@@ -54,7 +55,7 @@ const Index = () => {
     const slug = slugify(media.title || media.name || '')
     const url = `/watch/${detectedMode}/${media.id}${slug ? '-' + slug : ''}`
 
-    navigate(url, { state: { season, episode, server, autoPlay: forceAutoPlay } })
+    navigate(url, { state: { season, episode, server, autoPlay: forceAutoPlay, backgroundLocation: location } })
   }
 
   const handleLogoClick = () => {
