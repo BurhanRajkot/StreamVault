@@ -66,17 +66,26 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
 
   try {
     // 1. Check if already disliked to prevent duplicate logs
-    const { data: existing } = await supabaseAdmin
+    // Use maybeSingle() instead of single() — single() throws PGRST116 when no
+    // row is found, which would be caught as a 500 error below.
+    const { data: existing, error: lookupError } = await supabaseAdmin
       .from('UserInteractions')
       .select('id')
       .eq('userId', userId)
       .eq('tmdbId', parsedTmdbId)
       .eq('mediaType', mediaType)
       .eq('eventType', 'dislike')
-      .single()
+      .maybeSingle()
+
+    if (lookupError) {
+      console.error('Dislike lookup error:', lookupError)
+      return res.status(500).json({ error: 'Server error' })
+    }
 
     if (existing) {
-      return res.status(409).json({ error: 'Already disliked' })
+      // Already disliked — return the existing record as a success so the
+      // frontend stays in sync without showing an error.
+      return res.status(200).json({ id: existing.id, tmdbId: parsedTmdbId, mediaType })
     }
 
     // 2. Log interaction (this updates ML profiles & wipes recommendation caches)
