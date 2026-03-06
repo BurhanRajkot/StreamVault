@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+/* Google Fonts are loaded non-blocking via <link> tags in index.html */
 
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
@@ -383,23 +383,31 @@
      ANIMATIONS
   ======================= */
 
+  /* Shimmer: GPU-composited via translateX pseudo-element (same visual, no layout) */
   .animate-shimmer {
-    animation: shimmer 1.8s infinite linear;
+    position: relative;
+    overflow: hidden;
+    background: hsl(var(--muted));
+  }
+
+  .animate-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
     background: linear-gradient(
       90deg,
-      hsl(var(--muted)) 0%,
-      hsl(var(--secondary)) 50%,
-      hsl(var(--muted)) 100%
+      transparent 0%,
+      hsl(var(--secondary) / 0.7) 50%,
+      transparent 100%
     );
-    background-size: 200% 100%;
+    animation: shimmer 1.8s infinite linear;
+    will-change: transform;
   }
 
   @keyframes shimmer {
-    from {
-      background-position: 200% 0;
-    }
     to {
-      background-position: -200% 0;
+      transform: translateX(200%);
     }
   }
 
@@ -450,6 +458,7 @@
 
       .animate-pulse-glow {
         animation: pulse-glow 3s ease-in-out infinite;
+        will-change: opacity;
       }
 
       @keyframes pulse-glow {
@@ -466,21 +475,23 @@
 
       .animate-glow-pulse {
         animation: glow-pulse 4s ease-in-out infinite;
+        will-change: opacity;
+        /* Static blur set on element; only opacity animates (GPU-composited) */
+        filter: blur(60px);
       }
 
       @keyframes glow-pulse {
         0%, 100% {
           opacity: 0.5;
-          filter: blur(60px);
         }
         50% {
           opacity: 0.8;
-          filter: blur(80px);
         }
       }
 
       .animate-float {
         animation: float 6s ease-in-out infinite;
+        will-change: transform;
       }
 
       @keyframes float {
