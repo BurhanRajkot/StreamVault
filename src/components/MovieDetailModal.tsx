@@ -227,9 +227,11 @@ export function MovieDetailModal({
         fetchTVSeasons(initialMedia.id).then((data) => {
           setSeasons(data)
           if (data.length > 0) {
-            const firstSeason = data.find((s) => s.season_number === 1) || data[0]
-            setCurrentSeasonEpisodes(firstSeason.episode_count || 10)
-            setSeason(firstSeason.season_number)
+            // Only fall back to the first season if an initialSeason wasn't passed down
+            if (!initialSeason) {
+              const firstSeason = data.find((s) => s.season_number === 1) || data[0]
+              setSeason(firstSeason.season_number)
+            }
           }
         }).catch((err) => {
           console.error('Failed to fetch seasons:', err)
@@ -238,7 +240,7 @@ export function MovieDetailModal({
       }, 100)
       return () => clearTimeout(timer)
     }
-  }, [initialMedia.id, mode])
+  }, [initialMedia.id, mode, initialSeason])
 
   useEffect(() => {
     const currentSeason = seasons.find((s) => s.season_number === season)
