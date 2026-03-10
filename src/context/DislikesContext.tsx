@@ -14,7 +14,6 @@ export function DislikesProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useDislikes() {
   const context = useContext(DislikesContext)
   if (!context) {
