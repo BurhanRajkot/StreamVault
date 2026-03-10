@@ -3,7 +3,6 @@ dotenv.config()
 
 import express from 'express'
 import compression from 'compression'
-import { getCacheStats } from './services/cache'
 import { logger } from './lib/logger'
 
 // CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
@@ -79,9 +78,8 @@ app.get('/health', (_req, res) => {
 
 // CACHE STATS ENDPOINT (FOR MONITORING - ADMIN ONLY)
 app.get('/cache-stats', requireAdminAuth, (_req, res) => {
-  const stats = getCacheStats()
   res.status(200).json({
-    stats,
+    status: 'Redis active',
     timestamp: new Date().toISOString(),
   })
 })
