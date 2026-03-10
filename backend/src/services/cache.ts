@@ -1,147 +1,108 @@
-import NodeCache from 'node-cache'
+import { createClient } from 'redis'
 import { logger } from '../lib/logger'
 
 /**
- * In-memory caching service with TTL support
- * Uses node-cache for LRU eviction and automatic cleanup
+ * Distributed Cache using Redis
  */
 
-// Cache instances with different TTLs
-const tmdbCache = new NodeCache({
-  stdTTL: 300, // 5 minutes for TMDB data
-  checkperiod: 60, // Check for expired keys every 60 seconds
-  useClones: false, // Don't clone objects for better performance
+// If running in Docker Compose, the host is 'redis' (injected via environment variable).
+// If running locally natively (e.g. `bun run dev`), we use the exposed port from the host.
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380'
+
+export const redisClient = createClient({
+  url: REDIS_URL
 })
 
-const userDataCache = new NodeCache({
-  stdTTL: 60, // 1 minute for user data (favorites, continue watching)
-  checkperiod: 30,
-  useClones: false,
-})
+redisClient.on('error', (err) => logger.error('Redis Client Error', err))
+redisClient.on('connect', () => logger.info('Redis Client Connected via ' + REDIS_URL))
+redisClient.on('reconnecting', () => logger.warn('Redis Client Reconnecting...'))
+redisClient.on('ready', () => logger.info('Redis completely ready'))
 
-const seasonCache = new NodeCache({
-  stdTTL: 3600, // 1 hour for season data (rarely changes)
-  checkperiod: 300,
-  useClones: false,
-})
+// Connect on initialization
+redisClient.connect().catch(console.error)
 
 /**
- * Generate a cache key from multiple parameters
+ * Generate a cache key from multiple parameters (same as before)
  */
 export function generateCacheKey(...parts: (string | number | undefined)[]): string {
   return parts.filter(Boolean).join(':')
 }
 
-/**
- * TMDB Cache Operations
- */
-export const tmdb = {
-  get: <T>(key: string): T | undefined => {
-    return tmdbCache.get<T>(key)
+// Helper to handle JSON serialize/deserialize for Redis strings
+const createNamespace = (namespace: string, defaultTtl: number) => ({
+  get: async <T>(key: string): Promise<T | undefined> => {
+    try {
+      const data = await redisClient.get(`${namespace}:${key}`)
+      return data ? JSON.parse(data) : undefined
+    } catch (err: any) {
+      logger.error(`Redis Get Error [${namespace}]`, { error: err.message || err })
+      return undefined
+    }
   },
-  set: <T>(key: string, value: T, ttl?: number): boolean => {
-    return tmdbCache.set(key, value, ttl || 300)
+  set: async <T>(key: string, value: T, ttl?: number): Promise<boolean> => {
+    try {
+      await redisClient.set(`${namespace}:${key}`, JSON.stringify(value), {
+        EX: ttl || defaultTtl
+      })
+      return true
+    } catch (err: any) {
+      logger.error(`Redis Set Error [${namespace}]`, { error: err.message || err })
+      return false
+    }
   },
-  del: (key: string): number => {
-    return tmdbCache.del(key)
+  del: async (key: string): Promise<number> => {
+    try {
+      return await redisClient.del(`${namespace}:${key}`)
+    } catch (err: any) {
+      logger.error(`Redis Del Error [${namespace}]`, { error: err.message || err })
+      return 0
+    }
   },
-  flush: (): void => {
-    tmdbCache.flushAll()
-  },
-  stats: () => {
-    return tmdbCache.getStats()
-  },
-}
+  flush: async (): Promise<void> => {
+    try {
+      // Find all keys matching the namespace and delete them
+      const keys = await redisClient.keys(`${namespace}:*`)
+      if (keys.length > 0) {
+        await redisClient.del(keys)
+      }
+    } catch(err: any) {
+      logger.error(`Redis Flush Error [${namespace}]`, { error: err.message || err })
+    }
+  }
+})
 
 /**
- * User Data Cache Operations
+ * TMDB Cache Operations: 5 minutes default
+ */
+export const tmdb = createNamespace('tmdb', 300)
+
+/**
+ * User Data Cache Operations: 1 minute default
  */
 export const userData = {
-  get: <T>(key: string): T | undefined => {
-    return userDataCache.get<T>(key)
-  },
-  set: <T>(key: string, value: T, ttl?: number): boolean => {
-    return userDataCache.set(key, value, ttl || 60)
-  },
-  del: (key: string): number => {
-    return userDataCache.del(key)
-  },
-  flush: (): void => {
-    userDataCache.flushAll()
-  },
-  invalidateUser: (userId: string): void => {
-    // Invalidate all cache keys for a specific user
-    const keys = userDataCache.keys()
-    keys.forEach((key: string) => {
-      if (key.includes(userId)) {
-        userDataCache.del(key)
+  ...createNamespace('user', 60),
+
+  invalidateUser: async (userId: string): Promise<void> => {
+    try {
+      const keys = await redisClient.keys(`user:*${userId}*`)
+      if (keys.length > 0) {
+        await redisClient.del(keys)
       }
-    })
-  },
-}
-
-/**
- * Season Data Cache Operations
- */
-export const seasons = {
-  get: <T>(key: string): T | undefined => {
-    return seasonCache.get<T>(key)
-  },
-  set: <T>(key: string, value: T, ttl?: number): boolean => {
-    return seasonCache.set(key, value, ttl || 3600)
-  },
-  del: (key: string): number => {
-    return seasonCache.del(key)
-  },
-  flush: (): void => {
-    seasonCache.flushAll()
-  },
-}
-
-/**
- * Cache middleware for Express routes
- * Usage: router.get('/path', cacheMiddleware(300), handler)
- */
-export function cacheMiddleware(ttl: number = 300) {
-  return (req: any, res: any, next: any) => {
-    const key = generateCacheKey(req.method, req.originalUrl)
-    const cached = tmdb.get(key)
-
-    if (cached) {
-      res.setHeader('X-Cache', 'HIT')
-      return res.json(cached)
+    } catch(err: any) {
+      logger.error('Redis invalidateUser Error', { error: err.message || err })
     }
-
-    res.setHeader('X-Cache', 'MISS')
-
-    // Override res.json to cache the response
-    const originalJson = res.json.bind(res)
-    res.json = (body: any) => {
-      tmdb.set(key, body, ttl)
-      return originalJson(body)
-    }
-
-    next()
   }
 }
 
 /**
- * Clear all caches (useful for debugging or manual cache invalidation)
+ * Season Data Cache Operations: 1 hour default
  */
-export function clearAllCaches(): void {
-  tmdb.flush()
-  userData.flush()
-  seasons.flush()
-  logger.info('All caches cleared')
-}
+export const seasons = createNamespace('season', 3600)
 
 /**
- * Get cache statistics for monitoring
+ * Clear all caches completely
  */
-export function getCacheStats() {
-  return {
-    tmdb: tmdbCache.getStats(),
-    userData: userDataCache.getStats(),
-    seasons: seasonCache.getStats(),
-  }
+export async function clearAllCaches(): Promise<void> {
+  await redisClient.flushDb()
+  logger.info('Redis database flushed completely')
 }
