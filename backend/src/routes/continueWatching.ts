@@ -13,7 +13,7 @@ router.get('/', checkJwt, async (req, res) => {
 
   // Check cache first
   const cacheKey = cache.generateCacheKey('continue-watching', userId)
-  const cached = cache.userData.get(cacheKey)
+  const cached = await cache.userData.get(cacheKey)
 
   if (cached) {
     res.setHeader('X-Cache', 'HIT')
@@ -33,7 +33,7 @@ router.get('/', checkJwt, async (req, res) => {
   }
 
   // Cache the result
-  cache.userData.set(cacheKey, data || [], 60) // 1 minute TTL
+  await cache.userData.set(cacheKey, data || [], 60) // 1 minute TTL
   res.setHeader('X-Cache', 'MISS')
   res.json(data || [])
 })
@@ -132,7 +132,7 @@ router.post('/', checkJwt, async (req, res) => {
 
   // Invalidate cache for this user
   const cacheKey = cache.generateCacheKey('continue-watching', userId)
-  cache.userData.del(cacheKey)
+  await cache.userData.del(cacheKey)
 
   res.json(result)
 })
@@ -160,7 +160,7 @@ router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
 
   // Invalidate cache for this user
   const cacheKey = cache.generateCacheKey('continue-watching', userId)
-  cache.userData.del(cacheKey)
+  await cache.userData.del(cacheKey)
 
   res.json({ success: true })
 })

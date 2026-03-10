@@ -68,7 +68,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     // L1 route-level cache check (before pipeline — ~0ms)
     const cacheKey = cache.generateCacheKey('recommendations', userId, String(limit), String(tryMlVector))
     if (!forceRefresh) {
-      const cached = cache.userData.get(cacheKey)
+      const cached = await cache.userData.get(cacheKey)
       if (cached) {
         res.setHeader('X-Cache', 'HIT')
         res.setHeader('X-CineMatch-Pipeline', 'route-cache')
@@ -80,7 +80,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     // directly from Supabase pgvector using the matched ML embedding.
     const result = await getRecommendations(userId, { limit, forceRefresh, useVectorML: tryMlVector })
 
-    cache.userData.set(cacheKey, result, 300)
+    await cache.userData.set(cacheKey, result, 300)
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('X-CineMatch-Pipeline', result.pipelineMs !== undefined ? `live-${result.pipelineMs}ms` : 'live')
     if (tryMlVector) res.setHeader('X-CineMatch-Engine', 'two-tower-ann')
@@ -97,7 +97,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
 router.get('/guest', async (_req: Request, res: Response) => {
   try {
     const cacheKey = 'recommendations:guest'
-    const cached = cache.tmdb.get(cacheKey)
+    const cached = await cache.tmdb.get(cacheKey)
     if (cached) {
       res.setHeader('X-Cache', 'HIT')
       return res.json(cached)
@@ -105,7 +105,7 @@ router.get('/guest', async (_req: Request, res: Response) => {
 
     const result = await getGuestRecommendations()
 
-    cache.tmdb.set(cacheKey, result, 1800)
+    await cache.tmdb.set(cacheKey, result, 1800)
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600')
     return res.json(result)
@@ -271,7 +271,7 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
     }).catch((err: any) => logger.error('CineMatch interaction log failed', { error: err?.message }))
 
     // Invalidate ALL route-level cache entries for this user
-    cache.userData.invalidateUser(userId)
+    await cache.userData.invalidateUser(userId)
 
     return res.status(202).json({ accepted: true })
   } catch (err: any) {
@@ -383,7 +383,7 @@ router.delete('/history', checkJwt, async (req: Request, res: Response) => {
 
     // Invalidate all caches
     invalidateRecommendationCache(userId)
-    cache.userData.invalidateUser(userId)
+    await cache.userData.invalidateUser(userId)
 
     logger.info('CineMatch history reset', { userId })
     return res.status(200).json({ message: 'Recommendation history cleared.' })

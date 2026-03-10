@@ -21,7 +21,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
 
   // Check cache first
   const cacheKey = cache.generateCacheKey('dislikes', userId)
-  const cached = cache.userData.get(cacheKey)
+  const cached = await cache.userData.get(cacheKey)
 
   if (cached) {
     res.setHeader('X-Cache', 'HIT')
@@ -41,7 +41,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Server error' })
   }
 
-  cache.userData.set(cacheKey, data || [], 60) // 1 minute TTL
+  await cache.userData.set(cacheKey, data || [], 60) // 1 minute TTL
   res.setHeader('X-Cache', 'MISS')
   res.json(data || [])
 })
@@ -98,7 +98,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
 
     // 3. Clear the GET /dislikes cache
     const cacheKey = cache.generateCacheKey('dislikes', userId)
-    cache.userData.del(cacheKey)
+    await cache.userData.del(cacheKey)
 
     // Return a mock object so the frontend knows it succeeded and has an ID to track
     res.status(201).json({ id: uuidv4(), tmdbId: parsedTmdbId, mediaType })
@@ -146,7 +146,7 @@ router.delete('/:mediaType/:tmdbId', checkJwt, async (req: Request, res: Respons
     invalidateRecommendationCache(userId)
 
     const cacheKey = cache.generateCacheKey('dislikes', userId)
-    cache.userData.del(cacheKey)
+    await cache.userData.del(cacheKey)
 
     res.status(204).send()
   } catch (err: any) {
