@@ -419,6 +419,30 @@ export async function fetchContinueWatching(
   return res.json()
 }
 
+/**
+ * Fetch aggregated TMDB details for a list of progress items.
+ * This completely eliminates the frontend N+1 fetch bottleneck!
+ */
+export async function fetchAggregatedContinueWatching(
+  items: ContinueWatchingItem[]
+): Promise<{ media: Media; item: ContinueWatchingItem }[]> {
+  if (!items || items.length === 0) return []
+
+  const res = await fetch(`${API_BASE}/tmdb/continue-watching-details`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(items),
+  })
+
+  if (!res.ok) {
+    throw new Error('Failed to fetch aggregated continue watching details')
+  }
+
+  return res.json()
+}
+
 export async function updateContinueWatching(
   token: string,
   data: ContinueWatchingItem

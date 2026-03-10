@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchContinueWatching,
-  fetchMediaBasicDetails,
+  fetchAggregatedContinueWatching,
   removeContinueWatching,
   getGuestProgress,
   removeGuestProgress,
@@ -26,61 +26,46 @@ interface Props {
 export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
 
-  const [entries, setEntries] = useState<ContinueWatchingEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryKey = ['continueWatching', isAuthenticated ? 'user' : 'guest', refreshKey]
 
-  /* ================= FETCH DATA ================= */
+  const { data: entries = [], isLoading: loading } = useQuery<ContinueWatchingEntry[]>({
+    queryKey,
+    queryFn: async () => {
+      let data: ContinueWatchingItem[] = []
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true)
-        let data: ContinueWatchingItem[] = []
-
-        if (isAuthenticated) {
-          const audience = import.meta.env.VITE_AUTH0_AUDIENCE
-          const token = await getAccessTokenSilently({
-            authorizationParams: { audience },
-          })
-          data = await fetchContinueWatching(token)
-        } else {
-          // GUEST MODE
-          data = getGuestProgress()
-        }
-
-        // Hide almost-finished items (Netflix behavior) and cap max items locally natively.
-        const filtered = data.filter((i) => i.progress < 0.95).slice(0, 10)
-
-        const resolved = await Promise.all(
-          filtered.map(async (item) => {
-            const media = await fetchMediaBasicDetails(item.mediaType, item.tmdbId)
-            if (!media) return null
-            return { media, item }
-          })
-        )
-
-        setEntries(resolved.filter(Boolean) as ContinueWatchingEntry[])
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
+      if (isAuthenticated) {
+        const audience = import.meta.env.VITE_AUTH0_AUDIENCE
+        const token = await getAccessTokenSilently({
+          authorizationParams: { audience },
+        })
+        data = await fetchContinueWatching(token)
+      } else {
+        data = getGuestProgress()
       }
-    }
 
-    load()
-  }, [isAuthenticated, getAccessTokenSilently, refreshKey])
+      // Hide almost-finished items (Netflix behavior) and cap max items
+      const filtered = data.filter((i) => i.progress < 0.95).slice(0, 10)
+
+      if (filtered.length === 0) return []
+
+      // This completely eliminates the old N+1 fetching bottleneck
+      const resolved = await fetchAggregatedContinueWatching(filtered)
+      return resolved as ContinueWatchingEntry[]
+    },
+    staleTime: 60000, // 1 minute stale time
+    refetchOnWindowFocus: true,
+  })
+
+  /* ================= HANDLERS ================= */
 
   const handleRemove = async (item: ContinueWatchingItem) => {
-    // Optimistic update - instant UI feedback
-    const prevEntries = entries
-    setEntries((prev) =>
-      prev.filter(
+    // Optimistic update
+    queryClient.setQueryData<ContinueWatchingEntry[]>(queryKey, (old = []) =>
+      old.filter(
         (e) =>
-          !(
-            e.item.tmdbId === item.tmdbId &&
-            e.item.mediaType === item.mediaType
-          )
+          !(e.item.tmdbId === item.tmdbId && e.item.mediaType === item.mediaType)
       )
     )
 
@@ -92,7 +77,6 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
         })
         await removeContinueWatching(token, item.tmdbId, item.mediaType)
       } else {
-        // GUEST MODE
         removeGuestProgress(item.tmdbId, item.mediaType)
       }
 
@@ -100,9 +84,11 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
         title: 'Removed',
         description: 'Removed from Continue Watching',
       })
+      // invalidate to refetch in bg to ensure total sync
+      queryClient.invalidateQueries({ queryKey })
     } catch {
-      // Rollback on error
-      setEntries(prevEntries)
+      // Revert optimism on error
+      queryClient.invalidateQueries({ queryKey })
       toast({
         title: 'Error',
         description: 'Could not remove item',
