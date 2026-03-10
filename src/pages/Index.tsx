@@ -50,13 +50,13 @@ const Index = () => {
     }
   }, [])
 
-  const handleMediaClick = (media: Media, season?: number, episode?: number, server?: string, forceAutoPlay?: boolean) => {
+  const handleMediaClick = useCallback((media: Media, season?: number, episode?: number, server?: string, forceAutoPlay?: boolean) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
     const slug = slugify(media.title || media.name || '')
     const url = `/watch/${detectedMode}/${media.id}${slug ? '-' + slug : ''}`
 
     navigate(url, { state: { season, episode, server, autoPlay: forceAutoPlay, backgroundLocation: location } })
-  }
+  }, [location, navigate])
 
   const handleLogoClick = () => {
     setMode('home')
@@ -96,7 +96,7 @@ const Index = () => {
         })
       } catch { /* non-critical */ }
     }
-  }, [isAuthenticated, getAccessTokenSilently])
+  }, [isAuthenticated, getAccessTokenSilently, handleMediaClick])
 
   // Handle dislike on a recommendation card
   const handleRecoDislike = useCallback(async (item: RecoItem) => {

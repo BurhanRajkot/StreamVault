@@ -52,9 +52,7 @@ const GooeyNav = ({
 
   // Removed empty useEffect for activeIndex  // Sync internal state if initialActiveIndex changes
   useEffect(() => {
-      if (activeIndex !== initialActiveIndex) {
-          setActiveIndex(initialActiveIndex);
-      }
+      setActiveIndex(prev => prev === initialActiveIndex ? prev : initialActiveIndex);
   }, [initialActiveIndex]);
 
   return (
