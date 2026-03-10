@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import * as cache from '../services/cache'
 import { logger } from '../lib/logger'
 import { hybridSearch } from '../cinematch/search/hybridSearch'
+import { withTmdbRateLimit } from '../services/tmdbLimiter'
 
 const router = Router()
 
@@ -17,7 +18,7 @@ if (!TMDB_API_KEY) {
  */
 async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
   const cacheKey = cache.generateCacheKey('tmdb', endpoint)
-  const cached = cache.tmdb.get(cacheKey)
+  const cached = await cache.tmdb.get(cacheKey)
 
   if (cached) {
     return cached
@@ -59,7 +60,7 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
 
       const data = await response.json()
       // Extended cache TTL to 2 hours to reduce API calls
-      cache.tmdb.set(cacheKey, data, 7200)
+      await cache.tmdb.set(cacheKey, data, 7200)
       return data
     } catch (error: any) {
       const isLastAttempt = attempt === retries
@@ -293,7 +294,7 @@ router.get('/tv/:id/seasons', async (req: Request, res: Response) => {
 
   try {
     const cacheKey = cache.generateCacheKey('seasons', String(parsedId))
-    const cached = cache.seasons.get(cacheKey)
+    const cached = await cache.seasons.get(cacheKey)
 
     if (cached) {
       res.setHeader('X-Cache', 'HIT')
@@ -303,12 +304,63 @@ router.get('/tv/:id/seasons', async (req: Request, res: Response) => {
     const data = await fetchTMDB(`/tv/${parsedId}`)
     const seasons = data.seasons?.filter((s: any) => s.season_number > 0) || []
 
-    cache.seasons.set(cacheKey, seasons, 7200) // 2 hours TTL
+    await cache.seasons.set(cacheKey, seasons, 7200) // 2 hours TTL
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200') // 1hr cache, 2hr stale
     res.json(seasons)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch seasons' })
+  }
+})
+
+/**
+ * POST /tmdb/continue-watching-details
+ * BFF (Backend-For-Frontend) endpoint to aggregating TMDB details
+ * for multiple continue watching items in a single request,
+ * eliminating the N+1 fetch bottleneck on the client side.
+ */
+router.post('/continue-watching-details', async (req: Request, res: Response) => {
+  const items = req.body
+  const MAX_BATCH_SIZE = 20
+
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: 'Body must be an array of progress items' })
+  }
+  if (items.length > MAX_BATCH_SIZE) {
+    return res.status(400).json({ error: `Body must contain at most ${MAX_BATCH_SIZE} items` })
+  }
+
+  try {
+    // We wrap fetchTMDB with our bottleneck instance to protect against 429 errors from TMDB
+    const safeFetchTMDB = withTmdbRateLimit(fetchTMDB)
+
+    // Using Promise.all here is safe because Bottleneck controls the actual execution concurrency!
+    const resolvedItems = await Promise.all(
+      items.map(async (item) => {
+        const tmdbId = Number(item?.tmdbId)
+        const mediaType = item?.mediaType
+
+        if (!Number.isInteger(tmdbId) || tmdbId <= 0) return null
+        if (mediaType !== 'movie' && mediaType !== 'tv') return null
+
+        try {
+          const tmdbData = await safeFetchTMDB(`/${mediaType}/${tmdbId}`)
+          return {
+            media: tmdbData,
+            item,
+          }
+        } catch (err: any) {
+          logger.warn(`Failed to fetch tmdb details for ${mediaType} ${tmdbId}:`, { error: err.message || err })
+          return null
+        }
+      })
+    )
+
+    // Filter out any failed fetches and return
+    res.json(resolvedItems.filter(Boolean))
+  } catch (error: any) {
+    logger.error('Failed to batch fetch continue watching details', { error: error.message || error })
+    res.status(500).json({ error: 'Server error fetching aggregated media' })
   }
 })
 
