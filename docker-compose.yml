@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       # Mount source code for hot-modification
       - ./src:/app/src
@@ -22,6 +22,8 @@ services:
       - streamvault-network
 
   backend:
+    depends_on:
+      - redis
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -32,8 +34,18 @@ services:
       - ./backend/src:/app/src
       # Prevent overwriting node_modules
       - /app/node_modules
+    environment:
+      - REDIS_URL=redis://redis:6379
     env_file:
       - ./backend/.env
+    networks:
+      - streamvault-network
+
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
     networks:
       - streamvault-network
 
