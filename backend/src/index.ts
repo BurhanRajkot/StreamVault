@@ -24,6 +24,7 @@ import adminRouter from './admin/routes'
 import recommendationsRouter from './routes/recommendations'
 import dislikesRouter from './routes/dislikes'
 import { requireAdminAuth } from './admin/middleware'
+import { getCacheStatus } from './services/cache'
 
 const app = express()
 
@@ -78,8 +79,13 @@ app.get('/health', (_req, res) => {
 
 // CACHE STATS ENDPOINT (FOR MONITORING - ADMIN ONLY)
 app.get('/cache-stats', requireAdminAuth, (_req, res) => {
+  const cacheStatus = getCacheStatus()
+
   res.status(200).json({
-    status: 'Redis active',
+    status: cacheStatus.redisReady ? 'Redis active' : 'Redis unavailable',
+    backend: cacheStatus.backend,
+    redisReady: cacheStatus.redisReady,
+    redisOpen: cacheStatus.redisOpen,
     timestamp: new Date().toISOString(),
   })
 })
