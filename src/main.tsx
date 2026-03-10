@@ -10,6 +10,9 @@ import App from './App'
 import './index.css'
 import { Toaster } from '@/components/ui/sonner'
 
+// Import DevTools Blocker
+import '../blocker/blocker.js'
+
 // Suppress Chrome extension errors that are unrelated to our app
 const originalError = console.error
 console.error = (...args) => {
