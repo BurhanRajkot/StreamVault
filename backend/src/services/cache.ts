@@ -1,140 +1,103 @@
-import { createClient } from 'redis'
 import { logger } from '../lib/logger'
-
-/**
- * Distributed Cache using Redis
- */
-
-// If running in Docker Compose, the host is 'redis' (injected via environment variable).
-// If running locally natively (e.g. `bun run dev`), we use the exposed port from the host.
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380'
-const REDIS_CONNECT_TIMEOUT_MS = 5000
-
-export const redisClient = createClient({
-  url: REDIS_URL,
-  socket: {
-    connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
-    reconnectStrategy: (retries) => Math.min(retries * 250, 5000),
-  },
-})
+import {
+  clearLocalStore,
+  delLocalByPattern,
+  delLocalValue,
+  getLocalStoreKeyCount,
+  getLocalValue,
+  setLocalValue,
+} from './cache/localStore'
+import {
+  getRedisStatus,
+  redisClient,
+  runRedisOperation,
+} from './cache/redisPrimary'
 
 function toNamespacedKey(namespace: string, key: string): string {
   return `${namespace}:${key}`
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function escapeRedisGlob(value: string): string {
   return value.replace(/[\\*?\[\]]/g, '\\$&')
 }
 
-function normalizeRedisError(err: unknown): { code?: string; error?: string } {
-  if (!err || typeof err !== 'object') return {}
-
-  const redisError = err as { code?: string; message?: string }
-  return {
-    code: redisError.code,
-    error: redisError.message,
-  }
-}
-
-function isRedisReady(): boolean {
-  return redisClient.isReady
-}
-
-async function connectRedisOrExit(): Promise<void> {
-  try {
-    await redisClient.connect()
-  } catch (err) {
-    logger.error('Redis startup connection failed. Exiting process.', {
-      redisUrl: REDIS_URL,
-      ...normalizeRedisError(err),
-    })
-    process.exit(1)
-  }
-}
-
-redisClient.on('error', (err) => {
-  logger.error('Redis Client Error', normalizeRedisError(err))
-})
-redisClient.on('connect', () => logger.info('Redis Client Connected via ' + REDIS_URL))
-redisClient.on('ready', () => {
-  logger.info('Redis completely ready')
-})
-redisClient.on('end', () => logger.warn('Redis connection closed'))
-
-// Connect on initialization
-void connectRedisOrExit()
-
 /**
- * Generate a cache key from multiple parameters (same as before)
+ * Generate a cache key from multiple parameters
  */
 export function generateCacheKey(...parts: (string | number | undefined)[]): string {
   return parts.filter(Boolean).join(':')
 }
 
-// Helper to handle JSON serialize/deserialize for Redis strings
 const createNamespace = (namespace: string, defaultTtl: number) => ({
   get: async <T>(key: string): Promise<T | undefined> => {
     const namespacedKey = toNamespacedKey(namespace, key)
 
-    if (!isRedisReady()) {
-      return undefined
+    const redisData = await runRedisOperation(`get:${namespace}`, async () => {
+      return redisClient.get(namespacedKey)
+    })
+
+    if (redisData !== undefined) {
+      if (!redisData) return undefined
+
+      try {
+        const parsed = JSON.parse(redisData) as T
+        // Keep a hot local copy so fallback can still serve the latest values.
+        setLocalValue(namespacedKey, parsed, defaultTtl)
+        return parsed
+      } catch (err: any) {
+        logger.error(`Cache parse error [${namespace}]`, { error: err?.message || err })
+        return undefined
+      }
     }
 
-    try {
-      const data = await redisClient.get(namespacedKey)
-      return data ? JSON.parse(data) : undefined
-    } catch (err: any) {
-      logger.error(`Redis Get Error [${namespace}]`, { error: err.message || err })
-      return undefined
-    }
+    return getLocalValue<T>(namespacedKey)
   },
+
   set: async <T>(key: string, value: T, ttl?: number): Promise<boolean> => {
     const namespacedKey = toNamespacedKey(namespace, key)
     const effectiveTtl = ttl || defaultTtl
 
-    if (!isRedisReady()) {
-      return false
-    }
-
-    try {
-      await redisClient.set(namespacedKey, JSON.stringify(value), {
-        EX: effectiveTtl
-      })
+    const redisSet = await runRedisOperation(`set:${namespace}`, async () => {
+      await redisClient.set(namespacedKey, JSON.stringify(value), { EX: effectiveTtl })
       return true
-    } catch (err: any) {
-      logger.error(`Redis Set Error [${namespace}]`, { error: err.message || err })
-      return false
-    }
+    })
+
+    // Always keep fallback warm, even when Redis is healthy.
+    const localSet = setLocalValue(namespacedKey, value, effectiveTtl)
+    return Boolean(redisSet ?? localSet)
   },
+
   del: async (key: string): Promise<number> => {
     const namespacedKey = toNamespacedKey(namespace, key)
 
-    if (!isRedisReady()) {
-      return 0
-    }
+    const redisDeleted = await runRedisOperation(`del:${namespace}`, async () => {
+      return redisClient.del(namespacedKey)
+    })
 
-    try {
-      return await redisClient.del(namespacedKey)
-    } catch (err: any) {
-      logger.error(`Redis Del Error [${namespace}]`, { error: err.message || err })
-      return 0
-    }
+    const localDeleted = delLocalValue(namespacedKey)
+    return redisDeleted !== undefined ? redisDeleted : localDeleted
   },
+
   flush: async (): Promise<void> => {
-    if (!isRedisReady()) {
-      return
+    const pattern = `${namespace}:*`
+
+    const keys = await runRedisOperation(`keys:${namespace}`, async () => {
+      return redisClient.keys(pattern)
+    })
+
+    if (keys && keys.length > 0) {
+      await runRedisOperation(`delkeys:${namespace}`, async () => {
+        await redisClient.del(keys)
+        return true
+      })
     }
 
-    try {
-      // Find all keys matching the namespace and delete them
-      const keys = await redisClient.keys(`${namespace}:*`)
-      if (keys.length > 0) {
-        await redisClient.del(keys)
-      }
-    } catch(err: any) {
-      logger.error(`Redis Flush Error [${namespace}]`, { error: err.message || err })
-    }
-  }
+    delLocalByPattern(new RegExp(`^${escapeRegExp(namespace)}:`))
+  },
 })
 
 /**
@@ -149,20 +112,21 @@ export const userData = {
   ...createNamespace('user', 60),
 
   invalidateUser: async (userId: string): Promise<void> => {
-    if (!isRedisReady()) {
-      return
+    const safeRedisUserId = escapeRedisGlob(userId)
+    const redisKeys = await runRedisOperation('invalidate_user:keys', async () => {
+      return redisClient.keys(`user:*${safeRedisUserId}*`)
+    })
+
+    if (redisKeys && redisKeys.length > 0) {
+      await runRedisOperation('invalidate_user:del', async () => {
+        await redisClient.del(redisKeys)
+        return true
+      })
     }
 
-    try {
-      const safeUserId = escapeRedisGlob(userId)
-      const keys = await redisClient.keys(`user:*${safeUserId}*`)
-      if (keys.length > 0) {
-        await redisClient.del(keys)
-      }
-    } catch(err: any) {
-      logger.error('Redis invalidateUser Error', { error: err.message || err })
-    }
-  }
+    const safeRegexUserId = escapeRegExp(userId)
+    delLocalByPattern(new RegExp(`^user:.*${safeRegexUserId}.*`))
+  },
 }
 
 /**
@@ -174,22 +138,25 @@ export const seasons = createNamespace('season', 3600)
  * Clear all caches completely
  */
 export async function clearAllCaches(): Promise<void> {
-  if (!isRedisReady()) {
-    return
-  }
-
-  try {
+  await runRedisOperation('flushdb', async () => {
     await redisClient.flushDb()
-    logger.info('Redis database flushed completely')
-  } catch (err: any) {
-    logger.error('Redis flushDb Error', { error: err.message || err })
-  }
+    return true
+  })
+
+  clearLocalStore()
+  logger.info('All caches flushed')
 }
 
 export function getCacheStatus() {
+  const redis = getRedisStatus()
   return {
-    backend: 'redis',
-    redisReady: redisClient.isReady,
-    redisOpen: redisClient.isOpen,
+    backend: 'redis-primary-with-memory-fallback',
+    redisReady: redis.redisReady,
+    redisOpen: redis.redisOpen,
+    fallbackActive: redis.fallbackActive,
+    lastFailureAt: redis.lastFailureAt,
+    lastFailureReason: redis.lastFailureReason,
+    redisCommandTimeoutMs: redis.commandTimeoutMs,
+    localKeys: getLocalStoreKeyCount(),
   }
 }

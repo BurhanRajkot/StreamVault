@@ -81,11 +81,20 @@ app.get('/health', (_req, res) => {
 app.get('/cache-stats', requireAdminAuth, (_req, res) => {
   const cacheStatus = getCacheStatus()
 
+  const status = cacheStatus.fallbackActive
+    ? 'Redis degraded, memory fallback active'
+    : cacheStatus.redisReady
+      ? 'Redis active'
+      : 'Redis unavailable'
+
   res.status(200).json({
-    status: cacheStatus.redisReady ? 'Redis active' : 'Redis unavailable',
+    status,
     backend: cacheStatus.backend,
     redisReady: cacheStatus.redisReady,
     redisOpen: cacheStatus.redisOpen,
+    fallbackActive: cacheStatus.fallbackActive,
+    redisCommandTimeoutMs: cacheStatus.redisCommandTimeoutMs,
+    localKeys: cacheStatus.localKeys,
     timestamp: new Date().toISOString(),
   })
 })
