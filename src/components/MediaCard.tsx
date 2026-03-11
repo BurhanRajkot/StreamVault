@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
-import { HoverVideoPlayer } from './HoverVideoPlayer'
+
 import { QuickViewModal } from './QuickViewModal'
 import { slugify } from '@/lib/utils'
 
@@ -29,7 +29,7 @@ export function MediaCard({
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { toggleFavorite, isFavorited } = useFavorites()
   const { toggleDislike, isDisliked } = useDislikes()
-  const [isExpanded, setIsExpanded] = useState(false)
+
   const [showQuickView, setShowQuickView] = useState(false)
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
   const quickViewTimeout = useRef<NodeJS.Timeout | null>(null)
@@ -78,8 +78,7 @@ export function MediaCard({
   const handleMouseLeave = () => {
     if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
     if (quickViewTimeout.current) clearTimeout(quickViewTimeout.current)
-    setIsExpanded(false)
-    setShowQuickView(false) // Clean up quick view modal
+    setShowQuickView(false)
   }
 
   const handleQuickViewPlay = (media: Media, provider?: string) => {
