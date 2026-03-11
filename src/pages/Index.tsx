@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { PageMeta } from '@/seo/PageMeta'
 import { Media, MediaMode } from '@/lib/config'
@@ -19,7 +19,8 @@ import { useRecommendations } from '@/hooks/useRecommendations'
 import { logRecommendationInteraction, RecoItem } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { slugify } from '@/lib/utils'
-import Downloads from './Downloads'
+
+const Downloads = lazy(() => import('./Downloads'))
 
 const Index = () => {
   const [mode, setMode] = useState<MediaMode>('home')
@@ -70,8 +71,8 @@ const Index = () => {
   const handleRecoCardClick = useCallback(async (item: RecoItem, index: number, source: string) => {
     const mediaForPlayer: Media = {
       id: item.tmdbId,
-      title: item.mediaType === 'movie' ? item.title : undefined as any,
-      name: item.mediaType === 'tv' ? item.title : undefined as any,
+      title: item.mediaType === 'movie' ? item.title : undefined,
+      name: item.mediaType === 'tv' ? item.title : undefined,
       poster_path: item.posterPath ?? '',
       backdrop_path: item.backdropPath ?? '',
       overview: item.overview,
