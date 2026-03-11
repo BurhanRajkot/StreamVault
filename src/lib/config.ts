@@ -94,6 +94,7 @@ export interface Media {
   backdrop_path: string | null
   overview: string
   vote_average: number
+  popularity?: number
   release_date?: string
   first_air_date?: string
   media_type?: string
