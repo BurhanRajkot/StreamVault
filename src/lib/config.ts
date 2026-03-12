@@ -8,6 +8,7 @@ export const CONFIG = {
     backdrop: '/w780',
     thumbnail: '/w342',
     logo: '/w500',
+    hero: '/original',
   },
 
     STREAM_PROVIDERS: {
