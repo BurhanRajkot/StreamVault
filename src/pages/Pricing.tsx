@@ -27,7 +27,7 @@ interface Plan {
   upiId?: string
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+const API_URL = import.meta.env.VITE_API_URL || 'https://streamvault-backend-bq9p.onrender.com'
 
 export default function Pricing() {
   const [plans, setPlans] = useState<Plan[]>([])

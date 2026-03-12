@@ -2,7 +2,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+const API_URL = import.meta.env.VITE_API_URL || 'https://streamvault-backend-bq9p.onrender.com'
 
 export interface DislikeItem {
   id: string
