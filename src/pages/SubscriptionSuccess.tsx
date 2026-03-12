@@ -5,7 +5,7 @@ import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/Footer'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+const API_URL = import.meta.env.VITE_API_URL || 'https://streamvault-backend-bq9p.onrender.com'
 
 interface PaymentDetails {
   id: string
