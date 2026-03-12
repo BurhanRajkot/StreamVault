@@ -389,7 +389,7 @@ export async function fetchTVSeasons(
 
 export function getImageUrl(
   path: string | null,
-  size: 'poster' | 'backdrop' | 'thumbnail' | 'logo' = 'poster'
+  size: 'poster' | 'backdrop' | 'thumbnail' | 'logo' | 'hero' = 'poster'
 ): string {
   if (!path) return '/placeholder.svg'
   return `${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES[size]}${path}`
