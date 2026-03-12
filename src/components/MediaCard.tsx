@@ -115,7 +115,7 @@ export function MediaCard({
      // ... keeping existing hero logic ...
      const backdrop = getImageUrl(
       media.backdrop_path || media.poster_path,
-      'backdrop'
+      'hero'
     )
     const certification = media.release_dates?.results.find(
       (r) => r.iso_3166_1 === 'US'
