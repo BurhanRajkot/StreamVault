@@ -4,11 +4,13 @@ export const CONFIG = {
   TMDB_BASE_URL: 'https://api.themoviedb.org/3',
   IMG_BASE_URL: 'https://image.tmdb.org/t/p',
   IMG_SIZES: {
+    // Keep hero + main grid cards at original quality
     poster: '/original',
-    backdrop: '/original',
-    thumbnail: '/w342',
-    logo: '/original',
     hero: '/original',
+    // Use slightly smaller, faster sizes everywhere else
+    backdrop: '/w1280',
+    thumbnail: '/w342',
+    logo: '/w500',
   },
 
     STREAM_PROVIDERS: {
