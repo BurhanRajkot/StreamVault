@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, lazy } from 'react'
+import { useState, useCallback, lazy } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { PageMeta } from '@/seo/PageMeta'
 import { Media, MediaMode } from '@/lib/config'
 import { useMedia } from '@/hooks/useMedia'
+import { useInView } from '@/hooks/useInView'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { HeroCarousel } from '@/components/HeroCarousel'
@@ -24,10 +25,11 @@ const Downloads = lazy(() => import('./Downloads'))
 
 const Index = () => {
   const [mode, setMode] = useState<MediaMode>('home')
-  const [showDisclaimer, setShowDisclaimer] = useState(false)
+  const [showDisclaimer, setShowDisclaimer] = useState(
+    () => sessionStorage.getItem('disclaimerAccepted') !== 'true'
+  )
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
-
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [refreshKey] = useState(0)
 
   const location = useLocation()
   const navigate = useNavigate()
@@ -45,11 +47,11 @@ const Index = () => {
     searchQuery,
   } = useMedia(mode, selectedProvider)
 
-  useEffect(() => {
-    if (sessionStorage.getItem('disclaimerAccepted') !== 'true') {
-      setShowDisclaimer(true)
-    }
-  }, [])
+  // ─── InView gates for below-fold sections ───────────────────────────────
+  // Each section only mounts/fetches once it scrolls near the viewport
+  const [authorsRef, authorsVisible] = useInView('200px')
+  const [recoRef, recoVisible] = useInView('200px')
+  const [recentlyRef, recentlyVisible] = useInView('200px')
 
   const handleMediaClick = useCallback((media: Media, season?: number, episode?: number, server?: string, forceAutoPlay?: boolean) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
@@ -63,7 +65,6 @@ const Index = () => {
     setMode('home')
     setSelectedProvider(null)
     clearSearch()
-    // Scroll to top smoothly
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -112,8 +113,6 @@ const Index = () => {
     } catch { /* non-critical */ }
   }, [isAuthenticated, getAccessTokenSilently])
 
-  // Removed handleClosePlayer since PlayerModal is removed
-
   return (
     <>
       <PageMeta
@@ -153,15 +152,7 @@ const Index = () => {
                   />
               )}
 
-              {/* Recently Added Section (Global for Docs, Provider-specific for others) */}
-              {!searchQuery && selectedProvider && (
-                <RecentlyAddedSection
-                  mode={mode}
-                  providerId={selectedProvider || null}
-                  onMediaClick={handleMediaClick}
-                />
-              )}
-
+              {/* Continue Watching — above the fold, render immediately */}
               {!searchQuery && !selectedProvider && (
                 <ContinueWatchingSection
                   onMediaClick={handleMediaClick}
@@ -169,26 +160,44 @@ const Index = () => {
                 />
               )}
 
-              {!searchQuery && (
-                <AuthorsChoiceSection
-                  onMediaClick={handleMediaClick}
-                  mode={mode as 'movie' | 'tv' | 'documentary'}
-                />
-              )}
+              {/* Author's Choice — lazy: only renders when scrolled near */}
+              <div ref={authorsRef}>
+                {!searchQuery && authorsVisible && (
+                  <AuthorsChoiceSection
+                    onMediaClick={handleMediaClick}
+                    mode={mode as 'movie' | 'tv' | 'documentary'}
+                  />
+                )}
+              </div>
 
-              {/* CineMatch AI — Recommendation Sections */}
-              {!searchQuery && (recoLoading ? [
-                { title: 'Recommended For You', items: [], source: 'personal' },
-                { title: 'Because You Watched...', items: [], source: 'because_you_watched' },
-              ] : recoSections).map((section) => (
-                <RecommendationRow
-                  key={section.title}
-                  section={section}
-                  onCardClick={handleRecoCardClick}
-                  onDislike={isAuthenticated ? handleRecoDislike : undefined}
-                  isLoading={recoLoading}
-                />
-              ))}
+              {/* CineMatch AI — lazy: only renders when scrolled near */}
+              <div ref={recoRef}>
+                {!searchQuery && recoVisible && (
+                  (recoLoading ? [
+                    { title: 'Recommended For You', items: [], source: 'personal' },
+                    { title: 'Because You Watched...', items: [], source: 'because_you_watched' },
+                  ] : recoSections).map((section) => (
+                    <RecommendationRow
+                      key={section.title}
+                      section={section}
+                      onCardClick={handleRecoCardClick}
+                      onDislike={isAuthenticated ? handleRecoDislike : undefined}
+                      isLoading={recoLoading}
+                    />
+                  ))
+                )}
+              </div>
+
+              {/* Recently Added — lazy, only when provider selected */}
+              <div ref={recentlyRef}>
+                {!searchQuery && selectedProvider && recentlyVisible && (
+                  <RecentlyAddedSection
+                    mode={mode}
+                    providerId={selectedProvider || null}
+                    onMediaClick={handleMediaClick}
+                  />
+                )}
+              </div>
 
               <MediaGrid
                 media={media}

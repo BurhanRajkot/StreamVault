@@ -1,186 +1,123 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { fetchPopular, fetchTrending, searchMedia } from "@/lib/api";
-import { Media, MediaMode } from "@/lib/config";
+// ============================================================
+// useMedia — Powered by React Query (useInfiniteQuery)
+// Replaces raw useState/useEffect pattern.
+// Benefits:
+//   • Auto-caches by (mode, providerId) key for 5 min — back-nav is instant
+//   • De-duplication: repeated mounts for the same mode won't re-fetch
+//   • Infinite scroll pages accumulate correctly via getNextPageParam
+// ============================================================
+
+import { useState, useCallback } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { fetchPopular, fetchTrending, searchMedia } from '@/lib/api'
+import { Media, MediaMode } from '@/lib/config'
+
+// How many items to show on the very first page render
+const INITIAL_SLICE = 16
 
 interface UseMediaReturn {
-  media: Media[];
-  trending: Media[];
-  isLoading: boolean;
-  hasMore: boolean;
-  loadMedia: (reset?: boolean) => void;
-  loadMore: () => void;
-  search: (query: string) => void;
-  clearSearch: () => void;
-  searchQuery: string;
+  media: Media[]
+  trending: Media[]
+  isLoading: boolean
+  hasMore: boolean
+  loadMedia: (reset?: boolean) => void
+  loadMore: () => void
+  search: (query: string) => void
+  clearSearch: () => void
+  searchQuery: string
 }
 
 export function useMedia(mode: MediaMode, providerId: string | null = null): UseMediaReturn {
-  const [media, setMedia] = useState<Media[]>([]);
-  const [trending, setTrending] = useState<Media[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSearchMode, setIsSearchMode] = useState(false)
 
-  // Refs so closures always get fresh values without needing to be in dep arrays
-  const isSearchModeRef = useRef(isSearchMode);
-  const searchQueryRef = useRef(searchQuery);
-  isSearchModeRef.current = isSearchMode;
-  searchQueryRef.current = searchQuery;
+  // ─── Trending query (simple, non-paginated) ─────────────────────────────
+  const trendingQuery = useInfiniteQuery({
+    queryKey: ['trending', mode],
+    queryFn: () => fetchTrending(mode),
+    getNextPageParam: () => undefined, // single page only
+    initialPageParam: 1,
+    staleTime: 5 * 60 * 1000,   // 5 min
+    gcTime: 10 * 60 * 1000,     // keep in cache 10 min after unmount
+    enabled: mode !== 'downloads',
+  })
 
-  // -----------------------------
-  // MAIN LOADER (Popular or Search)
-  // -----------------------------
-  const loadMedia = useCallback(
-    async (reset = false) => {
-      // Downloads mode has no TMDB data
-      if (mode === "downloads") {
-        setMedia([]);
-        setTrending([]);
-        setIsLoading(false);
-        return;
-      }
+  // Flatten trending to a plain array
+  const trending: Media[] = (trendingQuery.data?.pages.flat() as unknown as Media[]) ?? []
 
-      setIsLoading(true);
-
-      try {
-        const nextPage = reset ? 1 : page;
-
-        let mediaResult;
-        if (isSearchMode && searchQuery.length > 0) {
-          mediaResult = await searchMedia(mode, searchQuery, nextPage);
-        } else {
-          // Pass providerId here
-          mediaResult = await fetchPopular(mode, nextPage, providerId);
-        }
-
-        setTotalPages(mediaResult.total_pages || 1);
-
-        if (reset) {
-          setMedia(mediaResult.results);
-        } else {
-          setMedia((prev) => [...prev, ...mediaResult.results]);
-        }
-      } catch (err) {
-        console.error("Media load error:", err);
-      } finally {
-        setIsLoading(false);
-      }
+  // ─── Main (popular/discover) infinite query ───────────────────────────────
+  const popularQuery = useInfiniteQuery({
+    queryKey: ['popular', mode, providerId],
+    queryFn: ({ pageParam }) =>
+      fetchPopular(mode, pageParam as number, providerId),
+    getNextPageParam: (lastPage, allPages) => {
+      const nextPage = allPages.length + 1
+      return nextPage <= (lastPage.total_pages || 1) ? nextPage : undefined
     },
-    [mode, page, searchQuery, isSearchMode, providerId]
-  );
+    initialPageParam: 1,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    enabled: mode !== 'downloads' && !isSearchMode,
+  })
 
-  // -----------------------------
-  // LOAD TRENDING (only once per mode change)
-  // -----------------------------
-  const loadTrending = useCallback(async () => {
-    // No trending for downloads mode
-    if (mode === "downloads") {
-      setTrending([]);
-      return;
-    }
-
-    try {
-      const trend = await fetchTrending(mode);
-      setTrending(trend);
-    } catch (err) {
-      console.error("Trending fetch error:", err);
-      setTrending([]);
-    }
-  }, [mode]);
-
-  // -----------------------------
-  // MODE OR PROVIDER CHANGE → RESET EVERYTHING
-  // -----------------------------
-  useEffect(() => {
-    // Avoid clearing media/trending here to prevent layout collapse/scroll jump.
-    // New data will replace old data when loadMedia/loadTrending finishes.
-    setPage(1);
-    setTotalPages(1);
-    setSearchQuery("");
-    setIsSearchMode(false);
-
-    loadTrending();
-    loadMedia(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, providerId]);
-
-  // -----------------------------
-  // PAGE INCREASE → LOAD MORE
-  // -----------------------------
-  useEffect(() => {
-    if (page > 1) {
-      loadMedia(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
-
-  // -----------------------------
-  // SEARCH HANDLER
-  // -----------------------------
-  const search = useCallback(
-    async (query: string) => {
-      setSearchQuery(query);
-
-      if (query.trim().length === 0) {
-        // back to popular
-        setIsSearchMode(false);
-        setPage(1);
-        loadMedia(true);
-        return;
-      }
-
-      setIsSearchMode(true);
-      setPage(1);
-      setIsLoading(true);
-
-      const data = await searchMedia(mode, query, 1);
-
-      setMedia(data.results);
-      setTotalPages(data.total_pages || 1);
-      setIsLoading(false);
+  // ─── Search query ───────────────────────────────────────────────────────
+  const searchQuery_ = useInfiniteQuery({
+    queryKey: ['search', mode, searchQuery],
+    queryFn: ({ pageParam }) => searchMedia(mode, searchQuery, pageParam as number),
+    getNextPageParam: (lastPage, allPages) => {
+      const nextPage = allPages.length + 1
+      return nextPage <= (lastPage.total_pages || 1) ? nextPage : undefined
     },
-    [mode, loadMedia]
-  );
+    initialPageParam: 1,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    enabled: isSearchMode && searchQuery.length > 0 && mode !== 'downloads',
+  })
 
-  // -----------------------------
-  // CLEAR SEARCH → RESTORE POPULAR
-  // -----------------------------
-  const clearSearch = useCallback(async () => {
-    // Reset all search state immediately
-    setSearchQuery("");
-    setIsSearchMode(false);
-    isSearchModeRef.current = false;
-    searchQueryRef.current = "";
-    setPage(1);
-    setMedia([]); // Wipe search results from screen instantly
-    setTotalPages(1);
+  // ─── Derive media list ───────────────────────────────────────────────────
+  const activeQuery = isSearchMode ? searchQuery_ : popularQuery
 
-    // Directly fetch popular — bypass loadMedia closure (which may still be stale)
-    if (mode === "downloads") return;
-    setIsLoading(true);
-    try {
-      const data = await fetchPopular(mode, 1, providerId);
-      setMedia(data.results);
-      setTotalPages(data.total_pages || 1);
-    } catch (err) {
-      console.error("Media load error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [mode, providerId]);
+  const allPages = activeQuery.data?.pages ?? []
+  let media: Media[] = []
 
-  // -----------------------------
-  // LOAD MORE FOR INFINITE SCROLL
-  // -----------------------------
-  const hasMore = page < totalPages;
+  if (isSearchMode) {
+    // Search: show all results as-is (user expects them immediately)
+    media = allPages.flatMap((p) => p.results)
+  } else {
+    // Popular: slice first page to INITIAL_SLICE, rest is unsliced
+    media = allPages.flatMap((p, i) =>
+      i === 0 ? p.results.slice(0, INITIAL_SLICE) : p.results
+    )
+  }
 
+  const isLoading = activeQuery.isLoading || activeQuery.isFetchingNextPage
+  const hasMore = activeQuery.hasNextPage ?? false
+
+  // ─── Actions ────────────────────────────────────────────────────────────
   const loadMore = useCallback(() => {
     if (!isLoading && hasMore) {
-      setPage((p) => p + 1);
+      activeQuery.fetchNextPage()
     }
-  }, [isLoading, hasMore]);
+  }, [isLoading, hasMore, activeQuery])
+
+  const search = useCallback((query: string) => {
+    setSearchQuery(query)
+    if (query.trim().length === 0) {
+      setIsSearchMode(false)
+    } else {
+      setIsSearchMode(true)
+    }
+  }, [])
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('')
+    setIsSearchMode(false)
+  }, [])
+
+  // loadMedia kept for API compatibility (no-op: React Query handles it)
+  const loadMedia = useCallback(() => {
+    activeQuery.refetch()
+  }, [activeQuery])
 
   return {
     media,
@@ -192,5 +129,5 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
     search,
     clearSearch,
     searchQuery,
-  };
+  }
 }

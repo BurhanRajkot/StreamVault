@@ -22,7 +22,7 @@ function escapeRegExp(value: string): string {
 }
 
 function escapeRedisGlob(value: string): string {
-  return value.replace(/[\\*?\[\]]/g, '\\$&')
+  return value.replace(/[\\*?[\]]/g, '\\$&')
 }
 
 /**
