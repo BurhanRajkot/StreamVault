@@ -1,16 +1,16 @@
 // ============================================================
-// CineMatch AI — useRecommendations Hook
-// Fetches personalized (authed) or guest recommendation sections
-// with local state caching via useRef to avoid re-fetching on
-// every mount within the same session.
+// CineMatch AI — useRecommendations Hook (React Query edition)
+// Uses useQuery for automatic caching and deduplication.
+// staleTime: 10 min — recommendations are expensive to compute
+// and change slowly; no need to re-fetch on every page visit.
 // ============================================================
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
 import {
   fetchRecommendations,
   fetchGuestRecommendations,
-  RecommendationResult,
   RecoSection,
 } from '../lib/api'
 
@@ -22,58 +22,38 @@ interface UseRecommendationsReturn {
   refresh: () => void
 }
 
-
 export function useRecommendations(): UseRecommendationsReturn {
   const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently } = useAuth0()
-  const [sections, setSections] = useState<RecoSection[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isPersonalized, setIsPersonalized] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshTick, setRefreshTick] = useState(0)
-  const abortRef = useRef<AbortController | null>(null)
+  const queryClient = useQueryClient()
+
+  // Stable query key — useMemo so the array reference doesn't change every render
+  const queryKey = useMemo(() => ['recommendations', isAuthenticated], [isAuthenticated])
+
+  const { data, isLoading, error } = useQuery({
+    queryKey,
+    queryFn: async ({ signal }) => {
+      if (isAuthenticated) {
+        const token = await getAccessTokenSilently()
+        void signal // signal passed for potential future use
+        return fetchRecommendations(token)
+      }
+      return fetchGuestRecommendations()
+    },
+    enabled: !authLoading,
+    staleTime: 10 * 60 * 1000,  // 10 min
+    gcTime: 15 * 60 * 1000,     // keep 15 min after unmount
+    retry: 1,
+  })
 
   const refresh = useCallback(() => {
-    setRefreshTick(t => t + 1)
-  }, [])
+    queryClient.invalidateQueries({ queryKey })
+  }, [queryClient, queryKey])
 
-  useEffect(() => {
-    if (authLoading) return
-
-    // Abort any in-flight request
-    abortRef.current?.abort()
-    abortRef.current = new AbortController()
-
-    async function load() {
-      setIsLoading(true)
-      setError(null)
-      try {
-        let result: RecommendationResult
-
-        if (isAuthenticated) {
-          const token = await getAccessTokenSilently()
-          result = await fetchRecommendations(token)
-        } else {
-          result = await fetchGuestRecommendations()
-        }
-
-        setSections(result.sections)
-        setIsPersonalized(result.isPersonalized)
-      } catch (err: any) {
-        if (err?.name !== 'AbortError') {
-          setError('Could not load recommendations')
-          console.error('[CineMatch] Hook error:', err)
-        }
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    load()
-
-    return () => {
-      abortRef.current?.abort()
-    }
-  }, [isAuthenticated, authLoading, refreshTick, getAccessTokenSilently])
-
-  return { sections, isLoading, isPersonalized, error, refresh }
+  return {
+    sections: data?.sections ?? [],
+    isLoading,
+    isPersonalized: data?.isPersonalized ?? false,
+    error: error ? 'Could not load recommendations' : null,
+    refresh,
+  }
 }

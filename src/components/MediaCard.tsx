@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 import { QuickViewModal } from './QuickViewModal'
 import { slugify } from '@/lib/utils'
@@ -29,6 +30,7 @@ export function MediaCard({
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { toggleFavorite, isFavorited } = useFavorites()
   const { toggleDislike, isDisliked } = useDislikes()
+  const isMobile = useIsMobile()
 
   const [showQuickView, setShowQuickView] = useState(false)
   const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
@@ -60,22 +62,16 @@ export function MediaCard({
   /* ================= HOVER LOGIC ================= */
 
   const handleMouseEnter = () => {
-    if (variant === 'hero') return
-    if (window.innerWidth < 768) return
+    // No hover interactions on mobile/touch — saves compositing cost
+    if (variant === 'hero' || isMobile) return
 
-    // Stage 1: Card Expansion (1.5s)
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
     }, 1500)
-
-    // Stage 2: Quick View Modal - Removed (Consolidated to single 3.5s trigger)
-    // quickViewTimeout.current = setTimeout(() => {
-    //   setShowQuickView(true)
-    //   setIsExpanded(false)
-    // }, 5000)
   }
 
   const handleMouseLeave = () => {
+    if (isMobile) return
     if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
     if (quickViewTimeout.current) clearTimeout(quickViewTimeout.current)
     setShowQuickView(false)
@@ -213,8 +209,13 @@ export function MediaCard({
             width={500}
             height={750}
             loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'low'}
             decoding="async"
-            className="h-full w-full object-cover transition-transform duration-700 sm:group-hover:scale-110 sm:group-hover:brightness-110"
+            className={cn(
+              'h-full w-full object-cover transition-transform duration-700',
+              // Skip scale animation on mobile — removes compositor layer cost
+              !isMobile && 'sm:group-hover:scale-110 sm:group-hover:brightness-110'
+            )}
           />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />
@@ -284,8 +285,8 @@ export function MediaCard({
 
         </div>
 
-        {/* Quick View Overlay */}
-        {showQuickView && (
+        {/* Quick View Overlay — desktop only */}
+        {!isMobile && showQuickView && (
           <QuickViewModal
             media={media}
             onClose={() => setShowQuickView(false)}
