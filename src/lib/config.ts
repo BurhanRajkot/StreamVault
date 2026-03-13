@@ -4,10 +4,10 @@ export const CONFIG = {
   TMDB_BASE_URL: 'https://api.themoviedb.org/3',
   IMG_BASE_URL: 'https://image.tmdb.org/t/p',
   IMG_SIZES: {
-    poster: '/w500',
-    backdrop: '/w780',
+    poster: '/original',
+    backdrop: '/original',
     thumbnail: '/w342',
-    logo: '/w500',
+    logo: '/original',
     hero: '/original',
   },
 
