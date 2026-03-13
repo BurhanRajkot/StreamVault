@@ -24,8 +24,8 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       setIsLoading(true)
       try {
         const data = await fetchRecentlyAdded(mode, providerId)
-        // Filter out items without posters to keep UI clean
-        setItems(data.filter(m => m.poster_path))
+        // Filter out items without posters, cap at 12 for scroll row performance
+        setItems(data.filter(m => m.poster_path).slice(0, 12))
       } catch (error) {
         console.error('Failed to load recently added:', error)
       } finally {

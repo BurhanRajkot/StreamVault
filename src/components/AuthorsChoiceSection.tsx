@@ -46,7 +46,8 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
         )
       )
 
-      setMedia(results.filter(Boolean) as Media[])
+      // Cap at 12 to keep the horizontal row performant
+      setMedia((results.filter(Boolean) as Media[]).slice(0, 12))
       setLoading(false)
     }
 
