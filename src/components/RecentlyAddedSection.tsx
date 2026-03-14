@@ -48,7 +48,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
           <div className="flex items-center justify-center p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <Calendar className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
           </div>
-          <h2 className="text-lg md:text-xl font-bold text-white">
+          <h2 className="text-lg md:text-xl font-bold text-foreground">
             {providerId ? (
               <>Recently Added on <span className="text-primary">{providerName}</span></>
             ) : (
@@ -65,7 +65,8 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
           const row = document.getElementById('recently-added-row')
           if (row) row.scrollBy({ left: -600, behavior: 'smooth' })
         }}
-        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
+        aria-label="Scroll recently added left"
+        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
@@ -76,7 +77,8 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
           const row = document.getElementById('recently-added-row')
           if (row) row.scrollBy({ left: 600, behavior: 'smooth' })
         }}
-        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
+        aria-label="Scroll recently added right"
+        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
       >
         <ChevronRight className="h-5 w-5" />
       </button>

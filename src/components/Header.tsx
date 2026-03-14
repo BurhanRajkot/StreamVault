@@ -57,7 +57,7 @@ export function Header({
       .toUpperCase() || 'SV'
 
   return (
-        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-colors">
+        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-2xl shadow-lg shadow-black/10 transition-colors">
           {/* MATCH HEADER WIDTH WITH MAIN CONTENT */}
           <div className="mx-auto w-full max-w-[1600px] px-2 sm:px-4 xl:px-8 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:py-0">
               {/* Logo + Mobile Favorites */}
@@ -78,7 +78,7 @@ export function Header({
                     </div>
                   </div>
                   <h1 className="hidden text-xl font-bold tracking-tight lg:block">
-                    <span className="text-white">Stream</span>
+                    <span className="text-foreground">Stream</span>
                     <span className="text-primary">Vault</span>
                   </h1>
                 </Link>
@@ -167,7 +167,7 @@ export function Header({
                 {/* Desktop Favorites + Pricing + Auth */}
                 <div className="hidden sm:flex items-center gap-2 lg:gap-4">
                   <Link to="/pricing">
-                    <Button size="sm" variant="outline" className="relative overflow-hidden border border-golden-amber/30 text-golden-amber hover:bg-golden-amber/15 hover:border-golden-amber/60 hover:text-golden-amber transition-[background-color,color,border-color,box-shadow,transform] duration-300 group hover:scale-105 active:scale-95 shadow-lg hover:shadow-golden-amber/25 rounded-lg px-4">
+                    <Button size="sm" variant="outline" className="relative overflow-hidden border border-border/60 text-foreground hover:bg-secondary hover:border-border transition-[background-color,color,border-color,box-shadow,transform] duration-300 group hover:scale-105 active:scale-95 shadow-lg rounded-lg px-4">
                       <div className="absolute inset-0 bg-gradient-to-r from-golden-amber/0 via-golden-amber/20 to-golden-amber/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                       <Crown className="h-3.5 w-3.5 mr-2 relative" />
                       <span className="relative font-bold text-xs uppercase tracking-wide">Upgrade</span>
