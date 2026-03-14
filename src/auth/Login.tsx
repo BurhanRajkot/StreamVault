@@ -76,7 +76,8 @@ export default function Login() {
               >
                 <img
                   src={poster}
-                  alt="Movie poster"
+                  alt=""
+                  aria-hidden="true"
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
@@ -90,7 +91,7 @@ export default function Login() {
           <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/50 z-10" />
 
           {/* Floating badge */}
-          <div className="absolute bottom-10 left-10 z-20 bg-primary/90 backdrop-blur-sm rounded-full px-6 py-3 flex items-center gap-2 animate-bounce-slow">
+          <div className="absolute bottom-10 left-10 z-20 bg-primary/90 backdrop-blur-sm rounded-full px-6 py-3 flex items-center gap-2 animate-float-slow">
             <Sparkles className="h-5 w-5 text-white" />
             <span className="text-white font-semibold">10,000+ Titles</span>
           </div>
@@ -115,14 +116,14 @@ export default function Login() {
               <div className="p-2 bg-primary/20 rounded-xl">
                 <Film className="h-8 w-8 text-primary" />
               </div>
-              <span className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-red-400 bg-clip-text text-transparent">
-                StreamVault
+              <span className="text-3xl font-bold tracking-tight text-white">
+                Stream<span className="text-primary">Vault</span>
               </span>
             </div>
 
             {/* Animated headline */}
             <div className="mb-8 h-20 overflow-hidden">
-              <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight transition-all duration-500 ease-out">
+              <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight transition-[opacity,transform] duration-500 ease-out">
                 {headlines[activeText]}
               </h1>
             </div>
@@ -136,7 +137,7 @@ export default function Login() {
               {VALUE_PROPS.map(({ icon: Icon, text }, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 transition-all hover:bg-white/10 hover:border-primary/50"
+                  className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 transition-colors hover:bg-white/10 hover:border-primary/50"
                 >
                   <Icon className="h-5 w-5 text-primary flex-shrink-0" />
                   <span className="text-sm text-gray-300">{text}</span>
@@ -172,7 +173,7 @@ export default function Login() {
             </div>
 
             {/* Footer */}
-            <p className="text-center text-gray-600 text-xs mt-8">
+            <p className="text-center text-gray-300 text-xs mt-8">
               By signing in, you agree to our Terms of Service and Privacy Policy.
             </p>
           </div>
@@ -185,15 +186,15 @@ export default function Login() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.8; }
         }
-        @keyframes bounce-slow {
+        @keyframes float-slow {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-10px); }
+          50% { transform: translateY(-6px); }
         }
         .animate-pulse-slow {
           animation: pulse-slow 4s ease-in-out infinite;
         }
-        .animate-bounce-slow {
-          animation: bounce-slow 3s ease-in-out infinite;
+        .animate-float-slow {
+          animation: float-slow 3s ease-in-out infinite;
         }
       `}</style>
     </>

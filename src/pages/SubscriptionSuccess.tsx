@@ -78,7 +78,7 @@ export default function SubscriptionSuccess() {
                 <div className="h-20 w-20 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-6">
                   <Clock className="h-10 w-10 text-blue-500" />
                 </div>
-                <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                <h1 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
                   Payment Submitted
                 </h1>
                 <p className="text-lg text-muted-foreground mb-8">
@@ -96,7 +96,7 @@ export default function SubscriptionSuccess() {
                 </div>
 
                 <div className="flex gap-4 justify-center">
-                  <Button onClick={() => navigate('/')} size="lg" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600">
+                  <Button onClick={() => navigate('/')} size="lg">
                     Return Home
                   </Button>
                 </div>
@@ -126,7 +126,7 @@ export default function SubscriptionSuccess() {
                 <div className="h-20 w-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
                   <CheckCircle2 className="h-10 w-10 text-green-500" />
                 </div>
-                <h1 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                <h1 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
                   Payment Successful!
                 </h1>
                 <p className="text-lg text-muted-foreground mb-8">
@@ -164,7 +164,7 @@ export default function SubscriptionSuccess() {
                 </div>
 
                 <div className="flex gap-4 justify-center">
-                  <Button onClick={() => navigate('/')} size="lg" className="bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600">
+                  <Button onClick={() => navigate('/')} size="lg">
                     Start Watching
                   </Button>
                 </div>

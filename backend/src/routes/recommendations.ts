@@ -17,9 +17,13 @@ import rateLimit from 'express-rate-limit'
 import { checkJwt } from '../middleware/auth'
 import { requireAdminAuth } from '../admin/middleware'
 import { getRecommendations, getGuestRecommendations, invalidateRecommendationCache } from '../cinematch/mixer/homeTimeline'
+import { fetchAllSources } from '../cinematch/candidates'
+import { applyFilters } from '../cinematch/filtering'
+import { rankCandidates } from '../cinematch/ranking'
+import { buildSections } from '../cinematch/mixer/sectionBuilder'
 import { logInteraction } from '../cinematch/tracking/events'
 import { getUserProfile } from '../cinematch/features'
-import { EventType, MediaType, TMDB_GENRES, UserTasteProfile } from '../cinematch/types'
+import { EventType, MediaType, TMDB_GENRES, UserTasteProfile, UserProfile } from '../cinematch/types'
 import { supabaseAdmin } from '../lib/supabase'
 import * as cache from '../services/cache'
 import { logger } from '../lib/logger'
@@ -437,6 +441,61 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
   } catch (err: any) {
     logger.error('CineMatch debug error', { error: err?.message })
     return res.status(500).json({ error: 'Pipeline debug failed' })
+  }
+})
+
+// ── POST /recommendations/eval ────────────────────────────
+// Dedicated evaluation endpoint for Promptfoo / Red Teaming.
+// Allows testing the pipeline with arbitrary user profiles without JWT.
+router.post('/eval', async (req: Request, res: Response) => {
+  const { recentTitles, topGenreNames, topKeywordNames, topCastNames } = req.body
+
+  try {
+    // Construct a mock profile from input
+    // In a real scenario, we'd map genre names to IDs using TMDB_GENRES
+    const genreVector: Record<number, number> = {}
+    if (Array.isArray(topGenreNames)) {
+      topGenreNames.forEach(name => {
+        const id = Object.entries(TMDB_GENRES).find(([_, gName]) => gName === name)?.[0]
+        if (id) genreVector[Number(id)] = 1.0
+      })
+    } else if (typeof topGenreNames === 'string') {
+      const id = Object.entries(TMDB_GENRES).find(([_, gName]) => gName === topGenreNames)?.[0]
+      if (id) genreVector[Number(id)] = 1.0
+    }
+
+    const mockProfile: UserProfile = {
+      userId: 'eval-user',
+      genreVector,
+      keywordVector: {}, // Simplified for eval
+      castVector: {},
+      directorVector: {},
+      decadeVector: {},
+      watchedIds: new Set(),
+      favoritedIds: new Set(),
+      dislikedIds: new Set(),
+      categoryDislikeCounts: {},
+      recentlyWatched: Array.isArray(recentTitles) ? recentTitles : (typeof recentTitles === 'string' ? [recentTitles] : []),
+      isNewUser: false,
+    }
+
+    // Run the pipeline
+    const rawCandidates = await fetchAllSources(mockProfile)
+    const filtered = applyFilters(rawCandidates, mockProfile)
+    const ranked = await rankCandidates(filtered, mockProfile)
+    const topK = ranked.slice(0, 20)
+
+    return res.json({
+      items: topK.map(item => ({
+        title: item.title,
+        score: item.score,
+        source: item.source,
+      })),
+      sections: buildSections(topK, mockProfile),
+    })
+  } catch (err: any) {
+    logger.error('CineMatch eval error', { error: err?.message })
+    return res.status(500).json({ error: 'Evaluation failed' })
   }
 })
 

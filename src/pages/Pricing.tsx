@@ -132,9 +132,8 @@ export default function Pricing() {
               <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold">
-                <span className="bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">Stream</span>
-                <span className="text-foreground">Vault</span>
+              <span className="text-xl font-bold text-foreground">
+                Stream<span className="text-primary">Vault</span>
               </span>
             </Link>
             <Link to="/">
@@ -150,7 +149,7 @@ export default function Pricing() {
                 <Crown className="h-4 w-4 text-violet-400" />
                 <span className="text-sm font-medium text-violet-400">Choose Your Experience</span>
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 text-foreground">
                 Unlock Premium Streaming
               </h1>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -178,7 +177,7 @@ export default function Pricing() {
                   return (
                     <div
                       key={plan.id}
-                      className={`relative rounded-2xl p-8 transition-all duration-300 hover:scale-[1.02] ${
+                      className={`relative rounded-2xl p-8 transition-[transform,border-color,box-shadow] duration-300 hover:scale-[1.02] ${
                         isPremium
                           ? 'bg-gradient-to-br from-violet-500/20 via-fuchsia-500/10 to-background border-2 border-violet-500/40 shadow-2xl shadow-violet-500/20'
                           : 'bg-card/50 border border-border/50 hover:border-border'
@@ -282,12 +281,12 @@ export default function Pricing() {
                         </div>
                      )}
                   </div>
-                  <p className="mt-2 text-sm text-gray-500 font-mono bg-gray-100 px-3 py-1 rounded">
+                  <p className="mt-2 text-sm text-gray-700 font-mono bg-gray-100 px-3 py-1 rounded">
                      UPI ID: {selectedPlan.upiId || 'gamershomeyt0520@oksbi'}
                   </p>
                   <div className="mt-4 text-center">
                      <p className="text-lg font-bold text-gray-900">₹{selectedPlan.price}</p>
-                     <p className="text-xs text-gray-500">Amount to pay</p>
+                     <p className="text-xs text-gray-700">Amount to pay</p>
                   </div>
                </div>
 

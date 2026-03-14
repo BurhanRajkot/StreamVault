@@ -271,7 +271,7 @@ export function DynamicSearchBar({
               ? 'documentaries'
               : 'movies'
           }...`}
-          className="h-9 w-full sm:w-56 lg:w-72 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 placeholder:text-muted-foreground/60 shadow-inner"
+          className="h-11 w-full sm:w-56 lg:w-72 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-[background-color,color,border-color,box-shadow] duration-300 placeholder:text-muted-foreground/60 shadow-inner"
           autoComplete="off"
           role="combobox"
           aria-expanded={isOpen}
