@@ -428,12 +428,12 @@ export function MovieDetailModal({
                 role="presentation"
               />
             ) : (
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif leading-tight tracking-tight mb-4">
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-display leading-tight tracking-tight mb-4">
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="text-lg md:text-xl lg:text-2xl text-primary font-light tracking-wide italic font-serif">
+              <p className="text-lg md:text-xl lg:text-2xl text-primary font-light tracking-wide italic font-display">
                 {subtitle}
               </p>
             )}
@@ -512,7 +512,7 @@ export function MovieDetailModal({
                       <SelectTrigger className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
                         <SelectValue placeholder="Season" />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[300px] border-white/10 bg-[#0A0A0A] text-white rounded-xl shadow-2xl custom-scrollbar">
+                      <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
                         {seasons.length > 0
                           ? seasons.map(s => <SelectItem key={s.season_number} value={s.season_number.toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Season {s.season_number}</SelectItem>)
                           : Array.from({ length: 10 }, (_, i) => <SelectItem key={i + 1} value={(i + 1).toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Season {i + 1}</SelectItem>)}
@@ -524,7 +524,7 @@ export function MovieDetailModal({
                       <SelectTrigger className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
                         <SelectValue placeholder="Episode" />
                       </SelectTrigger>
-                      <SelectContent className="max-h-[300px] border-white/10 bg-[#0A0A0A] text-white rounded-xl shadow-2xl custom-scrollbar">
+                      <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
                         {Array.from({ length: currentSeasonEpisodes }, (_, i) => <SelectItem key={i + 1} value={(i + 1).toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Episode {i + 1}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -537,7 +537,7 @@ export function MovieDetailModal({
                 {/* Play Now — primary CTA */}
                 <button
                   onClick={() => setIsPlaying(true)}
-                  className="flex items-center gap-2.5 bg-white text-black px-8 py-3 rounded-full font-semibold text-base hover:bg-white/90 transition-all hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,255,255,0.2)]"
+                  className="flex min-h-11 items-center gap-2.5 bg-white text-black px-8 py-3 rounded-full font-semibold text-base hover:bg-white/90 transition-[background-color,transform,box-shadow] hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,255,255,0.2)]"
                 >
                   <Play className="w-5 h-5 fill-current" />
                   Play Now
@@ -552,7 +552,7 @@ export function MovieDetailModal({
                         <SelectValue placeholder="Server" />
                       </div>
                     </SelectTrigger>
-                    <SelectContent className="border-white/10 bg-[#0A0A0A] text-white rounded-xl shadow-2xl custom-scrollbar">
+                    <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
                       {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
                         <SelectItem key={key} value={key} className="cursor-pointer focus:bg-white/10 py-2.5 text-sm">{name}</SelectItem>
                       ))}
@@ -566,6 +566,8 @@ export function MovieDetailModal({
                 {/* Like / Dislike — icon-only ghost buttons */}
                 <button
                   onClick={() => setIsLiked(!isLiked)}
+                  aria-label={isLiked ? 'Remove like' : 'Like this title'}
+                  aria-pressed={isLiked}
                   className={cn(
                     'p-2.5 rounded-full border transition-all',
                     isLiked
@@ -577,6 +579,8 @@ export function MovieDetailModal({
                 </button>
                 <button
                   onClick={() => toggleDislike(initialMedia.id, typedMode)}
+                  aria-label={disliked ? 'Remove dislike' : 'Dislike this title'}
+                  aria-pressed={disliked}
                   className={cn(
                     'p-2.5 rounded-full border transition-all',
                     disliked
@@ -645,7 +649,7 @@ export function MovieDetailModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-[#050505] text-white font-sans overflow-hidden"
+        className="fixed inset-0 z-50 bg-background text-foreground font-sans overflow-hidden"
       >
         {/* ── Ambient Background (always fixed, never scrolls) ── */}
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
@@ -660,8 +664,8 @@ export function MovieDetailModal({
             alt={title}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-[#050505]/30" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-transparent opacity-80" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent opacity-80" />
         </div>
 
         {/* ── Top Navigation (always visible, non-scrolling) ── */}
@@ -687,7 +691,9 @@ export function MovieDetailModal({
           <div className="flex gap-4 pointer-events-auto">
             <button
               onClick={(e) => { e.stopPropagation(); toggleFavorite(initialMedia.id, typedMode) }}
-              className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-white/70 hover:text-white bg-black/20 group cursor-pointer"
+              aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+              aria-pressed={favorited}
+              className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-foreground/70 hover:text-foreground bg-background/30 group cursor-pointer"
             >
               <Heart className={cn('w-6 h-6 transition-colors', favorited ? 'fill-red-500 text-red-500' : 'group-hover:text-red-500')} />
             </button>
@@ -702,7 +708,8 @@ export function MovieDetailModal({
                 toast.success('Link copied to clipboard!');
                 setTimeout(() => setIsCopied(false), 2000);
               }}
-              className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-white/70 hover:text-white bg-black/20 cursor-pointer transition-all"
+              aria-label={isCopied ? 'Link copied' : 'Copy share link'}
+              className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-foreground/70 hover:text-foreground bg-background/30 cursor-pointer transition-[color,border-color,background-color,transform]"
             >
               {isCopied ? <Check className="w-6 h-6 text-green-500" /> : <Share2 className="w-6 h-6" />}
             </button>
@@ -740,7 +747,7 @@ export function MovieDetailModal({
                   className="w-full flex flex-col gap-6"
                 >
                   {/* Video Player */}
-                  <div className="w-full aspect-video bg-[#0a0a0a] rounded-2xl overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-white/5 relative">
+                  <div className="w-full aspect-video bg-card rounded-2xl overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-white/5 relative">
                     {embedUrl ? (
                       <iframe
                         ref={iframeRef}
@@ -757,7 +764,7 @@ export function MovieDetailModal({
                   </div>
 
           {/* Command Center */}
-                  <div className="w-full bg-[#111111] border border-white/[0.07] rounded-2xl p-5 md:p-6 shadow-2xl">
+                  <div className="w-full bg-card/90 border border-border/30 rounded-2xl p-5 md:p-6 shadow-2xl">
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                       {/* Left: TV navigation or movie title */}
                       {mode === 'tv' ? (
@@ -801,7 +808,7 @@ export function MovieDetailModal({
                           <SelectTrigger className="w-full lg:w-64 bg-black/40 backdrop-blur-md border-white/5 text-white h-12 rounded-xl text-base font-medium hover:bg-white/10 transition-colors">
                             <SelectValue placeholder="Select Server" />
                           </SelectTrigger>
-                          <SelectContent className="border-white/10 bg-[#0A0A0A] text-white rounded-xl overflow-hidden shadow-2xl">
+                          <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl">
                             {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
                               <SelectItem key={key} value={key} className="cursor-pointer focus:bg-white/10 py-3 text-base">{name}</SelectItem>
                             ))}
