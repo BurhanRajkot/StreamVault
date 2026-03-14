@@ -1,5 +1,4 @@
-import dotenv from 'dotenv'
-dotenv.config() // MUST be first
+import '../lib/loadEnv'
 
 import { auth } from 'express-oauth2-jwt-bearer'
 import { Request, Response, NextFunction } from 'express'

@@ -26,7 +26,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
   if (items.length === 0) {
     return (
       <section className="relative mb-6" aria-label="Featured content loading">
-        <div className="relative h-[240px] sm:h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl bg-secondary/40 animate-pulse" />
+        <div className="relative h-[240px] sm:h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-b-xl bg-secondary/40 animate-pulse" />
       </section>
     )
   }
@@ -61,7 +61,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
     <section className="relative mb-6">
       {/* TALLER HERO ON XL / 2XL SCREENS */}
       <div
-        className="relative h-[240px] sm:h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl"
+        className="relative h-[240px] sm:h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-b-xl"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
