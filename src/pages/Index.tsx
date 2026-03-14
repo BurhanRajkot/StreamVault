@@ -34,7 +34,13 @@ const Index = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
-  const { sections: recoSections, isLoading: recoLoading } = useRecommendations()
+
+  // ─── InView gates for below-fold sections ───────────────────────────────
+  // Each section only mounts/fetches once it scrolls near the viewport
+  const [authorsRef, authorsVisible] = useInView('200px')
+  const [recoRef, recoVisible] = useInView('200px')
+  const [recentlyRef, recentlyVisible] = useInView('200px')
+  const { sections: recoSections, isLoading: recoLoading } = useRecommendations(recoVisible)
 
   const {
     media,
@@ -46,12 +52,6 @@ const Index = () => {
     clearSearch,
     searchQuery,
   } = useMedia(mode, selectedProvider)
-
-  // ─── InView gates for below-fold sections ───────────────────────────────
-  // Each section only mounts/fetches once it scrolls near the viewport
-  const [authorsRef, authorsVisible] = useInView('200px')
-  const [recoRef, recoVisible] = useInView('200px')
-  const [recentlyRef, recentlyVisible] = useInView('200px')
 
   const handleMediaClick = useCallback((media: Media, season?: number, episode?: number, server?: string, forceAutoPlay?: boolean) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'

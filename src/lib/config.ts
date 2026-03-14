@@ -4,11 +4,11 @@ export const CONFIG = {
   TMDB_BASE_URL: 'https://api.themoviedb.org/3',
   IMG_BASE_URL: 'https://image.tmdb.org/t/p',
   IMG_SIZES: {
-    // Keep hero + main grid cards at original quality
-    poster: '/original',
+    // Responsive TMDB sizes to avoid multi-megabyte original assets on landing page
+    poster: '/w500',
     hero: '/original',
-    // Use slightly smaller, faster sizes everywhere else
-    backdrop: '/w1280',
+    // Smaller sizes for cards/thumbnails
+    backdrop: '/original',
     thumbnail: '/w342',
     logo: '/w500',
   },

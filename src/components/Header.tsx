@@ -57,7 +57,7 @@ export function Header({
       .toUpperCase() || 'SV'
 
   return (
-        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-all">
+        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/85 backdrop-blur-2xl shadow-lg shadow-black/10 transition-colors">
           {/* MATCH HEADER WIDTH WITH MAIN CONTENT */}
           <div className="mx-auto w-full max-w-[1600px] px-2 sm:px-4 xl:px-8 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:py-0">
               {/* Logo + Mobile Favorites */}
@@ -72,8 +72,8 @@ export function Header({
                   className="flex items-center gap-3 group hover-group"
                 >
                   <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-all duration-300" />
-                    <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-all duration-300 hover-glow">
+                    <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-transform duration-300 hover-glow">
                       <Clapperboard className="h-6 w-6 text-white drop-shadow-md" />
                     </div>
                   </div>
@@ -88,9 +88,9 @@ export function Header({
                     {isAuthenticated ? (
                          <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary">
+                        <button aria-label="Open account menu" className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary">
                           <Avatar className="h-9 w-9 border border-border/50 shadow-md">
-                            <AvatarImage src={user?.picture} />
+                            <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
                             <AvatarFallback>{initials}</AvatarFallback>
                           </Avatar>
                         </button>
@@ -200,9 +200,9 @@ export function Header({
                   {isAuthenticated && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary ml-2">
+                        <button aria-label="Open account menu" className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary ml-2">
                           <Avatar className="h-8 w-8 border border-border">
-                            <AvatarImage src={user?.picture} />
+                            <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
                             <AvatarFallback>{initials}</AvatarFallback>
                           </Avatar>
                         </button>

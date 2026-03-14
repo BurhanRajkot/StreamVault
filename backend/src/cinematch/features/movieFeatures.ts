@@ -1,7 +1,7 @@
 import NodeCache from 'node-cache'
 import { MediaType } from '../types'
 
-const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY || ''
+const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY || ''
 const TMDB_BASE = 'https://api.themoviedb.org/3'
 
 // L1 in-memory cache for movie features (2hr TTL)

@@ -254,6 +254,10 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
             src={imgSrc}
             alt={item.title}
             loading="lazy"
+            fetchPriority="low"
+            decoding="async"
+            width={500}
+            height={750}
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:brightness-110"
             onError={() => setImgError(true)}
           />

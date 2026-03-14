@@ -6,11 +6,11 @@ import { withTmdbRateLimit } from '../services/tmdbLimiter'
 
 const router = Router()
 
-const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY
+const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 
 if (!TMDB_API_KEY) {
-  throw new Error('CRITICAL: VITE_TMDB_API_KEY environment variable is not set. Server cannot start without it.')
+  throw new Error('CRITICAL: TMDB_API_KEY (or legacy VITE_TMDB_API_KEY) environment variable is not set. Server cannot start without it.')
 }
 
 /**
