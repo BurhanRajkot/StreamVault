@@ -27,15 +27,15 @@ interface RecommendationRowProps {
 
 /** Pick a section-appropriate icon */
 function SectionIcon({ source }: { source: string }) {
-  if (source === 'collaborative') return <Users size={15} className="text-[#e50914] flex-shrink-0" />
-  if (source === 'hidden_gems')   return <Gem  size={15} className="text-[#e50914] flex-shrink-0" />
-  if (source === 'new_releases')  return <Clock size={15} className="text-[#e50914] flex-shrink-0" />
-  if (source === 'trending')      return <TrendingUp size={15} className="text-[#e50914] flex-shrink-0" />
+  if (source === 'collaborative') return <Users size={15} className="text-primary flex-shrink-0" />
+  if (source === 'hidden_gems')   return <Gem  size={15} className="text-primary flex-shrink-0" />
+  if (source === 'new_releases')  return <Clock size={15} className="text-primary flex-shrink-0" />
+  if (source === 'trending')      return <TrendingUp size={15} className="text-primary flex-shrink-0" />
   if (source === 'genre_discovery') return <Sparkles size={15} className="text-purple-400 flex-shrink-0" />
   if (source === 'keyword_discovery') return <Tag size={15} className="text-emerald-400 flex-shrink-0" />
   if (source === 'cast_discovery')  return <UserCircle size={15} className="text-blue-400 flex-shrink-0" />
-  if (source === 'tmdb_similar' || source === 'tmdb_recommendations') return <Play size={15} className="text-[#e50914] flex-shrink-0" />
-  return <Sparkles size={15} className="text-[#e50914] flex-shrink-0" />
+  if (source === 'tmdb_similar' || source === 'tmdb_recommendations') return <Play size={15} className="text-primary flex-shrink-0" />
+  return <Sparkles size={15} className="text-primary flex-shrink-0" />
 }
 
 // ── Skeleton card ──────────────────────────────────────────
@@ -121,14 +121,14 @@ export function RecommendationRow({
           <button
             onClick={() => handleArrowScroll('left')}
             aria-label="Scroll left"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all hover:scale-110 active:scale-95"
+            className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           >
             <ChevronLeft size={18} />
           </button>
           <button
             onClick={() => handleArrowScroll('right')}
             aria-label="Scroll right"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all hover:scale-110 active:scale-95"
+            className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           >
             <ChevronRight size={18} />
           </button>
@@ -230,22 +230,33 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
     onClick(item, index, source)
   }
 
+  const handleCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onClick(item, index, source)
+    }
+  }
+
   return (
     <div
       ref={cardRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onKeyDown={handleCardKeyDown}
       className={cn(
         'group relative flex-shrink-0 cursor-pointer text-left',
         'w-[clamp(120px,14vw,175px)]',
         'rounded-xl bg-card border border-border/50',
-        'transition-all duration-300 ease-in-out',
+        'transition-[transform,opacity,box-shadow,border-color] duration-300 ease-in-out',
         showQuickView ? 'z-50' : 'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden',
         isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
       )}
       style={{ scrollSnapAlign: 'start' }}
       onClick={handleClick}
-      aria-label={`Play ${item.title}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${item.title}`}
     >
       {/* ── Poster ─────────────────────────────────────── */}
       <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl bg-secondary/30">

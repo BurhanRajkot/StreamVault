@@ -73,8 +73,8 @@ export default function Signup() {
               <div className="p-2 bg-primary/20 rounded-xl">
                 <Film className="h-8 w-8 text-primary" />
               </div>
-              <span className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-red-400 bg-clip-text text-transparent">
-                StreamVault
+              <span className="text-3xl font-bold tracking-tight text-white">
+                Stream<span className="text-primary">Vault</span>
               </span>
             </div>
 
@@ -114,14 +114,14 @@ export default function Signup() {
             </Button>
 
             {/* Trust badges */}
-            <div className="flex items-center justify-center gap-6 mt-8 text-gray-500 text-sm">
+            <div className="flex items-center justify-center gap-6 mt-8 text-gray-300 text-sm">
               <div className="flex items-center gap-1">
                 <Star className="h-4 w-4 text-yellow-500" />
                 <span>4.9 Rating</span>
               </div>
-              <div className="w-1 h-1 rounded-full bg-gray-600" />
+              <div className="w-1 h-1 rounded-full bg-gray-500" />
               <span>100K+ Users</span>
-              <div className="w-1 h-1 rounded-full bg-gray-600" />
+              <div className="w-1 h-1 rounded-full bg-gray-500" />
               <span>Free Forever</span>
             </div>
 

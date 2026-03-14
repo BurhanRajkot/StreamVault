@@ -59,6 +59,14 @@ export function MediaCard({
     toggleDislike(media.id, mediaType)
   }
 
+  const handleCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onClick(media)
+    }
+  }
+
   /* ================= HOVER LOGIC ================= */
 
   const handleMouseEnter = () => {
@@ -128,6 +136,10 @@ export function MediaCard({
     return (
       <div
         onClick={() => onClick(media)}
+        onKeyDown={handleCardKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${title}`}
         className="relative h-full w-full cursor-pointer overflow-hidden active:scale-[0.99] group/hero"
       >
         <img
@@ -173,7 +185,7 @@ export function MediaCard({
                   e.stopPropagation()
                   onClick(media, undefined, undefined, undefined, true)
                 }}
-                className="flex items-center justify-center gap-2 rounded bg-primary px-5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-primary/90 transition-colors"
+                className="flex min-h-11 items-center justify-center gap-2 rounded bg-primary px-5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-primary/90 transition-colors"
               >
                 <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />
                 Play
@@ -195,8 +207,12 @@ export function MediaCard({
           e.stopPropagation()
           onClick(media)
         }}
+        onKeyDown={handleCardKeyDown}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${title}`}
         className={cn(
           'group relative cursor-pointer rounded-lg md:rounded-xl bg-card border border-border/50 transition-all duration-300 ease-in-out',
           showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',
