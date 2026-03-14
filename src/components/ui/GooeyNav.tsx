@@ -1,4 +1,4 @@
-import { CSSProperties, useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import './GooeyNav.css';
 
 interface GooeyNavProps {
@@ -25,10 +25,6 @@ const GooeyNav = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLUListElement>(null);
   const [activeIndex, setActiveIndex] = useState(initialActiveIndex);
-  const safeAnimationTime = Math.max(220, animationTime);
-  const navStyle = {
-    '--gooey-duration': `${safeAnimationTime}ms`,
-  } as CSSProperties;
 
 
 
@@ -58,7 +54,7 @@ const GooeyNav = ({
   }, [initialActiveIndex]);
 
   return (
-    <div className="gooey-nav-container" ref={containerRef} style={navStyle}>
+    <div className="gooey-nav-container" ref={containerRef}>
       <nav>
         <ul ref={navRef}>
           {items.map((item, index) => (
