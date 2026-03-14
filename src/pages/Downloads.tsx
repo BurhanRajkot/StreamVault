@@ -271,6 +271,7 @@ const Downloads = () => {
           <button
             type="button"
             onClick={() => setSearch('')}
+            aria-label="Clear search"
             className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:scale-110 transition-all duration-200 active:scale-90"
           >
             <X className="h-4 w-4" />
@@ -309,6 +310,10 @@ const Downloads = () => {
                 <img
                   src={imageUrl}
                   alt={item.title}
+                  width={500}
+                  height={750}
+                  loading="lazy"
+                  decoding="async"
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                   onError={(e) => {
                     // 🔒 FINAL SAFETY FALLBACK

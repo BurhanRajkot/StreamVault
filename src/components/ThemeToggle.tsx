@@ -58,6 +58,7 @@ export function ThemeToggle() {
     <div className="flex items-center justify-center">
       <motion.button
         onClick={toggleTheme}
+        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         className={`relative w-20 h-10 rounded-full p-1 shadow-inner transition-colors duration-200 overflow-hidden ${
           isDark ? "bg-[#0f172a] shadow-black/50" : "bg-[#87CEEB] shadow-blue-400/30"
         }`}

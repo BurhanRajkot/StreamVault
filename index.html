@@ -42,10 +42,9 @@
     <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
     <link rel="dns-prefetch" href="https://image.tmdb.org" />
 
-    <!-- Preconnect to top 2 streaming providers only (PSI warns if >4 total) -->
-    <link rel="preconnect" href="https://vidsrc.to" crossorigin />
-    <link rel="preconnect" href="https://vidfast.pro" crossorigin />
-    <!-- DNS prefetch for remaining providers (no TCP overhead) -->
+    <!-- Streaming providers are used on watch pages; keep these as DNS hints on home -->
+    <link rel="dns-prefetch" href="https://vidsrc.to" />
+    <link rel="dns-prefetch" href="https://vidfast.pro" />
     <link rel="dns-prefetch" href="https://vidsrc.icu" />
     <link rel="dns-prefetch" href="https://vidlink.pro" />
     <link rel="dns-prefetch" href="https://vidsrc.cc" />

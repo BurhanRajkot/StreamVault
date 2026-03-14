@@ -145,6 +145,10 @@ export function ContinueWatchingCard({
         <img
           src={getImageUrl(media.poster_path, 'poster')}
           alt={title}
+          width={500}
+          height={750}
+          loading="lazy"
+          decoding="async"
           className="w-full h-[240px] object-cover rounded-lg"
           onError={(e) => {
             const target = e.currentTarget

@@ -23,7 +23,13 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
     return () => clearInterval(timer)
   }, [items.length])
 
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    return (
+      <section className="relative mb-6" aria-label="Featured content loading">
+        <div className="relative h-[240px] sm:h-[360px] md:h-[420px] xl:h-[480px] 2xl:h-[540px] overflow-hidden rounded-xl bg-secondary/40 animate-pulse" />
+      </section>
+    )
+  }
 
   const displayItems = items.slice(0, 5)
 
