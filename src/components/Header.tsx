@@ -57,7 +57,7 @@ export function Header({
       .toUpperCase() || 'SV'
 
   return (
-        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-2xl shadow-lg shadow-black/10 transition-colors">
+        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-white shadow-sm shadow-black/5 transition-colors">
           {/* MATCH HEADER WIDTH WITH MAIN CONTENT */}
           <div className="mx-auto w-full max-w-[1600px] px-2 sm:px-4 xl:px-8 2xl:max-w-[1800px] flex flex-col gap-2 py-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:py-0">
               {/* Logo + Mobile Favorites */}
@@ -71,11 +71,8 @@ export function Header({
                   }}
                   className="flex items-center gap-3 group hover-group"
                 >
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-primary rounded-xl blur-lg opacity-70 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary shadow-xl group-hover:scale-110 transition-transform duration-300 hover-glow">
-                      <Clapperboard className="h-6 w-6 text-white drop-shadow-md" />
-                    </div>
+                  <div className="relative flex h-10 w-10 items-center justify-center rounded bg-primary text-white shadow-sm">
+                    <Clapperboard className="h-5 w-5" />
                   </div>
                   <h1 className="hidden text-xl font-bold tracking-tight lg:block">
                     <span className="text-foreground">Stream</span>
@@ -90,22 +87,22 @@ export function Header({
                       <DropdownMenuTrigger asChild>
                         <button
                           aria-label="Open account menu"
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         >
-                          <Avatar className="h-10 w-10 border border-border/50 shadow-md">
+                          <Avatar className="h-9 w-9 border border-border/50 shadow-sm rounded">
                             <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
-                            <AvatarFallback>{initials}</AvatarFallback>
+                            <AvatarFallback className="rounded">{initials}</AvatarFallback>
                           </Avatar>
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-56">
+                      <DropdownMenuContent align="start" className="w-56 mt-2">
                          <DropdownMenuLabel className="flex flex-col gap-1">
                           <span className="text-sm font-medium">{user?.name}</span>
                           <span className="text-xs text-muted-foreground">{user?.email}</span>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                          <button
-                          className="flex w-full items-center gap-2 px-2 py-1.5 text-sm text-destructive hover:bg-accent"
+                          className="flex w-full items-center gap-2 px-2 py-1.5 text-sm text-destructive hover:bg-accent rounded-sm"
                           onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
                         >
                           <LogOut className="h-4 w-4" />
@@ -115,9 +112,9 @@ export function Header({
                       </DropdownMenu>
                     ) : (
                          <Link to="/login">
-                            <Button size="icon" variant="ghost" className="rounded-lg bg-white/5 hover:bg-white/10">
+                            <Button size="icon" variant="ghost" className="h-10 w-10 rounded border border-border/20 bg-white hover:bg-secondary">
                                 <span className="sr-only">Login</span>
-                                <LogOut className="h-5 w-5 rotate-180" /> {/* Login Icon */}
+                                <LogOut className="h-5 w-5 rotate-180" />
                             </Button>
                         </Link>
                     )}
@@ -137,9 +134,9 @@ export function Header({
                     {isAuthenticated && (
                         <Link
                         to="/favorites"
-                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 active:scale-95 hover:bg-white/5 transition-colors"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded border border-border/20 bg-white active:scale-95 hover:bg-secondary transition-colors"
                         >
-                        <Heart className="h-6 w-6 fill-red-500 text-red-500" />
+                        <Heart className="h-5 w-5 fill-red-500 text-red-500" />
                         </Link>
                     )}
                   </div>
@@ -152,7 +149,7 @@ export function Header({
 
             {/* Mobile Logo (Prominent) */}
               {/* Mobile Logo Removed from here as it is integrated above */}   {/* Right Side: Search + Actions */}
-              <div className="flex items-center gap-2 lg:gap-6">
+              <div className="flex items-center gap-4">
                 {/* Search */}
                 {mode !== 'downloads' && (
                   <DynamicSearchBar
@@ -165,12 +162,11 @@ export function Header({
                 )}
 
                 {/* Desktop Favorites + Pricing + Auth */}
-                <div className="hidden sm:flex items-center gap-2 lg:gap-4">
+                <div className="hidden sm:flex items-center gap-3">
                   <Link to="/pricing">
-                    <Button size="sm" variant="outline" className="relative overflow-hidden border border-border/60 text-foreground hover:bg-secondary hover:border-border transition-[background-color,color,border-color,box-shadow,transform] duration-300 group hover:scale-105 active:scale-95 shadow-lg rounded-lg px-4">
-                      <div className="absolute inset-0 bg-gradient-to-r from-golden-amber/0 via-golden-amber/20 to-golden-amber/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                      <Crown className="h-3.5 w-3.5 mr-2 relative" />
-                      <span className="relative font-bold text-xs uppercase tracking-wide">Upgrade</span>
+                    <Button size="sm" variant="outline" className="h-9 border-border bg-white hover:bg-secondary shadow-sm rounded px-4 text-xs font-bold uppercase tracking-wide">
+                      <Crown className="h-3.5 w-3.5 mr-2" />
+                      Upgrade
                     </Button>
                   </Link>
 
@@ -178,8 +174,8 @@ export function Header({
 
                   {isAuthenticated && (
                     <Link to="/favorites">
-                      <Button size="icon" variant="secondary" className="hover:scale-105 active:scale-95 transition-[background-color,color,border-color,box-shadow,transform] duration-200 shadow-md border border-border/50 rounded-full">
-                        <Heart className="h-5 w-5 fill-coral-pink text-coral-pink" />
+                      <Button size="icon" variant="outline" className="h-9 w-9 bg-white hover:bg-secondary shadow-sm border-border rounded">
+                        <Heart className="h-4.5 w-4.5 fill-coral-pink text-coral-pink" />
                         <span className="sr-only">Favorites</span>
                       </Button>
                     </Link>
@@ -188,12 +184,12 @@ export function Header({
                   {!isAuthenticated && (
                     <>
                       <Link to="/login">
-                        <Button size="sm" variant="ghost" className="hover:bg-secondary hover:text-foreground rounded-lg px-4 text-xs font-semibold uppercase tracking-wide">
+                        <Button size="sm" variant="ghost" className="h-9 hover:bg-secondary rounded px-4 text-xs font-medium">
                           Login
                         </Button>
                       </Link>
                       <Link to="/signup">
-                        <Button size="sm" className="bg-gradient-primary text-white hover:opacity-90 hover:scale-105 active:scale-95 transition-[opacity,transform,box-shadow] duration-200 shadow-md shadow-deep-purple/20 font-bold rounded-lg px-5 text-xs uppercase tracking-wide">
+                        <Button size="sm" className="h-9 bg-primary text-white hover:opacity-90 rounded px-5 text-xs font-bold">
                           Sign up
                         </Button>
                       </Link>
@@ -205,11 +201,11 @@ export function Header({
                       <DropdownMenuTrigger asChild>
                         <button
                           aria-label="Open account menu"
-                          className="ml-2 inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          className="ml-2 inline-flex h-10 w-10 items-center justify-center rounded border border-border/50 bg-white hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         >
-                          <Avatar className="h-10 w-10 border border-border/50 shadow-md">
+                          <Avatar className="h-9 w-9 rounded">
                             <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
-                            <AvatarFallback>{initials}</AvatarFallback>
+                            <AvatarFallback className="rounded">{initials}</AvatarFallback>
                           </Avatar>
                         </button>
                       </DropdownMenuTrigger>
