@@ -271,7 +271,7 @@ export function DynamicSearchBar({
               ? 'documentaries'
               : 'movies'
           }...`}
-          className="h-11 w-full sm:w-56 lg:w-72 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-[background-color,color,border-color,box-shadow] duration-300 placeholder:text-muted-foreground/60 shadow-inner"
+          className="h-10 w-full sm:w-56 lg:w-72 rounded border border-border/50 bg-white pl-11 pr-10 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-all duration-200 placeholder:text-muted-foreground/60"
           autoComplete="off"
           role="combobox"
           aria-expanded={isOpen}
@@ -294,7 +294,7 @@ export function DynamicSearchBar({
       {isOpen && inputValue.trim().length > 0 && (
         <div
           id="search-dropdown"
-          className="absolute top-[calc(100%+8px)] left-0 right-0 bg-background/95 backdrop-blur-2xl border border-border/50 rounded-xl shadow-2xl overflow-hidden z-[100] max-h-[70vh] flex flex-col animate-in fade-in slide-in-from-top-2 zoom-in-95 duration-200"
+          className="absolute top-[calc(100%+8px)] left-0 right-0 bg-white border border-border/50 rounded shadow-2xl overflow-hidden z-[100] max-h-[70vh] flex flex-col animate-in fade-in slide-in-from-top-2 duration-200"
         >
           {isSearching && results.length === 0 && (
             <div className="p-10 flex flex-col items-center justify-center gap-4 text-muted-foreground">

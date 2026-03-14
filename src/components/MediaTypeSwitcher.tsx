@@ -1,5 +1,5 @@
 import { MediaMode } from '@/lib/config'
-import { cn } from '@/lib/utils'
+import GooeyNav from './ui/GooeyNav'
 
 interface MediaTypeSwitcherProps {
   mode: MediaMode
@@ -10,27 +10,29 @@ export function MediaTypeSwitcher({ mode, onModeChange }: MediaTypeSwitcherProps
   const modes = [
     { id: 'home', label: 'Home' },
     { id: 'movie', label: 'Movies' },
-    { id: 'tv', label: 'Series' },
-    { id: 'documentary', label: 'Docs' },
+    { id: 'tv', label: 'TV' },
+    { id: 'documentary', label: 'Docs' }, // New Section
     { id: 'downloads', label: 'Downloads' },
   ]
 
+  const activeIndex = modes.findIndex((m) => m.id === mode)
+
+  const navItems = modes.map((m) => ({
+    label: m.label,
+    onClick: () => onModeChange(m.id as MediaMode),
+  }))
+
   return (
-    <div className="flex items-center gap-1.5 p-1 bg-black/20 backdrop-blur-md rounded-lg border border-white/10">
-      {modes.map((m) => (
-        <button
-          key={m.id}
-          onClick={() => onModeChange(m.id as MediaMode)}
-          className={cn(
-            "px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded transition-all duration-200",
-            mode === m.id 
-              ? "bg-white text-primary shadow-lg scale-105" 
-              : "text-white/70 hover:bg-white/10 hover:text-white"
-          )}
-        >
-          {m.label}
-        </button>
-      ))}
+    <div className="relative z-10">
+      <GooeyNav
+        items={navItems}
+        initialActiveIndex={activeIndex !== -1 ? activeIndex : 0}
+        particleCount={12}
+        particleDistances={[50, 80]}
+        particleR={60}
+        animationTime={500}
+        colors={[1, 2, 3]} // Will use CSS vars or fallback
+      />
     </div>
   )
 }
