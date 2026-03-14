@@ -22,12 +22,15 @@ interface UseRecommendationsReturn {
   refresh: () => void
 }
 
-export function useRecommendations(): UseRecommendationsReturn {
-  const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently } = useAuth0()
+export function useRecommendations(enabled = true): UseRecommendationsReturn {
+  const { isAuthenticated, isLoading: authLoading, getAccessTokenSilently, user } = useAuth0()
   const queryClient = useQueryClient()
 
-  // Stable query key — useMemo so the array reference doesn't change every render
-  const queryKey = useMemo(() => ['recommendations', isAuthenticated], [isAuthenticated])
+  // Key by user identity to prevent cross-account cache reuse.
+  const queryKey = useMemo(
+    () => ['recommendations', isAuthenticated ? (user?.sub || 'authenticated') : 'guest'],
+    [isAuthenticated, user?.sub]
+  )
 
   const { data, isLoading, error } = useQuery({
     queryKey,
@@ -39,7 +42,7 @@ export function useRecommendations(): UseRecommendationsReturn {
       }
       return fetchGuestRecommendations()
     },
-    enabled: !authLoading,
+    enabled: enabled && !authLoading,
     staleTime: 10 * 60 * 1000,  // 10 min
     gcTime: 15 * 60 * 1000,     // keep 15 min after unmount
     retry: 1,

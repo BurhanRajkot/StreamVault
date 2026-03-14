@@ -13,7 +13,7 @@
 import { rankWithBM25, BM25Document } from './bm25'
 import { logger } from '../../lib/logger'
 
-const TMDB_API_KEY = process.env.VITE_TMDB_API_KEY
+const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 
 // ── TMDB Result shape (simplified) ───────────────────────
