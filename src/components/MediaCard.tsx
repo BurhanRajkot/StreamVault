@@ -135,8 +135,9 @@ export function MediaCard({
           alt={title}
           width={780}
           height={439}
+          loading="eager"
           fetchPriority="high"
-          decoding="sync"
+          decoding="async"
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-[10s] group-hover/hero:scale-110"
         />
 

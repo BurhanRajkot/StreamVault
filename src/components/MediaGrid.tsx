@@ -75,7 +75,7 @@ export function MediaGrid({
         "
       >
         {media.map((item, index) => (
-          <MediaCard key={item.id} media={item} onClick={onMediaClick} priority={index < 6} />
+          <MediaCard key={item.id} media={item} onClick={onMediaClick} priority={index < 2} />
         ))}
 
         {isLoading &&

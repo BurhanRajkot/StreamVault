@@ -117,6 +117,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                       <img
                         src={provider.logo}
                         alt={provider.displayName}
+                        width={64}
+                        height={64}
+                        loading="lazy"
+                        decoding="async"
                         className={cn(
                             "h-full w-full object-contain transition-transform duration-500 will-change-transform",
                             isSelected ? "scale-100" : "grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110"
