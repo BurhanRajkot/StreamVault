@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom'
 import AdminLoginModal from '@/components/AdminLoginModal'
 import { PageMeta } from '@/seo/PageMeta'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://streamvault-backend-bq9p.onrender.com'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 // Define an in-memory poster cache so we don't spam the API for identical downloads
 const posterCache = new Map<string, string | null>()

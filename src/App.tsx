@@ -27,7 +27,7 @@ const PageFallback = () => (
 )
 
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://streamvault-backend-bq9p.onrender.com'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 const AppContent = () => {
   const location = useLocation()
@@ -87,4 +87,3 @@ export default function App() {
     </ErrorBoundary>
   )
 }
-

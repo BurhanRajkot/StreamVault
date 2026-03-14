@@ -132,16 +132,18 @@ const Index = () => {
         <MobileNav mode={mode} onModeChange={setMode} />
 
         {/* WIDER CONTAINER FOR LARGE MONITORS */}
-        <main className="w-full px-2 sm:px-4 flex-1 py-2">
+        <main className="w-full flex-1 px-2 pt-[72px] pb-2 sm:px-4">
           {mode === 'downloads' ? (
             <Downloads />
           ) : (
             <>
               {!searchQuery && (
-                <HeroCarousel
-                  items={trending}
-                  onMediaClick={handleMediaClick}
-                />
+                <div className="-mt-[72px]">
+                  <HeroCarousel
+                    items={trending}
+                    onMediaClick={handleMediaClick}
+                  />
+                </div>
               )}
 
               {/* OTT Provider Selector */}

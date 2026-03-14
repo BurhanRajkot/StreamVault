@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { logRecommendationInteraction } from '@/lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://streamvault-backend-bq9p.onrender.com'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export interface Favorite {
   id: string

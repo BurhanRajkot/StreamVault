@@ -1,5 +1,4 @@
-import dotenv from 'dotenv'
-dotenv.config()
+import './lib/loadEnv'
 
 import express from 'express'
 import compression from 'compression'
