@@ -82,7 +82,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
       {/* Header */}
       <div className="mb-4 flex flex-row items-end justify-between gap-4">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-none">{getTitle()}</h2>
-        <p className="text-xs sm:text-sm text-muted-foreground text-right shrink-0">
+        <p className="text-sm text-foreground/80 text-right shrink-0">
           Hand-picked recommendations by the creator of StreamVault
         </p>
       </div>
@@ -90,7 +90,8 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
       {/* Left Arrow */}
       <button
         onClick={() => scroll('left')}
-        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
+        aria-label="Scroll author's choice left"
+        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
@@ -98,7 +99,8 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
       {/* Right Arrow */}
       <button
         onClick={() => scroll('right')}
-        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 p-2 shadow-md backdrop-blur hover:scale-110"
+        aria-label="Scroll author's choice right"
+        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
       >
         <ChevronRight className="h-5 w-5" />
       </button>

@@ -8,9 +8,9 @@ import { Helmet } from "react-helmet-async";
 // Featured movies backdrop
 // Featured movies backdrop
 const BACKDROP_IMAGES = [
-  "https://image.tmdb.org/t/p/original/pbrkL804c8yAv3zBZR4QPEafpAR.jpg", // Interstellar
-  "https://image.tmdb.org/t/p/original/tmU7GeKVybMWFButWEGl2M4GeiP.jpg", // The Godfather
-  "https://image.tmdb.org/t/p/original/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg", // The Godfather Part II
+  "https://image.tmdb.org/t/p/w780/pbrkL804c8yAv3zBZR4QPEafpAR.jpg", // Interstellar
+  "https://image.tmdb.org/t/p/w780/tmU7GeKVybMWFButWEGl2M4GeiP.jpg", // The Godfather
+  "https://image.tmdb.org/t/p/w780/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg", // The Godfather Part II
 ];
 
 

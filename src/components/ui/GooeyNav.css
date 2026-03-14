@@ -44,8 +44,8 @@
   margin: 0;
   position: relative;
   z-index: 3;
-  color: white;
-  text-shadow: 0 1px 1px hsl(205deg 30% 10% / 0.2);
+  color: hsl(var(--foreground));
+  text-shadow: none;
 }
 
 .gooey-nav-container nav ul li {
@@ -57,21 +57,29 @@
     color 0.3s ease,
     box-shadow 0.3s ease;
   box-shadow: 0 0 0.5px 1.5px transparent;
-  color: white;
+  color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transform: translateZ(0);
   backface-visibility: hidden;
 }
 
-.gooey-nav-container nav ul li a {
-  display: inline-block;
+.gooey-nav-container nav ul li button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0.5em 0.8em;
   font-size: 0.95rem;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  border-radius: inherit;
 }
 
-.gooey-nav-container nav ul li:focus-within:has(:focus-visible) {
-  box-shadow: 0 0 0.5px 1.5px white;
+.gooey-nav-container nav ul li button:focus-visible {
+  box-shadow: 0 0 0.5px 1.5px hsl(var(--ring));
+  outline: none;
 }
 
 .gooey-nav-container nav ul li::after {
@@ -79,7 +87,7 @@
   position: absolute;
   inset: 0;
   border-radius: 10px;
-  background: white;
+  background: hsl(var(--primary));
   opacity: 0;
   transform: scale(0);
   transition: all 0.3s ease;
@@ -87,7 +95,7 @@
 }
 
 .gooey-nav-container nav ul li.active {
-  color: black;
+  color: hsl(var(--primary-foreground));
   text-shadow: none;
 }
 
@@ -124,7 +132,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: white; /* Or var(--primary) if you want colored goo */
+  background: hsl(var(--primary));
   transform: scale(0);
   opacity: 0;
   z-index: -1;

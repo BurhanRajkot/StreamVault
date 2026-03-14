@@ -5,12 +5,12 @@ export const CONFIG = {
   IMG_BASE_URL: 'https://image.tmdb.org/t/p',
   IMG_SIZES: {
     // Responsive TMDB sizes to avoid multi-megabyte original assets on landing page
-    poster: '/w500',
-    hero: '/original',
+    poster: '/w342',
+    hero: '/w1280',
     // Smaller sizes for cards/thumbnails
-    backdrop: '/original',
-    thumbnail: '/w342',
-    logo: '/w500',
+    backdrop: '/w780',
+    thumbnail: '/w185',
+    logo: '/w300',
   },
 
     STREAM_PROVIDERS: {

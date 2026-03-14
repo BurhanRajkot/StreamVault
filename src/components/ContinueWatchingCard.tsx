@@ -59,6 +59,17 @@ export function ContinueWatchingCard({
     return m > 0 ? `${h}h ${m}m` : `${h}h`
   }
 
+  const handleOpen = () => {
+    onResume(media, item.season, item.episode, item.server)
+  }
+
+  const handlePosterKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleOpen()
+    }
+  }
+
   return (
     <div
       ref={cardRef}
@@ -73,8 +84,9 @@ export function ContinueWatchingCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onResume(media, item.season, item.episode, item.server);
+            handleOpen();
           }}
+          aria-label={`Play ${title}`}
           className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:scale-110 hover:bg-white mb-2"
         >
           <Play className="h-6 w-6 text-black fill-black ml-0.5" />
@@ -140,7 +152,11 @@ export function ContinueWatchingCard({
       {/* Poster */}
       <div
         className="relative rounded-lg overflow-hidden cursor-pointer"
-        onClick={() => onResume(media, item.season, item.episode, item.server)}
+        onClick={handleOpen}
+        onKeyDown={handlePosterKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Resume ${title}`}
       >
         <img
           src={getImageUrl(media.poster_path, 'poster')}

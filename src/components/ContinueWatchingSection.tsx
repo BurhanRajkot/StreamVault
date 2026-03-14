@@ -103,7 +103,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
     <section className="mb-5 sm:mb-6">
       <div className="mb-2 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-bold sm:text-xl">▶ Continue Watching</h2>
-        <span className="text-xs text-muted-foreground sm:text-sm">
+        <span className="text-sm text-foreground/80">
           Pick up where you left off
         </span>
       </div>
@@ -122,7 +122,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
 
       {/* Empty state */}
       {!loading && entries.length === 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-foreground/75">
           You haven't started watching anything yet.
         </p>
       )}
