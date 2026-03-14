@@ -15,7 +15,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
   return (
     <div className="w-full max-w-[1800px] mx-auto px-4 md:px-10 mb-4 mt-4">
        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
             <div className="flex items-center justify-center p-1.5 rounded-lg bg-primary/10 border border-primary/20">
                 <MonitorPlay className="w-4 h-4 text-primary" />
             </div>
@@ -32,6 +32,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
         {/* All Button */}
         <motion.button
           onClick={() => onSelect(null)}
+          aria-label="Show all providers"
           className={cn(
             "relative flex-shrink-0 group cursor-pointer snap-start flex flex-col items-center gap-2 outline-none"
           )}
@@ -40,10 +41,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
         >
           <div
             className={cn(
-              "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-all duration-300 flex items-center justify-center overflow-hidden",
+              "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-[transform,background-color,border-color,box-shadow,opacity,color] duration-300 flex items-center justify-center overflow-hidden",
               selected === null
-                ? "bg-gradient-to-br from-primary to-purple-600 border-white/20 shadow-[0_0_20px_-5px_theme(colors.primary.DEFAULT)]"
-                : "bg-zinc-900/40 border-white/5 group-hover:bg-zinc-800"
+                ? "bg-gradient-to-br from-primary to-blue-600 border-border/30 shadow-[0_0_20px_-5px_theme(colors.primary.DEFAULT)]"
+                : "bg-card/80 border-border/40 group-hover:bg-card"
             )}
           >
             {selected === null && (
@@ -57,25 +58,25 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
             )}
 
             <span className={cn(
-                "text-sm md:text-lg font-bold text-white tracking-widest uppercase z-10",
+                "text-sm md:text-lg font-bold text-primary-foreground tracking-widest uppercase z-10",
                 selected === null ? "scale-110" : "scale-100"
             )}>ALL</span>
 
              {/* Decorative shine for All button */}
              {selected === null && (
-                <motion.div
+            <motion.div
                     initial={{ x: '-100%' }}
                     animate={{ x: '100%' }}
                     transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-primary-foreground/15 to-transparent skew-x-12"
                 />
              )}
           </div>
 
           <div className="flex flex-col items-center gap-1">
               <span className={cn(
-                "text-[10px] md:text-xs font-bold tracking-wide transition-colors uppercase",
-                selected === null ? "text-white" : "text-muted-foreground group-hover:text-white"
+                "text-xs md:text-sm font-semibold tracking-wide transition-colors uppercase",
+                selected === null ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
               )}>
                 All Content
               </span>
@@ -86,7 +87,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
         </motion.button>
 
         {/* Separator for desktop */}
-        <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent mx-1" />
+        <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-border to-transparent mx-1" />
 
         {/* Provider Buttons */}
             {OTT_PROVIDERS.map((provider) => {
@@ -95,6 +96,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                   <motion.button
                     key={provider.id}
                     onClick={() => onSelect(isSelected ? null : provider.id)}
+                    aria-label={`Filter by ${provider.displayName}`}
                     className={cn(
                       "relative flex-shrink-0 group cursor-pointer snap-start flex flex-col items-center gap-2 outline-none"
                     )}
@@ -103,10 +105,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                   >
                     <div
                       className={cn(
-                        "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-all duration-300 flex items-center justify-center overflow-hidden bg-zinc-900/40 backdrop-blur-sm",
+                        "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-[transform,background-color,border-color,box-shadow,opacity,color] duration-300 flex items-center justify-center overflow-hidden bg-card/80 backdrop-blur-sm",
                         isSelected
                             ? cn("border-transparent shadow-lg", provider.color.replace('hover:', '')) // Active styling
-                            : "border-white/5 group-hover:border-white/10 group-hover:bg-zinc-800"
+                            : "border-border/40 group-hover:border-border group-hover:bg-card"
                       )}
                     >
                        {/* Active Glow Background */}
@@ -116,7 +118,8 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
 
                       <img
                         src={provider.logo}
-                        alt={provider.displayName}
+                        alt=""
+                        aria-hidden="true"
                         width={64}
                         height={64}
                         loading="lazy"
@@ -127,7 +130,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                         )}
                         onError={(e) => {
                             e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement?.classList.add('bg-zinc-800');
+                            e.currentTarget.parentElement?.classList.add('bg-card');
                         }}
                       />
 
@@ -136,7 +139,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                           <motion.div
                             initial={{ scale: 0, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[2px]"
+                            className="absolute inset-0 bg-background/45 flex items-center justify-center backdrop-blur-[2px]"
                           >
                               <Check className="w-6 h-6 md:w-8 md:h-8 text-white drop-shadow-md" strokeWidth={3} />
                           </motion.div>
@@ -145,8 +148,8 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
 
                     <div className="flex flex-col items-center gap-1">
                         <span className={cn(
-                            "text-[10px] md:text-xs font-semibold tracking-wide transition-colors max-w-[80px] truncate text-center",
-                            isSelected ? "text-white" : "text-muted-foreground group-hover:text-white"
+                            "text-xs md:text-sm font-semibold tracking-wide transition-colors max-w-[80px] truncate text-center",
+                            isSelected ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
                         )}>
                             {provider.displayName}
                         </span>

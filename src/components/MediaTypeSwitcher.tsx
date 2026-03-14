@@ -19,7 +19,6 @@ export function MediaTypeSwitcher({ mode, onModeChange }: MediaTypeSwitcherProps
 
   const navItems = modes.map((m) => ({
     label: m.label,
-    href: '#',
     onClick: () => onModeChange(m.id as MediaMode),
   }))
 

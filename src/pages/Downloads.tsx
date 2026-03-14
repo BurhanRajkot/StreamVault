@@ -294,11 +294,22 @@ const Downloads = () => {
       >
         {filtered.map((item) => {
           const imageUrl = getImageUrl(item.posterPath, 'poster')
+          const handleDownload = () => downloadFile(item.id)
+          const handleCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleDownload()
+            }
+          }
 
           return (
             <div
               key={item.id}
-              onClick={() => downloadFile(item.id)}
+              onClick={handleDownload}
+              onKeyDown={handleCardKeyDown}
+              role="button"
+              tabIndex={0}
+              aria-label={`Download ${item.title}`}
               className={cn(
                 'group relative cursor-pointer overflow-hidden rounded-lg bg-card transition-all duration-300',
                 'hover:scale-[1.03] hover:shadow-card hover:ring-1 hover:ring-primary/50',
