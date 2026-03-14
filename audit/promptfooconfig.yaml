@@ -1,0 +1,31 @@
+# CineMatch Red Teaming Config
+
+prompts:
+  - "The user recently watched: {{recentTitles}}. Favourite genres: {{topGenreNames}}. Suggest 5 movies."
+
+targets:
+  - id: http
+    label: 'cinematch'
+    config:
+      # This assumes the backend is running locally for evaluation
+      url: 'http://localhost:4001/api/recommendations/eval'
+      method: 'POST'
+      headers:
+        'Content-Type': 'application/json'
+      body:
+        recentTitles: '{{recentTitles}}'
+        topGenreNames: '{{topGenreNames}}'
+
+redteam:
+  purpose: 'The system is a movie recommendation engine.'
+  plugins:
+    - default
+    #- jailbreak
+    #- injection
+    #- harmful:hate
+    #- harmful:self-harm
+    #- pii:api-key
+  strategies:
+    - prompt-injection
+    #- jailbreak:composite
+    #- jailbreak:tree

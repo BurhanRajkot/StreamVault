@@ -102,7 +102,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
   return createPortal(
     <div
       className={cn(
-        "flex flex-col rounded-lg bg-[#181818] shadow-2xl transition-all duration-300 overflow-hidden",
+        "flex flex-col rounded-lg bg-card text-card-foreground shadow-2xl transition-[opacity,transform] duration-300 overflow-hidden",
         isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0",
         disliked && "grayscale contrast-125 opacity-70 hover:opacity-100"
       )}
@@ -113,7 +113,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
       onMouseLeave={onClose}
     >
       {/* Video/Image Section */}
-      <div className="relative aspect-video w-full bg-black">
+      <div className="relative aspect-video w-full bg-background">
         <HoverVideoPlayer media={media} />
 
         {/* Close Button */}
@@ -122,7 +122,8 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
             e.stopPropagation()
             onClose()
           }}
-          className="absolute top-2 right-2 z-50 rounded-full bg-black/70 hover:bg-white hover:text-black p-1.5 transition"
+          aria-label="Close quick view"
+          className="absolute top-2 right-2 z-50 rounded-full bg-background/80 hover:bg-foreground hover:text-background p-1.5 transition-colors"
         >
           <X size={18} />
         </button>
@@ -131,17 +132,17 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
       {/* Info Section */}
       <div className="p-4 space-y-3">
         {/* Title */}
-        <h3 className="text-xl font-bold text-white leading-tight">
+        <h3 className="text-xl font-bold text-foreground leading-tight">
           {title}
         </h3>
 
         {/* Metadata */}
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-green-400 font-semibold">{rating}% Match</span>
-          <span className="text-gray-400">{year}</span>
-          <span className="border border-gray-600 px-1 text-xs text-gray-400">HD</span>
+          <span className="text-emerald-400 font-semibold">{rating}% Match</span>
+          <span className="text-muted-foreground">{year}</span>
+          <span className="border border-border px-1 text-xs text-muted-foreground">HD</span>
           {details?.genres?.[0] && (
-            <span className="text-gray-400">{details.genres[0].name}</span>
+            <span className="text-muted-foreground">{details.genres[0].name}</span>
           )}
         </div>
 
@@ -154,7 +155,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
                 e.stopPropagation()
                 onPlay(media, provider)
               }}
-              className="flex-shrink-0 flex items-center justify-center gap-2 bg-white hover:bg-gray-200 text-black font-semibold px-6 py-2.5 rounded-md transition active:scale-95"
+              className="flex-shrink-0 flex min-h-11 items-center justify-center gap-2 bg-white hover:bg-gray-200 text-black font-semibold px-6 py-2.5 rounded-md transition-colors active:scale-95"
             >
               <Play size={18} fill="currentColor" />
               Play
@@ -165,7 +166,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               onClick={(e) => e.stopPropagation()}
-              className="px-3 py-2.5 flex-1 bg-[#2a2a2a] border border-gray-700 hover:border-gray-500 text-white text-sm rounded-md transition cursor-pointer"
+              className="px-3 py-2.5 min-h-11 flex-1 bg-secondary/80 border border-border hover:border-ring text-foreground text-sm rounded-md transition-colors cursor-pointer"
             >
               {providers.map(([key, name]) => (
                 <option key={key} value={key}>{name}</option>
@@ -178,19 +179,23 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
             <div className="flex items-center gap-2 ml-2">
               <button
                 onClick={(e) => { e.stopPropagation(); toggleDislike(media.id, mode); }}
+                aria-label={disliked ? 'Remove dislike' : 'Dislike this title'}
+                aria-pressed={disliked}
                 className={cn(
-                  "p-2.5 rounded-full border border-gray-600 transition",
-                  disliked ? "bg-[#333] text-gray-300 border-gray-500 shadow-inner" : "text-white hover:border-white"
+                  "p-2.5 rounded-full border border-border transition-colors",
+                  disliked ? "bg-muted text-foreground border-ring shadow-inner" : "text-foreground hover:border-foreground"
                 )}
                 title="Not for me"
               >
-                <ThumbsDown size={18} className={disliked ? "fill-gray-300" : ""} />
+                <ThumbsDown size={18} className={disliked ? "fill-foreground" : ""} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleFeedback('rate'); }}
+                aria-label={feedback === 'rate' ? 'Remove like' : 'Like this title'}
+                aria-pressed={feedback === 'rate'}
                 className={cn(
-                  "p-2.5 rounded-full border border-gray-600 transition",
-                  feedback === 'rate' ? "bg-white text-black" : "text-white hover:border-white"
+                  "p-2.5 rounded-full border border-border transition-colors",
+                  feedback === 'rate' ? "bg-white text-black" : "text-foreground hover:border-foreground"
                 )}
                 title="Loved it!"
               >
@@ -202,7 +207,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
 
         {/* Description */}
         {media.overview && (
-          <p className="text-sm text-gray-400 line-clamp-3 leading-relaxed">
+          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
             {media.overview}
           </p>
         )}

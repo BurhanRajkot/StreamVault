@@ -88,8 +88,11 @@ export function Header({
                     {isAuthenticated ? (
                          <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button aria-label="Open account menu" className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary">
-                          <Avatar className="h-9 w-9 border border-border/50 shadow-md">
+                        <button
+                          aria-label="Open account menu"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <Avatar className="h-10 w-10 border border-border/50 shadow-md">
                             <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
                             <AvatarFallback>{initials}</AvatarFallback>
                           </Avatar>
@@ -123,7 +126,7 @@ export function Header({
 
                  {/* Mobile: Text Logo (Center) - Hidden now as main logo is visible */}
                  <div className="sm:hidden flex-1 flex justify-center hidden">
-                    <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
+                    <span className="text-lg font-bold tracking-tight text-foreground">
                       StreamVault
                     </span>
                  </div>
@@ -134,7 +137,7 @@ export function Header({
                     {isAuthenticated && (
                         <Link
                         to="/favorites"
-                        className="rounded-lg p-2 active:scale-95 hover:bg-white/5 transition-colors"
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 active:scale-95 hover:bg-white/5 transition-colors"
                         >
                         <Heart className="h-6 w-6 fill-red-500 text-red-500" />
                         </Link>
@@ -164,7 +167,7 @@ export function Header({
                 {/* Desktop Favorites + Pricing + Auth */}
                 <div className="hidden sm:flex items-center gap-2 lg:gap-4">
                   <Link to="/pricing">
-                    <Button size="sm" variant="outline" className="relative overflow-hidden border border-golden-amber/30 text-golden-amber hover:bg-golden-amber/15 hover:border-golden-amber/60 hover:text-golden-amber transition-all duration-300 group hover:scale-105 active:scale-95 shadow-lg hover:shadow-golden-amber/25 h-9 rounded-lg px-4">
+                    <Button size="sm" variant="outline" className="relative overflow-hidden border border-golden-amber/30 text-golden-amber hover:bg-golden-amber/15 hover:border-golden-amber/60 hover:text-golden-amber transition-[background-color,color,border-color,box-shadow,transform] duration-300 group hover:scale-105 active:scale-95 shadow-lg hover:shadow-golden-amber/25 rounded-lg px-4">
                       <div className="absolute inset-0 bg-gradient-to-r from-golden-amber/0 via-golden-amber/20 to-golden-amber/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                       <Crown className="h-3.5 w-3.5 mr-2 relative" />
                       <span className="relative font-bold text-xs uppercase tracking-wide">Upgrade</span>
@@ -175,7 +178,7 @@ export function Header({
 
                   {isAuthenticated && (
                     <Link to="/favorites">
-                      <Button size="icon" variant="secondary" className="hover:scale-105 active:scale-95 transition-all duration-200 shadow-md border border-border/50 h-10 w-10 rounded-full">
+                      <Button size="icon" variant="secondary" className="hover:scale-105 active:scale-95 transition-[background-color,color,border-color,box-shadow,transform] duration-200 shadow-md border border-border/50 rounded-full">
                         <Heart className="h-5 w-5 fill-coral-pink text-coral-pink" />
                         <span className="sr-only">Favorites</span>
                       </Button>
@@ -185,12 +188,12 @@ export function Header({
                   {!isAuthenticated && (
                     <>
                       <Link to="/login">
-                        <Button size="sm" variant="ghost" className="hover:bg-secondary hover:text-foreground h-9 rounded-lg px-4 text-xs font-semibold uppercase tracking-wide">
+                        <Button size="sm" variant="ghost" className="hover:bg-secondary hover:text-foreground rounded-lg px-4 text-xs font-semibold uppercase tracking-wide">
                           Login
                         </Button>
                       </Link>
                       <Link to="/signup">
-                        <Button size="sm" className="bg-gradient-primary text-white hover:opacity-90 hover:scale-105 active:scale-95 transition-all duration-200 shadow-md shadow-deep-purple/20 font-bold h-9 rounded-lg px-5 text-xs uppercase tracking-wide">
+                        <Button size="sm" className="bg-gradient-primary text-white hover:opacity-90 hover:scale-105 active:scale-95 transition-[opacity,transform,box-shadow] duration-200 shadow-md shadow-deep-purple/20 font-bold rounded-lg px-5 text-xs uppercase tracking-wide">
                           Sign up
                         </Button>
                       </Link>
@@ -200,8 +203,11 @@ export function Header({
                   {isAuthenticated && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button aria-label="Open account menu" className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary ml-2">
-                          <Avatar className="h-8 w-8 border border-border">
+                        <button
+                          aria-label="Open account menu"
+                          className="ml-2 inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <Avatar className="h-10 w-10 border border-border">
                             <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
                             <AvatarFallback>{initials}</AvatarFallback>
                           </Avatar>

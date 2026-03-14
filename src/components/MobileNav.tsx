@@ -53,7 +53,7 @@ export function MobileNav({ mode, onModeChange }: MobileNavProps) {
   return (
     <div className="fixed bottom-0 left-0 z-50 w-full sm:hidden pb-safe">
       {/* Glassmorphism Background - Darker and blurrier for "Premium" feel */}
-      <div className="absolute inset-0 bg-[#181A20]/90 backdrop-blur-2xl border-t border-white/5" />
+      <div className="absolute inset-0 bg-background/90 backdrop-blur-2xl border-t border-border/40" />
 
       {/* Nav Items Container - Optimized for touch */}
       <div className="relative flex items-center justify-around pb-2 pt-2 px-2">
