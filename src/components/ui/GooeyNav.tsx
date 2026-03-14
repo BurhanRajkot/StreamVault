@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import './GooeyNav.css';
 
 interface GooeyNavProps {
-  items: { label: string; href: string; onClick?: () => void }[];
+  items: { label: string; onClick?: () => void }[];
   animationTime?: number;
   particleCount?: number;
   particleDistances?: [number, number];
@@ -28,8 +28,7 @@ const GooeyNav = ({
 
 
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, index: number) => {
-    e.preventDefault();
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>, index: number) => {
     const liEl = e.currentTarget.parentElement;
     if (!liEl) return;
     if (activeIndex === index) return;
@@ -40,13 +39,12 @@ const GooeyNav = ({
     items[index].onClick?.();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLAnchorElement>, index: number) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      const liEl = e.currentTarget.parentElement;
-      if (liEl) {
-        handleClick({ currentTarget: e.currentTarget, preventDefault: () => {} } as unknown as React.MouseEvent<HTMLAnchorElement>, index);
-      }
+      if (activeIndex === index) return;
+      setActiveIndex(index);
+      items[index].onClick?.();
     }
   };
 
@@ -61,9 +59,14 @@ const GooeyNav = ({
         <ul ref={navRef}>
           {items.map((item, index) => (
             <li key={index} className={activeIndex === index ? 'active' : ''}>
-              <a href={item.href} onClick={e => handleClick(e, index)} onKeyDown={e => handleKeyDown(e, index)}>
+              <button
+                type="button"
+                aria-pressed={activeIndex === index}
+                onClick={e => handleClick(e, index)}
+                onKeyDown={e => handleKeyDown(e, index)}
+              >
                 {item.label}
-              </a>
+              </button>
             </li>
           ))}
         </ul>
