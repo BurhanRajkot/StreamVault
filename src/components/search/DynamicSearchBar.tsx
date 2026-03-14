@@ -271,7 +271,7 @@ export function DynamicSearchBar({
               ? 'documentaries'
               : 'movies'
           }...`}
-          className="h-11 w-full sm:w-56 lg:w-72 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-[background-color,color,border-color,box-shadow] duration-300 placeholder:text-muted-foreground/60 shadow-inner"
+          className="h-9 w-full sm:w-56 lg:w-72 rounded-sm border border-border bg-background pl-11 pr-10 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all duration-200 placeholder:text-muted-foreground/60"
           autoComplete="off"
           role="combobox"
           aria-expanded={isOpen}
@@ -282,10 +282,10 @@ export function DynamicSearchBar({
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:scale-110 transition-all duration-200 active:scale-90 z-10 bg-secondary/80 rounded-full p-0.5"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-all duration-200 z-10 p-0.5"
             aria-label="Clear search"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         )}
       </form>
@@ -294,7 +294,7 @@ export function DynamicSearchBar({
       {isOpen && inputValue.trim().length > 0 && (
         <div
           id="search-dropdown"
-          className="absolute top-[calc(100%+8px)] left-0 right-0 bg-background/95 backdrop-blur-2xl border border-border/50 rounded-xl shadow-2xl overflow-hidden z-[100] max-h-[70vh] flex flex-col animate-in fade-in slide-in-from-top-2 zoom-in-95 duration-200"
+          className="absolute top-[calc(100%+8px)] left-0 right-0 bg-card border border-border rounded-sm shadow-xl overflow-hidden z-[100] max-h-[70vh] flex flex-col animate-in fade-in slide-in-from-top-2 duration-200"
         >
           {isSearching && results.length === 0 && (
             <div className="p-10 flex flex-col items-center justify-center gap-4 text-muted-foreground">
