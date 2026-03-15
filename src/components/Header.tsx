@@ -103,6 +103,10 @@ export function Header({
     ? 'text-muted-foreground hover:text-foreground'
     : 'text-white/85 hover:text-white'
 
+  const upgradeButtonClass = isScrolled
+    ? 'h-9 rounded-full border-golden-amber/35 bg-golden-amber/10 px-3 text-[11px] font-semibold tracking-[0.02em] text-golden-amber/85 shadow-none hover:border-golden-amber/50 hover:bg-golden-amber/16 hover:text-golden-amber'
+    : 'h-9 rounded-full border-golden-amber/45 bg-golden-amber/18 px-3 text-[11px] font-semibold tracking-[0.02em] text-golden-amber shadow-none hover:border-golden-amber/60 hover:bg-golden-amber/24 hover:text-golden-amber'
+
   return (
     <header
       className={cn(
@@ -217,10 +221,13 @@ export function Header({
             <Button
               size="sm"
               variant="outline"
-              className="flex items-center gap-2 rounded-full border-golden-amber/50 bg-golden-amber/15 px-4 text-xs font-semibold tracking-wide text-golden-amber hover:border-golden-amber/70 hover:bg-golden-amber/25 hover:text-golden-amber"
+              className={cn(
+                'flex items-center gap-1.5 focus-visible:ring-golden-amber/45 focus-visible:ring-offset-0',
+                upgradeButtonClass
+              )}
             >
-              <Crown className="h-4 w-4" />
-              UPGRADE
+              <Crown className="h-3.5 w-3.5" />
+              Upgrade
             </Button>
           </Link>
 
