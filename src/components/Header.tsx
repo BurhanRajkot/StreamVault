@@ -96,7 +96,7 @@ export function Header({
   }
 
   const headerSurfaceClass = isScrolled
-    ? 'border-border/60 bg-background/90 py-2 shadow-xl backdrop-blur-2xl'
+    ? 'border-border/45 bg-gradient-to-b from-background/88 via-background/82 to-background/76 py-2 shadow-[0_10px_24px_rgba(2,6,23,0.22)] backdrop-blur-md'
     : 'border-transparent bg-gradient-to-b from-black/38 via-black/14 to-transparent py-2 shadow-[0_4px_12px_rgba(0,0,0,0.16)] backdrop-blur-[2px]'
 
   const mutedInteractiveClass = isScrolled
