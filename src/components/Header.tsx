@@ -95,13 +95,19 @@ export function Header({
     setIsSearchOpen((prev) => !prev)
   }
 
+  const headerSurfaceClass = isScrolled
+    ? 'border-border/60 bg-background/90 py-2 shadow-xl backdrop-blur-2xl'
+    : 'border-transparent bg-gradient-to-b from-black/38 via-black/14 to-transparent py-2 shadow-[0_4px_12px_rgba(0,0,0,0.16)] backdrop-blur-[2px]'
+
+  const mutedInteractiveClass = isScrolled
+    ? 'text-muted-foreground hover:text-foreground'
+    : 'text-white/85 hover:text-white'
+
   return (
     <header
       className={cn(
         'fixed top-0 left-0 right-0 z-50 border-b transition-all duration-500',
-        isScrolled
-          ? 'border-border/60 bg-background/90 py-2 shadow-xl backdrop-blur-2xl'
-          : 'border-transparent bg-transparent py-2'
+        headerSurfaceClass
       )}
     >
       <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-3 sm:px-6 xl:px-8">
@@ -112,7 +118,7 @@ export function Header({
             className="group flex items-center gap-2.5"
           >
             <Clapperboard className="h-6 w-6 text-primary transition-colors group-hover:text-accent" strokeWidth={2.5} />
-            <span className="hidden text-xl font-bold tracking-tight sm:block">
+            <span className={cn('hidden text-xl font-bold tracking-tight sm:block', isScrolled ? 'text-foreground' : 'text-white/95')}>
               Stream<span className="text-primary">Vault</span>
             </span>
           </Link>
@@ -127,7 +133,11 @@ export function Header({
                 onClick={() => onModeChange(item.value)}
                 className={cn(
                   'relative rounded-full px-4 py-2 text-sm font-medium transition-colors duration-300',
-                  isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  isActive
+                    ? isScrolled
+                      ? 'text-foreground'
+                      : 'text-white'
+                    : mutedInteractiveClass
                 )}
               >
                 {isActive && (
@@ -167,7 +177,10 @@ export function Header({
                       placeholder="Search titles..."
                       value={searchQuery}
                       onChange={(e) => onSearch(e.target.value)}
-                      className="w-full bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      className={cn(
+                        'w-full bg-transparent py-2 text-sm focus:outline-none',
+                        isScrolled ? 'text-foreground placeholder:text-muted-foreground' : 'text-white/95 placeholder:text-white/65'
+                      )}
                       style={{ paddingLeft: '14px' }}
                       autoFocus
                     />
@@ -179,7 +192,7 @@ export function Header({
                   onClick={handleSearchToggle}
                   className={cn(
                     'inline-flex h-11 w-11 items-center justify-center transition-colors',
-                    isSearchOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                    isSearchOpen ? (isScrolled ? 'text-foreground' : 'text-white') : mutedInteractiveClass
                   )}
                   aria-label={isSearchOpen ? 'Close search' : 'Open search'}
                 >
@@ -191,7 +204,10 @@ export function Header({
 
           <Link
             to="/favorites"
-            className="hidden h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-coral-pink sm:inline-flex"
+            className={cn(
+              'hidden h-11 w-11 items-center justify-center rounded-full transition-colors sm:inline-flex',
+              isScrolled ? 'text-muted-foreground hover:text-coral-pink' : 'text-white/75 hover:text-coral-pink'
+            )}
             aria-label="Favorites"
           >
             <Heart className="h-5 w-5" />
@@ -215,7 +231,10 @@ export function Header({
               <DropdownMenuTrigger asChild>
                 <button
                   aria-label="Open account menu"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className={cn(
+                    'inline-flex h-11 w-11 items-center justify-center rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                    isScrolled ? 'border-border/60' : 'border-white/35'
+                  )}
                 >
                   <Avatar className="h-9 w-9">
                     <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
@@ -251,7 +270,10 @@ export function Header({
               </Link>
               <Link
                 to="/login"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/50 text-muted-foreground transition-colors hover:text-foreground sm:hidden"
+                className={cn(
+                  'inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors sm:hidden',
+                  isScrolled ? 'border-border/50 text-muted-foreground hover:text-foreground' : 'border-white/30 text-white/75 hover:text-white'
+                )}
                 aria-label="Login"
               >
                 <LogOut className="h-4 w-4 rotate-180" />
