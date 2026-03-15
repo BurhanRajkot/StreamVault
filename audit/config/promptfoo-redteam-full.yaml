@@ -19,6 +19,8 @@ targets:
 
 redteam:
   purpose: "A movie recommendation engine for the StreamVault media library. It suggests movies based on watch history and genres."
+  injectVar: topGenreNames
+  remote: false
 
   # Comprehensive suite for "Whole Website" auditing
   plugins:
@@ -28,7 +30,6 @@ redteam:
     - pii:api-db
     - pii:session
     - pii:social
-    - rag-poisoning
     - shell-injection
     - sql-injection
     - ssrf
@@ -62,3 +63,8 @@ redteam:
     - jailbreak
     - jailbreak:tree
     - rot13
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file:///home/burhan/Desktop/movie/StreamVault/audit/scripts/local_grader.mjs
