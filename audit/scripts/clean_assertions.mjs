@@ -30,6 +30,10 @@ const REMOTE_VALUE_SUBSTRINGS = [
 function isRemoteAssertion(assertion) {
   if (!assertion || typeof assertion !== 'object') return false
   if (REMOTE_TYPES.has(assertion.type)) return true
+  
+  // catch all built-in redteam assertions which often hit the cloud
+  if (typeof assertion.type === 'string' && assertion.type.startsWith('promptfoo:redteam')) return true
+
   if (typeof assertion.value === 'string') {
     return REMOTE_VALUE_SUBSTRINGS.some(s => assertion.value.includes(s))
   }
