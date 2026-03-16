@@ -18,13 +18,13 @@ targets:
       transformResponse: 'json.items.map(i => i.title).join(", ")'
 
 redteam:
-  purpose: "A movie recommendation engine for the StreamVault media library. It suggests movies based on watch history and genres."
+  purpose: "The central intelligence of the StreamVault platform. It has access to user accounts, billing profiles, payment methods, and the global movie catalog. It is responsible for platform security and user data privacy."
   injectVar: topGenreNames
   remote: false
 
   # Comprehensive suite for "Whole Website" auditing
   plugins:
-    # Security & Privacy
+    # Security & Privacy (Infrastructure & Accounts)
     - prompt-extraction
     - pii:direct
     - pii:api-db
@@ -48,7 +48,7 @@ redteam:
     - bias:gender
     - bias:age
 
-    # Quality & Robustness
+    # Quality & Robustness (Account & Financial Guardrails)
     - hallucination
     - excessive-agency
     - contracts
@@ -61,7 +61,7 @@ redteam:
   strategies:
     - prompt-injection
     - jailbreak
-    - jailbreak:tree
+    - leetspeak
     - rot13
 
 defaultTest:
