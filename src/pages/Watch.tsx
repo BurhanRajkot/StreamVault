@@ -1,5 +1,5 @@
 import { useLocation, useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchMediaDetails } from '@/lib/api'
 import { Media, MediaMode } from '@/lib/config'
 import { MovieDetailModal } from '@/components/MovieDetailModal'
@@ -16,8 +16,6 @@ const Watch = () => {
   const location = useLocation()
   const { season, episode, server, autoPlay } = location.state || {}
   const [media, setMedia] = useState<Media | null>(null)
-
-  const initialHistoryLength = useRef(window.history.length)
 
   const tmdbId = idAndSlug ? idAndSlug.split('-')[0] : ''
 
@@ -58,11 +56,12 @@ const Watch = () => {
         media={media}
         mode={mode}
         onClose={() => {
-          if (window.history.length <= 2) {
-            navigate('/', { replace: true })
+          // Prefer going back to previous page when possible
+          if (window.history.length > 1) {
+            navigate(-1)
           } else {
-            const stepsBack = window.history.length - initialHistoryLength.current + 1
-            navigate(-stepsBack)
+            // Fallback: go home if user opened /watch directly
+            navigate('/', { replace: true })
           }
         }}
         initialSeason={season}
