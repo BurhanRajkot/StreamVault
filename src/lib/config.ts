@@ -39,21 +39,21 @@ export const CONFIG = {
     },
 
   PROVIDER_NAMES: {
-    vidlink_pro: 'VidLink Pro',
-    vidfast_pro: 'VidFast Pro',
-    vidsrc_icu: 'VidSrc ICU',
-    vidsrc_pro: 'VidSrc Pro',
-    vidsrc_cc: 'VidSrc CC',
-    videasy: 'Videasy',
+    vidlink_pro: 'Prism HD',
+    vidfast_pro: 'Lumina Pro',
+    vidsrc_icu: 'Vortex Streaming',
+    vidsrc_pro: 'Solaris Source',
+    vidsrc_cc: 'Pulse Player',
+    videasy: 'Horizon Select',
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
-    vidsrc_pro: { quality: '🌟 Latest/Best', seekSupport: 'excellent', description: 'Latest quality streams' },
-    vidfast_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Best for seeking' },
-    vidsrc_icu: { quality: '✓ Good', seekSupport: 'medium', description: 'Alternative Server' },
-    vidlink_pro: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Fast buffering' },
-    vidsrc_cc: { quality: '✓ Good', seekSupport: 'good', description: 'Stable playback' },
-    videasy: { quality: '✓ Good', seekSupport: 'medium', description: 'Standard quality' },
+    vidsrc_pro: { quality: '🌟 Elite Quality', seekSupport: 'excellent', description: 'Solaris Premium Source' },
+    vidfast_pro: { quality: '⚡ Ultra Fast', seekSupport: 'excellent', description: 'Lumina High-Speed' },
+    vidsrc_icu: { quality: '✓ Crystal', seekSupport: 'medium', description: 'Vortex Alternative' },
+    vidlink_pro: { quality: '⚡ Instant', seekSupport: 'excellent', description: 'Prism HD Stream' },
+    vidsrc_cc: { quality: '✓ Vibrant', seekSupport: 'good', description: 'Pulse Stable Player' },
+    videasy: { quality: '✓ Smooth', seekSupport: 'medium', description: 'Horizon Versatile' },
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
 
   STREAMING_DOMAINS: [
