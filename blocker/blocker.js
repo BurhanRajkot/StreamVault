@@ -15,13 +15,14 @@ Features
 "use strict";
 
 const CONFIG = {
-    redirectURL: "https://www.youtube.com/embed/wlTx6XVBGhU?autoplay=1&mute=1",
+    redirectURL: "https://www.youtube.com/watch?v=wlTx6XVBGhU",
     aggressiveMode: true
 };
 
 function executePunishment(){
-    try { localStorage.clear(); sessionStorage.clear(); } catch(e){}
-    try { window.location.replace(CONFIG.redirectURL); } catch(e){ window.location.href = CONFIG.redirectURL; }
+    // Open the redirect in a new tab so the user can come back (no history wipe)
+    // Do NOT clear localStorage — that destroys Auth0's cached session tokens
+    try { window.open(CONFIG.redirectURL, '_blank', 'noopener,noreferrer'); } catch(e){}
 }
 
 /* ================================
