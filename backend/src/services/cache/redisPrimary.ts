@@ -2,8 +2,8 @@ import { createClient } from 'redis'
 import { logger } from '../../lib/logger'
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380'
-const REDIS_CONNECT_TIMEOUT_MS = Number(process.env.REDIS_CONNECT_TIMEOUT_MS || 10000)
-const REDIS_COMMAND_TIMEOUT_MS = Number(process.env.REDIS_COMMAND_TIMEOUT_MS || 10000)
+const REDIS_CONNECT_TIMEOUT_MS = Number(process.env.REDIS_CONNECT_TIMEOUT_MS || 1400)
+const REDIS_COMMAND_TIMEOUT_MS = Number(process.env.REDIS_COMMAND_TIMEOUT_MS || 1400)
 const REDIS_RECONNECT_INTERVAL_MS = Number(process.env.REDIS_RECONNECT_INTERVAL_MS || 15000)
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
