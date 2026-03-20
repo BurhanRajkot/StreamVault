@@ -66,7 +66,17 @@ if (process.env.AUTH0_ISSUER_BASE_URL && process.env.AUTH0_AUDIENCE) {
     audience: process.env.AUTH0_AUDIENCE,
   })
 } else {
-  // Dev mode: skip validation, but still attach `sub` (JWT decode or /userinfo)
+  // ⚠️  SAFETY GUARD: never allow unverified tokens in production.
+  // If AUTH0_ISSUER_BASE_URL / AUTH0_AUDIENCE are missing in a production
+  // environment, fail hard at startup rather than silently accepting any JWT.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[auth] FATAL: AUTH0_ISSUER_BASE_URL and AUTH0_AUDIENCE must be set in production. ' +
+      'The unverified-JWT dev fallback is NOT safe for production use.'
+    )
+  }
+
+  // Dev mode only: skip validation, but still attach `sub` (JWT decode or /userinfo)
   checkJwt = async (req: Request, _res: Response, next: NextFunction) => {
     await attachAuthFromBearerWithoutVerification(req)
     next()

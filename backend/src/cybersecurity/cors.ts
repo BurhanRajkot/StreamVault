@@ -26,7 +26,7 @@ export const corsMiddleware = cors({
   origin: (origin, callback) => {
     const isDevelopment = process.env.NODE_ENV !== 'production'
 
-    // In development, allow all origins
+    // In development, allow all origins (including no-origin for Postman/curl)
     if (isDevelopment) {
       return callback(null, true)
     }
@@ -39,9 +39,11 @@ export const corsMiddleware = cors({
       // Add any preview/staging URLs as needed
     ].filter(Boolean) // Remove undefined values
 
-    // Allow requests with no origin (mobile apps, Postman, etc.)
+    // Production: block requests with no Origin (Postman, curl, server-to-server).
+    // All legitimate browser requests always include the Origin header.
+    // If you need server-to-server calls in production, use a dedicated service key instead.
     if (!origin) {
-      return callback(null, true)
+      return callback(new Error('CORS policy: Requests without an Origin are not allowed in production'))
     }
 
     if (allowedOrigins.includes(origin)) {
