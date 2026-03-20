@@ -284,6 +284,71 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
   }
 })
 
+// ── POST /recommendations/onboarding ─────────────────────────
+// Bulk-seed endpoint for the CineMatch first-time onboarding flow.
+// Accepts an array of titles the user selected during onboarding and
+// logs each as a 'favorite' interaction, immediately warming the engine.
+// Rate-limited to 3 requests per hour per user (prevents abuse/re-seeding).
+const onboardingRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Onboarding already seeded. Try again later.' },
+  keyGenerator: (req: Request) => {
+    const userId = (req as any).auth?.payload?.sub as string | undefined
+    return userId ?? 'anonymous'
+  },
+})
+
+router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request, res: Response) => {
+  const userId = (req as any).auth?.payload?.sub as string | undefined
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  const { selections } = req.body
+
+  // Validate selections array
+  if (!Array.isArray(selections) || selections.length < 5 || selections.length > 50) {
+    return res.status(400).json({ error: 'selections must be an array of 5–50 items' })
+  }
+
+  for (const item of selections) {
+    const parsedId = Number(item.tmdbId)
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+      return res.status(400).json({ error: `Invalid tmdbId: ${item.tmdbId}` })
+    }
+    if (!VALID_MEDIA_TYPES.includes(item.mediaType)) {
+      return res.status(400).json({ error: `Invalid mediaType: ${item.mediaType}` })
+    }
+  }
+
+  try {
+    // Log each selection as a 'favorite' interaction — this seeds the genre/cast/keyword vectors
+    const promises = selections.map((item: { tmdbId: number; mediaType: MediaType }) =>
+      logInteraction({
+        userId,
+        tmdbId: Number(item.tmdbId),
+        mediaType: item.mediaType,
+        eventType: 'favorite',
+        recommendationSource: 'onboarding',
+      }).catch((err: any) =>
+        logger.warn('CineMatch onboarding seed failed for item', { tmdbId: item.tmdbId, error: err?.message })
+      )
+    )
+
+    await Promise.allSettled(promises)
+
+    // Invalidate cache so next recommendation request runs a fresh pipeline
+    await cache.userData.invalidateUser(userId)
+
+    logger.info('CineMatch onboarding seeded', { userId, count: selections.length })
+    return res.status(201).json({ seeded: selections.length })
+  } catch (err: any) {
+    logger.error('CineMatch onboarding error', { error: err?.message })
+    return res.status(500).json({ error: 'Failed to seed onboarding selections' })
+  }
+})
+
 // ── POST /recommendations/guest/interaction ──────────────────
 // Log a guest interaction event, strictly for ML telemetry.
 // Rate-limited to prevent flooding.

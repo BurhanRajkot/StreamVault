@@ -20,6 +20,8 @@ import { useRecommendations } from '@/hooks/useRecommendations'
 import { logRecommendationInteraction, RecoItem } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { slugify } from '@/lib/utils'
+import { CineMatchOnboarding } from '@/components/CineMatchOnboarding'
+import { useOnboarding } from '@/hooks/useOnboarding'
 
 const Downloads = lazy(() => import('./Downloads'))
 
@@ -34,6 +36,9 @@ const Index = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+
+  // ─── CineMatch Onboarding (first-time users only) ────────────────────────
+  const { shouldShowOnboarding, markDone } = useOnboarding()
 
   // ─── InView gates for below-fold sections ───────────────────────────────
   // Each section only mounts/fetches once it scrolls near the viewport
@@ -115,6 +120,10 @@ const Index = () => {
 
   return (
     <>
+      {/* CineMatch Onboarding — first-time users only, full-screen portal overlay */}
+      {shouldShowOnboarding && (
+        <CineMatchOnboarding onComplete={markDone} />
+      )}
       <PageMeta
         title="Watch Movies, TV Shows & Anime"
         description="StreamVault — Browse thousands of movies, TV shows, and anime. Stream instantly for free with no sign-up."
