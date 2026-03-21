@@ -31,17 +31,17 @@ const CURATED_TITLES: CuratedTitle[] = [
   // Sci-Fi
   { tmdbId: 27205,  mediaType: 'movie', title: 'Inception',               genre: 'Sci-Fi',   posterPath: '/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg' },
   { tmdbId: 157336, mediaType: 'movie', title: 'Interstellar',            genre: 'Sci-Fi',   posterPath: '/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg' },
-  { tmdbId: 438631, mediaType: 'movie', title: 'Dune',                    genre: 'Sci-Fi',   posterPath: '/d5NXSklXo0qyIYkgV48Ze8N40t.jpg' },
+  { tmdbId: 438631, mediaType: 'movie', title: 'Dune',                    genre: 'Sci-Fi',   posterPath: '/gDzOcq0pfeCeqMBwKIJlSmQpjkZ.jpg' },
   { tmdbId: 603,    mediaType: 'movie', title: 'The Matrix',              genre: 'Sci-Fi',   posterPath: '/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg' },
   { tmdbId: 335984, mediaType: 'movie', title: 'Blade Runner 2049',       genre: 'Sci-Fi',   posterPath: '/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg' },
   // Drama
-  { tmdbId: 238,    mediaType: 'movie', title: 'The Godfather',           genre: 'Drama',    posterPath: '/3bhkrj58Vtu7enYsLegHnDmni69.jpg' },
+  { tmdbId: 238,    mediaType: 'movie', title: 'The Godfather',           genre: 'Drama',    posterPath: '/3bhkrj58Vtu7enYsRolD1fZdja1.jpg' },
   { tmdbId: 278,    mediaType: 'movie', title: 'The Shawshank Redemption',genre: 'Drama',    posterPath: '/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg' },
   { tmdbId: 496243, mediaType: 'movie', title: 'Parasite',                genre: 'Drama',    posterPath: '/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg' },
-  { tmdbId: 13,     mediaType: 'movie', title: 'Forrest Gump',            genre: 'Drama',    posterPath: '/h5J4W4veyxMXDMjeMLxCzvPlEtX.jpg' },
-  { tmdbId: 87108,  mediaType: 'tv',    title: 'Chernobyl',               genre: 'Drama',    posterPath: '/hlLXt2tOPT6RRWEOheXnkm3qja.jpg' },
+  { tmdbId: 13,     mediaType: 'movie', title: 'Forrest Gump',            genre: 'Drama',    posterPath: '/saHP97rTPS5eLmrLQEcANmKrsFl.jpg' },
+  { tmdbId: 87108,  mediaType: 'tv',    title: 'Chernobyl',               genre: 'Drama',    posterPath: '/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg' },
   // Thriller
-  { tmdbId: 22970,  mediaType: 'movie', title: 'Shutter Island',          genre: 'Thriller', posterPath: '/52d75QkJRUPXlnHOo1ER9BbxomA.jpg' },
+  { tmdbId: 22970,  mediaType: 'movie', title: 'Shutter Island',          genre: 'Thriller', posterPath: '/zZZe5wn0udlhMtdlDjN4NB72R6e.jpg' },
   { tmdbId: 680,    mediaType: 'movie', title: 'Pulp Fiction',            genre: 'Thriller', posterPath: '/plnlrtBUULT0rh3Xsjmpubiso3L.jpg' },
   // Horror
   { tmdbId: 419430, mediaType: 'movie', title: 'Get Out',                 genre: 'Horror',   posterPath: '/tFXcEccSQMf3lfhfXKSU9iRBpa3.jpg' },
@@ -50,11 +50,11 @@ const CURATED_TITLES: CuratedTitle[] = [
   { tmdbId: 597,    mediaType: 'movie', title: 'Titanic',                 genre: 'Romance',  posterPath: '/9xjZS2rlVxm8SFx8kPC3aIGCOYQ.jpg' },
   // Comedy / Sitcom
   { tmdbId: 2316,   mediaType: 'tv',    title: 'The Office',              genre: 'Comedy',   posterPath: '/qWnJzyZhyy74gjpSjIXWmuk0ifX.jpg' },
-  { tmdbId: 48891,  mediaType: 'tv',    title: 'Brooklyn Nine-Nine',      genre: 'Comedy',   posterPath: '/hgRMSOt7a1b8qyQR68vUChJDuoa.jpg' },
+  { tmdbId: 48891,  mediaType: 'tv',    title: 'Brooklyn Nine-Nine',      genre: 'Comedy',   posterPath: '/A3SymGlOHefSKbz1bCOz56moupS.jpg' },
   { tmdbId: 1668,   mediaType: 'tv',    title: 'Friends',                 genre: 'Comedy',   posterPath: '/f496cm9enuEsZkSPzCwnTESEK5s.jpg' },
   // Animation
   { tmdbId: 129,    mediaType: 'movie', title: 'Spirited Away',           genre: 'Animation',posterPath: '/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg' },
-  { tmdbId: 324857, mediaType: 'movie', title: 'Into the Spider-Verse',   genre: 'Animation',posterPath: '/iiZZdoQBEYBv6id8su0s7pKAulz.jpg' },
+  { tmdbId: 324857, mediaType: 'movie', title: 'Into the Spider-Verse',   genre: 'Animation',posterPath: '/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg' },
   { tmdbId: 862,    mediaType: 'movie', title: 'Toy Story',               genre: 'Animation',posterPath: '/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg' },
   // Crime
   { tmdbId: 1396,   mediaType: 'tv',    title: 'Breaking Bad',            genre: 'Crime',    posterPath: '/ggFHVNu6YYI5L9pCfOacjizRGt.jpg' },
@@ -114,7 +114,7 @@ function SuccessScreen() {
     <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-6">
       <div className="text-center space-y-6 max-w-lg animate-in fade-in duration-500">
         <div
-          className="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_rgba(16,185,129,0.4)]"
+          className="w-24 h-24 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_rgba(59,130,246,0.4)]"
           style={{ animation: 'successPop 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.2s both' }}
         >
           <svg viewBox="0 0 24 24" fill="none" className="w-12 h-12 text-white" stroke="currentColor" strokeWidth={3}>
@@ -129,7 +129,7 @@ function SuccessScreen() {
           {[0, 1, 2].map(i => (
             <div
               key={i}
-              className="w-2 h-2 bg-emerald-500 rounded-full"
+              className="w-2 h-2 bg-blue-500 rounded-full"
               style={{ animation: `bounce 1s infinite ${i * 0.2}s` }}
             />
           ))}
@@ -209,12 +209,12 @@ export function CineMatchOnboarding({ onComplete }: Props) {
   const content = submitted ? (
     <SuccessScreen />
   ) : (
-    <div className="min-h-screen bg-[#0a0a0a] text-white pb-36 font-sans selection:bg-emerald-500/30">
+    <div className="min-h-screen bg-[#0a0a0a] text-white pb-36 font-sans selection:bg-blue-500/30">
 
       {/* ── Sticky Header ── */}
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
             <FilmIcon />
           </div>
           <div>
@@ -226,7 +226,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
           <span>Taste Setup</span>
           <div className="w-28 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+              className="h-full bg-blue-500 rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -260,9 +260,9 @@ export function CineMatchOnboarding({ onComplete }: Props) {
                 key={title.tmdbId}
                 onClick={() => toggleSelection(title.tmdbId)}
                 className={[
-                  'relative group cursor-pointer aspect-[2/3] rounded-xl overflow-hidden bg-zinc-900 border-[2.5px] transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+                  'relative group cursor-pointer aspect-[2/3] rounded-xl overflow-hidden bg-zinc-900 border-[2.5px] transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                   isSelected
-                    ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-[1.02]'
+                    ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)] scale-[1.02]'
                     : 'border-transparent hover:border-white/20 hover:scale-[1.01]',
                 ].join(' ')}
                 style={{ animationDelay: `${index * 15}ms` }}
@@ -308,12 +308,12 @@ export function CineMatchOnboarding({ onComplete }: Props) {
                 {/* Selection border overlay */}
                 <div className={[
                   'absolute inset-0 rounded-xl transition-colors duration-300 pointer-events-none',
-                  isSelected ? 'bg-emerald-500/10' : '',
+                  isSelected ? 'bg-blue-500/10' : '',
                 ].join(' ')} />
 
                 {/* Checkmark badge */}
                 <div className={[
-                  'absolute top-2.5 right-2.5 w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40 transition-all duration-300',
+                  'absolute top-2.5 right-2.5 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 transition-all duration-300',
                   isSelected ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
                 ].join(' ')}>
                   <CheckIcon />
@@ -354,7 +354,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
               </div>
               <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out"
+                  className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -368,7 +368,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
             className={[
               'relative overflow-hidden ml-4 flex items-center gap-2 px-6 sm:px-8 py-3.5 rounded-xl font-bold transition-all shrink-0',
               isReady
-                ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_0_24px_rgba(16,185,129,0.35)] hover:shadow-[0_0_36px_rgba(16,185,129,0.55)] active:scale-95'
+                ? 'bg-blue-500 hover:bg-blue-400 text-white shadow-[0_0_24px_rgba(59,130,246,0.35)] hover:shadow-[0_0_36px_rgba(59,130,246,0.55)] active:scale-95'
                 : 'bg-zinc-800 text-zinc-500 cursor-not-allowed',
             ].join(' ')}
           >
