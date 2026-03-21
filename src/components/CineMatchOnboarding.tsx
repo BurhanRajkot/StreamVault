@@ -156,6 +156,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [imgErrors, setImgErrors] = useState<Set<number>>(new Set())
+  const [loadedImgs, setLoadedImgs] = useState<Set<number>>(new Set())
 
   const toggleSelection = useCallback((tmdbId: number) => {
     setSelectedIds(prev =>
@@ -165,6 +166,10 @@ export function CineMatchOnboarding({ onComplete }: Props) {
 
   const handleImgError = useCallback((tmdbId: number) => {
     setImgErrors(prev => new Set(prev).add(tmdbId))
+  }, [])
+
+  const handleImgLoad = useCallback((tmdbId: number) => {
+    setLoadedImgs(prev => new Set(prev).add(tmdbId))
   }, [])
 
   const handleContinue = async () => {
@@ -270,16 +275,23 @@ export function CineMatchOnboarding({ onComplete }: Props) {
                     <span className="text-zinc-400 text-xs text-center font-medium leading-tight">{title.title}</span>
                   </div>
                 ) : (
-                  <img
-                    src={`${POSTER_BASE}${title.posterPath}`}
-                    alt={title.title}
-                    loading="lazy"
-                    className={[
-                      'w-full h-full object-cover transition-all duration-500',
-                      isSelected ? 'scale-110 brightness-40' : 'group-hover:scale-105 group-hover:brightness-75',
-                    ].join(' ')}
-                    onError={() => handleImgError(title.tmdbId)}
-                  />
+                  <>
+                    {!loadedImgs.has(title.tmdbId) && (
+                      <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
+                    )}
+                    <img
+                      src={`${POSTER_BASE}${title.posterPath}`}
+                      alt={title.title}
+                      loading="lazy"
+                      className={[
+                        'w-full h-full object-cover transition-all duration-500',
+                        !loadedImgs.has(title.tmdbId) ? 'opacity-0' : 'opacity-100',
+                        isSelected ? 'scale-110 brightness-40' : 'group-hover:scale-105 group-hover:brightness-75',
+                      ].join(' ')}
+                      onError={() => handleImgError(title.tmdbId)}
+                      onLoad={() => handleImgLoad(title.tmdbId)}
+                    />
+                  </>
                 )}
 
                 {/* Bottom gradient + title */}
