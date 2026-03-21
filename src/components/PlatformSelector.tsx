@@ -118,7 +118,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
 
                       <img
                         src={provider.logo}
-                        alt=""
+                        alt={`${provider.displayName} logo`}
                         aria-hidden="true"
                         width={64}
                         height={64}
