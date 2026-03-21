@@ -45,7 +45,7 @@ const Index = () => {
   const [authorsRef, authorsVisible] = useInView('200px')
   const [recoRef, recoVisible] = useInView('200px')
   const [recentlyRef, recentlyVisible] = useInView('200px')
-  const { sections: recoSections, isLoading: recoLoading } = useRecommendations(recoVisible)
+  const { sections: recoSections, isLoading: recoLoading, refresh: refreshRecommendations } = useRecommendations(recoVisible)
 
   const {
     media,
@@ -122,7 +122,10 @@ const Index = () => {
     <>
       {/* CineMatch Onboarding — first-time users only, full-screen portal overlay */}
       {shouldShowOnboarding && (
-        <CineMatchOnboarding onComplete={markDone} />
+        <CineMatchOnboarding onComplete={() => {
+          markDone()
+          refreshRecommendations()
+        }} />
       )}
       <PageMeta
         title="Watch Movies, TV Shows & Anime"
