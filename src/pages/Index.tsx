@@ -22,6 +22,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { slugify } from '@/lib/utils'
 import { CineMatchOnboarding } from '@/components/CineMatchOnboarding'
 import { useOnboarding } from '@/hooks/useOnboarding'
+import { SEOContent } from '../components/SEOContent'
 
 const Downloads = lazy(() => import('./Downloads'))
 
@@ -221,6 +222,11 @@ const Index = () => {
                 onMediaClick={handleMediaClick}
               />
             </>
+          )}
+
+          {/* SEO Content & H1 Tag (Visually placed at the bottom to not disrupt the UI, but scannable by bots) */}
+          {!searchQuery && mode === 'home' && !selectedProvider && (
+            <SEOContent />
           )}
         </main>
 

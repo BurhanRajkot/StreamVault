@@ -76,7 +76,7 @@ export default function Login() {
               >
                 <img
                   src={poster}
-                  alt=""
+                  alt="Movie Poster"
                   aria-hidden="true"
                   className="w-full h-full object-cover"
                   loading="lazy"
