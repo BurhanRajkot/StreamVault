@@ -69,6 +69,54 @@ export function PageMeta({
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
+
+      {/* JSON-LD Schema Markup */}
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": `${SEO.SITE_URL}/#organization`,
+              "name": SEO.SITE_NAME,
+              "url": SEO.SITE_URL,
+              "logo": {
+                "@type": "ImageObject",
+                "url": `${SEO.SITE_URL}/og-image.png`
+              },
+              "sameAs": [
+                "https://facebook.com/streamvault",
+                "https://instagram.com/streamvault",
+                "https://linkedin.com/company/streamvault",
+                "https://youtube.com/c/streamvault",
+                `https://twitter.com/${SEO.TWITTER_HANDLE}`
+              ],
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "telephone": "+1-555-123-4567",
+                "contactType": "customer service"
+              },
+              "address": {
+                "@type": "PostalAddress",
+                "streetAddress": "123 Streaming Blvd, Suite 400",
+                "addressLocality": "Los Angeles",
+                "addressRegion": "CA",
+                "postalCode": "90028",
+                "addressCountry": "US"
+              }
+            },
+            {
+              "@type": "WebSite",
+              "@id": `${SEO.SITE_URL}/#website`,
+              "url": SEO.SITE_URL,
+              "name": SEO.SITE_NAME,
+              "publisher": {
+                "@id": `${SEO.SITE_URL}/#organization`
+              }
+            }
+          ]
+        })}
+      </script>
     </Helmet>
   )
 }

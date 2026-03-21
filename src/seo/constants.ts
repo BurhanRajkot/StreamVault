@@ -10,7 +10,7 @@ export const SEO = {
   SITE_NAME: 'StreamVault',
 
   SITE_DESCRIPTION:
-    'StreamVault — Watch the latest movies, TV shows, and anime instantly for free. Browse thousands of titles powered by TMDB.',
+    'StreamVault is your ultimate destination to watch movies, TV shows, and anime online for free. Enjoy high-quality streaming with no sign-up required.',
 
   /** Default OG/Twitter card image shown when no movie poster is available */
   DEFAULT_OG_IMAGE: '/og-image.png',
