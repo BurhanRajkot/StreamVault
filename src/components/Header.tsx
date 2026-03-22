@@ -4,7 +4,7 @@ import { Clapperboard, Crown, Heart, LogOut, Search, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Media, MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useIsMobile } from '@/mobile-ui/use-mobile'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
