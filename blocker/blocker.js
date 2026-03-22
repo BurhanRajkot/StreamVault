@@ -1,161 +1,132 @@
 /*
-DevToolsGuard – Advanced Silent Telemetry and Execution Defense
+DevToolsGuard – Ultra-Aggressive Client-Side DevTools Defense
 ------------------------------------------------------------------------------
 Features
 --------
-• Null-Prototype Configuration
-• Global Prototype Freezing
-• MutationObserver DOM Integrity (Anti-Tamper & Anti-Garbage-Collection)
-• Console Getter Trap
-• Performance Timing Trap
-• Silent Honey Mode Activation (No Popups / No Redirects)
-
-NOTE: Standard user interactions (right-click, double-click, drag) are explicitly
-ALLOWED to prevent false positives and annoyance.
+• Context menu blocking
+• DevTools keyboard shortcut blocking
+• Undetectable Timing Attack
+• DevTools viewport size detection
+• Redirects to YouTube on violation, preserving login and back-button functionality.
 */
 
 (function DevToolsGuard() {
 "use strict";
 
-/* ================================
-   LAYER 1 – PROTOTYPE PROTECTIONS
-================================ */
-// Freeze the global prototypes to prevent Prototype Pollution
-try {
-    Object.freeze(Object.prototype);
-    Object.freeze(Array.prototype);
-} catch(e) {}
+const CONFIG = {
+    redirectURL: "https://www.youtube.com/embed/wlTx6XVBGhU?autoplay=1&mute=1",
+    aggressiveMode: true
+};
 
-// Create a null-prototype configuration that cannot be polluted
-const CONFIG = Object.create(null);
-CONFIG.tampered = false;
-CONFIG.observerConfig = { childList: true, subtree: true, attributes: true, characterData: true };
-CONFIG.debuggerThreshold = 100;
-
-// Initialize the global Honey Mode state container
-if (!window.__PROTECTED_STATE) {
-    Object.defineProperty(window, '__PROTECTED_STATE', {
-        value: Object.create(null),
-        writable: false,
-        configurable: false,
-        enumerable: false
-    });
-}
-window.__PROTECTED_STATE.tampered = false;
-
-/* ================================
-   STRATEGIC RETALIATION - HONEY MODE
-================================ */
-function triggerHoneyMode(vector) {
-    if (CONFIG.tampered) return;
-    CONFIG.tampered = true;
-    window.__PROTECTED_STATE.tampered = true;
-    
-    // Instead of alerting or redirecting, we silently note the environment is compromised.
-    // The main application can check window.__PROTECTED_STATE.tampered asynchronously
-    // to begin feeding fake, poisoned, or randomized data to the attacker.
-    
-    try {
-        // Optional: Dispatch a silent custom event that the backend/app can catch
-        const stealthEvent = new CustomEvent("core_metrics_ready", { detail: { v: vector } });
-        document.dispatchEvent(stealthEvent);
-    } catch(e) {}
+function executePunishment(){
+    // IMPORTANT: Use href instead of replace to allow the user to click the "back" button to return.
+    // IMPORTANT: Do NOT clear localStorage/sessionStorage to preserve login state.
+    try { 
+        window.location.href = CONFIG.redirectURL; 
+    } catch(e) { 
+        console.error("Redirection failed."); 
+    }
 }
 
 /* ================================
-   LAYER 2 – DOM INTEGRITY OBSERVER
+   LAYER 1 – USER INPUT BLOCKING
 ================================ */
-function startIntegrityObserver() {
-    try {
-        const observer = new MutationObserver(function(mutations) {
-            mutations.forEach((mutation) => {
-                // Check for unauthorized injections (Bot extensions / scrapers)
-                if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                    mutation.addedNodes.forEach(node => {
-                        // Very basic heuristic check for injected automation scripts
-                        if (node.tagName === 'SCRIPT' && node.id && node.id.includes('tamper')) {
-                            triggerHoneyMode("inject");
-                        }
-                    });
-                }
+function blockUserInteractions(){
+    // Block context menu
+    window.addEventListener("contextmenu", function(e){
+        e.preventDefault();
+        executePunishment();
+    }, { capture: true });
 
-                // Check for unauthorized deletions (Attacker deleting the protective script tag)
-                if (mutation.removedNodes && mutation.removedNodes.length > 0) {
-                    mutation.removedNodes.forEach(node => {
-                        if (node.tagName === 'SCRIPT' || node.id === 'app-root') {
-                            triggerHoneyMode("delete");
-                        }
-                    });
-                }
-            });
-        });
+    // Block selection and dragging
+    window.addEventListener("selectstart", function(e){ if(CONFIG.aggressiveMode) e.preventDefault(); }, { capture: true });
+    window.addEventListener("dragstart", function(e){ if(CONFIG.aggressiveMode) e.preventDefault(); }, { capture: true });
 
-        // Attach to the documentElement (HTML tag) so the observer cannot be killed easily
-        if (document.documentElement) {
-            observer.observe(document.documentElement, CONFIG.observerConfig);
+    // Block keyboard shortcuts
+    window.addEventListener("keydown", function(e){
+        const key = e.key.toLowerCase();
+        const blocked =
+            e.keyCode === 123 ||
+            key === "f12" ||
+            ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "i") ||
+            ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "j") ||
+            ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "c") ||
+            ((e.ctrlKey || e.metaKey) && key === "u");
+
+        if(blocked){
+            e.preventDefault();
+            e.stopPropagation();
+            executePunishment();
         }
-    } catch(e) {}
+    }, { capture: true });
 }
 
-
 /* ================================
-   LAYER 3 – SIDE-CHANNEL TELEMETRY
+   LAYER 2 – UNDOCKED DEVTOOLS TIMING ATTACK
 ================================ */
-function startTelemetryTraps() {
-    // 1. Console Getter Trap
-    const trapElement = new Image();
-    Object.defineProperty(trapElement, 'id', {
+// Breakpoint debuggers can be turned off in DevTools.
+// Opening DevTools evaluates un-evaluated regex string conversions, taking massive CPU cycles.
+function startTimingAttack() {
+    let devtoolsOpen = false;
+
+    const element = new Image();
+    Object.defineProperty(element, 'id', {
         get: function () {
-            triggerHoneyMode("console_getter");
-            return "trap-triggered";
-        }
-    });
-
-    // 2. DevTools Scope Pane / Evaluation Trap
-    // When DevTools parses the scope, it will trip this getter asynchronously
-    let scopeTripwire = false;
-    const scopeTrap = Object.create(null);
-    Object.defineProperty(scopeTrap, 'eval', {
-        get: function() {
-            if (!scopeTripwire) {
-                scopeTripwire = true;
-                triggerHoneyMode("scope_evaluation");
-            }
-            return true;
+            devtoolsOpen = true;
+            executePunishment();
+            throw new Error("DevTools detected");
         }
     });
 
     setInterval(function () {
-        devToolsCheck(trapElement, scopeTrap);
+        devToolsCheck();
     }, 1000);
 
-    function devToolsCheck(el, st) {
-        // Trigger console getter
-        console.log(el);
+    function devToolsCheck() {
+        devtoolsOpen = false;
+        // 1. Console getter trigger
+        console.log(element);
         console.clear();
 
-        // Scope trap referenced so the JS engine doesn't garbage collect it entirely
-        if (st.eval) { /* NOOP */ }
-
-        // Timing Trap
+        // 2. Performance timing trigger (Undocked/Disabled-breakpoints trap)
         const start = performance.now();
-        debugger; // Only pauses if breakpoints are active
+        debugger; // Will halt ONLY if breakpoints are enabled
         const end = performance.now();
 
-        if (end - start > CONFIG.debuggerThreshold) {
-            triggerHoneyMode("timing_delay");
+        if (end - start > 100) {
+            devtoolsOpen = true;
+            executePunishment();
         }
     }
 }
 
+/* ================================
+   LAYER 3 – VIEWPORT SIZE CHECK (Docked Trap)
+================================ */
+function startViewportDetection(){
+    let lastHeight = window.innerHeight;
+    let lastWidth = window.innerWidth;
+
+    window.addEventListener('resize', () => {
+        const heightDiff = Math.abs(window.innerHeight - lastHeight);
+        const widthDiff = Math.abs(window.innerWidth - lastWidth);
+
+        // A sudden drop of > 160px highly implies opening docked DevTools
+        if (heightDiff > 160 || widthDiff > 160) {
+            executePunishment();
+        }
+        lastHeight = window.innerHeight;
+        lastWidth = window.innerWidth;
+    });
+}
 
 /* ================================
    INITIALIZE SYSTEM
 ================================ */
-function init() {
-    // Native interactions (clicks, contextmenu) are NOT touched to avoid disrupting normal users.
-    startIntegrityObserver();
-    startTelemetryTraps();
+function init(){
+    blockUserInteractions();
+    startTimingAttack();
+    startViewportDetection();
 }
 
 // Check if document is ready to attach observer to documentElement
