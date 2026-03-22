@@ -7,36 +7,24 @@ Features
 • DevTools keyboard shortcut blocking
 • Undetectable Timing Attack
 • DevTools viewport size detection
-• Immediate page wiping (clears content to prevent inspection)
-• Redirects to YouTube on violation, preserving login and back-button functionality.
+• IFrame Focus Stealer (Protects F12 over video players)
+• Redirects to YouTube in a new tab on violation.
 */
 
 (function DevToolsGuard() {
 "use strict";
 
 const CONFIG = {
-    redirectURL: "https://www.youtube.com/embed/wlTx6XVBGhU?autoplay=1&mute=1",
+    redirectURL: "https://www.youtube.com/watch?v=wlTx6XVBGhU",
     aggressiveMode: true
 };
 
 function executePunishment(){
-    // IMPORTANT: Stop all further page activity immediately
-    try { window.stop(); } catch(e) {}
-    
-    // IMPORTANT: Wipe the current page content so there's nothing left to inspect or interact with
-    try {
-        if (document.body) document.body.innerHTML = "";
-        if (document.head) document.head.innerHTML = "";
-    } catch(e) {}
-
-    // IMPORTANT: Use top.location to ensure we break out of any iframes and redirect the current tab
-    // We use href instead of replace to allow the user to click "back" to return (as previously requested).
-    // We do NOT clear storage to preserve login state.
+    // Open the redirect in a new tab so the user can come back (no history wipe)
+    // Do NOT clear localStorage — that destroys Auth0's cached session tokens
     try { 
-        window.top.location.href = CONFIG.redirectURL; 
-    } catch(e) { 
-        window.location.href = CONFIG.redirectURL; 
-    }
+        window.open(CONFIG.redirectURL, '_blank', 'noopener,noreferrer'); 
+    } catch(e) {}
 }
 
 /* ================================
@@ -74,10 +62,25 @@ function blockUserInteractions(){
 }
 
 /* ================================
-   LAYER 2 – UNDOCKED DEVTOOLS TIMING ATTACK
+   LAYER 2 – IFRAME FOCUS TRAP 
 ================================ */
-// Breakpoint debuggers can be turned off in DevTools.
-// Opening DevTools evaluates un-evaluated regex string conversions, taking massive CPU cycles.
+// When a user clicks inside a cross-origin iframe (like a video player),
+// the iframe steals focus. F12 then goes to the iframe and bypasses our keydown listener.
+// This trap steals focus back to the main window immediately after interaction.
+function startIframeFocusTrap() {
+    window.addEventListener('blur', () => {
+        setTimeout(() => {
+            if (document.activeElement instanceof HTMLIFrameElement) {
+                // Instantly steal focus back to the parent window so F12 is protected
+                window.focus();
+            }
+        }, 0);
+    });
+}
+
+/* ================================
+   LAYER 3 – UNDOCKED DEVTOOLS TIMING ATTACK
+================================ */
 function startTimingAttack() {
     let devtoolsOpen = false;
 
@@ -100,7 +103,7 @@ function startTimingAttack() {
         console.log(element);
         console.clear();
 
-        // 2. Performance timing trigger (Undocked/Disabled-breakpoints trap)
+        // 2. Performance timing trigger
         const start = performance.now();
         debugger; // Will halt ONLY if breakpoints are enabled
         const end = performance.now();
@@ -113,7 +116,7 @@ function startTimingAttack() {
 }
 
 /* ================================
-   LAYER 3 – VIEWPORT SIZE CHECK (Docked Trap)
+   LAYER 4 – VIEWPORT SIZE CHECK (Docked Trap)
 ================================ */
 function startViewportDetection(){
     let lastHeight = window.innerHeight;
@@ -137,6 +140,7 @@ function startViewportDetection(){
 ================================ */
 function init(){
     blockUserInteractions();
+    startIframeFocusTrap();
     startTimingAttack();
     startViewportDetection();
 }
