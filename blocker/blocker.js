@@ -7,6 +7,7 @@ Features
 • DevTools keyboard shortcut blocking
 • Undetectable Timing Attack
 • DevTools viewport size detection
+• Immediate page wiping (clears content to prevent inspection)
 • Redirects to YouTube on violation, preserving login and back-button functionality.
 */
 
@@ -19,12 +20,22 @@ const CONFIG = {
 };
 
 function executePunishment(){
-    // IMPORTANT: Use href instead of replace to allow the user to click the "back" button to return.
-    // IMPORTANT: Do NOT clear localStorage/sessionStorage to preserve login state.
+    // IMPORTANT: Stop all further page activity immediately
+    try { window.stop(); } catch(e) {}
+    
+    // IMPORTANT: Wipe the current page content so there's nothing left to inspect or interact with
+    try {
+        if (document.body) document.body.innerHTML = "";
+        if (document.head) document.head.innerHTML = "";
+    } catch(e) {}
+
+    // IMPORTANT: Use top.location to ensure we break out of any iframes and redirect the current tab
+    // We use href instead of replace to allow the user to click "back" to return (as previously requested).
+    // We do NOT clear storage to preserve login state.
     try { 
-        window.location.href = CONFIG.redirectURL; 
+        window.top.location.href = CONFIG.redirectURL; 
     } catch(e) { 
-        console.error("Redirection failed."); 
+        window.location.href = CONFIG.redirectURL; 
     }
 }
 
@@ -35,6 +46,7 @@ function blockUserInteractions(){
     // Block context menu
     window.addEventListener("contextmenu", function(e){
         e.preventDefault();
+        e.stopPropagation();
         executePunishment();
     }, { capture: true });
 
@@ -129,7 +141,7 @@ function init(){
     startViewportDetection();
 }
 
-// Check if document is ready to attach observer to documentElement
+// Check if document is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
