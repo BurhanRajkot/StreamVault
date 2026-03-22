@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useIsMobile } from '@/mobile-ui/use-mobile'
 
 import { QuickViewModal } from './QuickViewModal'
 import { slugify } from '@/lib/utils'
