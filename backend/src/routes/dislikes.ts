@@ -6,6 +6,7 @@ import { invalidateUserProfile } from '../cinematch/features/userProfile'
 import { invalidateRecommendationCache } from '../cinematch/mixer/homeTimeline'
 import * as cache from '../services/cache'
 import { v4 as uuidv4 } from 'uuid'
+import { ensureUser } from '../lib/ensureUser'
 
 const router = Router()
 
@@ -18,6 +19,9 @@ function getUserId(req: Request) {
 router.get('/', checkJwt, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  // Provision User row for brand-new accounts
+  await ensureUser(userId)
 
   // Check cache first
   const cacheKey = cache.generateCacheKey('dislikes', userId)
@@ -52,6 +56,9 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
 router.post('/', checkJwt, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+  // Provision User row for brand-new accounts
+  await ensureUser(userId)
 
   const { tmdbId, mediaType } = req.body
 
