@@ -56,13 +56,7 @@ const Watch = () => {
         media={media}
         mode={mode}
         onClose={() => {
-          // Prefer going back to previous page when possible
-          if (window.history.length > 1) {
-            navigate(-1)
-          } else {
-            // Fallback: go home if user opened /watch directly
-            navigate('/', { replace: true })
-          }
+          navigate('/')
         }}
         initialSeason={season}
         initialEpisode={episode}
