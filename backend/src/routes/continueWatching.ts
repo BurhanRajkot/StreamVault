@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabase'
 import { checkJwt } from '../middleware/auth'
 import * as cache from '../services/cache'
+import { ensureUser } from '../lib/ensureUser'
 
 const router = Router()
 
@@ -10,6 +11,9 @@ router.get('/', checkJwt, async (req, res) => {
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
+
+  // Provision User row for brand-new accounts (prevents FK constraint errors)
+  await ensureUser(userId)
 
   // Check cache first
   const cacheKey = cache.generateCacheKey('continue-watching', userId)
@@ -43,6 +47,9 @@ router.post('/', checkJwt, async (req, res) => {
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
+
+  // Provision User row for brand-new accounts (prevents FK constraint errors)
+  await ensureUser(userId)
 
   const { tmdbId, mediaType, season, episode, progress, server } = req.body
 
