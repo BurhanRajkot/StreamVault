@@ -31,7 +31,7 @@ export const helmetMiddleware = helmet({
       scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for React
       styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles
       imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow images from TMDB, etc.
-      connectSrc: ["'self'", "https://api.themoviedb.org", process.env.FRONTEND_URL || ""].filter(src => src !== ""),
+      connectSrc: ["'self'", "https://api.themoviedb.org", "https://image.tmdb.org", process.env.FRONTEND_URL || ""].filter(src => src !== ""),
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'", "blob:", "https:"],
