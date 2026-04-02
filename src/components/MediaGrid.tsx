@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Media } from '@/lib/config'
 import { MediaCard, MediaCardSkeleton } from './MediaCard'
 
@@ -11,6 +12,25 @@ interface MediaGridProps {
   title?: string
 }
 
+/**
+ * Returns the number of grid columns for the current viewport.
+ * Matches the Tailwind responsive breakpoints:
+ *   3 cols  < 640px  (sm)
+ *   4 cols  640–768px
+ *   5 cols  768–1024px (md)
+ *   6 cols  1024–1280px (lg)
+ *   7 cols  1280–1536px (xl)
+ *   8 cols  ≥ 1536px (2xl)
+ */
+function getColCount(width: number): number {
+  if (width >= 1536) return 8
+  if (width >= 1280) return 7
+  if (width >= 1024) return 6
+  if (width >= 768)  return 5
+  if (width >= 640)  return 4
+  return 3
+}
+
 export function MediaGrid({
   media,
   isLoading,
@@ -19,13 +39,56 @@ export function MediaGrid({
   onMediaClick,
   title,
 }: MediaGridProps) {
-  const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const parentRef   = useRef<HTMLDivElement | null>(null)
 
+  // Track container width so we can compute column count
+  const [containerWidth, setContainerWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  )
+
+  useEffect(() => {
+    const el = parentRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const cols = getColCount(containerWidth)
+
+  // Slot gap in px (matches Tailwind gap-2/gap-3/gap-4 at each breakpoint)
+  const gap = containerWidth >= 768 ? 16 : containerWidth >= 640 ? 12 : 8
+
+  // Aspect ratio 2:3 — compute row height from column width
+  const cardWidth  = (containerWidth - gap * (cols - 1)) / cols
+  const rowHeight  = Math.round((cardWidth / 2) * 3) + gap // 2:3 ratio + gap
+
+  // Chunk media into rows of `cols`
+  const rows = [] as Media[][]
+  for (let i = 0; i < media.length; i += cols) {
+    rows.push(media.slice(i, i + cols))
+  }
+
+  // Add a skeleton row if loading
+  const skeletonRowCount = isLoading ? Math.ceil((containerWidth < 640 ? 6 : 12) / cols) : 0
+
+  const totalRows = rows.length + skeletonRowCount
+
+  const rowVirtualizer = useVirtualizer({
+    count: totalRows,
+    getScrollElement: () => document.documentElement,
+    estimateSize: () => rowHeight,
+    overscan: 3,
+    gap,
+  })
+
+  // IntersectionObserver for infinite scroll sentinel
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      const target = entries[0]
-      if (target.isIntersecting && hasMore && !isLoading) {
+      if (entries[0].isIntersecting && hasMore && !isLoading) {
         onLoadMore()
       }
     },
@@ -33,23 +96,18 @@ export function MediaGrid({
   )
 
   useEffect(() => {
-    const element = loadMoreRef.current
-    if (!element) return
-
-    observerRef.current = new IntersectionObserver(handleObserver, {
+    const el = loadMoreRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(handleObserver, {
       root: null,
-      rootMargin: '100px',
+      rootMargin: '200px',
       threshold: 0,
     })
-
-    observerRef.current.observe(element)
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-    }
+    observer.observe(el)
+    return () => observer.disconnect()
   }, [handleObserver])
+
+  const virtualRows = rowVirtualizer.getVirtualItems()
 
   return (
     <section className="animate-fade-in">
@@ -59,31 +117,51 @@ export function MediaGrid({
         </h2>
       )}
 
-      {/* OPTIMIZED GRID FOR MOBILE */}
+      {/* Virtual scroll container — height = total estimated scroll height */}
       <div
-        className="
-          grid
-          grid-cols-3
-          gap-2
-          sm:grid-cols-4
-          sm:gap-3
-          md:grid-cols-5
-          md:gap-4
-          lg:grid-cols-6
-          xl:grid-cols-7
-          2xl:grid-cols-8
-        "
+        ref={parentRef}
+        style={{ position: 'relative', height: `${rowVirtualizer.getTotalSize()}px` }}
       >
-        {media.map((item, index) => (
-          <MediaCard key={item.id} media={item} onClick={onMediaClick} priority={index < 2} />
-        ))}
+        {virtualRows.map(virtualRow => {
+          const isSkeletonRow = virtualRow.index >= rows.length
 
-        {isLoading &&
-          Array.from({ length: typeof window !== 'undefined' && window.innerWidth < 640 ? 6 : 12 }).map((_, i) => (
-            <MediaCardSkeleton key={`skeleton-${i}`} />
-          ))}
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                transform: `translateY(${virtualRow.start}px)`,
+                display: 'grid',
+                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                gap: `${gap}px`,
+              }}
+            >
+              {isSkeletonRow
+                ? Array.from({ length: cols }).map((_, i) => (
+                    <MediaCardSkeleton key={`sk-${virtualRow.index}-${i}`} />
+                  ))
+                : rows[virtualRow.index].map((item, i) => {
+                    const absoluteIndex = virtualRow.index * cols + i
+                    return (
+                      <MediaCard
+                        key={item.id}
+                        media={item}
+                        onClick={onMediaClick}
+                        priority={absoluteIndex < cols * 2}
+                      />
+                    )
+                  })}
+            </div>
+          )
+        })}
       </div>
 
+      {/* Infinite scroll sentinel */}
       <div ref={loadMoreRef} className="h-10" />
 
       {!hasMore && media.length > 0 && (
@@ -94,12 +172,8 @@ export function MediaGrid({
 
       {!isLoading && media.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-lg font-medium text-foreground">
-            No results found
-          </p>
-          <p className="mt-2 text-muted-foreground">
-            Try a different search term
-          </p>
+          <p className="text-lg font-medium text-foreground">No results found</p>
+          <p className="mt-2 text-muted-foreground">Try a different search term</p>
         </div>
       )}
     </section>

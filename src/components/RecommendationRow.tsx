@@ -12,7 +12,7 @@ import {
   Tag,
   UserCircle,
 } from 'lucide-react'
-import { RecoSection, RecoItem, getImageUrl } from '../lib/api'
+import { RecoSection, RecoItem, getImageUrl, getImageSrcSet } from '../lib/api'
 import { cn } from '../lib/utils'
 import { useDislikes } from '../context/DislikesContext'
 import { motion, useAnimation, useMotionValue } from 'framer-motion'
@@ -264,6 +264,8 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
           <img
             src={imgSrc}
             alt={item.title}
+            srcSet={getImageSrcSet(item.posterPath, 'poster')}
+            sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 175px"
             loading="lazy"
             fetchPriority="low"
             decoding="async"
