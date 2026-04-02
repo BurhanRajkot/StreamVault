@@ -13,6 +13,35 @@ export const CONFIG = {
     logo: '/w300',
   },
 
+  /**
+   * Multi-width srcSet breakpoints for each image category.
+   * Keys are TMDB size paths; values are the display width in px.
+   * Used by getImageSrcSet() in api.ts to build responsive srcSet attributes.
+   */
+  IMG_SRCSET_SIZES: {
+    poster: [
+      { tmdbSize: '/w185', displayW: 185 },
+      { tmdbSize: '/w342', displayW: 342 },
+      { tmdbSize: '/w500', displayW: 500 },
+    ],
+    backdrop: [
+      { tmdbSize: '/w300', displayW: 300 },
+      { tmdbSize: '/w780', displayW: 780 },
+      { tmdbSize: '/w1280', displayW: 1280 },
+    ],
+    hero: [
+      { tmdbSize: '/w780', displayW: 780 },
+      { tmdbSize: '/w1280', displayW: 1280 },
+    ],
+    thumbnail: [
+      { tmdbSize: '/w185', displayW: 185 },
+    ],
+    logo: [
+      { tmdbSize: '/w185', displayW: 185 },
+      { tmdbSize: '/w300', displayW: 300 },
+    ],
+  },
+
     STREAM_PROVIDERS: {
       /* ================= TV ================= */
       vidsrc_pro:
