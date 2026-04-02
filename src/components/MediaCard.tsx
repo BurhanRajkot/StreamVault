@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, memo } from 'react'
 import { Play, Star, Heart, ThumbsDown } from 'lucide-react'
 import { Media } from '@/lib/config'
-import { getImageUrl, logRecommendationInteraction } from '@/lib/api'
+import { getImageUrl, getImageSrcSet, logRecommendationInteraction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
@@ -18,7 +18,7 @@ interface MediaCardProps {
   priority?: boolean
 }
 
-export function MediaCard({
+function _MediaCard({
   media,
   onClick,
   variant = 'default',
@@ -143,10 +143,12 @@ export function MediaCard({
         className="relative h-full w-full cursor-pointer overflow-hidden active:scale-[0.99] group/hero"
       >
         <img
-          src={backdrop}
+        src={backdrop}
           alt={title}
           width={780}
           height={439}
+          srcSet={getImageSrcSet(media.backdrop_path || media.poster_path, 'backdrop')}
+          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 80vw, 1280px"
           loading="eager"
           fetchPriority="high"
           decoding="async"
@@ -225,6 +227,8 @@ export function MediaCard({
             alt={title}
             width={500}
             height={750}
+            srcSet={getImageSrcSet(media.poster_path, 'poster')}
+            sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, 175px"
             loading={priority ? 'eager' : 'lazy'}
             fetchPriority={priority ? 'high' : 'low'}
             decoding="async"
@@ -316,10 +320,24 @@ export function MediaCard({
   )
 }
 
-export function MediaCardSkeleton() {
+// Custom equality check: only re-render if the media item identity or click handler changed
+function mediaCardPropsAreEqual(
+  prev: MediaCardProps,
+  next: MediaCardProps
+) {
+  return prev.media.id === next.media.id &&
+    prev.onClick === next.onClick &&
+    prev.variant === next.variant &&
+    prev.priority === next.priority
+}
+
+// Memoized export — prevents re-renders when parent state changes (e.g. scroll, search query)
+export const MediaCard = memo(_MediaCard, mediaCardPropsAreEqual)
+
+export const MediaCardSkeleton = memo(function MediaCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl bg-card border border-border/50">
       <div className="aspect-[2/3] animate-shimmer" />
     </div>
   )
-}
+})
