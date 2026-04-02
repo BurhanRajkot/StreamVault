@@ -395,6 +395,23 @@ export function getImageUrl(
   return `${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES[size]}${path}`
 }
 
+/**
+ * Builds a multi-width srcSet string for TMDB images.
+ * Example output: "https://image.tmdb.org/t/p/w185/abc.jpg 185w, https://.../w342/abc.jpg 342w"
+ * Pair with a `sizes` attribute on the <img> to let the browser pick the right resolution.
+ * Returns null if path is falsy (use getImageUrl fallback instead).
+ */
+export function getImageSrcSet(
+  path: string | null,
+  size: keyof typeof CONFIG.IMG_SRCSET_SIZES = 'poster'
+): string | undefined {
+  if (!path) return undefined
+  const breakpoints = CONFIG.IMG_SRCSET_SIZES[size]
+  return breakpoints
+    .map(({ tmdbSize, displayW }) => `${CONFIG.IMG_BASE_URL}${tmdbSize}${path} ${displayW}w`)
+    .join(', ')
+}
+
 /* ======================================================
    CONTINUE WATCHING
 ====================================================== */
