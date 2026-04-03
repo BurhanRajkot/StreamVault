@@ -21,4 +21,3 @@ export function SEOContent() {
   )
 }
 
-export default SEOContent
