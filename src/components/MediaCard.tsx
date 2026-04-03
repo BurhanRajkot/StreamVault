@@ -18,7 +18,7 @@ interface MediaCardProps {
   priority?: boolean
 }
 
-function _MediaCard({
+function MediaCardComponent({
   media,
   onClick,
   variant = 'default',
@@ -332,7 +332,7 @@ function mediaCardPropsAreEqual(
 }
 
 // Memoized export — prevents re-renders when parent state changes (e.g. scroll, search query)
-export const MediaCard = memo(_MediaCard, mediaCardPropsAreEqual)
+export const MediaCard = memo(MediaCardComponent, mediaCardPropsAreEqual)
 
 export const MediaCardSkeleton = memo(function MediaCardSkeleton() {
   return (
