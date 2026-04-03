@@ -9,7 +9,7 @@
  * Version the cache name — updating CACHE_VERSION busts all caches on SW install.
  */
 
-const CACHE_VERSION = 'v1'
+const CACHE_VERSION = 'v2'
 const IMAGE_CACHE  = `sv-images-${CACHE_VERSION}`
 const API_CACHE    = `sv-api-${CACHE_VERSION}`
 const IMAGE_TTL    = 7  * 24 * 60 * 60 * 1000 // 7 days in ms
