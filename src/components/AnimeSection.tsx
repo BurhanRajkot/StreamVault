@@ -74,6 +74,14 @@ export function AnimeSection({ onMediaClick }: AnimeSectionProps) {
           <div
             key={anime.id}
             onClick={() => onMediaClick(anime)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onMediaClick(anime);
+              }
+            }}
+            role="button"
+            tabIndex={0}
             className="group cursor-pointer overflow-hidden rounded-xl bg-card p-6 transition-all hover:bg-secondary hover:shadow-card"
           >
             <div className="mb-4 flex h-32 items-center justify-center rounded-lg bg-gradient-primary/10">

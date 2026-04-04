@@ -118,9 +118,25 @@ for (const file of sourceFiles) {
   }
 
   // Avoid div with onClick but no a11y role or tabIndex
-  // Look for `<div onClick` without `role` or `tabIndex`
-  if (/<div[^>]*onClick[^>]*>/i.test(content)) {
-    if (!/<div[^>]*onClick[^>]*(role=|tabIndex=)/i.test(content)) {
+  const divTags = [];
+  let idx = 0;
+  while ((idx = content.toLowerCase().indexOf('<div', idx)) !== -1) {
+    let endIdx = idx + 4;
+    let braceLevel = 0;
+    while (endIdx < content.length) {
+      if (content[endIdx] === '{') braceLevel++;
+      if (content[endIdx] === '}') braceLevel--;
+      if (content[endIdx] === '>' && braceLevel === 0) {
+        endIdx++;
+        break;
+      }
+      endIdx++;
+    }
+    divTags.push(content.substring(idx, endIdx));
+    idx = endIdx;
+  }
+  for (const tag of divTags) {
+    if (/onClick/i.test(tag) && !/role=/i.test(tag) && !/tabIndex=/i.test(tag)) {
       warn(`${relPath}: Interactive <div> (has onClick) but no 'role' or 'tabIndex' provided.`);
       filesWithRoleIssues++;
     }

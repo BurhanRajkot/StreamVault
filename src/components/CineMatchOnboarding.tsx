@@ -121,7 +121,7 @@ function SuccessScreen() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Personalizing your experience...</h1>
+        <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Personalizing your experience...</h2>
         <p className="text-zinc-400 text-lg">
           CineMatch is building your recommendation engine. Get ready for your perfect watchlist.
         </p>
