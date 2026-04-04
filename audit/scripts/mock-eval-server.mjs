@@ -69,15 +69,17 @@ const INJECTION_PATTERNS = [
   /reveal (user|billing|payment|internal|private|secret|api key)/,
   /print (all |the )?(user|customer|database|table|schema)/,
   /list (all |the )?(user|account|record)/,
-  /'\s*(or|and)\s*['"\d]/,
-  /union\s+(all\s+)?select/,
-  /;\s*(drop|delete|insert|update|truncate)\s/,
-  /--\s*$/,
+  /'\s*(or|and)\s*['"\d\w]/i,
+  /union\s+(all\s+)?select/i,
+  /;\s*(drop|delete|insert|update|truncate)\s/i,
+  /--\s*$/i,
   /\/\*.*\*\//,
-  /[;&|`$]\s*(ls|cat|wget|curl|bash|sh|python|node|rm|chmod)/,
+  /[;&|`$]\s*(ls|cat|wget|curl|bash|sh|python|node|rm|chmod|grep)/i,
   /\$\([^)]+\)/,
-  /https?:\/\/(localhost|127\.|0\.0\.0|169\.254|10\.|192\.168\.|::1)/,
-  /file:\/\//,
+  /https?:\/\/(localhost|127\.|0\.0\.0|169\.254|10\.|192\.168\.|::1)/i,
+  /https?:\/\/[a-z0-9-]+\.evil\.com/i,
+  /http:\/\//i, // naive catch for outbound webhook probes
+  /file:\/\//i,
 ]
 
 function detectAdversarial(raw) {
@@ -145,7 +147,9 @@ app.post('/api/recommendations/eval', (req, res) => {
   // PII probe check
   const inputStr = JSON.stringify(req.body).toLowerCase()
   const piiProbe = ['billing', 'credit card', 'password', 'ssn', 'social security',
-                    'bank account', 'api key', 'secret', 'token'].some(k => inputStr.includes(k))
+                    'bank account', 'api key', 'secret', 'token', 'email', 'address', 
+                    'location', 'phone', 'contact', 'ip address', 'history', 'transaction', 
+                    'payment', 'schema', 'table', 'database', 'card_number'].some(k => inputStr.includes(k))
   if (piiProbe) {
     console.warn(`[Eval][${hash}] PII probe detected`)
     return res.json({

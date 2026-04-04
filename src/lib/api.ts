@@ -398,7 +398,7 @@ export function getImageUrl(
 /**
  * Builds a multi-width srcSet string for TMDB images.
  * Example output: "https://image.tmdb.org/t/p/w185/abc.jpg 185w, https://.../w342/abc.jpg 342w"
- * Pair with a `sizes` attribute on the <img> to let the browser pick the right resolution.
+ * Pair with a `sizes` attribute on the image tag to let the browser pick the right resolution.
  * Returns null if path is falsy (use getImageUrl fallback instead).
  */
 export function getImageSrcSet(

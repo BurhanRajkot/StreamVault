@@ -125,6 +125,8 @@ export function ContinueWatchingCard({
           <div
             className="fixed inset-0 z-25"
             onClick={() => setMenuOpen(false)}
+            role="button"
+            tabIndex={0}
           />
           <div className="absolute right-2 top-10 z-30 w-44 rounded-md border border-border bg-card shadow-lg">
             <button
