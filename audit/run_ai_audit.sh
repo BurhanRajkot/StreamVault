@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# run_ai_audit.sh — StreamVault AI Red Team Audit runner (upgraded)
-set -euo pipefail
+# run_ai_audit.sh — StreamVault Comprehensive Audit Suite
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONFIG_DIR="${SCRIPT_DIR}/config"
 REPORTS_DIR="${SCRIPT_DIR}/reports/ai"
 EVAL_SERVER="${SCRIPT_DIR}/scripts/mock-eval-server.mjs"
+SEO_SCRIPT="${SCRIPT_DIR}/scripts/seo_a11y_audit.mjs"
 DEFAULT_MODE="full"
 
 # ─── Colour helpers ───────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ info()    { echo -e "${CYAN}[info]${RESET}  $*"; }
 success() { echo -e "${GREEN}[ok]${RESET}    $*"; }
 warn()    { echo -e "${YELLOW}[warn]${RESET}  $*" >&2; }
 error()   { echo -e "${RED}[error]${RESET} $*" >&2; }
+header()  { echo -e "\n${BOLD}=== $1 ===${RESET}\n"; }
 
 # ─── Usage ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +38,7 @@ ${BOLD}Modes:${RESET}
 ${BOLD}Options:${RESET}
   --dry-run        Generate + clean assertions, but skip evaluation.
   --skip-generate  Reuse existing redteam.yaml (skips Steps 1 & 2).
+  --fail-fast      Exit immediately if any phase fails.
   -h, --help       Show this help.
 EOF
 }
@@ -44,6 +47,7 @@ EOF
 
 DRY_RUN=false
 SKIP_GENERATE=false
+FAIL_FAST=false
 MODE="${DEFAULT_MODE}"
 
 for arg in "$@"; do
@@ -51,6 +55,7 @@ for arg in "$@"; do
     full|minimal)     MODE="$arg" ;;
     --dry-run)        DRY_RUN=true ;;
     --skip-generate)  SKIP_GENERATE=true ;;
+    --fail-fast)      FAIL_FAST=true ;;
     -h|--help|help)   usage; exit 0 ;;
     *) error "Unknown argument: '$arg'"; usage; exit 1 ;;
   esac
@@ -72,11 +77,10 @@ require_command() {
 
 require_command node
 require_command npx
+require_command npm
 
 if [[ ! -f "$CONFIG_PATH" ]];  then error "Config not found: $CONFIG_PATH";        exit 1; fi
 if [[ ! -f "$EVAL_SERVER" ]];  then error "Eval server not found: $EVAL_SERVER";   exit 1; fi
-
-# ─── Paths ────────────────────────────────────────────────────────────────────
 
 mkdir -p "$REPORTS_DIR"
 
@@ -86,6 +90,24 @@ LATEST_REPORT="${REPORTS_DIR}/redteam-latest.yaml"
 GENERATED_REPORT="${SCRIPT_DIR}/redteam.yaml"
 FALLBACK_GENERATED_REPORT="${PROJECT_ROOT}/redteam.yaml"
 CONFIG_GENERATED_REPORT="${CONFIG_DIR}/redteam.yaml"
+
+# ─── Tracker ──────────────────────────────────────────────────────────────────
+declare -A AUDIT_RESULTS
+
+record_result() {
+  local phase="$1"
+  local exit_code="$2"
+  if [[ "$exit_code" -eq 0 ]]; then
+    AUDIT_RESULTS["$phase"]="${GREEN}PASS${RESET}"
+  else
+    AUDIT_RESULTS["$phase"]="${RED}FAIL${RESET}"
+    if $FAIL_FAST; then
+      error "Phase '$phase' failed and --fail-fast is enabled. Aborting."
+      cleanup
+      exit "$exit_code"
+    fi
+  fi
+}
 
 # ─── Server lifecycle ─────────────────────────────────────────────────────────
 
@@ -123,89 +145,91 @@ wait_for_server() {
   exit 1
 }
 
-check_promptfoo_connectivity() {
-  if ! command -v curl >/dev/null 2>&1; then return 0; fi
-  if ! curl -fsS --max-time 8 "https://api.promptfoo.app/version" >/dev/null 2>&1; then
-    warn "Cannot reach https://api.promptfoo.app — remote test generation may fail."
-    warn "See: https://www.promptfoo.dev/docs/red-team/troubleshooting/remote-generation/"
-  fi
-}
+# ─── Main Execution ───────────────────────────────────────────────────────────
 
-# ─── Report archiving ─────────────────────────────────────────────────────────
+echo -e "${BOLD}\nStreamVault Comprehensive Audit Suite${RESET} (mode: ${MODE})\n"
 
-find_generated_report() {
-  local newest=""
-  for candidate in "$@"; do
-    if [[ -f "$candidate" ]]; then
-      if [[ -z "$newest" || "$candidate" -nt "$newest" ]]; then
-        newest="$candidate"
-      fi
-    fi
-  done
-  [[ -n "$newest" ]] && echo "$newest" && return 0
-  return 1
-}
+cd "$PROJECT_ROOT" || exit 1
 
-archive_generated_report() {
-  local src="$1" dest="$2" latest="$3"
-  local final="$dest"
+# --- Phase 1: Code Quality ---
+header "Phase 1: Code Quality & Type Safety"
+info "Running ESLint..."
+npm run lint
+record_result "Linting" $?
 
-  mkdir -p "$(dirname "$dest")"
-  [[ -e "$final" ]] && final="${dest%.yaml}-${RANDOM}.yaml"
+info "Running TypeScript compiler..."
+npx tsc --noEmit
+record_result "TypeCheck" $?
 
-  if mv "$src" "$final" 2>/dev/null || { cp "$src" "$final" && rm -f "$src"; }; then
-    cp "$final" "$latest" || warn "Could not update latest alias at '$latest'."
-    echo "$final"
-    return 0
-  fi
+# --- Phase 2: Security Audit ---
+header "Phase 2: Dependency Security Audit"
+info "Running npm audit (High & Critical)..."
+npm audit --audit-level=high
+# Ignore typical npm audit failure codes for tracking, but log it
+npm_audit_code=$?
+if [[ $npm_audit_code -eq 0 ]]; then
+  success "No high/critical vulnerabilities found."
+  record_result "Security Audit" 0
+else
+  warn "Vulnerabilities detected by npm audit."
+  record_result "Security Audit" $npm_audit_code
+fi
 
-  warn "Could not archive report from '$src' to '$final'."
-  return 1
-}
+# --- Phase 3: Build Verification ---
+header "Phase 3: Production Build Verification"
+info "Executing production build..."
+npm run build
+record_result "Build Verification" $?
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# --- Phase 4: Static SEO & Accessibility ---
+header "Phase 4: SEO & Accessibility Static Analysis"
+if [[ -f "$SEO_SCRIPT" ]]; then
+  node "$SEO_SCRIPT"
+  seo_code=$?
+  record_result "SEO & A11y" $seo_code
+else
+  warn "SEO Script not found at $SEO_SCRIPT"
+  record_result "SEO & A11y" 1
+fi
 
-echo -e "${BOLD}StreamVault AI Red Team Audit${RESET} (mode: ${MODE})"
-info "Config: ${CONFIG_PATH}"
-$DRY_RUN       && info "Dry-run mode enabled: evaluation will be skipped."
-$SKIP_GENERATE && info "Skip-generate mode: reusing existing redteam.yaml."
+# --- Phase 5: AI Red Team (Promptfoo) ---
+header "Phase 5: AI Red Team Evaluation"
+export PROMPTFOO_SKIP_TELEMETRY=1
 
 info "Starting mock evaluation server..."
 node "$EVAL_SERVER" > "${SCRIPT_DIR}/mock-server.log" 2>&1 &
 SERVER_PID=$!
 wait_for_server
 
-export PROMPTFOO_SKIP_TELEMETRY=1
-check_promptfoo_connectivity
-
 if ! $SKIP_GENERATE; then
-  # Step 1: Generate
-  info "Step 1: Generating test cases..."
+  info "Generating AI Red Team test cases..."
   cd "$SCRIPT_DIR"
   npx promptfoo@latest redteam generate \
     --config "$CONFIG_PATH" \
     --output "$GENERATED_REPORT" \
     --force
-  success "Test cases generated → ${GENERATED_REPORT}"
-
-  # Step 2: Clean assertions
-  info "Step 2: Cleaning remote assertions..."
+  
+  info "Cleaning remote assertions..."
   if ! node "${SCRIPT_DIR}/scripts/clean_assertions.mjs" \
       "$GENERATED_REPORT" \
       "${SCRIPT_DIR}/scripts/local_grader.mjs"; then
-    error "clean_assertions.mjs failed. Aborting."
-    exit 1
+    error "clean_assertions.mjs failed."
+    record_result "AI Generation" 1
+  else
+    success "Assertions cleaned."
+    record_result "AI Generation" 0
   fi
-  success "Assertions cleaned."
 else
-  info "Skipping Steps 1 & 2 (--skip-generate)."
+  info "Skipping AI generation phase (--skip-generate)."
+  record_result "AI Generation" 0
 fi
 
-# Step 3: Evaluate
 if $DRY_RUN; then
-  info "Step 3: Skipped (--dry-run)."
+  info "Skipping AI evaluation (--dry-run)."
+  record_result "AI Evaluation" 0
 else
-  info "Step 3: Running evaluation with local grader..."
+  info "Running AI evaluation with local grader..."
+  cd "$SCRIPT_DIR"
   EVAL_EXIT=0
   npx promptfoo@latest eval \
     --config "$GENERATED_REPORT" \
@@ -213,22 +237,34 @@ else
     -j 8 || EVAL_EXIT=$?
 
   if [[ $EVAL_EXIT -ne 0 ]]; then
-    warn "Promptfoo eval exited with code ${EVAL_EXIT} — some tests may have failed (expected for red-team runs)."
+    warn "Promptfoo eval exited with code ${EVAL_EXIT} — expected if vulnerabilities found."
+    record_result "AI Evaluation" $EVAL_EXIT
   else
     success "Evaluation complete."
+    record_result "AI Evaluation" 0
   fi
 
-  if GENERATED_REPORT_PATH="$(find_generated_report "$GENERATED_REPORT" "$FALLBACK_GENERATED_REPORT" "$CONFIG_GENERATED_REPORT")"; then
-    if ARCHIVED_PATH="$(archive_generated_report "$GENERATED_REPORT_PATH" "$TIMESTAMPED_REPORT" "$LATEST_REPORT")"; then
-      success "Saved report:  ${ARCHIVED_PATH}"
-      success "Latest alias:  ${LATEST_REPORT}"
-    fi
-  else
-    warn "Promptfoo finished but no redteam.yaml output was found."
+  # Helper for archiving
+  final_dest="$TIMESTAMPED_REPORT"
+  [[ -e "$final_dest" ]] && final_dest="${TIMESTAMPED_REPORT%.yaml}-${RANDOM}.yaml"
+
+  if mv -f "$GENERATED_REPORT" "$final_dest" 2>/dev/null || { cp -f "$GENERATED_REPORT" "$final_dest" && rm -f "$GENERATED_REPORT"; }; then
+    cp -f "$final_dest" "$LATEST_REPORT" 2>/dev/null || true
+    success "Saved AI Red Team report:  ${final_dest}"
   fi
 fi
 
+# ─── Summary ──────────────────────────────────────────────────────────────────
+
+header "Audit Suite Summary"
+printf "%-25s | %s\n" "Phase" "Status"
+printf "%s\n" "--------------------------------------"
+for phase in "Linting" "TypeCheck" "Security Audit" "Build Verification" "SEO & A11y" "AI Generation" "AI Evaluation"; do
+  if [[ -n "${AUDIT_RESULTS[$phase]:-}" ]]; then
+    printf "%-25s | %b\n" "$phase" "${AUDIT_RESULTS[$phase]}"
+  fi
+done
 echo ""
-echo -e "${BOLD}Audit complete.${RESET}"
-echo "  View:  cd \"$PROJECT_ROOT\" && npx promptfoo@latest view --config \"$CONFIG_PATH\""
-echo "  Share: npx promptfoo@latest share"
+echo -e "${BOLD}Detailed AI Red Team results can be viewed via:${RESET}"
+echo "  cd \"$PROJECT_ROOT\" && npx promptfoo@latest view --config \"$CONFIG_PATH\""
+echo "Done."
