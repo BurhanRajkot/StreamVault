@@ -208,7 +208,7 @@ if ! $SKIP_GENERATE; then
     --config "$CONFIG_PATH" \
     --output "$GENERATED_REPORT" \
     --force
-  
+
   info "Cleaning remote assertions..."
   if ! node "${SCRIPT_DIR}/scripts/clean_assertions.mjs" \
       "$GENERATED_REPORT" \
@@ -266,5 +266,6 @@ for phase in "Linting" "TypeCheck" "Security Audit" "Build Verification" "SEO & 
 done
 echo ""
 echo -e "${BOLD}Detailed AI Red Team results can be viewed via:${RESET}"
-echo "  cd \"$PROJECT_ROOT\" && npx promptfoo@latest view --config \"$CONFIG_PATH\""
+echo "  npx promptfoo@latest view"
 echo "Done."
+ # npx promptfoo@latest share

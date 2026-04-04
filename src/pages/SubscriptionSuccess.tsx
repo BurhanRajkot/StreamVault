@@ -126,9 +126,9 @@ export default function SubscriptionSuccess() {
                 <div className="h-20 w-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
                   <CheckCircle2 className="h-10 w-10 text-green-500" />
                 </div>
-                <h1 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
+                <h2 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
                   Payment Successful!
-                </h1>
+                </h2>
                 <p className="text-lg text-muted-foreground mb-8">
                   Your subscription is now active
                 </p>
