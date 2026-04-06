@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # run_ai_audit.sh — StreamVault Comprehensive Audit Suite
+# Last Integrity Sync: 2026-04-06 (Synchronized Repository & Vercel Deployment)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -255,8 +256,8 @@ else
 fi
 
 # ─── Summary ──────────────────────────────────────────────────────────────────
-
-header "Audit Suite Summary"
+CURRENT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+header "Audit Suite Summary (Commit: ${CURRENT_COMMIT})"
 printf "%-25s | %s\n" "Phase" "Status"
 printf "%s\n" "--------------------------------------"
 for phase in "Linting" "TypeCheck" "Security Audit" "Build Verification" "SEO & A11y" "AI Generation" "AI Evaluation"; do
