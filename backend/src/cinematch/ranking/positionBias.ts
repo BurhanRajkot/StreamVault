@@ -151,17 +151,10 @@ export async function logPositionImpression(event: {
 }
 
 // ── Estimate IPS-adjusted ranking weights ─────────────────
+// ── Estimate IPS-adjusted ranking weights ─────────────────
 // Periodically called from a background job or on startup.
-// Computes an IPS-corrected adjustment to the base ranking weights
-// by analyzing which weights produced the most corrected positive signal.
-//
-// Implementation: simple gradient approximation —
-//   For each weight dimension, observe whether IPS-corrected clicks
-//   on items where that signal was HIGH are above average CTR.
-//   Increase the weight for consistently predictive signals.
-//
-// This is a first-order approximation of LambdaMART in production
-// without requiring a full ML training pipeline.
+// Computes an IPS-corrected listwise adjustment to the base ranking weights
+// using a LambdaRank / NDCG-aware gradient approximation.
 export async function estimateIPSAdjustedWeights(
   baseWeights: RankingWeights,
 ): Promise<RankingWeights> {
@@ -170,45 +163,80 @@ export async function estimateIPSAdjustedWeights(
     if (propensityTable.size === 0) return baseWeights
 
     // With propensity available, query click data with position annotations
-    const { data: clickData, error } = await supabaseAdmin
+    // We get both clicks and non-clicks (impressions) to simulate pair-wise gradients
+    const { data: logData, error } = await supabaseAdmin
       .from('PositionBiasLog')
-      .select('displayPosition, clicked, source')
-      .eq('clicked', true)
+      .select('userId, tmdbId, displayPosition, clicked, source')
       .order('loggedAt', { ascending: false })
-      .limit(5000)
+      .limit(10000)
 
-    if (error || !clickData || clickData.length === 0) return baseWeights
+    if (error || !logData || logData.length === 0) return baseWeights
 
-    // Compute IPS-weighted CTR by source
-    const sourceCTR: Record<string, { weightedClicks: number; impressions: number }> = {}
-    for (const row of clickData) {
-      const source = row.source ?? 'unknown'
-      const ipsW = ipsCorrectWeight(1.0, row.displayPosition, propensityTable)
-      if (!sourceCTR[source]) sourceCTR[source] = { weightedClicks: 0, impressions: 0 }
-      sourceCTR[source].weightedClicks += ipsW
-      sourceCTR[source].impressions++
+    // Group logs by user session (simplification: group by userId for recent logs)
+    const sessions = new Map<string, typeof logData>()
+    for (const row of logData) {
+      if (!sessions.has(row.userId)) sessions.set(row.userId, [])
+      sessions.get(row.userId)!.push(row)
     }
 
-    // Sources with high IPS-corrected CTR → boost affinity weights
-    // This is a heuristic adjustment, not a gradient step
-    const genreBoost = (sourceCTR['genre_discovery']?.weightedClicks ?? 0) /
-                       Math.max(sourceCTR['genre_discovery']?.impressions ?? 1, 1)
-    const kwBoost = (sourceCTR['keyword_discovery']?.weightedClicks ?? 0) /
-                    Math.max(sourceCTR['keyword_discovery']?.impressions ?? 1, 1)
-    const castBoost = (sourceCTR['cast_discovery']?.weightedClicks ?? 0) /
-                      Math.max(sourceCTR['cast_discovery']?.impressions ?? 1, 1)
+    // Gradient accumulators for our 3 main heuristic sources
+    let dGenre = 0, dKw = 0, dCast = 0
 
-    // Normalise boosts to [0, 0.05] range — small nudge, not a full re-parameterization
-    const normalise = (val: number) => Math.min(val / 10, 0.05)
+    const LEARNING_RATE = 0.01
+
+    // LambdaRank approximation:
+    // For each session, find pairs of (clicked item i, unclicked item j).
+    // If rank(i) > rank(j) (meaning the clicked item was shown below the unclicked one),
+    // there's a ranking error. We compute the delta NDCG for swapping them.
+    for (const sessionLogs of sessions.values()) {
+      const clicked = sessionLogs.filter(r => r.clicked)
+      const unclicked = sessionLogs.filter(r => !r.clicked)
+
+      for (const c of clicked) {
+        for (const u of unclicked) {
+          // Has to have been ranked lower to constitute an error
+          if (c.displayPosition > u.displayPosition) {
+            // Delta NDCG from swapping positions
+            const dcgI = 1 / Math.log2(u.displayPosition + 2)
+            const dcgJ = 1 / Math.log2(c.displayPosition + 2)
+            const deltaNDCG = Math.abs(dcgI - dcgJ)
+            
+            // IPS weight for this observation pair
+            const ipsI = ipsCorrectWeight(1.0, c.displayPosition, propensityTable)
+            const ipsJ = ipsCorrectWeight(1.0, u.displayPosition, propensityTable)
+            const pairWeight = ((ipsI + ipsJ) / 2) * deltaNDCG
+
+            // Heuristic feature extraction: if source = 'genre_discovery', it means
+            // genreAffinity was the primary signal for this item.
+            // We increase weights for signals of clicked items, decrease for unclicked.
+            if (c.source === 'genre_discovery') dGenre += pairWeight * LEARNING_RATE
+            if (u.source === 'genre_discovery') dGenre -= pairWeight * LEARNING_RATE
+            
+            if (c.source === 'keyword_discovery') dKw += pairWeight * LEARNING_RATE
+            if (u.source === 'keyword_discovery') dKw -= pairWeight * LEARNING_RATE
+            
+            if (c.source === 'cast_discovery') dCast += pairWeight * LEARNING_RATE
+            if (u.source === 'cast_discovery') dCast -= pairWeight * LEARNING_RATE
+          }
+        }
+      }
+    }
+
+    // Normalise boosts to [-0.1, 0.1] clip range
+    const clip = (val: number) => Math.max(Math.min(val, 0.1), -0.1)
 
     const adjusted: RankingWeights = {
       ...baseWeights,
-      genreAffinity: Math.min(baseWeights.genreAffinity + normalise(genreBoost), 0.50),
-      keywordAffinity: Math.min(baseWeights.keywordAffinity + normalise(kwBoost), 0.20),
-      castAffinity: Math.min(baseWeights.castAffinity + normalise(castBoost), 0.20),
+      genreAffinity: Math.max(0.1, Math.min(baseWeights.genreAffinity + clip(dGenre), 0.60)),
+      keywordAffinity: Math.max(0.05, Math.min(baseWeights.keywordAffinity + clip(dKw), 0.30)),
+      castAffinity: Math.max(0.05, Math.min(baseWeights.castAffinity + clip(dCast), 0.30)),
     }
 
-    logger.info('[IPS] Computed adjusted weights', { adjusted })
+    logger.info('[IPS] Computed NDCG/LambdaRank adjusted weights', { 
+      deltas: { dGenre: clip(dGenre), dKw: clip(dKw), dCast: clip(dCast) },
+      adjusted 
+    })
+    
     return adjusted
 
   } catch (err: any) {

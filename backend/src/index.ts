@@ -3,6 +3,7 @@ import './lib/loadEnv'
 import express from 'express'
 import compression from 'compression'
 import { logger } from './lib/logger'
+import { seedTrieBackground } from './cinematch/search/trieAutocomplete'
 
 // CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
 import {
@@ -113,4 +114,9 @@ app.use('/dislikes', dislikesRouter)
 const HOST = '0.0.0.0'
 app.listen(Number(PORT), HOST, () => {
   logger.info('Backend server started', { host: HOST, port: PORT })
+  
+  // Asynchronously seed the Autocomplete Trie without blocking startup
+  seedTrieBackground().catch(err => 
+    logger.error('Failed to seed Trie', { error: err.message })
+  )
 })

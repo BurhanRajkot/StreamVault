@@ -298,27 +298,39 @@ export async function searchMedia(
     return { results: [], total_pages: 0 }
   }
 
-  // Documentaries: Search Movies (closest approx) or Mixed
-  // Implementing true filtered search is complex, usually users search for "Planet Earth"
-  // Let's just search 'multi' or 'movie'?
-  // Search API doesn't support genre filter easily.
-  // For now, let's search 'movie' as fallback (most user intent)
-  const searchMode = (mode === 'documentary' || mode === 'home') ? 'movie' : mode
+  const params = new URLSearchParams()
+  params.append('query', query)
+  params.append('page', page.toString())
 
-  const url = `${API_BASE}/tmdb/search/${searchMode}?query=${encodeURIComponent(
-    query
-  )}&page=${page}`
-
-  const res = await fetch(url)
-  if (!res.ok) {
-    console.error('searchMedia failed:', res.status, res.statusText)
-    return { results: [], total_pages: 0 }
+  // Enable fast in-memory Trie autocomplete for the first page
+  if (page === 1) {
+    params.append('autocomplete', 'true')
   }
-  const data = await res.json()
 
-  return {
-    results: data.results || [],
-    total_pages: data.total_pages || 0,
+  // Filter media type specifically if requested. 
+  // For 'home' and 'documentary', we omit this to search BOTH TV and Movies.
+  if (mode === 'movie' || mode === 'tv') {
+    params.append('mediaType', mode)
+  }
+
+  const url = `${API_BASE}/tmdb/search/hybrid?${params.toString()}`
+
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.error('searchMedia failed:', res.status, res.statusText)
+      return { results: [], total_pages: 0 }
+    }
+    const data = await res.json()
+
+    return {
+      results: data.results || [],
+      // The hybrid route returns total_results, we approximate pages or default to 1
+      total_pages: data.total_pages || Math.ceil((data.total_results || (data.results || []).length) / 20) || 1,
+    }
+  } catch (err) {
+    console.error('searchMedia fetch err:', err)
+    return { results: [], total_pages: 0 }
   }
 }
 

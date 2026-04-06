@@ -12,6 +12,8 @@
 
 import { rankWithBM25, BM25Document } from './bm25'
 import { logger } from '../../lib/logger'
+import { parseQueryNLU } from './queryParser'
+import { crossEncoderReRank } from './crossEncoder'
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
@@ -62,6 +64,39 @@ async function fetchMultiSearch(
     }
     const data = await res.json()
     return (data.results || []) as TMDBMultiResult[]
+  } catch (err: any) {
+    logger.error('[HybridSearch] TMDB network error', { error: err.message })
+    return []
+  }
+}
+
+async function fetchDiscover(
+  mediaType: 'movie' | 'tv',
+  filters: Record<string, string>,
+  page: number = 1
+): Promise<TMDBMultiResult[]> {
+  if (!TMDB_API_KEY) return []
+  
+  try {
+    const params = new URLSearchParams()
+    params.append('api_key', TMDB_API_KEY)
+    params.append('page', page.toString())
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) params.append(k, v)
+    }
+    
+    // Sort by popularity for general discover queries
+    params.append('sort_by', 'popularity.desc')
+    
+    const url = `${TMDB_BASE_URL}/discover/${mediaType}?${params.toString()}`
+    const res = await fetch(url)
+    if (!res.ok) {
+      logger.error('[HybridSearch] TMDB discover failed', { status: res.status })
+      return []
+    }
+    const data = await res.json()
+    // Inject missing media_type since /discover doesn't return it
+    return (data.results || []).map((r: any) => ({ ...r, media_type: mediaType }))
   } catch (err: any) {
     logger.error('[HybridSearch] TMDB network error', { error: err.message })
     return []
@@ -166,8 +201,38 @@ export interface HybridSearchOptions {
 export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSearchResult[]> {
   const { query, page = 1, mediaOnly = false, mediaType } = opts
 
-  // Fetch from TMDB
-  let results = await fetchMultiSearch(query, page)
+  let results: TMDBMultiResult[] = []
+  
+  // 1. Attempt LLM/NLU parsing of the query
+  const parsed = await parseQueryNLU(query)
+  
+  if (parsed && parsed.isConversational) {
+    logger.info('[HybridSearch] Using NLU parsed filters via Discover', { query })
+    
+    // Fallback search term if they included a title portion
+    if (parsed.remainingQuery) {
+      parsed.filters['with_text_query'] = parsed.remainingQuery
+    }
+    
+    if (parsed.mediaType) {
+      // If NLU strongly detected a specific media type
+      results = await fetchDiscover(parsed.mediaType, parsed.filters as Record<string, string>, page)
+    } else if (mediaType) {
+      // If client requested a specific media type
+      results = await fetchDiscover(mediaType, parsed.filters as Record<string, string>, page)
+    } else {
+      // Fetch both discover movies and tv
+      const [movies, tv] = await Promise.all([
+        fetchDiscover('movie', parsed.filters as Record<string, string>, page),
+        fetchDiscover('tv', parsed.filters as Record<string, string>, page)
+      ])
+      // Merge and sort purely by popularity since discovery results lack BM25 scores yet
+      results = [...movies, ...tv].sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+    }
+  } else {
+    // 2. Standard heuristic flow: Fetch from TMDB Multi Search
+    results = await fetchMultiSearch(query, page)
+  }
 
   // Apply type filters
   if (mediaType) {
@@ -196,5 +261,8 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
     topResult: `${bm25Ranked[0]?.doc.title || bm25Ranked[0]?.doc.name} (${bm25Ranked[0]?.bm25Score.toFixed(3)})`,
   })
 
-  return computeHybridScores(bm25Ranked)
+  const scoredHybrid = computeHybridScores(bm25Ranked)
+  
+  // 3. Stage 2 Precision Re-Ranking via Cross-Encoder proxy
+  return await crossEncoderReRank(query, scoredHybrid, 10)
 }
