@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import * as cache from '../services/cache'
 import { logger } from '../lib/logger'
 import { hybridSearch } from '../cinematch/search/hybridSearch'
+import { globalTrie } from '../cinematch/search/trieAutocomplete'
 import { withTmdbRateLimit } from '../services/tmdbLimiter'
 
 const router = Router()
@@ -171,6 +172,34 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
 
   if (!query || query.trim().length === 0) {
     return res.status(400).json({ error: 'Query parameter required' })
+  }
+
+  // 1. Instant prefix check via In-Memory Trie
+  // If we are on page 1, and the query is short, hitting the trie is O(m).
+  // If the trie has a rich set of top entities, we can return them instantly.
+  // Note: we can combine trie results with backend search, but for instant autocomplete
+  // normally the client calls a separate /autocomplete endpoint. We'll serve that here too.
+  if (page === 1 && req.query.autocomplete === 'true') {
+    const trieResults = globalTrie.search(query)
+    if (trieResults.length > 0) {
+      // Map TrieEntity to standard TMDBMultiResult shape
+      const results = trieResults.map(t => ({
+        id: t.id,
+        media_type: t.mediaType,
+        title: t.mediaType === 'movie' ? t.title : undefined,
+        name: t.mediaType === 'tv' ? t.title : undefined,
+        popularity: t.popularity,
+        poster_path: t.poster_path,
+        release_date: t.release_year ? `${t.release_year}-01-01` : undefined, // Approximation
+        first_air_date: t.release_year ? `${t.release_year}-01-01` : undefined,
+        _source: 'trie_autocomplete', // Debug flag
+      }))
+      
+      // We return these immediately as sub-10ms autocomplete results
+      res.setHeader('Cache-Control', 'public, max-age=60')
+      res.setHeader('X-Search-Engine', 'memory-trie')
+      return res.json({ results, total_results: results.length, query })
+    }
   }
 
   if (mediaType && mediaType !== 'movie' && mediaType !== 'tv') {
