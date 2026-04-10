@@ -64,15 +64,37 @@ export function RecommendationRow({
 
   // Is the user actively dragging? Prevent click events if so.
   const [isDragging, setIsDragging] = useState(false)
+  const [showLeftButton, setShowLeftButton] = useState(false)
+  const [showRightButton, setShowRightButton] = useState(true)
+  const [isHovered, setIsHovered] = useState(false)
 
   // Measure the true width of the content vs the container to set drag constraints
   useEffect(() => {
     if (carouselRef.current && innerTrackRef.current) {
-      setCarouselWidth(
-        innerTrackRef.current.scrollWidth - carouselRef.current.offsetWidth
-      )
+      const width = innerTrackRef.current.scrollWidth - carouselRef.current.offsetWidth
+      setCarouselWidth(Math.max(0, width))
+      setShowRightButton(width > 0 && Math.abs(x.get()) < width - 10)
+      setShowLeftButton(x.get() < -10)
     }
-  }, [section.items, isLoading])
+  }, [section.items, isLoading, x])
+
+  useEffect(() => {
+    let unsubscribe: any;
+    const handleXChange = (latest: number) => {
+      setShowLeftButton(latest < -10);
+      setShowRightButton(latest > -carouselWidth + 10 && carouselWidth > 0);
+    };
+
+    if (x.on) {
+      unsubscribe = x.on('change', handleXChange);
+    } else if ((x as any).onChange) {
+      unsubscribe = (x as any).onChange(handleXChange);
+    }
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    }
+  }, [x, carouselWidth])
 
   const handleArrowScroll = (direction: 'left' | 'right') => {
     if (!carouselRef.current) return
@@ -106,7 +128,11 @@ export function RecommendationRow({
   if (!isLoading && section.items.length === 0) return null
 
   return (
-    <section className="relative mb-5 sm:mb-6">
+    <section 
+      className="relative mb-5 sm:mb-6"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* ── Header ─────────────────────────────────────── */}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -116,30 +142,48 @@ export function RecommendationRow({
           </h2>
         </div>
 
-        {/* Arrow buttons */}
-        <div className="flex gap-1.5 flex-shrink-0 ml-3">
-          <button
+        {/* Mobile-only scroll indicators */}
+        <div className="flex gap-2 md:hidden flex-shrink-0 ml-3">
+          <button 
             onClick={() => handleArrowScroll('left')}
-            aria-label="Scroll left"
-            className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            disabled={!showLeftButton}
+            className={`p-1.5 rounded-full bg-white/5 ${!showLeftButton ? 'opacity-30' : 'active:bg-white/10'}`}
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft className="w-4 h-4 text-white" />
           </button>
-          <button
+          <button 
             onClick={() => handleArrowScroll('right')}
-            aria-label="Scroll right"
-            className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary/70 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            disabled={!showRightButton}
+            className={`p-1.5 rounded-full bg-white/5 ${!showRightButton ? 'opacity-30' : 'active:bg-white/10'}`}
           >
-            <ChevronRight size={18} />
+            <ChevronRight className="w-4 h-4 text-white" />
           </button>
         </div>
       </div>
 
       {/* ── Outer Carousel Bounds (Used for measurement and hiding off-screen stuff) ── */}
-      <div
-        ref={carouselRef}
-        className="overflow-hidden pb-4"
-      >
+      <div className="relative">
+        {/* Left Navigation Button (Desktop) */}
+        <div 
+          className={`absolute left-0 md:-left-4 top-0 bottom-4 z-30 
+            flex items-center justify-center
+            transition-opacity duration-300 pointer-events-none
+            ${showLeftButton && isHovered ? 'opacity-100' : 'opacity-0'}
+            hidden md:flex`}
+        >
+          <button
+            onClick={() => handleArrowScroll('left')}
+            className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
+          </button>
+        </div>
+
+        <div
+          ref={carouselRef}
+          className="overflow-hidden pb-4"
+        >
         {/* ── Inner Physics Track ───────────────────────────────── */}
         <motion.div
           ref={innerTrackRef}
@@ -179,6 +223,24 @@ export function RecommendationRow({
                 />
               ))}
         </motion.div>
+        
+        {/* Right Navigation Button (Desktop) */}
+        <div 
+          className={`absolute right-0 md:-right-4 top-0 bottom-4 z-30 
+            flex items-center justify-center
+            transition-opacity duration-300 pointer-events-none
+            ${showRightButton && isHovered ? 'opacity-100' : 'opacity-0'}
+            hidden md:flex`}
+        >
+          <button
+            onClick={() => handleArrowScroll('right')}
+            className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
+          </button>
+        </div>
+      </div>
       </div>
     </section>
   )
