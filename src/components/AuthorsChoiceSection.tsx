@@ -19,6 +19,23 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   const [media, setMedia] = useState<Media[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [isHovered, setIsHovered] = useState(false)
+  const [showLeftButton, setShowLeftButton] = useState(false)
+  const [showRightButton, setShowRightButton] = useState(true)
+
+  useEffect(() => {
+    const row = document.getElementById(`authors-choice-row-${mode}`)
+    if (!row) return
+    const handleScroll = () => {
+      setShowLeftButton(row.scrollLeft > 10)
+      setShowRightButton(row.scrollLeft < row.scrollWidth - row.clientWidth - 10)
+    }
+    row.addEventListener('scroll', handleScroll)
+    // Delay initial check to ensure render is complete
+    setTimeout(handleScroll, 100)
+    return () => row.removeEventListener('scroll', handleScroll)
+  }, [mode, media])
+
   useEffect(() => {
     async function load() {
       setLoading(true)
@@ -78,7 +95,11 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   }
 
   return (
-    <section className="relative mb-6">
+    <section 
+      className="relative mb-6"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Header */}
       <div className="mb-4 flex flex-row items-end justify-between gap-4">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-none">{getTitle()}</h2>
@@ -87,23 +108,39 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
         </p>
       </div>
 
-      {/* Left Arrow */}
-      <button
-        onClick={() => scroll('left')}
-        aria-label="Scroll author's choice left"
-        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
+      {/* Left Navigation Button */}
+      <div 
+        className={`absolute left-0 md:-left-4 top-10 bottom-4 z-30 
+          flex items-center justify-center
+          transition-opacity duration-300 pointer-events-none
+          ${showLeftButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          hidden md:flex`}
       >
-        <ChevronLeft className="h-5 w-5" />
-      </button>
+        <button
+          onClick={() => scroll('left')}
+          className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
+        </button>
+      </div>
 
-      {/* Right Arrow */}
-      <button
-        onClick={() => scroll('right')}
-        aria-label="Scroll author's choice right"
-        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
+      {/* Right Navigation Button */}
+      <div 
+        className={`absolute right-0 md:-right-4 top-10 bottom-4 z-30 
+          flex items-center justify-center
+          transition-opacity duration-300 pointer-events-none
+          ${showRightButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          hidden md:flex`}
       >
-        <ChevronRight className="h-5 w-5" />
-      </button>
+        <button
+          onClick={() => scroll('right')}
+          className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
+        </button>
+      </div>
 
       {/* Horizontal Scroll Row */}
       <div
