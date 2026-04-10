@@ -15,6 +15,23 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
   const [items, setItems] = useState<Media[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
+  const [isHovered, setIsHovered] = useState(false)
+  const [showLeftButton, setShowLeftButton] = useState(false)
+  const [showRightButton, setShowRightButton] = useState(true)
+
+  useEffect(() => {
+    const row = document.getElementById('recently-added-row')
+    if (!row) return
+    const handleScroll = () => {
+      setShowLeftButton(row.scrollLeft > 10)
+      setShowRightButton(row.scrollLeft < row.scrollWidth - row.clientWidth - 10)
+    }
+    row.addEventListener('scroll', handleScroll)
+    // Delay initial check to ensure render is complete
+    setTimeout(handleScroll, 100)
+    return () => row.removeEventListener('scroll', handleScroll)
+  }, [items])
+
   const providerName = providerId
     ? (OTT_PROVIDERS.find(p => p.id === providerId)?.displayName || 'Provider')
     : 'Recently Added'
@@ -41,7 +58,11 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
   if (!isLoading && items.length === 0) return null
 
   return (
-    <section className="relative mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <section 
+      className="relative mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Header */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -59,29 +80,45 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
         </div>
       </div>
 
-      {/* Left Arrow */}
-      <button
-        onClick={() => {
-          const row = document.getElementById('recently-added-row')
-          if (row) row.scrollBy({ left: -600, behavior: 'smooth' })
-        }}
-        aria-label="Scroll recently added left"
-        className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
+      {/* Left Navigation Button */}
+      <div 
+        className={`absolute left-0 md:-left-4 top-10 bottom-4 z-30 
+          flex items-center justify-center
+          transition-opacity duration-300 pointer-events-none
+          ${showLeftButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          hidden md:flex`}
       >
-        <ChevronLeft className="h-5 w-5" />
-      </button>
+        <button
+          onClick={() => {
+            const row = document.getElementById('recently-added-row')
+            if (row) row.scrollBy({ left: -600, behavior: 'smooth' })
+          }}
+          className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
+        </button>
+      </div>
 
-      {/* Right Arrow */}
-      <button
-        onClick={() => {
-          const row = document.getElementById('recently-added-row')
-          if (row) row.scrollBy({ left: 600, behavior: 'smooth' })
-        }}
-        aria-label="Scroll recently added right"
-        className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full bg-background/90 p-2.5 shadow-md backdrop-blur hover:scale-105"
+      {/* Right Navigation Button */}
+      <div 
+        className={`absolute right-0 md:-right-4 top-10 bottom-4 z-30 
+          flex items-center justify-center
+          transition-opacity duration-300 pointer-events-none
+          ${showRightButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          hidden md:flex`}
       >
-        <ChevronRight className="h-5 w-5" />
-      </button>
+        <button
+          onClick={() => {
+            const row = document.getElementById('recently-added-row')
+            if (row) row.scrollBy({ left: 600, behavior: 'smooth' })
+          }}
+          className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
+        </button>
+      </div>
 
       {/* Horizontal Scroll Row */}
       <div
