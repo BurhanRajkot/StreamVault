@@ -41,7 +41,7 @@ function SectionIcon({ source }: { source: string }) {
 // ── Skeleton card ──────────────────────────────────────────
 function RecoCardSkeleton() {
   return (
-    <div className="flex-shrink-0 w-[clamp(110px,13vw,165px)]">
+    <div className="flex-shrink-0 w-[clamp(110px,10vw,320px)]">
       <div className="aspect-[2/3] rounded-xl animate-shimmer bg-card border border-border/30" />
     </div>
   )
@@ -308,7 +308,7 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
       onKeyDown={handleCardKeyDown}
       className={cn(
         'group relative flex-shrink-0 cursor-pointer text-left',
-        'w-[clamp(120px,14vw,175px)]',
+        'w-[clamp(120px,11vw,340px)]',
         'rounded-xl bg-card border border-border/50',
         'transition-[transform,opacity,box-shadow,border-color] duration-300 ease-in-out',
         showQuickView ? 'z-50' : 'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden',

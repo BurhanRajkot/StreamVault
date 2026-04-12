@@ -73,7 +73,7 @@ export function ContinueWatchingCard({
   return (
     <div
       ref={cardRef}
-      className={cn("group relative w-[160px] flex-shrink-0 cursor-pointer", showQuickView ? "z-50" : "z-0")}
+      className={cn("group relative w-[clamp(160px,11vw,300px)] flex-shrink-0 cursor-pointer", showQuickView ? "z-50" : "z-0")}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -167,7 +167,7 @@ export function ContinueWatchingCard({
           height={750}
           loading="lazy"
           decoding="async"
-          className="w-full h-[240px] object-cover rounded-lg"
+          className="w-full h-[clamp(240px,16.5vw,450px)] object-cover rounded-lg"
           onError={(e) => {
             const target = e.currentTarget
             target.onerror = null // Prevent infinite loop

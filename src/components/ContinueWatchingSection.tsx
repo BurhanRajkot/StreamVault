@@ -137,7 +137,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="h-[240px] w-[160px] animate-pulse rounded-lg bg-muted"
+              className="h-[clamp(240px,16.5vw,450px)] w-[clamp(160px,11vw,300px)] animate-pulse rounded-lg bg-muted"
             />
           ))}
         </div>

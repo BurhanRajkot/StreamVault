@@ -102,7 +102,7 @@ export function Header({
         headerSurfaceClass
       )}
     >
-      <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-3 sm:px-6 xl:px-8">
+      <div className="mx-auto flex w-full max-w-[2560px] items-center justify-between gap-3 px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16">
         <div>
           <Link
             to="/"
