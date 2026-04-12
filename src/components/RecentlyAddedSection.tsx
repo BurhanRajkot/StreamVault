@@ -127,12 +127,12 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       >
         {isLoading
           ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="w-[160px] flex-shrink-0">
+              <div key={i} className="h-[clamp(240px,13.5vw,450px)] w-[clamp(160px,9vw,300px)] animate-pulse rounded-lg bg-muted">
                 <MediaCardSkeleton />
               </div>
             ))
           : items.map((media) => (
-              <div key={media.id} className="w-[160px] flex-shrink-0">
+              <div key={media.id} className="w-[clamp(160px,9vw,300px)] flex-shrink-0">
                 <MediaCard media={media} onClick={onMediaClick} />
               </div>
             ))}
