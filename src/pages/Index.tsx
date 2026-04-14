@@ -176,7 +176,7 @@ const Index = () => {
               )}
 
               {/* Author's Choice — lazy: only renders when scrolled near */}
-              <div ref={authorsRef}>
+              <div ref={authorsRef} className="below-fold-section">
                 {!searchQuery && authorsVisible && (
                   <AuthorsChoiceSection
                     onMediaClick={handleMediaClick}
@@ -186,7 +186,7 @@ const Index = () => {
               </div>
 
               {/* CineMatch AI — lazy: only renders when scrolled near */}
-              <div ref={recoRef}>
+              <div ref={recoRef} className="below-fold-section">
                 {!searchQuery && recoVisible && (
                   (recoLoading ? [
                     { title: 'Recommended For You', items: [], source: 'personal' },

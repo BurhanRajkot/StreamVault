@@ -292,7 +292,9 @@ export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
 export async function searchMedia(
   mode: MediaMode,
   query: string,
-  page = 1
+  page = 1,
+  /** Optional AbortSignal — pass one from an AbortController to cancel stale requests */
+  signal?: AbortSignal
 ): Promise<{ results: Media[]; total_pages: number }> {
   if (mode === 'downloads') {
     return { results: [], total_pages: 0 }
@@ -316,7 +318,7 @@ export async function searchMedia(
   const url = `${API_BASE}/tmdb/search/hybrid?${params.toString()}`
 
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { signal })
     if (!res.ok) {
       console.error('searchMedia failed:', res.status, res.statusText)
       return { results: [], total_pages: 0 }
@@ -328,11 +330,14 @@ export async function searchMedia(
       // The hybrid route returns total_results, we approximate pages or default to 1
       total_pages: data.total_pages || Math.ceil((data.total_results || (data.results || []).length) / 20) || 1,
     }
-  } catch (err) {
+  } catch (err: any) {
+    // AbortError is expected when the caller cancels a stale request — not a real error
+    if (err?.name === 'AbortError') return { results: [], total_pages: 0 }
     console.error('searchMedia fetch err:', err)
     return { results: [], total_pages: 0 }
   }
 }
+
 
 export async function fetchMediaDetails(
   mode: MediaMode,
