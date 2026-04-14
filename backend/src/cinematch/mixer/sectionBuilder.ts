@@ -20,7 +20,11 @@
 //   7. "Personalized For You" / "Popular Right Now" — remaining
 // ============================================================
 
-import { ScoredCandidate, UserProfile, RecommendationSection, CandidateSource } from '../types'
+import { ScoredCandidate, UserProfile, RecommendationSection, CandidateSource, TMDB_GENRES } from '../types'
+
+// Human-readable genre names for theme sub-rows (alias for clarity)
+const TMDB_GENRE_NAMES = TMDB_GENRES
+
 
 const MIN_SECTION_SIZE = 5   // Don't display a section with fewer than this many items
 const MAX_SECTION_SIZE = 40  // Cap each section at this for frontend
@@ -45,6 +49,8 @@ export function buildSections(
   // Each seed title gets its own section; candidates can own items
   // across multiple such sections.
   const seedSimilarMap = new Map<string, ScoredCandidate[]>()
+  // Map from seedTitle → genre distribution in its candidate pool
+  const seedGenreMap = new Map<string, Record<number, number>>()
 
   for (const c of ranked) {
     if (!hasSource(c, 'tmdb_similar') && !hasSource(c, 'tmdb_recommendations')) continue
@@ -55,9 +61,18 @@ export function buildSections(
     if (seedFor(c, 'tmdb_recommendations')) titlesForThisCandidate.add(seedFor(c, 'tmdb_recommendations')!)
 
     for (const seedTitle of titlesForThisCandidate) {
-      if (!seedSimilarMap.has(seedTitle)) seedSimilarMap.set(seedTitle, [])
+      if (!seedSimilarMap.has(seedTitle)) {
+        seedSimilarMap.set(seedTitle, [])
+        seedGenreMap.set(seedTitle, {})
+      }
       const section = seedSimilarMap.get(seedTitle)!
       if (section.length < MAX_SECTION_SIZE) section.push(c)
+
+      // Track genre distribution for this seed's pool
+      const genreCounts = seedGenreMap.get(seedTitle)!
+      for (const gId of (c.genreIds || [])) {
+        genreCounts[gId] = (genreCounts[gId] || 0) + 1
+      }
     }
   }
 
@@ -65,12 +80,53 @@ export function buildSections(
     .filter(([, items]) => items.length >= MIN_SECTION_SIZE)
     .sort((a, b) => (b[1][0]?.score ?? 0) - (a[1][0]?.score ?? 0))
 
+  // Cap "Because you watched" rows at 4 to avoid overwhelming the UI
+  const MAX_SEED_SECTIONS = 4
+  let seedSectionCount = 0
+
   for (const [seedTitle, items] of seedEntries) {
+    if (seedSectionCount >= MAX_SEED_SECTIONS) break
+
     sections.push({
       title: `Because you watched ${seedTitle}`,
       items: items.sort((a, b) => b.score - a.score),
       source: 'tmdb_similar',
     })
+    seedSectionCount++
+
+    // ── Theme sub-row: "Top {Genre} Picks — Inspired by {Seed}" ──
+    // Only emit if the seed's pool is large enough and has a dominant genre.
+    // Uses the same already-fetched candidates — zero extra API calls.
+    if (items.length >= 10 && seedSectionCount < MAX_SEED_SECTIONS) {
+      const genreCounts = seedGenreMap.get(seedTitle) || {}
+      const sortedGenres = Object.entries(genreCounts)
+        .sort((a, b) => b[1] - a[1])
+
+      if (sortedGenres.length > 0) {
+        const [topGenreId, topGenreCount] = sortedGenres[0]
+        const dominanceRatio = topGenreCount / items.length
+
+        // Only emit sub-row if one genre accounts for >40% of the pool
+        if (dominanceRatio >= 0.4) {
+          const genreId = Number(topGenreId)
+          const genreName = TMDB_GENRE_NAMES[genreId]
+          if (genreName) {
+            const themeItems = items
+              .filter(c => (c.genreIds || []).includes(genreId))
+              .slice(0, MAX_SECTION_SIZE)
+
+            if (themeItems.length >= MIN_SECTION_SIZE) {
+              sections.push({
+                title: `Top ${genreName} — Inspired by ${seedTitle}`,
+                items: themeItems.sort((a, b) => b.score - a.score),
+                source: 'genre_discovery',
+              })
+              seedSectionCount++
+            }
+          }
+        }
+      }
+    }
   }
 
   // ── 2. "Top {Genre} Picks For You" ────────────────────────

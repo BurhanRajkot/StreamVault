@@ -856,6 +856,7 @@ export async function logRecommendationInteraction(
     selectedServer?: string
     displayPosition?: number
     recommendationSource?: string
+    genreIds?: number[]           // ← NEW: pass genre context to skip extra DB lookup
   }
 ): Promise<void> {
   try {
