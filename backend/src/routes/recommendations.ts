@@ -229,6 +229,7 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
     timezone,
     displayPosition,
     recommendationSource,
+    genreIds,             // ← NEW: optional genre context from frontend
   } = req.body
 
   // Parse country from Cloudflare/Vercel headers if available, or fallback to body
@@ -272,6 +273,7 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
       timezone,
       displayPosition,
       recommendationSource,
+      genreIds: Array.isArray(genreIds) ? genreIds.map(Number).filter(Boolean) : undefined,
     }).catch((err: any) => logger.error('CineMatch interaction log failed', { error: err?.message }))
 
     // Invalidate ALL route-level cache entries for this user

@@ -22,6 +22,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { slugify } from '@/lib/utils'
 import { CineMatchOnboarding } from '@/components/CineMatchOnboarding'
 import { useOnboarding } from '@/hooks/useOnboarding'
+import { useContextualRecommendations } from '@/hooks/useContextualRecommendations'
 import { SEOContent } from '../components/SEOContent'
 
 const Downloads = lazy(() => import('./Downloads'))
@@ -40,6 +41,11 @@ const Index = () => {
 
   // ─── CineMatch Onboarding (first-time users only) ────────────────────────
   const { shouldShowOnboarding, markDone } = useOnboarding()
+
+  // ─── Guest contextual "Because you watched X" row ───────────────────────────
+  // For authenticated users, the backend pipeline handles this.
+  // For guests, we build it client-side from localStorage watch history.
+  const { section: guestContextualSection } = useContextualRecommendations()
 
   // ─── InView gates for below-fold sections ───────────────────────────────
   // Each section only mounts/fetches once it scrolls near the viewport
@@ -188,18 +194,31 @@ const Index = () => {
               {/* CineMatch AI — lazy: only renders when scrolled near */}
               <div ref={recoRef} className="below-fold-section">
                 {!searchQuery && recoVisible && (
-                  (recoLoading ? [
-                    { title: 'Recommended For You', items: [], source: 'personal' },
-                    { title: 'Because You Watched...', items: [], source: 'because_you_watched' },
-                  ] : recoSections).map((section) => (
-                    <RecommendationRow
-                      key={section.title}
-                      section={section}
-                      onCardClick={handleRecoCardClick}
-                      onDislike={isAuthenticated ? handleRecoDislike : undefined}
-                      isLoading={recoLoading}
-                    />
-                  ))
+                  <>
+                    {/* Guest contextual row — shown before generic sections */}
+                    {!isAuthenticated && guestContextualSection && (
+                      <RecommendationRow
+                        key={guestContextualSection.title}
+                        section={guestContextualSection}
+                        onCardClick={handleRecoCardClick}
+                        onDislike={undefined}
+                        isLoading={false}
+                      />
+                    )}
+                    {/* CineMatch sections (personalized for auth, trending for guest) */}
+                    {(recoLoading ? [
+                      { title: 'Recommended For You', items: [], source: 'personal' as const },
+                      { title: 'Because You Watched...', items: [], source: 'tmdb_similar' as const },
+                    ] : recoSections).map((section) => (
+                      <RecommendationRow
+                        key={section.title}
+                        section={section}
+                        onCardClick={handleRecoCardClick}
+                        onDislike={isAuthenticated ? handleRecoDislike : undefined}
+                        isLoading={recoLoading}
+                      />
+                    ))}
+                  </>
                 )}
               </div>
 
