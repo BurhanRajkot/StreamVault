@@ -132,7 +132,9 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
 
     const data = await fetchTMDB(url)
     // Stale-while-revalidate: serve cached version instantly, update in background
-    res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600') // 30min cache, 1hr stale
+    // 1hr browser cache, 6hr stale window — CDN can serve without hitting backend
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=21600')
+    res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch popular media' })
@@ -152,7 +154,9 @@ router.get('/trending/:mediaType', async (req: Request, res: Response) => {
 
   try {
     const data = await fetchTMDB(`/trending/${mediaType}/week`)
-    res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600')
+    // Trending: longer stale window — weekly data doesn't change fast
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=43200') // 1hr cache, 12hr stale
+    res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch trending media' })
@@ -260,7 +264,9 @@ router.get('/:mediaType/:id/videos', async (req: Request, res: Response) => {
 
   try {
     const data = await fetchTMDB(`/${mediaType}/${parsedId}/videos`)
-    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200')
+    // Video lists change infrequently — cache 2hrs, serve stale for 24hrs
+    res.setHeader('Cache-Control', 'public, max-age=7200, stale-while-revalidate=86400')
+    res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch videos' })
@@ -300,7 +306,9 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
     }
 
     const data = await fetchTMDB(url)
-    res.setHeader('Cache-Control', 'public, max-age=7200, stale-while-revalidate=14400') // 2hr cache, 4hr stale
+    // Detail pages: 2hr browser cache, 12hr stale — movie metadata rarely changes
+    res.setHeader('Cache-Control', 'public, max-age=7200, stale-while-revalidate=43200')
+    res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch media details' })

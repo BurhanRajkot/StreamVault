@@ -19,7 +19,9 @@ const SubscriptionSuccess = lazy(() => import('./pages/SubscriptionSuccess'))
 const Login = lazy(() => import('./auth/Login'))
 const Signup = lazy(() => import('./auth/Signup'))
 const NotFound = lazy(() => import('./pages/NotFound'))
-const ServerError = lazy(() => import('./pages/ServerError'))
+// ServerError is statically imported by ErrorBoundary (class component, can't lazy-load there)
+// so we keep it static here to avoid the mixed static/dynamic import Vite warning
+import ServerError from './pages/ServerError'
 const AccessDenied = lazy(() => import('./pages/AccessDenied'))
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'))
 
