@@ -77,6 +77,8 @@ export async function logInteraction(event: {
   // Phase 4: Position bias tracking fields
   displayPosition?: number    // 0-indexed position where the item appeared in the list
   recommendationSource?: string  // Source tag from ScoredCandidate.source
+  // Gap 4 fix: genre context from the frontend to skip extra DB lookup
+  genreIds?: number[]         // TMDB genre IDs of the watched item (sent by MovieDetailModal)
 }): Promise<void> {
   const weight = computeWeight(event.eventType, event.progress, event.rating)
 
@@ -139,8 +141,9 @@ export async function logInteraction(event: {
   invalidateRecommendationCache(event.userId)
   invalidateUserProfile(event.userId)
 
-  // Update UserGenreProfile incrementally (async, non-blocking)
-  updateGenreProfileIncremental(event.userId, event.tmdbId, event.mediaType, weight)
+  // Update UserGenreProfile incrementally (async, non-blocking).
+  // If genreIds were supplied by the frontend, skip the extra getMovieFeatures() call.
+  updateGenreProfileIncremental(event.userId, event.tmdbId, event.mediaType, weight, event.genreIds)
     .catch(() => {})
 }
 
@@ -150,15 +153,25 @@ export async function logInteraction(event: {
 //   new_weight = 0.9 * existing + 0.1 * interaction_this_event
 // This means the profile stays fresh after each interaction without
 // a full rebuild from all 200 historical interactions.
+//
+// OPTIMISED: If genreIds are supplied (from the frontend watch payload),
+// the extra getMovieFeatures() Supabase lookup is skipped entirely.
 async function updateGenreProfileIncremental(
   userId: string,
   tmdbId: number,
   mediaType: MediaType,
   interactionWeight: number,
+  preloadedGenreIds?: number[],  // ← fast path: supplied by frontend
 ): Promise<void> {
-  // Fetch features for THIS specific movie/show
-  const features = await getMovieFeatures(tmdbId, mediaType)
-  if (!features || features.genreIds.length === 0) return
+  // Use pre-supplied genreIds when available to skip DB lookup
+  let resolvedGenreIds: number[] = preloadedGenreIds || []
+
+  if (resolvedGenreIds.length === 0) {
+    // Fall back to fetching features from DB / cache
+    const features = await getMovieFeatures(tmdbId, mediaType)
+    if (!features || features.genreIds.length === 0) return
+    resolvedGenreIds = features.genreIds
+  }
 
   // Dislike events get a 1.5× penalty multiplier so that a few dislikes
   // of the same genre are enough to noticeably shift the profile.
@@ -183,7 +196,7 @@ async function updateGenreProfileIncremental(
     // Negative weights (dislike / low rating) push genre scores DOWN.
     // Clamped to [-1, 1] to prevent unbounded drift.
     const updatedMap = { ...existingMap }
-    for (const genreId of features.genreIds) {
+    for (const genreId of resolvedGenreIds) {
       const key = String(genreId)
       const current = updatedMap[key] ?? 0
       const blended = 0.85 * current + 0.15 * effectiveWeight

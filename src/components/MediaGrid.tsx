@@ -81,7 +81,7 @@ export function MediaGrid({
     count: totalRows,
     getScrollElement: () => document.documentElement,
     estimateSize: () => rowHeight,
-    overscan: 3,
+    overscan: 5,           // pre-render 5 rows above/below viewport for silky-smooth scrolling
     gap,
   })
 
@@ -100,7 +100,7 @@ export function MediaGrid({
     if (!el) return
     const observer = new IntersectionObserver(handleObserver, {
       root: null,
-      rootMargin: '200px',
+      rootMargin: '600px',  // trigger next-page fetch 600px before sentinel enters view
       threshold: 0,
     })
     observer.observe(el)

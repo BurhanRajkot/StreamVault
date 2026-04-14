@@ -2,16 +2,16 @@ import { Candidate, UserProfile } from '../types'
 import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
 
 // Fetches TMDB Similar titles for each recently watched item
-// Seeds 5 items (up from 3) and fetches 20 per seed (up from 10)
+// Seeds 8 items (up from 5) and fetches 25 per seed (up from 20)
 // Crucially: attaches seedTitle to every candidate for "Because you watched X" grouping
 export async function tmdbSimilarSource(profile: UserProfile): Promise<Candidate[]> {
   if (profile.recentlyWatched.length === 0) return []
 
   const results = await Promise.allSettled(
-    profile.recentlyWatched.slice(0, 5).map(async (item) => {
+    profile.recentlyWatched.slice(0, 8).map(async (item) => {
       const data = await fetchTMDB(`/${item.mediaType}/${item.tmdbId}/similar`)
       return ((data.results || []) as any[])
-        .slice(0, 20)
+        .slice(0, 25)
         .map((r: any) => {
           const candidate = mapTMDBItem(r, item.mediaType, 'tmdb_similar')
           if (!candidate) return null
