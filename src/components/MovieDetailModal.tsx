@@ -7,6 +7,7 @@ import { CircularRating } from './CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
 import { fetchMediaDetails, getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { cn } from '@/lib/utils'
@@ -59,6 +60,7 @@ export function MovieDetailModal({
   })
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+  const queryClient = useQueryClient()
   const { toggleFavorite, isFavorited } = useFavorites()
   const { toggleDislike, isDisliked } = useDislikes()
   const [isLiked, setIsLiked] = useState(false)
@@ -116,6 +118,9 @@ export function MovieDetailModal({
         hasLoggedWatch.current = true
 
         const logWatch = async () => {
+          // Extract genre IDs from the media object (already loaded — zero cost)
+          const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+
           try {
             if (isAuthenticated) {
               const token = await getAccessTokenSilently()
@@ -124,6 +129,7 @@ export function MovieDetailModal({
                 mediaType: typedMode,
                 eventType: 'watch',
                 selectedServer: server,
+                genreIds,
               })
             } else {
               await logRecommendationInteraction(null, {
@@ -131,8 +137,13 @@ export function MovieDetailModal({
                 mediaType: typedMode,
                 eventType: 'watch',
                 selectedServer: server,
+                genreIds,
               })
             }
+
+            // Bust the React Query recommendations cache so home page
+            // shows fresh "Because you watched X" rows immediately on return
+            queryClient.invalidateQueries({ queryKey: ['recommendations'] })
           } catch (err) {
             console.error('Failed to log watch event:', err)
           }
@@ -141,7 +152,7 @@ export function MovieDetailModal({
         logWatch()
       }
     }
-  }, [isPlaying, server, media, mode, season, episode, isAuthenticated, getAccessTokenSilently, typedMode])
+  }, [isPlaying, server, media, mode, season, episode, isAuthenticated, getAccessTokenSilently, typedMode, queryClient])
 
   // Save progress=0.1 after 30 seconds of playback (marks episode as "started")
   useEffect(() => {

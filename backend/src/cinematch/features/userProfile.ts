@@ -7,7 +7,7 @@ import { getCategoriesForGenres } from '../categories'
 // L1 for user profiles (5min TTL)
 const userProfileCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const MAX_RECENT_ITEMS = 8  // Seed candidate sources from last N watched (up from 5)
+const MAX_RECENT_ITEMS = 10  // Seed candidate sources from last N watched (up from 8 → more diversity)
 const DECAY_HALF_LIFE_DAYS = 30  // All vectors halve every 30 days
 
 // ── Time-decay factor ──────────────────────────────────────
@@ -121,8 +121,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     }
   }
 
-  // Batch-fetch features for top 30 recent interactions in parallel
-  const topInteractions = interactions.slice(0, 30)
+  // Batch-fetch features for top 50 recent interactions in parallel (was 30)
+  const topInteractions = interactions.slice(0, 50)
   const featureBatch = await Promise.allSettled(
     topInteractions.map(i => getMovieFeatures(i.tmdbId, i.mediaType as MediaType))
   )
@@ -148,9 +148,9 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       ? -0.6 * decay * 1.5
       : interaction.weight * decay
 
-    // Accumulate genre + keyword + cast vectors for top-30 interactions
+    // Accumulate genre + keyword + cast vectors for top-50 interactions
     // (includes dislikes so their genres get subtracted)
-    if (idx < 30) {
+    if (idx < 50) {
       const result = featureBatch[idx]
       if (result.status === 'fulfilled' && result.value) {
         const features = result.value
