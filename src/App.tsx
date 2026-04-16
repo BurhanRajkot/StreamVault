@@ -8,7 +8,6 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { DislikesProvider } from './context/DislikesContext'
 import { SmoothScrollProvider } from './components/SmoothScrollProvider'
-import { useIsMobile } from './mobile-ui/use-mobile'
 
 // Route-level code splitting — only load pages when navigated to
 const Favorites = lazy(() => import('./pages/Favorites'))
@@ -36,21 +35,6 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 const AppContent = () => {
   const location = useLocation()
   const backgroundLocation = location.state && location.state.backgroundLocation
-  const isMobile = useIsMobile()
-
-  if (isMobile) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-background text-foreground p-6 text-center">
-        <div className="mb-6 text-amber-500 rounded-full p-4 bg-amber-500/10 backdrop-blur">
-          <AlertTriangle size={48} />
-        </div>
-        <h1 className="text-2xl font-bold mb-3">Mobile View Under Construction</h1>
-        <p className="text-muted-foreground max-w-sm mx-auto leading-relaxed">
-          Please open this website on a PC. We are currently working on optimizing the mobile experience.
-        </p>
-      </div>
-    )
-  }
 
   return (
     <Suspense fallback={<PageFallback />}>
