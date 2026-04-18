@@ -42,11 +42,18 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
       let data: ContinueWatchingItem[] = []
 
       if (isAuthenticated) {
-        const audience = import.meta.env.VITE_AUTH0_AUDIENCE
-        const token = await getAccessTokenSilently({
-          authorizationParams: { audience },
-        })
-        data = await fetchContinueWatching(token)
+        try {
+          const audience = import.meta.env.VITE_AUTH0_AUDIENCE
+          const token = await getAccessTokenSilently({
+            authorizationParams: { audience },
+          })
+          data = await fetchContinueWatching(token)
+        } catch (tokenErr) {
+          // Token refresh failed (e.g. invalid/expired refresh token, 403).
+          // Fall back to guest localStorage so the section still renders.
+          console.warn('[ContinueWatching] Token refresh failed, falling back to guest mode:', tokenErr)
+          data = getGuestProgress()
+        }
       } else {
         data = getGuestProgress()
       }
