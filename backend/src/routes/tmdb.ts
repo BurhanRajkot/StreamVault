@@ -65,7 +65,7 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
       return data
     } catch (error: any) {
       const isLastAttempt = attempt === retries
-      const isConnectionError = error?.code === 'ECONNRESET' || error?.errno === 0
+      const isConnectionError = error?.code === 'ECONNRESET' || error?.errno === 0 || (error?.message && error.message.includes('socket connection was closed unexpectedly'))
 
       if (isConnectionError && !isLastAttempt) {
         // Wait before retrying (exponential backoff, max 3s)
