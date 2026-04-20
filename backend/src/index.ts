@@ -4,6 +4,7 @@ import express from 'express'
 import compression from 'compression'
 import { logger } from './lib/logger'
 import { seedTrieBackground } from './cinematch/search/trieAutocomplete'
+import { getGuestRecommendations } from './cinematch/mixer/homeTimeline'
 
 // CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
 import {
@@ -119,4 +120,13 @@ app.listen(Number(PORT), HOST, () => {
   seedTrieBackground().catch(err => 
     logger.error('Failed to seed Trie', { error: err.message })
   )
+
+  // Pre-warm guest recommendation cache 3s after startup.
+  // This ensures the first guest page load hits L1 in-memory cache (~1ms)
+  // instead of triggering a cold pipeline run (5-10s of TMDB API calls).
+  setTimeout(() => {
+    getGuestRecommendations()
+      .then(() => logger.info('Guest recommendation cache pre-warmed'))
+      .catch(err => logger.warn('Guest cache warm-up failed (non-critical)', { error: err?.message }))
+  }, 3000)
 })
