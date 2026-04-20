@@ -95,8 +95,10 @@ export function buildSections(
     seedSectionCount++
 
     // ── Theme sub-row: "Top {Genre} Picks — Inspired by {Seed}" ──
-    // Only emit if the seed's pool is large enough and has a dominant genre.
-    // Uses the same already-fetched candidates — zero extra API calls.
+    // Only emit when the genre-filtered items are DIFFERENT from the parent
+    // "Because you watched" row. We deduplicate by excluding any tmdbId
+    // already shown in the parent row, then scan the full ranked pool for
+    // fresh genre-matching items. Requires ≥8 unique new items.
     if (items.length >= 10 && seedSectionCount < MAX_SEED_SECTIONS) {
       const genreCounts = seedGenreMap.get(seedTitle) || {}
       const sortedGenres = Object.entries(genreCounts)
@@ -106,19 +108,29 @@ export function buildSections(
         const [topGenreId, topGenreCount] = sortedGenres[0]
         const dominanceRatio = topGenreCount / items.length
 
-        // Only emit sub-row if one genre accounts for >40% of the pool
-        if (dominanceRatio >= 0.4) {
+        // Raised from 0.4 → 0.5: genre must truly define this pool
+        if (dominanceRatio >= 0.5) {
           const genreId = Number(topGenreId)
           const genreName = TMDB_GENRE_NAMES[genreId]
           if (genreName) {
-            const themeItems = items
-              .filter(c => (c.genreIds || []).includes(genreId))
+            // IDs already displayed in the parent row
+            const parentIds = new Set(items.map(c => c.tmdbId))
+
+            // Pull from full ranked pool — NOT the parent slice — so we
+            // surface genuinely different content for the sub-row
+            const themeItems = ranked
+              .filter(c =>
+                !parentIds.has(c.tmdbId) &&           // must be new content
+                (c.genreIds || []).includes(genreId)   // must match genre
+              )
+              .sort((a, b) => b.score - a.score)
               .slice(0, MAX_SECTION_SIZE)
 
-            if (themeItems.length >= MIN_SECTION_SIZE) {
+            // Only emit if we have enough truly new items
+            if (themeItems.length >= 8) {
               sections.push({
                 title: `Top ${genreName} — Inspired by ${seedTitle}`,
-                items: themeItems.sort((a, b) => b.score - a.score),
+                items: themeItems,
                 source: 'genre_discovery',
               })
               seedSectionCount++
