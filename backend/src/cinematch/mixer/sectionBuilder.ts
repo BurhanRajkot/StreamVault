@@ -45,6 +45,8 @@ export function buildSections(
 ): RecommendationSection[] {
   const sections: RecommendationSection[] = []
 
+  const emittedThemeGenres = new Set<string>()
+
   // ── 1. "Because you watched {X}" ──────────────────────────
   // Each seed title gets its own section; candidates can own items
   // across multiple such sections.
@@ -134,6 +136,7 @@ export function buildSections(
                 source: 'genre_discovery',
               })
               seedSectionCount++
+              emittedThemeGenres.add(genreName)
             }
           }
         }
@@ -154,6 +157,9 @@ export function buildSections(
   }
 
   for (const [genreName, items] of genreMap.entries()) {
+    // Skip if we already emitted a theme row for this genre
+    if (emittedThemeGenres.has(genreName)) continue
+
     if (items.length >= MIN_SECTION_SIZE) {
       sections.push({
         title: `Top ${genreName} Picks For You`,
@@ -234,16 +240,15 @@ export function buildSections(
   }
 
   // ── 7. Personalized Picks — all high-scorers not yet shown ─
-  // Build a set of tmdbIds already in "Because you watched" sections
-  // so we don't duplicate those in the personalized row.
-  // Genre/cast/collab items CAN be duplicated here — it's fine for the last row.
-  const watchedSectionIds = new Set<number>()
-  for (const [, items] of seedSimilarMap.entries()) {
-    for (const c of items) watchedSectionIds.add(c.tmdbId)
+  // Deduplicate against ALL previously emitted sections so the fallback row
+  // is genuinely new content rather than repeating what was just shown.
+  const allEmittedIds = new Set<number>()
+  for (const section of sections) {
+    for (const c of section.items) allEmittedIds.add(c.tmdbId)
   }
 
   const personalizedItems = ranked
-    .filter((c) => !watchedSectionIds.has(c.tmdbId))
+    .filter((c) => !allEmittedIds.has(c.tmdbId))
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_SECTION_SIZE)
 
