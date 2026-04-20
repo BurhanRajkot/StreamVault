@@ -185,7 +185,7 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
   if (cached) {
     const trendingItems = cached.filter(c => c.source === 'trending').slice(0, 40)
     const popularItems = cached.filter(c => c.source === 'popular_fallback').slice(0, 40)
-    const topRated = [...cached].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, 40)
+    const topRated = cached.filter(c => c.source === 'tmdb_recommendations').slice(0, 40)
     const genreItems = cached.filter(c => c.source === 'genre_discovery').slice(0, 40)
     return {
       userId: null,
@@ -226,7 +226,7 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
   // For guests: build richer sections from available content
   const trendingItems = topK.filter(c => c.source === 'trending').slice(0, 40)
   const popularItems = topK.filter(c => c.source === 'popular_fallback').slice(0, 40)
-  const topRatedItems = [...topK].sort((a, b) => b.qualityScore - a.qualityScore).slice(0, 40)
+  const topRatedItems = topK.filter(c => c.source === 'tmdb_recommendations').slice(0, 40)
   const genreItems = topK.filter(c => c.source === 'genre_discovery').slice(0, 40)
 
   const guestSections = [
