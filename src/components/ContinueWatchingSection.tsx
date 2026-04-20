@@ -43,10 +43,9 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
 
       if (isAuthenticated) {
         try {
-          const audience = import.meta.env.VITE_AUTH0_AUDIENCE
-          const token = await getAccessTokenSilently({
-            authorizationParams: { audience },
-          })
+          // Don't pass `authorizationParams: { audience }` here — that can force
+          // a silent-auth iframe round-trip. Auth0 serves a cached token by default.
+          const token = await getAccessTokenSilently()
           data = await fetchContinueWatching(token)
         } catch (tokenErr) {
           // Token refresh failed (e.g. invalid/expired refresh token, 403).
@@ -67,8 +66,9 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
       const resolved = await fetchAggregatedContinueWatching(filtered)
       return resolved as ContinueWatchingEntry[]
     },
-    staleTime: 60000, // 1 minute stale time
-    refetchOnWindowFocus: true,
+    staleTime: 2 * 60 * 1000,  // 2 minutes — short enough to stay fresh
+    gcTime: 10 * 60 * 1000,    // keep in cache 10 min after unmount
+    refetchOnWindowFocus: false, // prevent expensive re-fetch when returning to tab
   })
 
   useEffect(() => {
@@ -97,10 +97,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
 
     try {
       if (isAuthenticated) {
-        const audience = import.meta.env.VITE_AUTH0_AUDIENCE
-        const token = await getAccessTokenSilently({
-          authorizationParams: { audience },
-        })
+        const token = await getAccessTokenSilently()
         await removeContinueWatching(token, item.tmdbId, item.mediaType)
       } else {
         removeGuestProgress(item.tmdbId, item.mediaType)

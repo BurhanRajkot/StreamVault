@@ -2,12 +2,22 @@ import { supabaseAdmin } from '../../lib/supabase'
 import NodeCache from 'node-cache'
 import { UserProfile, RecentItem, MediaType } from '../types'
 import { getMovieFeatures } from './movieFeatures'
+
+// Timeout wrapper: resolve with fallback after `ms` regardless of promise state
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  const timer = new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms))
+  return Promise.race([promise, timer])
+}
 import { getCategoriesForGenres } from '../categories'
 
 // L1 for user profiles (5min TTL)
 const userProfileCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const MAX_RECENT_ITEMS = 10  // Seed candidate sources from last N watched (up from 8 → more diversity)
+const MAX_RECENT_ITEMS = 10  // Seed candidate sources from last N watched
+// Feature batch: only enrich top-N interactions with TMDB keyword/cast data.
+// getMovieFeatures uses append_to_response=keywords,credits (heaviest TMDB endpoint).
+// 20 is the sweet spot: enough signal for good vectors, fast enough for <1s profile build.
+const FEATURE_BATCH_SIZE = 20
 const DECAY_HALF_LIFE_DAYS = 30  // All vectors halve every 30 days
 
 // ── Time-decay factor ──────────────────────────────────────
@@ -121,10 +131,16 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     }
   }
 
-  // Batch-fetch features for top 50 recent interactions in parallel (was 30)
-  const topInteractions = interactions.slice(0, 50)
-  const featureBatch = await Promise.allSettled(
-    topInteractions.map(i => getMovieFeatures(i.tmdbId, i.mediaType as MediaType))
+  // Batch-fetch features for top N recent interactions in parallel.
+  // Capped at FEATURE_BATCH_SIZE and wrapped with a 4s timeout so a slow
+  // TMDB response never blocks the recommendation pipeline.
+  const topInteractions = interactions.slice(0, FEATURE_BATCH_SIZE)
+  const featureBatch = await withTimeout(
+    Promise.allSettled(
+      topInteractions.map(i => getMovieFeatures(i.tmdbId, i.mediaType as MediaType))
+    ),
+    4000,
+    topInteractions.map(() => ({ status: 'rejected' as const, reason: 'timeout' }))
   )
 
   for (let idx = 0; idx < interactions.length; idx++) {

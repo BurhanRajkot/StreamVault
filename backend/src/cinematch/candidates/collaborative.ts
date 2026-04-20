@@ -36,10 +36,21 @@ function cosineSimilarity(
   return dot / (magA * magB)
 }
 
+// 3-second timeout guard — collaborative runs heavy Supabase + TMDB calls and must
+// never block the pipeline when infrastructure is slow.
+const COLLABORATIVE_TIMEOUT_MS = 3000
+
 export async function collaborativeSource(profile: UserProfile): Promise<Candidate[]> {
   // Skip for empty profiles — no useful signal
   if (Object.keys(profile.genreVector).length === 0) return []
 
+  const timeout = new Promise<Candidate[]>(resolve =>
+    setTimeout(() => resolve([]), COLLABORATIVE_TIMEOUT_MS)
+  )
+  return Promise.race([collaborativeSourceImpl(profile), timeout])
+}
+
+async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[]> {
   try {
     // Step 1: Fetch peer profiles — now includes genreMap, keywordMap, castMap
     const { data: peers, error } = await supabaseAdmin
