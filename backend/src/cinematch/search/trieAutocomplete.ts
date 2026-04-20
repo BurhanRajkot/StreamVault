@@ -144,47 +144,56 @@ export async function seedTrieBackground() {
     '/tv/top_rated'
   ]
 
-  for (const ep of endpoints) {
-    try {
-      // Fetch top 3 pages for each to get a good base catalog
-      for (let page = 1; page <= 3; page++) {
-        const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
-        const res = await fetch(url)
-        if (!res.ok) continue
-        
-        const data = await res.json()
-        const items = data.results || []
-        
-        for (const item of items) {
-          if (!item.title && !item.name) continue
-          
-          const mediaType = item.media_type || (ep.includes('/movie') ? 'movie' : 'tv')
-          const title = item.title || item.name
-          const entity: TrieEntity = {
-            id: item.id,
-            mediaType: mediaType as MediaType,
-            title,
-            popularity: item.popularity || 0,
-            poster_path: item.poster_path,
-            release_year: item.release_date ? parseInt(item.release_date.substring(0, 4)) : 
-                         (item.first_air_date ? parseInt(item.first_air_date.substring(0, 4)) : undefined)
-          }
+  const fetchPromises: Promise<{ ep: string; items: any[] }>[] = []
 
-          globalTrie.insert(entity, title)
-          count++
-          
-          // If the title has meaningful alternative prefixes (like dropping "The "), insert those too
-          const titleLower = title.toLowerCase()
-          if (titleLower.startsWith('the ')) {
-             globalTrie.insert(entity, title.substring(4))
-          }
-          if (titleLower.startsWith('a ')) {
-             globalTrie.insert(entity, title.substring(2))
-          }
-        }
+  for (const ep of endpoints) {
+    // Fetch top 3 pages for each to get a good base catalog
+    for (let page = 1; page <= 3; page++) {
+      const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
+      fetchPromises.push(
+        fetch(url)
+          .then(async res => {
+            if (!res.ok) return { ep, items: [] }
+            const data = await res.json()
+            return { ep, items: data.results || [] }
+          })
+          .catch(err => {
+            logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err.message })
+            return { ep, items: [] }
+          })
+      )
+    }
+  }
+
+  const results = await Promise.all(fetchPromises)
+
+  for (const { ep, items } of results) {
+    for (const item of items) {
+      if (!item.title && !item.name) continue
+
+      const mediaType = item.media_type || (ep.includes('/movie') ? 'movie' : 'tv')
+      const title = item.title || item.name
+      const entity: TrieEntity = {
+        id: item.id,
+        mediaType: mediaType as MediaType,
+        title,
+        popularity: item.popularity || 0,
+        poster_path: item.poster_path,
+        release_year: item.release_date ? parseInt(item.release_date.substring(0, 4)) :
+                     (item.first_air_date ? parseInt(item.first_air_date.substring(0, 4)) : undefined)
       }
-    } catch (err: any) {
-      logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err.message })
+
+      globalTrie.insert(entity, title)
+      count++
+
+      // If the title has meaningful alternative prefixes (like dropping "The "), insert those too
+      const titleLower = title.toLowerCase()
+      if (titleLower.startsWith('the ')) {
+         globalTrie.insert(entity, title.substring(4))
+      }
+      if (titleLower.startsWith('a ')) {
+         globalTrie.insert(entity, title.substring(2))
+      }
     }
   }
 
