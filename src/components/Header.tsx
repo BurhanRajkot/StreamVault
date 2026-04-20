@@ -104,8 +104,8 @@ export function Header({
     >
       <div className="mx-auto flex w-full max-w-[2560px] items-center justify-between gap-3 px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16">
         <div>
-          <Link
-            to="/"
+          <a
+            href="/"
             onClick={handleLogoClick}
             className="group flex items-center gap-2.5"
           >
@@ -113,7 +113,7 @@ export function Header({
             <span className="hidden text-xl font-bold tracking-tight text-foreground sm:block">
               Stream<span className="text-primary">Vault</span>
             </span>
-          </Link>
+          </a>
         </div>
 
         <nav className="hidden items-center gap-1 md:flex">
