@@ -43,9 +43,12 @@ export function useRecommendations(enabled = true): UseRecommendationsReturn {
       return fetchGuestRecommendations()
     },
     enabled: enabled && !authLoading,
-    staleTime: 10 * 60 * 1000,  // 10 min
+    staleTime: 10 * 60 * 1000,  // 10 min — recommendations change slowly
     gcTime: 15 * 60 * 1000,     // keep 15 min after unmount
     retry: 1,
+    retryDelay: 0,               // retry immediately — no exponential backoff delay
+    refetchOnMount: false,       // don't re-fetch if data already in cache from eager load
+    refetchOnWindowFocus: false, // don't re-trigger the expensive pipeline on tab switch
   })
 
   const refresh = useCallback(() => {

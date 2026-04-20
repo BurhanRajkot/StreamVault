@@ -31,6 +31,7 @@ const recCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
 const TOP_K = 300           // Total candidates to return
 const CACHE_TTL_DB = 300    // Seconds to persist in Supabase RecommendationCache
+const STALE_WHILE_REVALIDATE_TTL = 600  // Serve stale cache up to 10 min, recompute in bg
 
 
 // ── Supabase Cache Persistence ────────────────────────────
@@ -49,8 +50,13 @@ async function persistToDb(userId: string, ranked: ScoredCandidate[]): Promise<v
   }
 }
 
-// ── Read from Supabase cache ──────────────────────────────
-async function readFromDb(userId: string): Promise<ScoredCandidate[] | null> {
+// ── Read from Supabase cache (with stale-while-revalidate support) ──────────
+interface DbCacheResult {
+  candidates: ScoredCandidate[]
+  isStale: boolean
+}
+
+async function readFromDb(userId: string): Promise<DbCacheResult | null> {
   try {
     const { data } = await supabaseAdmin
       .from('RecommendationCache')
@@ -60,9 +66,14 @@ async function readFromDb(userId: string): Promise<ScoredCandidate[] | null> {
 
     if (!data) return null
     const ageSeconds = (Date.now() - new Date(data.computedAt).getTime()) / 1000
-    if (ageSeconds > data.ttlSeconds) return null  // Stale
 
-    return data.recommendations as ScoredCandidate[]
+    // Hard-expired: too stale to serve even as fallback
+    if (ageSeconds > STALE_WHILE_REVALIDATE_TTL) return null
+
+    return {
+      candidates: data.recommendations as ScoredCandidate[],
+      isStale: ageSeconds > data.ttlSeconds,  // true = past TTL but within SWR window
+    }
   } catch {
     return null
   }
@@ -94,23 +105,49 @@ export async function getRecommendations(
   // Step 1: Query Hydration — build user profile
   const profile = await getUserProfile(userId)
 
-  // L2: Supabase cache (fast path — ~50ms for returning users)
+  // L2: Supabase cache with stale-while-revalidate
+  // — FRESH:  serve from DB, promote to L1, done (fast path ~50ms)
+  // — STALE:  serve immediately from DB, trigger background rebuild
+  // — ABSENT: fall through to full pipeline
   if (!options.forceRefresh && !profile.isNewUser) {
-    const dbCached = await readFromDb(userId)
-    if (dbCached) {
-      recCache.set(userId, dbCached)
+    const dbResult = await readFromDb(userId)
+    if (dbResult) {
+      recCache.set(userId, dbResult.candidates)  // promote to L1
+
+      if (dbResult.isStale) {
+        // Fire-and-forget recompute so next request hits fresh L1/L2
+        setImmediate(async () => {
+          try {
+            const rawCandidates = await fetchAllSources(profile)
+            const filtered = applyFilters(rawCandidates, profile)
+            const ranked = await rankCandidates(filtered, profile)
+            const topK = ranked.slice(0, limit)
+            recCache.set(userId, topK)
+            persistToDb(userId, topK).catch(() => {})
+          } catch { /* non-critical background refresh */ }
+        })
+      }
+
       return {
         userId,
-        items: dbCached.slice(0, limit),
-        sections: buildSections(dbCached.slice(0, limit), profile),
+        items: dbResult.candidates.slice(0, limit),
+        sections: buildSections(dbResult.candidates.slice(0, limit), profile),
         computedAt: new Date().toISOString(),
         isPersonalized: true,
       }
     }
   }
 
-  // Step 2: Candidate Sourcing (5 parallel sources or pure Vector ML source)
-  const rawCandidates = await fetchAllSources(profile, options.useVectorML)
+  // Step 2: Candidate Sourcing (all sources in parallel, with 6s timeout guard)
+  // The timeout ensures slow sources (collaborative, graphTraversal) never block
+  // the response. They simply contribute 0 candidates for this request.
+  const sourcesPromise = fetchAllSources(profile, options.useVectorML)
+  const rawCandidates = await Promise.race([
+    sourcesPromise,
+    new Promise<Awaited<ReturnType<typeof fetchAllSources>>>(resolve =>
+      setTimeout(() => resolve([]), 6000)
+    ),
+  ])
 
   // Step 3: Pre-Scoring Filters
   const filtered = applyFilters(rawCandidates, profile)
