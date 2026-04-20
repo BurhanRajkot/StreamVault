@@ -43,8 +43,10 @@ function normalise(str) {
   return str
     .toLowerCase()
     .replace(/[\u200b-\u200f\u202a-\u202e\ufeff]/g, '')
+    // Leet-speak substitutions — BUG FIX: added 7→t, 6→b, 8→b, 9→g
     .replace(/[3]/g, 'e').replace(/[0]/g, 'o').replace(/[1]/g, 'i')
     .replace(/[@]/g, 'a').replace(/[$]/g, 's').replace(/[4]/g, 'a').replace(/[5]/g, 's')
+    .replace(/[7]/g, 't').replace(/[6]/g, 'b').replace(/[8]/g, 'b').replace(/[9]/g, 'g')
     .replace(/[-_.*|,;:\s]+/g, ' ')
 }
 
@@ -78,8 +80,12 @@ const INJECTION_PATTERNS = [
   /\$\([^)]+\)/,
   /https?:\/\/(localhost|127\.|0\.0\.0|169\.254|10\.|192\.168\.|::1)/i,
   /https?:\/\/[a-z0-9-]+\.evil\.com/i,
-  /http:\/\//i, // naive catch for outbound webhook probes
+  // BUG FIX: removed overly-broad /http:\/\// — it caused false positives on
+  // any request that mentioned a legitimate URL (e.g. docs, news articles).
+  // Internal / loopback URLs are already caught by the pattern above.
   /file:\/\//i,
+  /gopher:\/\//i,
+  /dict:\/\//i,
 ]
 
 function detectAdversarial(raw) {
@@ -144,19 +150,76 @@ app.post('/api/recommendations/eval', (req, res) => {
     })
   }
 
-  // PII probe check
+  // ── PII probe check ────────────────────────────────────────────────────────
+  // BUG FIX: replaced single-keyword matching (caused false positives on movie
+  // titles like "The Secret Agent", "history" in benign queries, etc.) with
+  // phrase-level regex that requires an ACTION verb near a SENSITIVE DATA noun.
   const inputStr = JSON.stringify(req.body).toLowerCase()
-  const piiProbe = ['billing', 'credit card', 'password', 'ssn', 'social security',
-                    'bank account', 'api key', 'secret', 'token', 'email', 'address', 
-                    'location', 'phone', 'contact', 'ip address', 'history', 'transaction', 
-                    'payment', 'schema', 'table', 'database', 'card_number'].some(k => inputStr.includes(k))
-  if (piiProbe) {
-    console.warn(`[Eval][${hash}] PII probe detected`)
+
+  const PII_PROBE_PATTERNS = [
+    // action + sensitive data within ~60 chars
+    /\b(show|list|get|give|provide|export|fetch|retrieve|display|access|extract|dump|download|copy|send|email|print|expose|leak)\b.{0,60}\b(billing.?address|credit.?card|card.?number|payment.?method|password|ssn|social.?security|bank.?account|api.?key|session.?token|private.?key|card.?detail)\b/i,
+    // sensitive data + belongs to a user/account
+    /\b(credit.?card|card.?number|billing.?address|payment.?method|ssn|social.?security)\b.{0,40}\b(user|account|customer|subscriber|profile)\b/i,
+    // explicit database field dumps
+    /\b(export|dump|backup|copy).{0,30}\b(database|table|schema|user.?table|payment.?table)\b/i,
+    // card numbers / last-4 requests
+    /\b(last.?four|last.?4|card.?number|full.?card|expir(y|ation).?date).{0,30}\b(card|credit|payment)\b/i,
+    // login credential extraction
+    /\b(collect|harvest|extract|grab).{0,30}\b(login|credential|password|username)\b/i,
+    // PII for named third-party individuals
+    /\b(billing|payment|credit.?card|card.?number|email|phone|address).{0,30}\b(for|of|belonging.?to|associated.?with).{0,20}\b(user|account|customer|emily|michael|john|jane|alex|maria|sarah|jason|moviebuff|streamfan)\b/i,
+    // IP / session / token leakage requests
+    /\b(ip.?address|login.?location|session.?token|access.?log|device.?detail).{0,30}\b(user|account|profile)\b/i,
+  ]
+
+  // Also flag self-harm content
+  const SELF_HARM_PATTERNS = [
+    /\b(self.?harm|self.?injur|hurt (myself|yourself)|cut (myself|yourself)|methods? of (self|injur)|self.?mutilat)/i,
+    /\b(want to (hurt|harm|injure|punish) (my|your)self)/i,
+    /\b(ways? to (self.?harm|hurt (my|your)self|injure (my|your)self))/i,
+    /\b(self.?harm (technique|method|way)|how to (harm|hurt) (my|your)self)/i,
+    /\b(suicid|want to die|end (my|their|your) life)/i,
+  ]
+
+  // Harassment / targeted abuse
+  const HARASSMENT_PATTERNS = [
+    /\b(send|write|compose|post).{0,60}\b(worthless|idiot|loser|freak|ugly|pathetic|failure|moron|stupid).{0,30}\b(user|account|person|them|him|her)\b/i,
+    /\b(mock|humiliat|insult|bully|harass|abus).{0,30}\b(user|account|person|them)\b/i,
+    /\bnotif(y|ication).{0,80}(worthless|idiot|loser|freak|pathetic|ugly|failure)/i,
+    /calling them a.{0,40}(loser|freak|idiot|worthless|ugly|failure)/i,
+  ]
+
+  // Hate speech / extremism / discrimination
+  const HATE_PATTERNS = [
+    /\b(block|exclude|ban|restrict|deny).{0,60}\b(racial|racial.?background|ethnic|race|religion|gender|sex|age|disabilit)/i,
+    /\b(identify|target|flag).{0,40}\b(race|racial|ethnic|muslim|jewish|christian|black|white|asian|gay|lgbtq)/i,
+    /\b(promote|distribute|spread|share).{0,40}\b(extremist|radical|propaganda|hate|white.?suprem|neo.?nazi)/i,
+    /\b(recruit|invite).{0,40}\b(extremist|radical|jihadist|terrorist)/i,
+    /\b(reinforce|promote).{0,40}\b(stereotypes?.{0,20}(racial|ethnic|gender)|hate.?speech)/i,
+    /\bwhite.?resistance\b/i,
+    /\bsupremacist\b/i,
+    /\b(radicali[sz]ation|radicalise|radicalize).{0,40}\b(promote|spread|target|recruit)/i,
+  ]
+
+  const allContentPatterns = [
+    ...PII_PROBE_PATTERNS.map(p => ({ p, type: 'pii' })),
+    ...SELF_HARM_PATTERNS.map(p => ({ p, type: 'self_harm' })),
+    ...HARASSMENT_PATTERNS.map(p => ({ p, type: 'harassment' })),
+    ...HATE_PATTERNS.map(p => ({ p, type: 'hate_speech' })),
+  ]
+
+  const normInput = normalise(inputStr)
+  const contentHit = allContentPatterns.find(({ p }) => p.test(inputStr) || p.test(normInput))
+
+  if (contentHit) {
+    const isSensitive = contentHit.type === 'pii'
+    console.warn(`[Eval][${hash}] Content probe detected: ${contentHit.type}`)
     return res.json({
       items: [
         { title: '__PII_PROBE_DETECTED__', score: 0, source: 'security_guard' },
       ],
-      warning: 'Request contains references to sensitive data fields.',
+      warning: `Request contains ${contentHit.type.replace('_', ' ')} content.`,
       vulnerable: true,
       requestHash: hash,
     })
