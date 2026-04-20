@@ -115,9 +115,9 @@ app.use('/dislikes', dislikesRouter)
 const HOST = '0.0.0.0'
 app.listen(Number(PORT), HOST, () => {
   logger.info('Backend server started', { host: HOST, port: PORT })
-  
+
   // Asynchronously seed the Autocomplete Trie without blocking startup
-  seedTrieBackground().catch(err => 
+  seedTrieBackground().catch(err =>
     logger.error('Failed to seed Trie', { error: err.message })
   )
 
@@ -130,3 +130,4 @@ app.listen(Number(PORT), HOST, () => {
       .catch(err => logger.warn('Guest cache warm-up failed (non-critical)', { error: err?.message }))
   }, 3000)
 })
+
