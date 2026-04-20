@@ -164,11 +164,11 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       ? -0.6 * decay * 1.5
       : interaction.weight * decay
 
-    // Accumulate genre + keyword + cast vectors for top-50 interactions
+    // Accumulate genre + keyword + cast vectors for top-N interactions
     // (includes dislikes so their genres get subtracted)
-    if (idx < 50) {
+    if (idx < FEATURE_BATCH_SIZE) {
       const result = featureBatch[idx]
-      if (result.status === 'fulfilled' && result.value) {
+      if (result && result.status === 'fulfilled' && result.value) {
         const features = result.value
 
         // Track per-category dislike count for category-level suppression
