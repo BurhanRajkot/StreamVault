@@ -5,7 +5,29 @@ import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
 // Seeds 8 items (up from 5) and fetches 25 per seed (up from 20)
 // Attaches seedTitle so section builder knows which watch generated the recommendation
 export async function tmdbRecommendationsSource(profile: UserProfile): Promise<Candidate[]> {
-  if (profile.recentlyWatched.length === 0) return []
+  if (profile.recentlyWatched.length === 0) {
+    // Cold-start / Guest fallback: Return top-rated movies and TV shows
+    const [movieData, tvData] = await Promise.allSettled([
+      fetchTMDB('/movie/top_rated?page=1'),
+      fetchTMDB('/tv/top_rated?page=1'),
+    ])
+
+    const movies = movieData.status === 'fulfilled'
+      ? ((movieData.value.results || []) as any[])
+          .slice(0, 20)
+          .map((r: any) => mapTMDBItem(r, 'movie', 'tmdb_recommendations'))
+          .filter(Boolean) as Candidate[]
+      : []
+
+    const tv = tvData.status === 'fulfilled'
+      ? ((tvData.value.results || []) as any[])
+          .slice(0, 20)
+          .map((r: any) => mapTMDBItem(r, 'tv', 'tmdb_recommendations'))
+          .filter(Boolean) as Candidate[]
+      : []
+
+    return [...movies, ...tv]
+  }
 
   const results = await Promise.allSettled(
     profile.recentlyWatched.slice(0, 8).map(async (item) => {
