@@ -78,15 +78,20 @@ async function fetchDiscover(
   if (!TMDB_API_KEY) return []
   
   try {
-    const params = new URLSearchParams()
-    params.append('api_key', TMDB_API_KEY)
-    params.append('page', page.toString())
-    for (const [k, v] of Object.entries(filters)) {
-      if (v) params.append(k, v)
+    const cleanFilters: Record<string, string> = {
+      api_key: TMDB_API_KEY,
+      page: page.toString(),
     }
-    
+
+    for (const k in filters) {
+      const v = filters[k]
+      if (v) cleanFilters[k] = v
+    }
+
     // Sort by popularity for general discover queries
-    params.append('sort_by', 'popularity.desc')
+    cleanFilters.sort_by = 'popularity.desc'
+
+    const params = new URLSearchParams(cleanFilters)
     
     const url = `${TMDB_BASE_URL}/discover/${mediaType}?${params.toString()}`
     const res = await fetch(url)
