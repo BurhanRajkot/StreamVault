@@ -100,15 +100,29 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   if (cached) return cached
 
   // Fetch all interaction events (last 500 for richer vectors)
-  const { data: interactions, error } = await supabaseAdmin
+  // Adaptive limit: fetch up to 50 first. If exact match, fetch the rest.
+  let { data: interactions, error } = await supabaseAdmin
     .from('UserInteractions')
     .select('tmdbId, mediaType, eventType, weight, createdAt, progress')
     .eq('userId', userId)
     .order('createdAt', { ascending: false })
-    .limit(500)
+    .limit(50)
 
   if (error || !interactions || interactions.length === 0) {
     return emptyProfile(userId)
+  }
+
+  if (interactions.length === 50) {
+    const { data: moreInteractions, error: moreError } = await supabaseAdmin
+      .from('UserInteractions')
+      .select('tmdbId, mediaType, eventType, weight, createdAt, progress')
+      .eq('userId', userId)
+      .order('createdAt', { ascending: false })
+      .range(50, 499)
+
+    if (!moreError && moreInteractions && moreInteractions.length > 0) {
+      interactions = interactions.concat(moreInteractions)
+    }
   }
 
   const genreVector: Record<number, number> = {}

@@ -519,8 +519,13 @@ export async function fetchExistingProgress(
   tmdbId: number,
   mediaType: 'movie' | 'tv'
 ): Promise<ContinueWatchingItem | null> {
-  const items = await fetchContinueWatching(token)
-  return items.find(i => i.tmdbId === tmdbId && i.mediaType === mediaType) || null
+  const res = await fetch(`${API_BASE}/continue-watching/${tmdbId}/${mediaType}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+  if (!res.ok) return null
+  return res.json()
 }
 
 /* ======================================================
@@ -718,7 +723,16 @@ export function getGuestProgress(): ContinueWatchingItem[] {
   try {
     const data = localStorage.getItem(GUEST_PROGRESS_KEY)
     if (!data) return []
-    return JSON.parse(data)
+    const parsed = JSON.parse(data) as ContinueWatchingItem[]
+
+    // Filter out items older than 30 days
+    const now = Date.now()
+    const validItems = parsed.filter((item: any) => {
+      if (!item.savedAt) return true // Legacy items
+      return now - item.savedAt <= 30 * 86400 * 1000
+    })
+
+    return validItems
   } catch (e) {
     console.error('Failed to parse guest progress:', e)
     return []
@@ -728,14 +742,15 @@ export function getGuestProgress(): ContinueWatchingItem[] {
 export function saveGuestProgress(item: ContinueWatchingItem) {
   try {
     const items = getGuestProgress()
+    const itemWithTimestamp = { ...item, savedAt: Date.now() }
     const index = items.findIndex(
       (i) => i.tmdbId === item.tmdbId && i.mediaType === item.mediaType
     )
 
     if (index > -1) {
-      items[index] = item
+      items[index] = itemWithTimestamp
     } else {
-      items.push(item)
+      items.push(itemWithTimestamp)
     }
 
     // Cap at 20 items to prevent unbounded localStorage growth (remove oldest)
