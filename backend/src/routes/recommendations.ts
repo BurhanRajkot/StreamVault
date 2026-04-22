@@ -32,6 +32,39 @@ import { logMLInteraction } from '../cinematch/ml/telemetry'
 
 const router = Router()
 
+// ── Helper ────────────────────────────────────────────────
+function getTopVectorItems<T extends string>(
+  vec: Record<number | string, number> | undefined,
+  k: number,
+  idKey: T,
+  transform?: (id: number, weight: number, obj: any) => void
+) {
+  if (!vec) return []
+
+  const items: any[] = []
+  for (const key in vec) {
+    const obj: any = {}
+    obj[idKey] = Number(key)
+    obj.weight = vec[key]
+    items.push(obj)
+  }
+
+  items.sort((a, b) => b.weight - a.weight)
+
+  const limit = Math.min(k, items.length)
+  items.length = limit
+
+  for (let i = 0; i < limit; i++) {
+    const item = items[i]
+    if (transform) {
+      transform(item[idKey], item.weight, item)
+    }
+    item.weight = Math.round(item.weight * 100) / 100
+  }
+
+  return items
+}
+
 // ── Validation constants ──────────────────────────────────
 const VALID_MEDIA_TYPES: MediaType[] = ['movie', 'tv']
 const VALID_EVENT_TYPES: EventType[] = ['watch', 'favorite', 'click', 'search', 'rate', 'dislike']
@@ -144,46 +177,14 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
       .eq('userId', userId)
 
     // Format top genres with human-readable names
-    const topGenres = Object.entries(profile.genreVector)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([genreId, weight]) => ({
-        genreId: Number(genreId),
-        name: TMDB_GENRES[Number(genreId)] || `Genre ${genreId}`,
-        weight: Math.round(weight * 100) / 100,
-      }))
+    const topGenres = getTopVectorItems(profile.genreVector, 5, 'genreId', (id, w, obj) => {
+      obj.name = TMDB_GENRES[id] || `Genre ${id}`
+    }) as Array<{ genreId: number; name: string; weight: number }>
 
-    const topKeywords = Object.entries(profile.keywordVector)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([kwId, weight]) => ({
-        keywordId: Number(kwId),
-        weight: Math.round(weight * 100) / 100,
-      }))
-
-    const topCastIds = Object.entries(profile.castVector)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([personId, weight]) => ({
-        personId: Number(personId),
-        weight: Math.round(weight * 100) / 100,
-      }))
-
-    const topDirectors = Object.entries(profile.directorVector || {})
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([personId, weight]) => ({
-        personId: Number(personId),
-        weight: Math.round(weight * 100) / 100,
-      }))
-
-    const topDecades = Object.entries(profile.decadeVector || {})
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([decade, weight]) => ({
-        decade: Number(decade),
-        weight: Math.round(weight * 100) / 100,
-      }))
+    const topKeywords = getTopVectorItems(profile.keywordVector, 10, 'keywordId') as Array<{ keywordId: number; weight: number }>
+    const topCastIds = getTopVectorItems(profile.castVector, 10, 'personId') as Array<{ personId: number; weight: number }>
+    const topDirectors = getTopVectorItems(profile.directorVector, 5, 'personId') as Array<{ personId: number; weight: number }>
+    const topDecades = getTopVectorItems(profile.decadeVector, 5, 'decade') as Array<{ decade: number; weight: number }>
 
     const tasteProfile: UserTasteProfile = {
       userId,
@@ -484,10 +485,9 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
       isPersonalized: result.isPersonalized,
       isNewUser: profile.isNewUser,
       categoryDislikeCounts: profile.categoryDislikeCounts,
-      genreVectorSample: Object.entries(profile.genreVector)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([g, w]) => ({ genre: TMDB_GENRES[Number(g)] || g, weight: w })),
+      genreVectorSample: getTopVectorItems(profile.genreVector, 5, 'genre', (id, w, obj) => {
+        obj.genre = TMDB_GENRES[id] || `${id}`
+      }),
       keywordVectorSize: Object.keys(profile.keywordVector).length,
       castVectorSize: Object.keys(profile.castVector).length,
       recentlyWatched: profile.recentlyWatched,
