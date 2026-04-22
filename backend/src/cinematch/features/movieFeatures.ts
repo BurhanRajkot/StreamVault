@@ -7,6 +7,9 @@ const TMDB_BASE = 'https://api.themoviedb.org/3'
 // L1 in-memory cache for movie features (2hr TTL)
 const movieFeatureCache = new NodeCache({ stdTTL: 7200, checkperiod: 300 })
 
+// Shared map for in-flight requests to deduplicate concurrent API calls
+const inFlightRequests = new Map<string, Promise<MovieFeatures | null>>()
+
 export interface MovieFeatures {
   tmdbId: number
   mediaType: MediaType
@@ -29,39 +32,51 @@ export async function getMovieFeatures(
   mediaType: MediaType
 ): Promise<MovieFeatures | null> {
   const cacheKey = `${mediaType}:${tmdbId}`
+
   const cached = movieFeatureCache.get<MovieFeatures>(cacheKey)
   if (cached) return cached
 
-  try {
-    const url = `${TMDB_BASE}/${mediaType}/${tmdbId}?append_to_response=keywords,credits&api_key=${TMDB_API_KEY}`
-    const res = await fetch(url)
-    if (!res.ok) return null
-    const data = await res.json()
-
-    const genreIds: number[] = (data.genres || []).map((g: any) => g.id)
-    const rawKw = data.keywords?.keywords || data.keywords?.results || []
-    const keywords: number[] = rawKw.slice(0, 20).map((k: any) => k.id)
-    const cast = (data.credits?.cast || []).slice(0, 5)
-    const castIds: number[] = cast.map((c: any) => c.id)
-    const crew = data.credits?.crew || []
-    const director = crew.find((c: any) => c.job === 'Director' || c.job === 'Series Director')
-    const directorId: number | null = director?.id ?? null
-
-    const features: MovieFeatures = {
-      tmdbId, mediaType, genreIds, keywords, castIds, directorId,
-      popularity: data.popularity || 0,
-      voteAverage: data.vote_average || 0,
-      voteCount: data.vote_count || 0,
-      releaseDate: data.release_date || data.first_air_date || '',
-      title: data.title || data.name || '',
-      posterPath: data.poster_path || null,
-      backdropPath: data.backdrop_path || null,
-      overview: data.overview || '',
-    }
-
-    movieFeatureCache.set(cacheKey, features)
-    return features
-  } catch {
-    return null
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey)!
   }
+
+  const fetchPromise = (async (): Promise<MovieFeatures | null> => {
+    try {
+      const url = `${TMDB_BASE}/${mediaType}/${tmdbId}?append_to_response=keywords,credits&api_key=${TMDB_API_KEY}`
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const data = await res.json()
+
+      const genreIds: number[] = (data.genres || []).map((g: any) => g.id)
+      const rawKw = data.keywords?.keywords || data.keywords?.results || []
+      const keywords: number[] = rawKw.slice(0, 20).map((k: any) => k.id)
+      const cast = (data.credits?.cast || []).slice(0, 5)
+      const castIds: number[] = cast.map((c: any) => c.id)
+      const crew = data.credits?.crew || []
+      const director = crew.find((c: any) => c.job === 'Director' || c.job === 'Series Director')
+      const directorId: number | null = director?.id ?? null
+
+      const features: MovieFeatures = {
+        tmdbId, mediaType, genreIds, keywords, castIds, directorId,
+        popularity: data.popularity || 0,
+        voteAverage: data.vote_average || 0,
+        voteCount: data.vote_count || 0,
+        releaseDate: data.release_date || data.first_air_date || '',
+        title: data.title || data.name || '',
+        posterPath: data.poster_path || null,
+        backdropPath: data.backdrop_path || null,
+        overview: data.overview || '',
+      }
+
+      movieFeatureCache.set(cacheKey, features)
+      return features
+    } catch {
+      return null
+    } finally {
+      inFlightRequests.delete(cacheKey)
+    }
+  })()
+
+  inFlightRequests.set(cacheKey, fetchPromise)
+  return fetchPromise
 }
