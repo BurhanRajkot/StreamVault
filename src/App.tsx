@@ -1,4 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { fetchRecommendations } from './lib/api'
 import { HelmetProvider } from 'react-helmet-async'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
@@ -68,6 +71,25 @@ const AppContent = () => {
   )
 }
 
+
+function PrefetchRecommendations() {
+  const { isAuthenticated, isLoading, getAccessTokenSilently, user } = useAuth0()
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      getAccessTokenSilently().then(token => {
+        queryClient.prefetchQuery({
+          queryKey: ['recommendations', user?.sub || 'authenticated'],
+          queryFn: () => fetchRecommendations(token)
+        }).catch(() => {})
+      }).catch(() => {})
+    }
+  }, [isAuthenticated, isLoading, getAccessTokenSilently, queryClient, user?.sub])
+
+  return null
+}
+
 export default function App() {
   // FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
@@ -79,7 +101,8 @@ export default function App() {
   return (
     <ErrorBoundary>
       <SmoothScrollProvider>
-        <HelmetProvider>
+        <PrefetchRecommendations />
+      <HelmetProvider>
           <FavoritesProvider>
             <DislikesProvider>
               <AppContent />
