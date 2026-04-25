@@ -1,6 +1,10 @@
 import { supabaseAdmin } from '../../lib/supabase'
 import { Candidate, UserProfile, MediaType } from '../types'
 import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
+import NodeCache from 'node-cache'
+
+// Global cache for peer profiles to prevent repeated DB scans (5 min TTL)
+const peerCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
 // ============================================================
 // CineMatch — Collaborative Source (Phase 3: Multi-Signal Peer Similarity)
@@ -53,17 +57,23 @@ export async function collaborativeSource(profile: UserProfile): Promise<Candida
 async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[]> {
   try {
     // Step 1: Fetch peer profiles — now includes genreMap, keywordMap, castMap
-    const { data: peers, error } = await supabaseAdmin
-      .from('UserGenreProfile')
-      .select('userId, genreMap, keywordMap, castMap')
-      .neq('userId', profile.userId)
-      .limit(500)
+    // Check global peer cache first
+    let peers = peerCache.get<any[]>('global_peers')
 
-    if (error || !peers || peers.length === 0) return []
+    if (!peers) {
+      const { data, error } = await supabaseAdmin
+        .from('UserGenreProfile')
+        .select('userId, genreMap, keywordMap, castMap')
+        .limit(500)
+
+      if (error || !data || data.length === 0) return []
+      peers = data
+      peerCache.set('global_peers', peers)
+    }
 
     // Step 2: Compute multi-signal cosine similarity for each peer
     const peerSimilarities: Array<{ userId: string; similarity: number }> = peers
-      .filter(p => p.genreMap && typeof p.genreMap === 'object')
+      .filter(p => p.userId !== profile.userId && p.genreMap && typeof p.genreMap === 'object')
       .map(peer => {
         const genreMap = peer.genreMap as Record<string, number>
         const keywordMap = (peer.keywordMap as Record<string, number> | null) ?? {}

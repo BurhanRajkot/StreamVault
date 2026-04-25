@@ -1,5 +1,7 @@
 import { supabaseAdmin } from './supabase'
 
+const ensuredUsers = new Set<string>()
+
 /**
  * Upsert a User row for the given Auth0 userId.
  * Must be called at the start of any route that writes user-specific data
@@ -7,6 +9,10 @@ import { supabaseAdmin } from './supabase'
  * constraints are satisfied on first use by a brand-new account.
  */
 export async function ensureUser(userId: string): Promise<void> {
+  if (ensuredUsers.has(userId)) {
+    return
+  }
+
   const { data: existing } = await supabaseAdmin
     .from('User')
     .select('id')
@@ -14,6 +20,11 @@ export async function ensureUser(userId: string): Promise<void> {
     .single()
 
   if (!existing) {
-    await supabaseAdmin.from('User').insert({ id: userId })
+    const { error } = await supabaseAdmin.from('User').insert({ id: userId })
+    if (!error) {
+      ensuredUsers.add(userId)
+    }
+  } else {
+    ensuredUsers.add(userId)
   }
 }

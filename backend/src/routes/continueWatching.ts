@@ -19,9 +19,28 @@ router.get('/', checkJwt, async (req, res) => {
   const cacheKey = cache.generateCacheKey('continue-watching', userId)
   const cached = await cache.userData.get(cacheKey)
 
-  if (cached) {
+  if (cached && typeof cached === 'object' && !Array.isArray(cached) && 'data' in cached && 'fetchedAt' in cached) {
     res.setHeader('X-Cache', 'HIT')
-    return res.json(cached)
+    const cachedItem = cached as { data: any, fetchedAt: number }
+    const isStale = Date.now() - cachedItem.fetchedAt > 60000 // 1 minute stale threshold
+
+    if (isStale) {
+      // Serve immediately, but trigger background refresh
+      setImmediate(async () => {
+        const { data } = await supabaseAdmin
+          .from('ContinueWatching')
+          .select('*')
+          .eq('userId', userId)
+          .order('updatedAt', { ascending: false })
+          .limit(20)
+
+        if (data) {
+          await cache.userData.set(cacheKey, { data, fetchedAt: Date.now() }, 300) // 5 minute TTL
+        }
+      })
+    }
+
+    return res.json(cachedItem.data)
   }
 
   const { data, error } = await supabaseAdmin
@@ -37,7 +56,7 @@ router.get('/', checkJwt, async (req, res) => {
   }
 
   // Cache the result
-  await cache.userData.set(cacheKey, data || [], 60) // 1 minute TTL
+  await cache.userData.set(cacheKey, { data: data || [], fetchedAt: Date.now() }, 300) // 5 minute TTL
   res.setHeader('X-Cache', 'MISS')
   res.json(data || [])
 })
@@ -170,6 +189,38 @@ router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
   await cache.userData.del(cacheKey)
 
   res.json({ success: true })
+})
+
+router.get('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
+  const userId = req.auth?.payload.sub
+  const tmdbId = Number(req.params.tmdbId)
+  const mediaType = req.params.mediaType
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  if (!tmdbId || (mediaType !== 'movie' && mediaType !== 'tv')) {
+    return res.status(400).json({ error: 'Invalid parameters' })
+  }
+
+  // Provision User row for brand-new accounts
+  await ensureUser(userId)
+
+  const { data, error } = await supabaseAdmin
+    .from('ContinueWatching')
+    .select('*')
+    .eq('userId', userId)
+    .eq('tmdbId', tmdbId)
+    .eq('mediaType', mediaType)
+    .single()
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+    console.error('Continue watching fetch single item error:', error)
+    return res.status(500).json({ error: 'Server error' })
+  }
+
+  return res.json(data || null)
 })
 
 export default router
