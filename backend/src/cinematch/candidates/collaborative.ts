@@ -5,6 +5,7 @@ import NodeCache from 'node-cache'
 
 // Global cache for peer profiles to prevent repeated DB scans (5 min TTL)
 const peerCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
+const MAX_COLLAB_DETAIL_FETCH = 12
 
 // ============================================================
 // CineMatch — Collaborative Source (Phase 3: Multi-Signal Peer Similarity)
@@ -146,7 +147,7 @@ async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[
     // Step 5: Fetch TMDB metadata for top similarity-weighted candidates
     const topCandidates = Array.from(tmdbScores.values())
       .sort((a, b) => b.weightedScore - a.weightedScore)
-      .slice(0, 20)
+      .slice(0, MAX_COLLAB_DETAIL_FETCH)
 
     const candidateResults = await Promise.allSettled(
       topCandidates.map(async (c) => {
