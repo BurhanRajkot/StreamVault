@@ -21,7 +21,6 @@ import { rankCandidates } from '../ranking'
 import {
   ScoredCandidate,
   RecommendationResult,
-  RecommendationSection,
   UserProfile,
 } from '../types'
 import { buildSections } from './sectionBuilder'
@@ -29,9 +28,10 @@ import { buildSections } from './sectionBuilder'
 // L1 in-memory cache — fastest serving layer (5 min TTL)
 const recCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const TOP_K = 300           // Total candidates to return
+const TOP_K = 150           // Total candidates to rank and return
 const CACHE_TTL_DB = 300    // Seconds to persist in Supabase RecommendationCache
 const STALE_WHILE_REVALIDATE_TTL = 600  // Serve stale cache up to 10 min, recompute in bg
+const SOURCE_TIMEOUT_MS = Number(process.env.CINEMATCH_SOURCE_TIMEOUT_MS || 2500)
 
 
 // ── Supabase Cache Persistence ────────────────────────────
@@ -79,6 +79,45 @@ async function readFromDb(userId: string): Promise<DbCacheResult | null> {
   }
 }
 
+function inferIsPersonalized(candidates: ScoredCandidate[]): boolean {
+  return candidates.some(
+    (c) => c.source !== 'trending' && c.source !== 'popular_fallback'
+  )
+}
+
+function buildSectionProfile(userId: string, isPersonalized: boolean): UserProfile {
+  return {
+    userId,
+    genreVector: {},
+    keywordVector: {},
+    castVector: {},
+    directorVector: {},
+    decadeVector: {},
+    watchedIds: new Set<number>(),
+    favoritedIds: new Set<number>(),
+    dislikedIds: new Set<number>(),
+    categoryDislikeCounts: {},
+    recentlyWatched: [],
+    isNewUser: !isPersonalized,
+  }
+}
+
+function buildCachedResponse(
+  userId: string,
+  candidates: ScoredCandidate[],
+  limit: number,
+  isPersonalized: boolean,
+): RecommendationResult {
+  const items = candidates.slice(0, limit)
+  return {
+    userId,
+    items,
+    sections: buildSections(items, buildSectionProfile(userId, isPersonalized)),
+    computedAt: new Date().toISOString(),
+    isPersonalized,
+  }
+}
+
 // ── MAIN PIPELINE ─────────────────────────────────────────
 export async function getRecommendations(
   userId: string,
@@ -91,52 +130,41 @@ export async function getRecommendations(
   if (!options.forceRefresh) {
     const cached = recCache.get<ScoredCandidate[]>(userId)
     if (cached) {
-      const profile = await getUserProfile(userId)
-      return {
-        userId,
-        items: cached.slice(0, limit),
-        sections: buildSections(cached.slice(0, limit), profile),
-        computedAt: new Date().toISOString(),
-        isPersonalized: !profile.isNewUser,
-      }
+      return buildCachedResponse(userId, cached, limit, inferIsPersonalized(cached))
     }
   }
-
-  // Step 1: Query Hydration — build user profile
-  const profile = await getUserProfile(userId)
 
   // L2: Supabase cache with stale-while-revalidate
   // — FRESH:  serve from DB, promote to L1, done (fast path ~50ms)
   // — STALE:  serve immediately from DB, trigger background rebuild
   // — ABSENT: fall through to full pipeline
-  if (!options.forceRefresh && !profile.isNewUser) {
+  if (!options.forceRefresh) {
     const dbResult = await readFromDb(userId)
     if (dbResult) {
       recCache.set(userId, dbResult.candidates)  // promote to L1
+      const isPersonalized = inferIsPersonalized(dbResult.candidates)
 
       if (dbResult.isStale) {
         // Fire-and-forget recompute so next request hits fresh L1/L2
         setImmediate(async () => {
           try {
-            const rawCandidates = await fetchAllSources(profile)
+            const profile = await getUserProfile(userId)
+            const rawCandidates = await fetchAllSources(profile, options.useVectorML)
             const filtered = applyFilters(rawCandidates, profile)
             const ranked = await rankCandidates(filtered, profile)
-            const topK = ranked.slice(0, limit)
-            recCache.set(userId, topK)
-            persistToDb(userId, topK).catch(() => {})
+            const cachePayload = ranked.slice(0, TOP_K)
+            recCache.set(userId, cachePayload)
+            persistToDb(userId, cachePayload).catch(() => {})
           } catch { /* non-critical background refresh */ }
         })
       }
 
-      return {
-        userId,
-        items: dbResult.candidates.slice(0, limit),
-        sections: buildSections(dbResult.candidates.slice(0, limit), profile),
-        computedAt: new Date().toISOString(),
-        isPersonalized: true,
-      }
+      return buildCachedResponse(userId, dbResult.candidates, limit, isPersonalized)
     }
   }
+
+  // Step 1: Query Hydration — build user profile
+  const profile = await getUserProfile(userId)
 
   // Step 2: Candidate Sourcing (all sources in parallel, with 6s timeout guard)
   // The timeout ensures slow sources (collaborative, graphTraversal) never block
@@ -145,7 +173,7 @@ export async function getRecommendations(
   const rawCandidates = await Promise.race([
     sourcesPromise,
     new Promise<Awaited<ReturnType<typeof fetchAllSources>>>(resolve =>
-      setTimeout(() => resolve([]), 6000)
+      setTimeout(() => resolve([]), SOURCE_TIMEOUT_MS)
     ),
   ])
 
@@ -156,12 +184,13 @@ export async function getRecommendations(
   const ranked = await rankCandidates(filtered, profile)
 
   // Step 5: Select Top-K
-  const topK = ranked.slice(0, limit)
+  const cachePayload = ranked.slice(0, TOP_K)
+  const topK = cachePayload.slice(0, limit)
 
   // Step 6: Persist to caches (async, non-blocking)
   const pipelineMs = Date.now() - startTime
-  recCache.set(userId, topK)
-  persistToDb(userId, topK).catch(() => {})
+  recCache.set(userId, cachePayload)
+  persistToDb(userId, cachePayload).catch(() => {})
 
   // Profiling removed for production
 

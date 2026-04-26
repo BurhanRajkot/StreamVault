@@ -1,5 +1,4 @@
 import { Candidate, ScoredCandidate, UserProfile } from '../types'
-import { getMovieFeatures } from '../features'
 import { RankingWeights } from './dynamicWeights'
 
 // ── Freshness ─────────────────────────────────────────────
@@ -26,12 +25,18 @@ function qualityScore(voteAverage: number, voteCount: number): number {
   return avgNorm * (0.7 + 0.3 * confidenceBoost)
 }
 
+// Fast empty-check that avoids Object.keys() array allocation
+function hasEntries(obj: Record<number | string, number>): boolean {
+  for (const _ in obj) return true
+  return false
+}
+
 // ── Genre Affinity ────────────────────────────────────────
 function genreAffinityScore(
   candidateGenres: number[],
   userGenreVector: Record<number, number>,
 ): number {
-  if (candidateGenres.length === 0 || Object.keys(userGenreVector).length === 0) {
+  if (candidateGenres.length === 0 || !hasEntries(userGenreVector)) {
     return 0.3  // Neutral default for cold-start
   }
   let dotProduct = 0
@@ -47,7 +52,7 @@ function keywordAffinityScore(
   userKeywordVector: Record<number, number>,
 ): number {
   if (!candidateKeywords || candidateKeywords.length === 0) return 0.0
-  if (Object.keys(userKeywordVector).length === 0) return 0.0
+  if (!hasEntries(userKeywordVector)) return 0.0
 
   let dotProduct = 0
   for (const kwId of candidateKeywords) {
@@ -62,7 +67,7 @@ function castAffinityScore(
   userCastVector: Record<number, number>,
 ): number {
   if (!candidateCastIds || candidateCastIds.length === 0) return 0.0
-  if (Object.keys(userCastVector).length === 0) return 0.0
+  if (!hasEntries(userCastVector)) return 0.0
 
   let dotProduct = 0
   for (const castId of candidateCastIds) {
@@ -77,7 +82,7 @@ function directorAffinityScore(
   userDirectorVector: Record<number, number>,
 ): number {
   if (!directorId) return 0.0
-  if (Object.keys(userDirectorVector).length === 0) return 0.0
+  if (!hasEntries(userDirectorVector)) return 0.0
   const score = userDirectorVector[directorId] ?? 0
   return Math.max(Math.min(score, 1.0), -1.0)
 }
@@ -88,7 +93,7 @@ function decadeAffinityScore(
   userDecadeVector: Record<number, number>,
 ): number {
   if (!decade) return 0.0
-  if (Object.keys(userDecadeVector).length === 0) return 0.0
+  if (!hasEntries(userDecadeVector)) return 0.0
   const score = userDecadeVector[decade] ?? 0
   return Math.max(Math.min(score, 1.0), -1.0)
 }
@@ -143,87 +148,78 @@ export interface SessionContext {
 
 // ── Session Momentum Score ────────────────────────────────
 // Boosts candidates whose genres/cast overlap with the current session.
-// This is additive on top of the base score so it can't dominate —
-// it's a tiebreaker for candidates with similar long-term affinity.
-//
-// Max additive boost: +0.20 (when full genre + cast + keyword overlap)
+// Accepts pre-built Sets (built ONCE per request, not per-candidate)
+// to avoid 450 redundant Set allocations for a 150-candidate pool.
 function sessionMomentumScore(
   candidate: Candidate,
-  session: SessionContext,
+  sessionGenreSet: Set<number>,
+  sessionCastSet: Set<number>,
+  sessionKwSet: Set<number>,
 ): number {
-  if (
-    session.sessionGenreIds.length === 0 &&
-    session.sessionCastIds.length === 0 &&
-    session.sessionKeywordIds.length === 0
-  ) {
-    return 0 // No session context yet — skip signal
+  if (sessionGenreSet.size === 0 && sessionCastSet.size === 0 && sessionKwSet.size === 0) {
+    return 0
   }
 
   let score = 0
 
   // Genre overlap — up to 0.10
-  if (session.sessionGenreIds.length > 0 && candidate.genreIds.length > 0) {
-    const sessionGenreSet = new Set(session.sessionGenreIds)
+  if (sessionGenreSet.size > 0 && candidate.genreIds.length > 0) {
     const overlap = candidate.genreIds.filter(g => sessionGenreSet.has(g)).length
-    const overlapRatio = overlap / Math.max(candidate.genreIds.length, 1)
-    score += 0.10 * overlapRatio
+    score += 0.10 * (overlap / Math.max(candidate.genreIds.length, 1))
   }
 
   // Cast overlap — up to 0.06
-  if (session.sessionCastIds.length > 0 && candidate.castIds && candidate.castIds.length > 0) {
-    const sessionCastSet = new Set(session.sessionCastIds)
+  if (sessionCastSet.size > 0 && candidate.castIds && candidate.castIds.length > 0) {
     const overlap = candidate.castIds.filter(c => sessionCastSet.has(c)).length
-    const overlapRatio = overlap / Math.max(candidate.castIds.length, 1)
-    score += 0.06 * overlapRatio
+    score += 0.06 * (overlap / Math.max(candidate.castIds.length, 1))
   }
 
   // Keyword overlap — up to 0.04
-  if (session.sessionKeywordIds.length > 0 && candidate.keywords && candidate.keywords.length > 0) {
-    const sessionKwSet = new Set(session.sessionKeywordIds)
+  if (sessionKwSet.size > 0 && candidate.keywords && candidate.keywords.length > 0) {
     const overlap = candidate.keywords.filter(k => sessionKwSet.has(k)).length
-    const overlapRatio = overlap / Math.max(candidate.keywords.length, 1)
-    score += 0.04 * overlapRatio
+    score += 0.04 * (overlap / Math.max(candidate.keywords.length, 1))
   }
 
   return score
 }
 
 // ── Build Session Context from recently watched ───────────
-// Extracts the session genre/cast/keyword fingerprint from the
-// user's last N interactions stored in the profile's recentlyWatched list.
-// We resolve features for the top 3 recent items to build session context.
+// Derives the session fingerprint from the user's profile vectors —
+// we already have genreVector/castVector/keywordVector built from
+// the same interactions, so we don't need to call getMovieFeatures again.
+// This eliminates 3 cold-start TMDB calls that used to run in parallel
+// with ranking and compete for the same network slots.
 export async function buildSessionContext(profile: UserProfile): Promise<SessionContext> {
-  const sessionContext: SessionContext = {
-    sessionGenreIds: [],
-    sessionCastIds: [],
-    sessionKeywordIds: [],
-  }
-
-  // Use only the 3 most recent items for strong recency signal
   const recentItems = profile.recentlyWatched.slice(0, 3)
-  if (recentItems.length === 0) return sessionContext
-
-  const featureResults = await Promise.allSettled(
-    recentItems.map(item => getMovieFeatures(item.tmdbId, item.mediaType))
-  )
-
-  const sessionGenreSet = new Set<number>()
-  const sessionCastSet = new Set<number>()
-  const sessionKwSet = new Set<number>()
-
-  for (const result of featureResults) {
-    if (result.status === 'fulfilled' && result.value) {
-      const f = result.value
-      f.genreIds.forEach(g => sessionGenreSet.add(g))
-      f.castIds.forEach(c => sessionCastSet.add(c))
-      f.keywords.forEach(k => sessionKwSet.add(k))
-    }
+  if (recentItems.length === 0) {
+    return { sessionGenreIds: [], sessionCastIds: [], sessionKeywordIds: [] }
   }
+
+  // Top genres from the user's genre vector (already computed, zero cost)
+  const topGenreIds = Object.entries(profile.genreVector)
+    .filter(([, w]) => w > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([id]) => Number(id))
+
+  // Top cast from the cast vector
+  const topCastIds = Object.entries(profile.castVector)
+    .filter(([, w]) => w > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([id]) => Number(id))
+
+  // Top keywords from keyword vector
+  const topKeywordIds = Object.entries(profile.keywordVector)
+    .filter(([, w]) => w > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([id]) => Number(id))
 
   return {
-    sessionGenreIds: Array.from(sessionGenreSet),
-    sessionCastIds: Array.from(sessionCastSet),
-    sessionKeywordIds: Array.from(sessionKwSet),
+    sessionGenreIds: topGenreIds,
+    sessionCastIds: topCastIds,
+    sessionKeywordIds: topKeywordIds,
   }
 }
 
@@ -260,17 +256,9 @@ export function scoreCandidate(
 
   const boostedScore = rawScore * sourceBoost(candidate.source)
 
-  // ── Session Momentum Additive Boost ──────────────────────
-  // Added AFTER source boost multiplication so it can't be zeroed
-  // out by a weak source multiplier. This is a pure contextual signal.
-  const sessionBoost = sessionMomentumScore(candidate, session)
-  const finalScore = boostedScore + sessionBoost
-
-  // The seedTitle is passed through from the Candidate (set by tmdbSimilar/Recommendations/genreDiscovery)
-  // This is what enables sectionBuilder to create "Because you watched Game of Thrones" groupings
   return {
     ...candidate,
-    score: finalScore,
+    score: boostedScore,
     genreAffinityScore: gAffinity,
     keywordAffinityScore: kwAffinity,
     castAffinityScore: castAff,
@@ -282,4 +270,26 @@ export function scoreCandidate(
     sourceReason: buildSourceReason(candidate.source, candidate.seedTitle),
     seedTitle: candidate.seedTitle,
   }
+}
+
+// ── Batch scoring with pre-built session Sets ─────────────
+// Builds the session Sets ONCE then scores all candidates.
+// Eliminates 3 Set allocations per candidate (450 total for 150 candidates).
+export function scoreCandidates(
+  candidates: Candidate[],
+  profile: UserProfile,
+  weights: RankingWeights,
+  session: SessionContext,
+): ScoredCandidate[] {
+  // Build Sets once — shared across all candidate scores
+  const sessionGenreSet = new Set(session.sessionGenreIds)
+  const sessionCastSet = new Set(session.sessionCastIds)
+  const sessionKwSet = new Set(session.sessionKeywordIds)
+
+  return candidates.map(candidate => {
+    const base = scoreCandidate(candidate, profile, weights, session)
+    // Session momentum using pre-built Sets
+    const sessionBoost = sessionMomentumScore(candidate, sessionGenreSet, sessionCastSet, sessionKwSet)
+    return { ...base, score: base.score + sessionBoost }
+  })
 }

@@ -102,7 +102,7 @@ export default function App() {
     <ErrorBoundary>
       <SmoothScrollProvider>
         <PrefetchRecommendations />
-      <HelmetProvider>
+        <HelmetProvider>
           <FavoritesProvider>
             <DislikesProvider>
               <AppContent />
