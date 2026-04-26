@@ -16,8 +16,10 @@ const userProfileCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 const MAX_RECENT_ITEMS = 10  // Seed candidate sources from last N watched
 // Feature batch: only enrich top-N interactions with TMDB keyword/cast data.
 // getMovieFeatures uses append_to_response=keywords,credits (heaviest TMDB endpoint).
-// 20 is the sweet spot: enough signal for good vectors, fast enough for <1s profile build.
-const FEATURE_BATCH_SIZE = 20
+// 12 keeps strong personalization while reducing cold-request TMDB burst.
+const FEATURE_BATCH_SIZE = 12
+const PROFILE_FEATURE_TIMEOUT_MS = Number(process.env.CINEMATCH_PROFILE_FEATURE_TIMEOUT_MS || 2500)
+const MAX_INTERACTIONS_FETCH = 200
 const DECAY_HALF_LIFE_DAYS = 30  // All vectors halve every 30 days
 
 // ── Time-decay factor ──────────────────────────────────────
@@ -99,30 +101,16 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   const cached = userProfileCache.get<UserProfile>(userId)
   if (cached) return cached
 
-  // Fetch all interaction events (last 500 for richer vectors)
-  // Adaptive limit: fetch up to 50 first. If exact match, fetch the rest.
-  let { data: interactions, error } = await supabaseAdmin
+  // Fetch recent interaction events in one query to avoid a second round trip.
+  const { data: interactions, error } = await supabaseAdmin
     .from('UserInteractions')
     .select('tmdbId, mediaType, eventType, weight, createdAt, progress')
     .eq('userId', userId)
     .order('createdAt', { ascending: false })
-    .limit(50)
+    .limit(MAX_INTERACTIONS_FETCH)
 
   if (error || !interactions || interactions.length === 0) {
     return emptyProfile(userId)
-  }
-
-  if (interactions.length === 50) {
-    const { data: moreInteractions, error: moreError } = await supabaseAdmin
-      .from('UserInteractions')
-      .select('tmdbId, mediaType, eventType, weight, createdAt, progress')
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false })
-      .range(50, 499)
-
-    if (!moreError && moreInteractions && moreInteractions.length > 0) {
-      interactions = interactions.concat(moreInteractions)
-    }
   }
 
   const genreVector: Record<number, number> = {}
@@ -153,7 +141,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     Promise.allSettled(
       topInteractions.map(i => getMovieFeatures(i.tmdbId, i.mediaType as MediaType))
     ),
-    4000,
+    PROFILE_FEATURE_TIMEOUT_MS,
     topInteractions.map(() => ({ status: 'rejected' as const, reason: 'timeout' }))
   )
 

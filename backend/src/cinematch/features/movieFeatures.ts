@@ -1,11 +1,10 @@
 import NodeCache from 'node-cache'
 import { MediaType } from '../types'
-
-const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY || ''
-const TMDB_BASE = 'https://api.themoviedb.org/3'
+import { fetchTMDB } from '../utils/tmdb'
 
 // L1 in-memory cache for movie features (2hr TTL)
 const movieFeatureCache = new NodeCache({ stdTTL: 7200, checkperiod: 300 })
+const FEATURE_FETCH_TIMEOUT_MS = Number(process.env.CINEMATCH_FEATURE_TIMEOUT_MS || 1600)
 
 // Shared map for in-flight requests to deduplicate concurrent API calls
 const inFlightRequests = new Map<string, Promise<MovieFeatures | null>>()
@@ -42,10 +41,11 @@ export async function getMovieFeatures(
 
   const fetchPromise = (async (): Promise<MovieFeatures | null> => {
     try {
-      const url = `${TMDB_BASE}/${mediaType}/${tmdbId}?append_to_response=keywords,credits&api_key=${TMDB_API_KEY}`
-      const res = await fetch(url)
-      if (!res.ok) return null
-      const data = await res.json()
+      const data = await fetchTMDB(
+        `/${mediaType}/${tmdbId}?append_to_response=keywords,credits`,
+        { timeoutMs: FEATURE_FETCH_TIMEOUT_MS }
+      )
+      if (!data || typeof data !== 'object' || !data.id) return null
 
       const genreIds: number[] = (data.genres || []).map((g: any) => g.id)
       const rawKw = data.keywords?.keywords || data.keywords?.results || []
