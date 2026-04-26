@@ -7,7 +7,10 @@ export function dislikedFilter(candidates: Candidate[], profile: UserProfile): C
     'tmdb_recommendations',
     'tmdb_similar',
     'genre_discovery',
-    'collaborative'
+    'keyword_discovery',
+    'cast_discovery',
+    'collaborative',
+    'graph_traversal',
   ];
 
   return candidates.filter(c => {
