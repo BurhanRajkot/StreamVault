@@ -1,37 +1,30 @@
 import { useAuth0 } from "@auth0/auth0-react";
-import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Film, Play, Heart, Download, Sparkles, ChevronRight } from "lucide-react";
 import { Helmet } from "react-helmet-async";
+import { fetchTrending, getImageUrl } from "@/lib/api";
+import {
+  Sparkles,
+  Play,
+  Heart,
+  Download,
+  Film,
+  ArrowRight
+} from 'lucide-react';
 
-// Sample movie posters for the collage
-const MOVIE_POSTERS = [
-  "https://image.tmdb.org/t/p/w342/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", // Interstellar
-  "https://image.tmdb.org/t/p/w342/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg", // Joker
-  "https://image.tmdb.org/t/p/w342/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg", // The Matrix
-  "https://image.tmdb.org/t/p/w342/d5NXSklXo0qyIYkgV94XAgMIckC.jpg", // Dune
-  "https://image.tmdb.org/t/p/w342/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", // Fight Club
-  "https://image.tmdb.org/t/p/w342/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", // Inception
-];
-
-const VALUE_PROPS = [
-  { icon: Play, text: "Stream unlimited movies & TV shows" },
-  { icon: Heart, text: "Save your favorites for later" },
-  { icon: Download, text: "Track your watch history" },
-  { icon: Sparkles, text: "Premium ad-free experience" },
-];
-
-const headlines = [
-  "Your Entertainment Journey Starts Here",
-  "Thousands of Movies Await You",
-  "Binge-Worthy TV Shows, Anytime",
+const FALLBACK_POSTERS = [
+  'https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?q=80&w=800&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1541882897987-0b16f15777df?q=80&w=800&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1526362804561-12ecdbd28120?q=80&w=800&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1547638375-ebf04735d792?q=80&w=800&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1555597673-b21d5c935865?q=80&w=800&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?q=80&w=800&auto=format&fit=crop', 
 ];
 
 export default function Login() {
   const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0();
   const navigate = useNavigate();
-  const [activeText, setActiveText] = useState(0);
+  const [posters, setPosters] = useState<string[]>(FALLBACK_POSTERS);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -39,18 +32,32 @@ export default function Login() {
     }
   }, [isAuthenticated, navigate]);
 
-  // Rotate headline text
   useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveText((prev) => (prev + 1) % headlines.length);
-    }, 3000);
-    return () => clearInterval(interval);
+    async function loadPosters() {
+      try {
+        const movies = await fetchTrending('movie');
+        if (movies && movies.length > 0) {
+          // Get the first 20 movie posters
+          const moviePosters = movies
+            .slice(0, 20)
+            .map(m => getImageUrl(m.poster_path, 'poster'))
+            .filter(Boolean);
+          
+          if (moviePosters.length > 0) {
+            setPosters(moviePosters);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch login posters", err);
+      }
+    }
+    loadPosters();
   }, []);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="min-h-screen flex items-center justify-center bg-[#020617]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
       </div>
     );
   }
@@ -61,142 +68,131 @@ export default function Login() {
         <title>Sign In - StreamVault</title>
       </Helmet>
 
-      <div className="min-h-screen flex bg-black overflow-hidden">
-        {/* LEFT SIDE - Movie Poster Collage */}
-        <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-          {/* Animated poster grid */}
-          <div className="absolute inset-0 grid grid-cols-3 gap-2 p-4 animate-pulse-slow">
-            {MOVIE_POSTERS.map((poster, i) => (
+      <div className="min-h-screen bg-[#020617] text-slate-100 flex flex-col lg:flex-row font-sans selection:bg-blue-500/30 overflow-hidden">
+        
+        {/* Left Section - Immersive Posters Gallery */}
+        <div className="hidden lg:flex flex-1 relative bg-[#020617]">
+          {/* The Grid */}
+          <div className="grid grid-cols-4 xl:grid-cols-5 gap-4 w-[120%] h-[120%] absolute -top-[10%] -left-[10%] -rotate-2 transform-gpu">
+            {posters.map((src, index) => (
               <div
-                key={i}
-                className="relative overflow-hidden rounded-xl transform transition-all duration-700 hover:scale-105"
-                style={{
-                  animationDelay: `${i * 0.2}s`,
-                }}
+                key={index}
+                className="w-full h-full relative rounded-2xl overflow-hidden bg-[#040a1b] group shadow-2xl"
               >
                 <img
-                  src={poster}
-                  alt="Movie Poster"
-                  aria-hidden="true"
-                  className="w-full h-full object-cover"
-                  loading="lazy"
+                  src={src}
+                  alt={`Cinematic poster ${index + 1}`}
+                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-[1.5s] ease-out hover:mix-blend-normal"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <div className="absolute inset-0 bg-blue-900/5 group-hover:bg-transparent transition-colors duration-1000 pointer-events-none mix-blend-overlay" />
               </div>
             ))}
           </div>
-
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-black/90 z-10" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/50 z-10" />
-
-          {/* Floating badge */}
-          <div className="absolute bottom-10 left-10 z-20 bg-primary/90 backdrop-blur-sm rounded-full px-6 py-3 flex items-center gap-2 animate-float-slow">
-            <Sparkles className="h-5 w-5 text-white" />
-            <span className="text-white font-semibold">10,000+ Titles</span>
+          
+          {/* Seamless Blend Gradients */}
+          <div className="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-[#020617] via-[#020617]/50 to-transparent z-20 pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent z-20 pointer-events-none" />
+          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#020617] to-transparent z-20 pointer-events-none opacity-80" />
+          <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#020617] to-transparent z-20 pointer-events-none" />
+          
+          {/* Premium Badge - Redesigned to be a sleek glass card instead of a glowing pill */}
+          <div className="absolute bottom-12 left-12 z-30">
+             <div className="flex items-center gap-4 bg-[#020617]/60 border border-white/5 backdrop-blur-xl rounded-2xl px-5 py-3.5 shadow-2xl transition-colors hover:bg-[#020617]/80">
+               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                 <Sparkles className="w-5 h-5 text-white" />
+               </div>
+               <div className="flex flex-col pr-2">
+                 <span className="font-display text-sm font-bold tracking-wide text-blue-50 uppercase">Premium Select</span>
+                 <span className="text-[11px] font-medium text-blue-200/60 uppercase tracking-wider">10,000+ Titles</span>
+               </div>
+             </div>
           </div>
         </div>
 
-        {/* RIGHT SIDE - Login Form */}
-        <div className="w-full lg:w-1/2 flex flex-col justify-center items-center px-8 lg:px-16 relative">
-          {/* Background gradient for mobile */}
-          <div className="absolute inset-0 lg:hidden">
-            <div
-              className="absolute inset-0 bg-cover bg-center opacity-30"
-              style={{
-                backgroundImage: `url(${MOVIE_POSTERS[0]})`,
-              }}
-            />
-            <div className="absolute inset-0 bg-black/80" />
-          </div>
-
-          <div className="relative z-10 w-full max-w-md">
+        {/* Right Section - Login Form */}
+        <div className="w-full lg:w-[480px] xl:w-[560px] flex flex-col justify-center relative z-30 bg-[#020617] px-8 py-12 md:px-16 xl:px-20 overflow-y-auto">
+          <div className="w-full max-w-[380px] mx-auto flex flex-col">
+            
             {/* Logo */}
             <div className="flex items-center gap-3 mb-12">
-              <div className="p-2 bg-primary/20 rounded-xl">
-                <Film className="h-8 w-8 text-primary" />
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                 <Film className="w-5 h-5 text-blue-500" strokeWidth={2.5} />
               </div>
-              <span className="text-3xl font-bold tracking-tight text-white">
-                Stream<span className="text-primary">Vault</span>
+              <span className="font-display text-[24px] font-bold tracking-tight text-white">
+                Stream<span className="text-blue-500">Vault</span>
               </span>
             </div>
 
-            {/* Animated headline */}
-            <div className="mb-8 h-20 overflow-hidden">
-              <h1 className="text-4xl lg:text-5xl font-bold text-white leading-tight transition-[opacity,transform] duration-500 ease-out">
-                {headlines[activeText]}
-              </h1>
-            </div>
-
-            <p className="text-gray-400 text-lg mb-8">
-              Sign in to unlock your personalized streaming experience.
+            {/* Header */}
+            <h1 className="font-display text-[38px] xl:text-[44px] font-bold tracking-tight text-white mb-5 leading-[1.05]">
+              Immersive<br/>entertainment.
+            </h1>
+            <p className="text-slate-400 text-[15px] mb-12 leading-relaxed font-light">
+              Sign in to access your curated library, personalized watchlists, and ad-free streaming.
             </p>
 
-            {/* Value props */}
-            <div className="grid grid-cols-2 gap-4 mb-10">
-              {VALUE_PROPS.map(({ icon: Icon, text }, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 transition-colors hover:bg-white/10 hover:border-primary/50"
-                >
-                  <Icon className="h-5 w-5 text-primary flex-shrink-0" />
-                  <span className="text-sm text-gray-300">{text}</span>
+            {/* Feature Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-10">
+              {[
+                { icon: Play, text: "Unlimited access to our library" },
+                { icon: Heart, text: "Curated collections & watchlist" },
+                { icon: Download, text: "Offline viewing available" },
+                { icon: Sparkles, text: "Ad-free, 4K HDR playback" }
+              ].map((feature, i) => (
+                <div key={i} className="relative group p-4 rounded-2xl bg-[#060e22] border border-white/[0.03] hover:border-blue-500/30 transition-all duration-300 pointer-events-none sm:pointer-events-auto">
+                  <div className="absolute inset-0 bg-blue-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
+                  <div className="relative z-10 flex flex-col gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#0a1430] flex items-center justify-center text-blue-500/70 group-hover:scale-110 group-hover:text-blue-400 group-hover:bg-blue-500/15 transition-all duration-300">
+                      <feature.icon className="w-4 h-4" strokeWidth={2} />
+                    </div>
+                    <p className="text-[13.5px] text-slate-300 leading-snug font-medium">
+                      {feature.text}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Login Button */}
-            <Button
+            {/* Action Button */}
+            <button 
               onClick={() => loginWithRedirect()}
-              className="w-full h-14 bg-gradient-to-r from-primary to-red-500 hover:from-primary/90 hover:to-red-500/90 text-white font-semibold text-lg rounded-full shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/40 hover:scale-[1.02] active:scale-95"
+              className="relative w-full group overflow-hidden rounded-xl bg-blue-600 outline-none hover:-translate-y-0.5 transition-transform duration-300 active:translate-y-0 shadow-[0_4px_20px_rgba(37,99,235,0.2)] hover:shadow-[0_8px_30px_rgba(37,99,235,0.3)]"
             >
-              Sign In
-              <ChevronRight className="ml-2 h-5 w-5" />
-            </Button>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 opacity-100 group-hover:opacity-0 transition-opacity duration-300" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              <div className="relative flex items-center justify-center gap-2 px-6 py-[18px]">
+                <span className="font-display text-[16px] font-bold text-white tracking-wide">
+                  Sign In to Account
+                </span>
+                <ArrowRight className="w-[18px] h-[18px] text-blue-100 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2.5} />
+              </div>
+            </button>
 
             {/* Divider */}
-            <div className="flex items-center my-8">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="px-4 text-gray-500 text-sm">or</span>
-              <div className="flex-1 h-px bg-white/10" />
+            <div className="flex items-center gap-4 mt-10 mb-8">
+              <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent to-blue-900/30" />
+              <span className="text-[10px] font-semibold text-blue-200/40 uppercase tracking-widest">or</span>
+              <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent to-blue-900/30" />
             </div>
 
-            {/* Signup link */}
-            <div className="text-center">
-              <span className="text-gray-400">New to StreamVault? </span>
-              <Link
-                to="/signup"
-                className="text-primary hover:text-primary/80 font-semibold transition-colors"
-              >
-                Create an account
-              </Link>
+            {/* Links */}
+            <div className="text-center space-y-4">
+              <p className="text-[14px] text-slate-400 font-normal">
+                Don't have an account?{' '}
+                <Link to="/signup" className="font-display text-blue-400 font-semibold hover:text-blue-300 transition-colors underline decoration-blue-500/30 underline-offset-4 hover:decoration-blue-400">
+                  Create one now
+                </Link>
+              </p>
+              <p className="text-[11px] text-slate-500/80 leading-relaxed max-w-[280px] mx-auto">
+                By continuing, you agree to our Terms of Service and Privacy Policy.
+              </p>
             </div>
 
-            {/* Footer */}
-            <p className="text-center text-gray-300 text-xs mt-8">
-              By signing in, you agree to our Terms of Service and Privacy Policy.
-            </p>
           </div>
         </div>
-      </div>
 
-      {/* Custom animations */}
-      <style>{`
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.8; }
-        }
-        @keyframes float-slow {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 4s ease-in-out infinite;
-        }
-        .animate-float-slow {
-          animation: float-slow 3s ease-in-out infinite;
-        }
-      `}</style>
+      </div>
     </>
   );
 }

@@ -239,18 +239,34 @@ export function Header({
             </DropdownMenu>
           ) : (
             <>
-              <Link to="/login" className="hidden sm:block">
-                <Button size="sm" variant="ghost" className="rounded-full px-4 transition-none">
-                  Login
-                </Button>
-              </Link>
-              <Link
-                to="/login"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/50 text-muted-foreground hover:text-foreground sm:hidden"
-                aria-label="Login"
-              >
-                <LogOut className="h-4 w-4 rotate-180" />
-              </Link>
+              <div className="hidden items-center gap-2 sm:flex">
+                <Link to="/login">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full px-4 font-medium text-muted-foreground hover:bg-transparent hover:text-foreground"
+                  >
+                    Login
+                  </Button>
+                </Link>
+                <Link to="/signup">
+                  <Button
+                    size="sm"
+                    className="rounded-full bg-primary bg-none px-5 font-medium text-primary-foreground shadow-none transition-colors hover:bg-primary/90 hover:shadow-none hover:scale-100 active:scale-100"
+                  >
+                    Sign Up
+                  </Button>
+                </Link>
+              </div>
+              <div className="flex items-center gap-2 sm:hidden">
+                <Link
+                  to="/login"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/50 bg-background/50 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  aria-label="Login"
+                >
+                  <LogOut className="h-4 w-4 rotate-180" />
+                </Link>
+              </div>
             </>
           )}
         </div>
