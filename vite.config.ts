@@ -24,19 +24,6 @@ export default defineConfig(({ mode }) => ({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
 
         runtimeCaching: [
-          // ── TMDB images: cache-first, 30-day TTL ────────────────────
-          {
-            urlPattern: /^https:\/\/image\.tmdb\.org\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'tmdb-images',
-              expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-              },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
           // ── TMDB API (via our backend proxy): network-first ──────────
           {
             urlPattern: /\/tmdb\/(trending|discover)\/.*/i,
