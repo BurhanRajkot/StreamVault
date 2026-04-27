@@ -98,7 +98,7 @@ export default defineConfig(({ mode }) => ({
     terserOptions: {
       compress: {
         drop_console: mode === 'production',
-        drop_debugger: false,  // keep debugger; – used by DevToolsGuard timing attack in blocker.js
+        drop_debugger: mode === 'production',
         pure_funcs: mode === 'production' ? ['console.log', 'console.info', 'console.debug', 'console.warn'] : [],
         passes: 2,
       },
