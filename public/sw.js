@@ -2,18 +2,21 @@
  * StreamVault Service Worker
  *
  * Cache strategies:
- *   - image.tmdb.org  →  Cache-First  (images are immutable, 7-day TTL)
+ *   - image.tmdb.org  →  Pass-through (browser handles natively, no SW caching)
  *   - /tmdb/*         →  Stale-While-Revalidate (show cache, refresh in bg, 5-min TTL)
  *   - /recommendations* → Network-First (needs fresh personalization, 30-sec timeout)
  *
  * Version the cache name — updating CACHE_VERSION busts all caches on SW install.
+ *
+ * NOTE: TMDB images are intentionally NOT cached by the service worker.
+ * Cross-origin opaque responses from image.tmdb.org cause Workbox no-response
+ * errors when fetches are blocked (e.g. by ad-blockers). The browser's own
+ * HTTP cache handles image caching fine via Cache-Control headers.
  */
 
-const CACHE_VERSION = 'v2'
-const IMAGE_CACHE  = `sv-images-${CACHE_VERSION}`
-const API_CACHE    = `sv-api-${CACHE_VERSION}`
-const IMAGE_TTL    = 7  * 24 * 60 * 60 * 1000 // 7 days in ms
-const API_TTL      = 5  * 60 * 1000            // 5 minutes in ms
+const CACHE_VERSION = 'v3'
+const API_CACHE     = `sv-api-${CACHE_VERSION}`
+const API_TTL       = 5  * 60 * 1000            // 5 minutes in ms
 
 // ── Install: activate immediately ────────────────────────────────────────────
 self.addEventListener('install', () => self.skipWaiting())
@@ -24,7 +27,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => k !== IMAGE_CACHE && k !== API_CACHE)
+          .filter(k => k !== API_CACHE)
           .map(k => caches.delete(k))
       )
     ).then(() => self.clients.claim())
@@ -39,11 +42,9 @@ self.addEventListener('fetch', event => {
   // Only intercept GET requests
   if (request.method !== 'GET') return
 
-  // 1. TMDB images — Cache-First
-  if (url.hostname === 'image.tmdb.org') {
-    event.respondWith(cacheFirst(request, IMAGE_CACHE, IMAGE_TTL))
-    return
-  }
+  // 1. TMDB images — let the browser handle them natively (no SW caching)
+  //    Reason: opaque cross-origin responses fail loudly when blocked by ad-blockers.
+  if (url.hostname === 'image.tmdb.org') return
 
   // 2. Recommendations — Network-First (personalized, must be fresh)
   if (url.pathname.startsWith('/recommendations')) {
@@ -59,27 +60,6 @@ self.addEventListener('fetch', event => {
 
   // Everything else: pass through to network
 })
-
-// ── Strategy: Cache-First ─────────────────────────────────────────────────────
-async function cacheFirst(request, cacheName, ttlMs) {
-  const cache    = await caches.open(cacheName)
-  const cached   = await cache.match(request)
-
-  if (cached && !isExpired(cached, ttlMs)) {
-    return cached
-  }
-
-  try {
-    const fresh = await fetch(request)
-    if (fresh.ok) {
-      cache.put(request, withTimestamp(fresh.clone()))
-    }
-    return fresh
-  } catch {
-    if (cached) return cached
-    return new Response('Network error', { status: 408 })
-  }
-}
 
 // ── Strategy: Stale-While-Revalidate ─────────────────────────────────────────
 async function staleWhileRevalidate(request, cacheName, ttlMs) {

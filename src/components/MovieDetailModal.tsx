@@ -56,7 +56,7 @@ export function MovieDetailModal({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
-    return initialServer || 'vidfast_pro'
+    return initialServer || 'vidlink_pro'
   })
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
@@ -763,7 +763,6 @@ export function MovieDetailModal({
                         ref={iframeRef}
                         src={embedUrl}
                         className="w-full h-full"
-                        allowFullScreen
                         allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
                       />
                     ) : (
