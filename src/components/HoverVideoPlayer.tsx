@@ -56,7 +56,6 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
         ref={iframeRef}
         src={url}
         allow="autoplay; fullscreen"
-        allowFullScreen
         className={cn(
           "absolute inset-0 w-full h-full transition duration-500",
           loaded ? "opacity-100" : "opacity-0"
