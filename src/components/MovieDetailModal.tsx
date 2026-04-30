@@ -57,7 +57,7 @@ export function MovieDetailModal({
   const videoContainerRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
-    return initialServer || 'vidlink_pro'
+    return initialServer || 'vidfast_pro'
   })
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
@@ -547,21 +547,7 @@ export function MovieDetailModal({
               <div className="flex items-center gap-3">
                 {/* Play Now — primary CTA */}
                 <button
-                  onClick={() => {
-                    setIsPlaying(true);
-                    setTimeout(() => {
-                      if (window.innerWidth < 768 && videoContainerRef.current) {
-                        const el = videoContainerRef.current as any;
-                        if (el.requestFullscreen) el.requestFullscreen();
-                        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-                        else if (el.msRequestFullscreen) el.msRequestFullscreen();
-                        const screenAny = window.screen as any;
-                        if (screenAny && screenAny.orientation && screenAny.orientation.lock) {
-                          screenAny.orientation.lock('landscape').catch(() => {});
-                        }
-                      }
-                    }, 50);
-                  }}
+                  onClick={() => setIsPlaying(true)}
                   className="flex min-h-11 items-center gap-2.5 bg-white text-black px-8 py-3 rounded-full font-semibold text-base hover:bg-white/90 transition-[background-color,transform,box-shadow] hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,255,255,0.2)]"
                 >
                   <Play className="w-5 h-5 fill-current" />
@@ -762,7 +748,7 @@ export function MovieDetailModal({
         {isPlaying && (
           <div
             ref={scrollRef}
-            className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden custom-scrollbar max-md:bg-black"
+            className="absolute inset-0 z-10 overflow-x-hidden custom-scrollbar max-md:bg-black md:overflow-y-auto max-md:overflow-hidden"
           >
             <div className="w-full max-w-[1500px] mx-auto max-md:px-0 max-md:pt-0 max-md:pb-8 md:px-12 lg:px-24 md:pt-24 md:pb-16">
               <AnimatePresence>
@@ -775,19 +761,15 @@ export function MovieDetailModal({
                   className="w-full flex flex-col gap-0 md:gap-6"
                 >
                   {/* Video Player */}
-                  <div ref={videoContainerRef} className="w-full bg-black relative md:aspect-video md:bg-card md:rounded-2xl overflow-hidden md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5 max-md:aspect-video">
+                  <div className={cn(
+                    "w-full bg-black relative md:aspect-video md:bg-card md:rounded-2xl overflow-hidden md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5",
+                    "max-md:fixed max-md:z-[100] max-md:flex max-md:items-center max-md:justify-center",
+                    "portrait:max-md:w-[100dvh] portrait:max-md:h-[100dvw] portrait:max-md:top-1/2 portrait:max-md:left-1/2 portrait:max-md:-translate-x-1/2 portrait:max-md:-translate-y-1/2 portrait:max-md:rotate-90",
+                    "landscape:max-md:inset-0 landscape:max-md:w-screen landscape:max-md:h-screen"
+                  )}>
                     {/* Mobile Back Button for Video */}
                     <button 
-                      onClick={() => {
-                        setIsPlaying(false);
-                        if (document.fullscreenElement) {
-                          document.exitFullscreen().catch(() => {});
-                        }
-                        const screenAny = window.screen as any;
-                        if (screenAny && screenAny.orientation && screenAny.orientation.unlock) {
-                          screenAny.orientation.unlock();
-                        }
-                      }}
+                      onClick={() => setIsPlaying(false)}
                       className="md:hidden absolute top-6 left-6 z-[110] p-3 bg-black/50 backdrop-blur-md rounded-full text-white/70 hover:text-white border border-white/20 transition-colors pointer-events-auto"
                     >
                       <ChevronLeft className="w-6 h-6" />
