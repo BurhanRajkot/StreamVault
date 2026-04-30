@@ -679,7 +679,10 @@ export function MovieDetailModal({
         </div>
 
         {/* ── Top Navigation (always visible, non-scrolling) ── */}
-        <div className="absolute top-0 left-0 right-0 px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-50 pointer-events-none">
+        <div className={cn(
+          "absolute top-0 left-0 right-0 px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-[100] pointer-events-none transition-opacity duration-300",
+          isPlaying ? "max-md:opacity-0 max-md:pointer-events-none" : "opacity-100"
+        )}>
           <button
             onClick={() => {
               // Save mid-watch progress (0.5) when user closes after >= 30s
@@ -744,9 +747,9 @@ export function MovieDetailModal({
         {isPlaying && (
           <div
             ref={scrollRef}
-            className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden custom-scrollbar"
+            className="absolute inset-0 z-10 overflow-y-auto overflow-x-hidden custom-scrollbar max-md:bg-black"
           >
-            <div className="w-full max-w-[1500px] mx-auto px-6 md:px-12 lg:px-24 pt-24 pb-16">
+            <div className="w-full max-w-[1500px] mx-auto max-md:px-0 max-md:pt-0 max-md:pb-8 md:px-12 lg:px-24 md:pt-24 md:pb-16">
               <AnimatePresence>
                 <motion.div
                   key="theater"
@@ -754,16 +757,24 @@ export function MovieDetailModal({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full flex flex-col gap-6"
+                  className="w-full flex flex-col gap-0 md:gap-6"
                 >
                   {/* Video Player */}
-                  <div className="w-full aspect-video bg-card rounded-2xl overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-white/5 relative">
+                  <div className="w-full bg-black relative md:aspect-video md:bg-card md:rounded-2xl overflow-hidden md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5 max-md:h-[100dvh]">
+                    {/* Mobile Back Button for Video */}
+                    <button 
+                      onClick={() => setIsPlaying(false)}
+                      className="md:hidden absolute top-6 left-6 z-[110] p-3 bg-black/50 backdrop-blur-md rounded-full text-white/70 hover:text-white border border-white/20 transition-colors pointer-events-auto"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
                     {embedUrl ? (
                       <iframe
                         ref={iframeRef}
                         src={embedUrl}
-                        className="w-full h-full"
+                        className="md:w-full md:h-full max-md:absolute max-md:top-1/2 max-md:left-1/2 max-md:-translate-x-1/2 max-md:-translate-y-1/2 max-md:w-[max(100vw,177.77dvh)] max-md:h-[max(100dvh,56.25vw)]"
                         allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
+                        allowFullScreen
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full">
@@ -772,8 +783,8 @@ export function MovieDetailModal({
                     )}
                   </div>
 
-          {/* Command Center */}
-                  <div className="w-full bg-card/90 border border-border/30 rounded-2xl p-5 md:p-6 shadow-2xl">
+                  {/* Command Center */}
+                  <div className="w-full bg-card/90 md:border md:border-border/30 md:rounded-2xl p-5 md:p-6 md:shadow-2xl max-md:bg-[#0a0a0a] max-md:border-t max-md:border-white/10">
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                       {/* Left: TV navigation or movie title */}
                       {mode === 'tv' ? (
@@ -834,6 +845,7 @@ export function MovieDetailModal({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3, duration: 0.5 }}
+                    className="max-md:px-6"
                   >
                     {renderDetails(false)}
                   </motion.div>
