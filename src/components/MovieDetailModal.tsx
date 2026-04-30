@@ -54,6 +54,7 @@ export function MovieDetailModal({
 
   const [isPlaying, setIsPlaying] = useState(autoPlay || false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const videoContainerRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
     return initialServer || 'vidlink_pro'
@@ -546,7 +547,21 @@ export function MovieDetailModal({
               <div className="flex items-center gap-3">
                 {/* Play Now — primary CTA */}
                 <button
-                  onClick={() => setIsPlaying(true)}
+                  onClick={() => {
+                    setIsPlaying(true);
+                    setTimeout(() => {
+                      if (window.innerWidth < 768 && videoContainerRef.current) {
+                        const el = videoContainerRef.current as any;
+                        if (el.requestFullscreen) el.requestFullscreen();
+                        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+                        else if (el.msRequestFullscreen) el.msRequestFullscreen();
+                        const screenAny = window.screen as any;
+                        if (screenAny && screenAny.orientation && screenAny.orientation.lock) {
+                          screenAny.orientation.lock('landscape').catch(() => {});
+                        }
+                      }
+                    }, 50);
+                  }}
                   className="flex min-h-11 items-center gap-2.5 bg-white text-black px-8 py-3 rounded-full font-semibold text-base hover:bg-white/90 transition-[background-color,transform,box-shadow] hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,255,255,0.2)]"
                 >
                   <Play className="w-5 h-5 fill-current" />
@@ -760,10 +775,19 @@ export function MovieDetailModal({
                   className="w-full flex flex-col gap-0 md:gap-6"
                 >
                   {/* Video Player */}
-                  <div className="w-full bg-black relative md:aspect-video md:bg-card md:rounded-2xl overflow-hidden md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5 max-md:h-[100dvh]">
+                  <div ref={videoContainerRef} className="w-full bg-black relative md:aspect-video md:bg-card md:rounded-2xl overflow-hidden md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5 max-md:aspect-video">
                     {/* Mobile Back Button for Video */}
                     <button 
-                      onClick={() => setIsPlaying(false)}
+                      onClick={() => {
+                        setIsPlaying(false);
+                        if (document.fullscreenElement) {
+                          document.exitFullscreen().catch(() => {});
+                        }
+                        const screenAny = window.screen as any;
+                        if (screenAny && screenAny.orientation && screenAny.orientation.unlock) {
+                          screenAny.orientation.unlock();
+                        }
+                      }}
                       className="md:hidden absolute top-6 left-6 z-[110] p-3 bg-black/50 backdrop-blur-md rounded-full text-white/70 hover:text-white border border-white/20 transition-colors pointer-events-auto"
                     >
                       <ChevronLeft className="w-6 h-6" />
@@ -772,7 +796,7 @@ export function MovieDetailModal({
                       <iframe
                         ref={iframeRef}
                         src={embedUrl}
-                        className="md:w-full md:h-full max-md:absolute max-md:top-1/2 max-md:left-1/2 max-md:-translate-x-1/2 max-md:-translate-y-1/2 max-md:w-[max(100vw,177.77dvh)] max-md:h-[max(100dvh,56.25vw)]"
+                        className="w-full h-full"
                         allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
                         allowFullScreen
                       />
