@@ -58,11 +58,11 @@ const CURATED_TITLES: CuratedTitle[] = [
   { tmdbId: 862,    mediaType: 'movie', title: 'Toy Story',               genre: 'Animation',posterPath: '/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg' },
   // Crime
   { tmdbId: 1396,   mediaType: 'tv',    title: 'Breaking Bad',            genre: 'Crime',    posterPath: '/ggFHVNu6YYI5L9pCfOacjizRGt.jpg' },
-  { tmdbId: 60574,  mediaType: 'tv',    title: 'Peaky Blinders',          genre: 'Crime',    posterPath: '/qFfPBidkONSHpKfN0oHRrYyMN5b.jpg' },
+  { tmdbId: 60574,  mediaType: 'tv',    title: 'Peaky Blinders',          genre: 'Crime',    posterPath: '/vUUqzWa2LnHIVqkaKVlVGkVcZIW.jpg' },
   { tmdbId: 63351,  mediaType: 'tv',    title: 'Narcos',                  genre: 'Crime',    posterPath: '/rTmal9fDbwh5F0waol2hq35U4ah.jpg' },
   // Fantasy / Epic
   { tmdbId: 1399,   mediaType: 'tv',    title: 'Game of Thrones',         genre: 'Fantasy',  posterPath: '/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg' },
-  { tmdbId: 66732,  mediaType: 'tv',    title: 'Stranger Things',         genre: 'Sci-Fi',   posterPath: '/x2LSRK2Cm7MZhjluni1msVJ3wDj.jpg' },
+  { tmdbId: 66732,  mediaType: 'tv',    title: 'Stranger Things',         genre: 'Sci-Fi',   posterPath: '/49WJfeN0moxb9IPfGn8OSqep54f.jpg' },
   // Anime
   { tmdbId: 1429,   mediaType: 'tv',    title: 'Attack on Titan',         genre: 'Anime',    posterPath: '/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg' },
   { tmdbId: 372058, mediaType: 'movie', title: 'Your Name',               genre: 'Anime',    posterPath: '/q719jXXEzOoYaps6babgKnONONX.jpg' },
@@ -209,7 +209,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
   const content = submitted ? (
     <SuccessScreen />
   ) : (
-    <div className="min-h-screen bg-[#0a0a0a] text-white pb-36 font-sans selection:bg-blue-500/30">
+    <div className="min-h-full bg-[#0a0a0a] text-white pb-36 font-sans selection:bg-blue-500/30">
 
       {/* ── Sticky Header ── */}
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
@@ -249,7 +249,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
         </div>
 
         {/* ── Movie Grid ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 px-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 px-6 pb-4">
           {CURATED_TITLES.map((title, index) => {
             const isSelected = selectedIds.includes(title.tmdbId)
             const hasImgError = imgErrors.has(title.tmdbId)
@@ -260,12 +260,11 @@ export function CineMatchOnboarding({ onComplete }: Props) {
                 key={title.tmdbId}
                 onClick={() => toggleSelection(title.tmdbId)}
                 className={[
-                  'relative group cursor-pointer aspect-[2/3] rounded-xl overflow-hidden bg-zinc-900 border-[2.5px] transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                  'relative group cursor-pointer aspect-[2/3] rounded-xl overflow-hidden bg-zinc-900 border-[2.5px] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                   isSelected
                     ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)] scale-[1.02]'
                     : 'border-transparent hover:border-white/20 hover:scale-[1.01]',
                 ].join(' ')}
-                style={{ animationDelay: `${index * 15}ms` }}
                 aria-label={`${isSelected ? 'Deselect' : 'Select'} ${title.title}`}
                 aria-pressed={isSelected}
               >
@@ -283,8 +282,9 @@ export function CineMatchOnboarding({ onComplete }: Props) {
                       src={`${POSTER_BASE}${title.posterPath}`}
                       alt={title.title}
                       loading="lazy"
+                      decoding="async"
                       className={[
-                        'w-full h-full object-cover transition-all duration-500',
+                        'w-full h-full object-cover transition-all duration-150',
                         !loadedImgs.has(title.tmdbId) ? 'opacity-0' : 'opacity-100',
                         isSelected ? 'scale-110 brightness-40' : 'group-hover:scale-105 group-hover:brightness-75',
                       ].join(' ')}
@@ -296,7 +296,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
 
                 {/* Bottom gradient + title */}
                 <div className={[
-                  'absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/40 to-transparent transition-all duration-300',
+                  'absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/40 to-transparent transition-all duration-150',
                   isSelected ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100',
                 ].join(' ')}>
                   <p className="text-white font-bold text-xs sm:text-sm leading-tight">{title.title}</p>
@@ -313,7 +313,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
 
                 {/* Checkmark badge */}
                 <div className={[
-                  'absolute top-2.5 right-2.5 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 transition-all duration-300',
+                  'absolute top-2.5 right-2.5 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 transition-all duration-150',
                   isSelected ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
                 ].join(' ')}>
                   <CheckIcon />
@@ -406,8 +406,10 @@ export function CineMatchOnboarding({ onComplete }: Props) {
   )
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-[#0a0a0a]">
-      {content}
+    <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] overflow-hidden">
+      <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+        {content}
+      </div>
     </div>,
     document.body
   )
