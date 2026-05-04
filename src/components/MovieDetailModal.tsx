@@ -53,6 +53,10 @@ export function MovieDetailModal({
   const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState(10)
 
   const [isPlaying, setIsPlaying] = useState(autoPlay || false)
+  const [isMobileDevice] = useState(() => {
+    if (typeof navigator === 'undefined') return false
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
@@ -682,7 +686,7 @@ export function MovieDetailModal({
         {/* ── Top Navigation (always visible, non-scrolling) ── */}
         <div className={cn(
           "absolute top-0 left-0 right-0 px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-[100] pointer-events-none transition-opacity duration-300",
-          isPlaying ? "max-md:opacity-0 max-md:pointer-events-none" : "opacity-100"
+          isPlaying && isMobileDevice ? "max-md:opacity-0 max-md:pointer-events-none" : "opacity-100"
         )}>
           <button
             onClick={() => {
@@ -748,9 +752,17 @@ export function MovieDetailModal({
         {isPlaying && (
           <div
             ref={scrollRef}
-            className="absolute inset-0 z-10 overflow-x-hidden custom-scrollbar max-md:bg-black md:overflow-y-auto max-md:overflow-hidden"
+            className={cn(
+              "absolute inset-0 z-10 overflow-x-hidden custom-scrollbar",
+              isMobileDevice ? "max-md:bg-black md:overflow-y-auto max-md:overflow-hidden" : "overflow-y-auto"
+            )}
           >
-            <div className="w-full max-w-[1500px] mx-auto max-md:px-0 max-md:pt-0 max-md:pb-8 md:px-12 lg:px-24 md:pt-24 md:pb-16">
+            <div className={cn(
+              "w-full max-w-[1500px] mx-auto",
+              isMobileDevice 
+                ? "max-md:px-0 max-md:pt-0 max-md:pb-8 md:px-12 lg:px-24 md:pt-24 md:pb-16"
+                : "px-4 pt-20 pb-8 md:px-12 lg:px-24 md:pt-24 md:pb-16"
+            )}>
               <AnimatePresence>
                 <motion.div
                   key="theater"
@@ -762,18 +774,25 @@ export function MovieDetailModal({
                 >
                   {/* Video Player */}
                   <div className={cn(
-                    "w-full bg-black relative md:aspect-video md:bg-card md:rounded-2xl overflow-hidden md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5",
-                    "max-md:fixed max-md:z-[100] max-md:flex max-md:items-center max-md:justify-center",
-                    "portrait:max-md:w-[100dvh] portrait:max-md:h-[100dvw] portrait:max-md:top-1/2 portrait:max-md:left-1/2 portrait:max-md:-translate-x-1/2 portrait:max-md:-translate-y-1/2 portrait:max-md:rotate-90",
-                    "landscape:max-md:inset-0 landscape:max-md:w-screen landscape:max-md:h-screen"
+                    "w-full bg-black relative overflow-hidden",
+                    isMobileDevice 
+                      ? [
+                          "md:aspect-video md:bg-card md:rounded-2xl md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5",
+                          "max-md:fixed max-md:z-[100] max-md:flex max-md:items-center max-md:justify-center",
+                          "portrait:max-md:w-[100dvh] portrait:max-md:h-[100dvw] portrait:max-md:top-1/2 portrait:max-md:left-1/2 portrait:max-md:-translate-x-1/2 portrait:max-md:-translate-y-1/2 portrait:max-md:rotate-90",
+                          "landscape:max-md:inset-0 landscape:max-md:w-screen landscape:max-md:h-screen"
+                        ]
+                      : "aspect-video bg-card rounded-xl md:rounded-2xl shadow-2xl md:shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-white/5"
                   )}>
                     {/* Mobile Back Button for Video */}
-                    <button 
-                      onClick={() => setIsPlaying(false)}
-                      className="md:hidden absolute top-6 left-6 z-[110] p-3 bg-black/50 backdrop-blur-md rounded-full text-white/70 hover:text-white border border-white/20 transition-colors pointer-events-auto"
-                    >
-                      <ChevronLeft className="w-6 h-6" />
-                    </button>
+                    {isMobileDevice && (
+                      <button 
+                        onClick={() => setIsPlaying(false)}
+                        className="md:hidden absolute top-6 left-6 z-[110] p-3 bg-black/50 backdrop-blur-md rounded-full text-white/70 hover:text-white border border-white/20 transition-colors pointer-events-auto"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                    )}
                     {embedUrl ? (
                       <iframe
                         ref={iframeRef}
@@ -790,7 +809,12 @@ export function MovieDetailModal({
                   </div>
 
                   {/* Command Center */}
-                  <div className="w-full bg-card/90 md:border md:border-border/30 md:rounded-2xl p-5 md:p-6 md:shadow-2xl max-md:bg-[#0a0a0a] max-md:border-t max-md:border-white/10">
+                  <div className={cn(
+                    "w-full bg-card/90 p-5 md:p-6",
+                    isMobileDevice 
+                      ? "md:border md:border-border/30 md:rounded-2xl md:shadow-2xl max-md:bg-[#0a0a0a] max-md:border-t max-md:border-white/10"
+                      : "border border-border/30 rounded-2xl shadow-2xl"
+                  )}>
                     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                       {/* Left: TV navigation or movie title */}
                       {mode === 'tv' ? (
