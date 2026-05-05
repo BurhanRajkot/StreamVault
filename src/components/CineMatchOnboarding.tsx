@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 
@@ -62,7 +62,7 @@ const CURATED_TITLES: CuratedTitle[] = [
   { tmdbId: 63351,  mediaType: 'tv',    title: 'Narcos',                  genre: 'Crime',    posterPath: '/rTmal9fDbwh5F0waol2hq35U4ah.jpg' },
   // Fantasy / Epic
   { tmdbId: 1399,   mediaType: 'tv',    title: 'Game of Thrones',         genre: 'Fantasy',  posterPath: '/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg' },
-  { tmdbId: 66732,  mediaType: 'tv',    title: 'Stranger Things',         genre: 'Sci-Fi',   posterPath: '/49WJfeN0moxb9IPfGn8OSqep54f.jpg' },
+  { tmdbId: 66732,  mediaType: 'tv',    title: 'Stranger Things',         genre: 'Sci-Fi',   posterPath: '/uOOtwVbSr4QDjAGIifLDwpb2Pdl.jpg' },
   // Anime
   { tmdbId: 1429,   mediaType: 'tv',    title: 'Attack on Titan',         genre: 'Anime',    posterPath: '/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg' },
   { tmdbId: 372058, mediaType: 'movie', title: 'Your Name',               genre: 'Anime',    posterPath: '/q719jXXEzOoYaps6babgKnONONX.jpg' },
@@ -157,6 +157,14 @@ export function CineMatchOnboarding({ onComplete }: Props) {
   const [submitted, setSubmitted] = useState(false)
   const [imgErrors, setImgErrors] = useState<Set<number>>(new Set())
   const [loadedImgs, setLoadedImgs] = useState<Set<number>>(new Set())
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [])
 
   const toggleSelection = useCallback((tmdbId: number) => {
     setSelectedIds(prev =>
