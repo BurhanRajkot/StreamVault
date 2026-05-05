@@ -23,7 +23,7 @@ describe("fetchTMDB error paths", () => {
   test("returns { results: [] } when fetch response is not ok", async () => {
     global.fetch = mock(() =>
       Promise.resolve(new Response(null, { status: 500 }))
-    );
+    ) as unknown as typeof fetch;
 
     const result = await fetchTMDB("/test-not-ok");
     expect(result).toEqual({ results: [] });
@@ -32,7 +32,7 @@ describe("fetchTMDB error paths", () => {
   test("returns { results: [] } when fetch throws a network error", async () => {
     global.fetch = mock(() =>
       Promise.reject(new Error("Network connection lost"))
-    );
+    ) as unknown as typeof fetch;
 
     const result = await fetchTMDB("/test-network-error");
     expect(result).toEqual({ results: [] });
@@ -41,14 +41,14 @@ describe("fetchTMDB error paths", () => {
   test("returns { results: [] } when response JSON parsing fails", async () => {
     global.fetch = mock(() =>
       Promise.resolve(new Response("invalid json", { status: 200 }))
-    );
+    ) as unknown as typeof fetch;
 
     const result = await fetchTMDB("/test-json-error");
     expect(result).toEqual({ results: [] });
   });
 
   test("returns { results: [] } when request times out", async () => {
-    global.fetch = mock(async (input, init) => {
+    global.fetch = mock(async (input: any, init: any) => {
       // Simulate a long delay that exceeds the timeout
       return new Promise<Response>((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -62,7 +62,7 @@ describe("fetchTMDB error paths", () => {
           });
         }
       });
-    });
+    }) as unknown as typeof fetch;
 
     // Use a very short timeout
     const result = await fetchTMDB("/test-timeout", { timeoutMs: 10 });
