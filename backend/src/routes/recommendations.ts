@@ -289,9 +289,7 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
 
 // ── POST /recommendations/onboarding ─────────────────────────
 // Bulk-seed endpoint for the CineMatch first-time onboarding flow.
-// Accepts an array of titles the user selected during onboarding and
-// logs each as a 'favorite' interaction, immediately warming the engine.
-// Rate-limited to 3 requests per hour per user (prevents abuse/re-seeding).
+// Eagerly fetches features and persists a warm profile.
 const onboardingRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3,
@@ -310,11 +308,10 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
 
   const { selections } = req.body
 
-  // Validate selections array
+  // Validate
   if (!Array.isArray(selections) || selections.length < 5 || selections.length > 50) {
     return res.status(400).json({ error: 'selections must be an array of 5–50 items' })
   }
-
   for (const item of selections) {
     const parsedId = Number(item.tmdbId)
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
@@ -326,26 +323,111 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
   }
 
   try {
-    // Log each selection as a 'favorite' interaction — this seeds the genre/cast/keyword vectors
-    const promises = selections.map((item: { tmdbId: number; mediaType: MediaType }) =>
-      logInteraction({
-        userId,
-        tmdbId: Number(item.tmdbId),
-        mediaType: item.mediaType,
-        eventType: 'favorite',
-        recommendationSource: 'onboarding',
-      }).catch((err: any) =>
-        logger.warn('CineMatch onboarding seed failed for item', { tmdbId: item.tmdbId, error: err?.message })
+    // ── Phase 1: Eager feature enrichment ──────────────────────────────────
+    // Fetch TMDB keywords + credits for ALL selected titles in parallel so we
+    // can build complete genre/keyword/cast/director/decade vectors immediately.
+    // This avoids the async-lazy background path that left new users with empty
+    // vectors on their very first homepage load.
+    const { getMovieFeatures: fetchFeatures } = await import('../cinematch/features/movieFeatures')
+
+    const featureResults = await Promise.allSettled(
+      selections.map((item: { tmdbId: number; mediaType: MediaType }) =>
+        fetchFeatures(Number(item.tmdbId), item.mediaType)
       )
     )
 
-    await Promise.allSettled(promises)
+    // ── Phase 2: Build initial taste vectors ───────────────────────────────
+    // Each onboarding selection carries a 0.9 weight (same as an explicit favorite).
+    const ONBOARDING_WEIGHT = 0.9
+    const genreMap: Record<string, number> = {}
+    const keywordMap: Record<string, number> = {}
+    const castMap: Record<string, number> = {}
+    const directorMap: Record<string, number> = {}
+    const decadeMap: Record<string, number> = {}
+    let enriched = 0
 
-    // Invalidate cache so next recommendation request runs a fresh pipeline
+    for (const result of featureResults) {
+      if (result.status !== 'fulfilled' || !result.value) continue
+      const f = result.value
+      enriched++
+
+      for (const gId of f.genreIds) {
+        const k = String(gId)
+        genreMap[k] = Math.min(1, (genreMap[k] ?? 0) + ONBOARDING_WEIGHT)
+      }
+      for (const kwId of f.keywords) {
+        const k = String(kwId)
+        keywordMap[k] = Math.min(1, (keywordMap[k] ?? 0) + ONBOARDING_WEIGHT * 0.5)
+      }
+      for (const castId of f.castIds) {
+        const k = String(castId)
+        castMap[k] = Math.min(1, (castMap[k] ?? 0) + ONBOARDING_WEIGHT * 0.5)
+      }
+      if (f.directorId) {
+        const k = String(f.directorId)
+        directorMap[k] = Math.min(1, (directorMap[k] ?? 0) + ONBOARDING_WEIGHT)
+      }
+      if (f.releaseDate) {
+        const year = parseInt(f.releaseDate.split('-')[0] || '0', 10)
+        if (year > 1900) {
+          const decade = String(Math.floor(year / 10) * 10)
+          decadeMap[decade] = Math.min(1, (decadeMap[decade] ?? 0) + ONBOARDING_WEIGHT * 0.3)
+        }
+      }
+    }
+
+    // Normalise each map so values stay in (0, 1]
+    const normalise = (map: Record<string, number>) => {
+      const max = Math.max(...Object.values(map), 1)
+      return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v / max]))
+    }
+
+    // ── Phase 3: Persist warm UserGenreProfile synchronously ───────────────
+    // Writing this before returning means the pipeline is already warm when the
+    // success screen finishes (2.5 s) and the homepage fires its first GET /recommendations.
+    // We store all vectors in the existing `genreMap` column using a nested `_meta`
+    // key so no schema migration is required — the genreMap keys are numeric genre IDs,
+    // so a string key like `_meta` will never collide with a real genre ID.
+    await supabaseAdmin
+      .from('UserGenreProfile')
+      .upsert({
+        userId,
+        genreMap: {
+          ...normalise(genreMap),
+          _meta: {
+            keywordMap:  normalise(keywordMap),
+            castMap:     normalise(castMap),
+            directorMap: normalise(directorMap),
+            decadeMap:   normalise(decadeMap),
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      }, { onConflict: 'userId' })
+
+    // ── Phase 4: Log interactions (fire-and-forget) ────────────────────────
+    // These write to UserInteractions for ML telemetry + future retraining.
+    // The incremental genre update inside logInteraction is effectively a no-op
+    // now since we already wrote the full warm map above.
+    void Promise.allSettled(
+      selections.map((item: { tmdbId: number; mediaType: MediaType }) =>
+        logInteraction({
+          userId,
+          tmdbId: Number(item.tmdbId),
+          mediaType: item.mediaType,
+          eventType: 'favorite',
+          recommendationSource: 'onboarding',
+        }).catch((err: any) =>
+          logger.warn('CineMatch onboarding seed failed for item', { tmdbId: item.tmdbId, error: err?.message })
+        )
+      )
+    )
+
+    // ── Phase 5: Bust all caches ───────────────────────────────────────────
+    invalidateRecommendationCache(userId)
     await cache.userData.invalidateUser(userId)
 
-    logger.info('CineMatch onboarding seeded', { userId, count: selections.length })
-    return res.status(201).json({ seeded: selections.length })
+    logger.info('CineMatch onboarding seeded', { userId, selections: selections.length, enriched })
+    return res.status(201).json({ seeded: selections.length, enriched })
   } catch (err: any) {
     logger.error('CineMatch onboarding error', { error: err?.message })
     return res.status(500).json({ error: 'Failed to seed onboarding selections' })
