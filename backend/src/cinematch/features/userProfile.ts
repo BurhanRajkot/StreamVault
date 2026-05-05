@@ -51,11 +51,16 @@ function normalizeGenreVector(vec: Record<number, number>): Record<number, numbe
 }
 
 
-// ── Seed genre vector from persisted DB profile (cold-start) ──
-// Prevents a totally empty vector on first request after login
+// ── Seed all taste vectors from persisted DB profile (cold-start) ──
+// Reads the onboarding-written genreMap (which contains numeric genre IDs +
+// a `_meta` object with keyword/cast/director/decade maps).
 async function seedFromPersistedProfile(
   userId: string,
-  genreVector: Record<number, number>
+  genreVector: Record<number, number>,
+  keywordVector?: Record<number, number>,
+  castVector?: Record<number, number>,
+  directorVector?: Record<number, number>,
+  decadeVector?: Record<number, number>,
 ): Promise<boolean> {
   try {
     const { data } = await supabaseAdmin
@@ -66,10 +71,35 @@ async function seedFromPersistedProfile(
 
     if (!data?.genreMap || typeof data.genreMap !== 'object') return false
 
-    // Seed with 50% weight (will be overridden as interactions accumulate)
-    for (const [genreId, weight] of Object.entries(data.genreMap as Record<string, number>)) {
-      genreVector[Number(genreId)] = (genreVector[Number(genreId)] || 0) + weight * 0.5
+    const raw = data.genreMap as Record<string, any>
+    const meta = raw._meta as {
+      keywordMap?: Record<string, number>
+      castMap?: Record<string, number>
+      directorMap?: Record<string, number>
+      decadeMap?: Record<string, number>
+    } | undefined
+
+    // Seed each vector at 50% weight so live interactions can override over time.
+    const seedMap = (
+      src: Record<string, number> | null | undefined,
+      dst: Record<number, number> | undefined
+    ) => {
+      if (!src || !dst) return
+      for (const [id, weight] of Object.entries(src)) {
+        if (id === '_meta') continue // skip meta key
+        dst[Number(id)] = (dst[Number(id)] || 0) + (weight as number) * 0.5
+      }
     }
+
+    // Seed genre vector from the flat numeric keys
+    seedMap(raw as Record<string, number>, genreVector)
+
+    // Seed extended vectors from the nested _meta object
+    seedMap(meta?.keywordMap,  keywordVector)
+    seedMap(meta?.castMap,     castVector)
+    seedMap(meta?.directorMap, directorVector)
+    seedMap(meta?.decadeMap,   decadeVector)
+
     return true
   } catch {
     return false
@@ -110,6 +140,34 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     .limit(MAX_INTERACTIONS_FETCH)
 
   if (error || !interactions || interactions.length === 0) {
+    // Before giving up with an empty profile, try to seed from the onboarding
+    // batch that the POST /onboarding handler wrote synchronously.
+    // This handles the race condition where UserInteractions are still being
+    // written async while the homepage makes its first GET /recommendations.
+    const warmed: Record<number, number> = {}
+    const warmedKw: Record<number, number> = {}
+    const warmedCast: Record<number, number> = {}
+    const warmedDir: Record<number, number> = {}
+    const warmedDec: Record<number, number> = {}
+    const seeded = await seedFromPersistedProfile(userId, warmed, warmedKw, warmedCast, warmedDir, warmedDec)
+    if (seeded && Object.keys(warmed).length > 0) {
+      const warmProfile: UserProfile = {
+        userId,
+        genreVector: warmed,
+        keywordVector: warmedKw,
+        castVector: warmedCast,
+        directorVector: warmedDir,
+        decadeVector: warmedDec,
+        watchedIds: new Set(),
+        favoritedIds: new Set(),
+        dislikedIds: new Set(),
+        categoryDislikeCounts: {},
+        recentlyWatched: [],
+        isNewUser: false, // ← has onboarding data → treat as personalized
+      }
+      userProfileCache.set(userId, warmProfile)
+      return warmProfile
+    }
     return emptyProfile(userId)
   }
 
@@ -124,14 +182,10 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   const categoryDislikeCounts: Record<string, number> = {}
   const recentWatchMap = new Map<number, RecentItem>()
 
-  // For cold-start: seed from persisted genre profile first
-  if (interactions.length < 5) {
-    const seeded = await seedFromPersistedProfile(userId, genreVector)
-    if (seeded) {
-      // If we seeded from DB, the interaction count is still real
-      // We just gave the vector a head start
-    }
-  }
+  // For cold-start: seed from persisted genre profile first.
+  // Always seed — even with ≥5 interactions the persisted map gives fast warmup.
+  await seedFromPersistedProfile(userId, genreVector, keywordVector, castVector, directorVector, decadeVector)
+
 
   // Batch-fetch features for top N recent interactions in parallel.
   // Capped at FEATURE_BATCH_SIZE and wrapped with a 4s timeout so a slow
@@ -219,8 +273,12 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
         }
 
         if (!isDislike) {
-          // Track recently watched for candidate seeding
-          if (interaction.eventType === 'watch' && !recentWatchMap.has(interaction.tmdbId)) {
+          // Track recently watched for candidate seeding.
+          // Include both 'watch' AND 'favorite' events so onboarding selections
+          // immediately seed the tmdbSimilar + tmdbRecommendations sources.
+          const isWatchOrFavorite =
+            interaction.eventType === 'watch' || interaction.eventType === 'favorite'
+          if (isWatchOrFavorite && !recentWatchMap.has(interaction.tmdbId)) {
             recentWatchMap.set(interaction.tmdbId, {
               tmdbId: interaction.tmdbId,
               mediaType: interaction.mediaType as MediaType,
@@ -250,7 +308,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     recentlyWatched: Array.from(recentWatchMap.values())
       .sort((a, b) => b.weight - a.weight)
       .slice(0, MAX_RECENT_ITEMS),
-    isNewUser: interactions.length < 3,
+    // User is new only if they have zero interactions — onboarding seeds ≥5
+    isNewUser: interactions.length === 0,
   }
 
   userProfileCache.set(userId, profile)
