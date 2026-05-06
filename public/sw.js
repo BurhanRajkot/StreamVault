@@ -14,7 +14,7 @@
  * HTTP cache handles image caching fine via Cache-Control headers.
  */
 
-const CACHE_VERSION = 'v3'
+const CACHE_VERSION = 'v4'
 const API_CACHE     = `sv-api-${CACHE_VERSION}`
 const API_TTL       = 5  * 60 * 1000            // 5 minutes in ms
 
