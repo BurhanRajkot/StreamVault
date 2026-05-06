@@ -11,14 +11,15 @@
     7. Viewport shrink detection (docked DevTools) — conservative threshold
 */
 
+/*
 ;(function DevToolsGuard() {
   "use strict";
 
-  /* ── CONFIG ───────────────────────────────────────────────── */
+  // ── CONFIG ───────────────────────────────────────────────── //
   var REDIRECT_URL = "https://www.youtube.com/watch?v=wlTx6XVBGhU";
   var VIEWPORT_THRESHOLD = 200; // px – must be large enough to ignore normal resizes
 
-  /* ── PUNISHMENT ───────────────────────────────────────────── */
+  // ── PUNISHMENT ───────────────────────────────────────────── //
   var _punishing = false;
   function punish() {
     if (_punishing) return;
@@ -30,7 +31,7 @@
     setTimeout(function () { _punishing = false; }, 3000);
   }
 
-  /* ── LAYER 1: KEYBOARD BLOCKING ───────────────────────────── */
+  // ── LAYER 1: KEYBOARD BLOCKING ───────────────────────────── //
   // Normalises key regardless of Shift state and browser differences.
   function isBlockedCombo(e) {
     var k = (e.key || "").toLowerCase();
@@ -96,18 +97,18 @@
   document.addEventListener("keydown", handleKey, { capture: true });
   document.addEventListener("keyup",   handleKey, { capture: true });
 
-  /* ── LAYER 2: CONTEXT MENU ────────────────────────────────── */
+  // ── LAYER 2: CONTEXT MENU ────────────────────────────────── //
   window.addEventListener("contextmenu", function (e) {
     e.preventDefault();
     e.stopImmediatePropagation();
     punish();
   }, { capture: true });
 
-  /* ── LAYER 3: SELECT / DRAG ───────────────────────────────── */
+  // ── LAYER 3: SELECT / DRAG ───────────────────────────────── //
   window.addEventListener("selectstart", function (e) { e.preventDefault(); }, { capture: true });
   window.addEventListener("dragstart",   function (e) { e.preventDefault(); }, { capture: true });
 
-  /* ── LAYER 4: CONSOLE-GETTER TRAP (open DevTools → punish) ── */
+  // ── LAYER 4: CONSOLE-GETTER TRAP (open DevTools → punish) ── //
   var _trap = new Image();
   var _devOpen = false;
   Object.defineProperty(_trap, "id", {
@@ -126,7 +127,7 @@
     console.clear();
   }, 1500);
 
-  /* ── LAYER 5: TIMING ATTACK (breakpoint / pause detection) ── */
+  // ── LAYER 5: TIMING ATTACK (breakpoint / pause detection) ── //
   setInterval(function () {
     var t0 = performance.now();
     // eslint-disable-next-line no-debugger
@@ -137,7 +138,7 @@
     }
   }, 2000);
 
-  /* ── LAYER 6: IFRAME FOCUS TRAP ───────────────────────────── */
+  // ── LAYER 6: IFRAME FOCUS TRAP ───────────────────────────── //
   // When focus leaves to a cross-origin iframe (video player),
   // F12 bypasses our keydown. Steal focus back immediately.
   window.addEventListener("blur", function () {
@@ -148,7 +149,7 @@
     }, 0);
   });
 
-  /* ── LAYER 7: VIEWPORT SHRINK CHECK (docked DevTools) ──────── */
+  // ── LAYER 7: VIEWPORT SHRINK CHECK (docked DevTools) ──────── //
   // Uses a snapshot every 800 ms rather than the resize event to avoid
   // false-positives when the user merely resizes the browser window.
   var _lastW = window.outerWidth;
@@ -173,3 +174,4 @@
   }, 1000);
 
 })();
+*/
