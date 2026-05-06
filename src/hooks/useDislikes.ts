@@ -1,5 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
@@ -90,8 +90,16 @@ export function useDislikesInternal() {
     loadDislikes()
   }, [loadDislikes])
 
-  const isDisliked = (tmdbId: number, mediaType: 'movie' | 'tv') =>
-    dislikes.some((d) => d.tmdbId === tmdbId && d.mediaType === mediaType)
+  // O(1) lookup map for dislikes
+  const dislikesMap = useMemo(() => {
+    const map = new Map<string, DislikeItem>()
+    dislikes.forEach((d) => map.set(`${d.mediaType}:${d.tmdbId}`, d))
+    return map
+  }, [dislikes])
+
+  const isDisliked = useCallback((tmdbId: number, mediaType: 'movie' | 'tv') => {
+    return dislikesMap.has(`${mediaType}:${tmdbId}`)
+  }, [dislikesMap])
 
   const toggleDislike = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
     if (!isAuthenticated) {
@@ -105,9 +113,7 @@ export function useDislikesInternal() {
     pendingRef.current.add(pendingKey)
 
     // Optimistic update
-    const existing = dislikes.find(
-      (d) => d.tmdbId === tmdbId && d.mediaType === mediaType
-    )
+    const existing = dislikesMap.get(pendingKey)
 
     const tempId = `temp-${Date.now()}-${tmdbId}`
 
