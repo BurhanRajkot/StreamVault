@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useFavorites } from '@/context/FavoritesContext'
 import { Media } from '@/lib/config'
 import { fetchMediaDetails } from '@/lib/api'
-import { MediaGrid } from '@/components/MediaGrid'
+import { MediaCard } from '@/components/MediaCard'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/mobile-ui/MobileNav'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -285,13 +285,15 @@ const Favorites = () => {
               </Button>
             </div>
           ) : (
-            <MediaGrid
-              media={filteredMedia}
-              isLoading={false}
-              hasMore={false}
-              onLoadMore={() => {}}
-              onMediaClick={handleMediaClick}
-            />
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 md:gap-4 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+              {filteredMedia.map((item) => (
+                <MediaCard
+                  key={item.id}
+                  media={item}
+                  onClick={handleMediaClick}
+                />
+              ))}
+            </div>
           )}
         </main>
       </div>

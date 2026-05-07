@@ -64,7 +64,7 @@ export function MediaGrid({
 
   // Aspect ratio 2:3 — compute row height from column width
   const cardWidth  = (containerWidth - gap * (cols - 1)) / cols
-  const rowHeight  = Math.round((cardWidth / 2) * 3) + gap // 2:3 ratio + gap
+  const rowHeight  = Math.round((cardWidth / 2) * 3) // 2:3 ratio
 
   // Chunk media into rows of `cols`
   const rows = [] as Media[][]
