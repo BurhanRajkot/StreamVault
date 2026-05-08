@@ -3,6 +3,7 @@ import { useFavorites } from '@/context/FavoritesContext'
 import { Media } from '@/lib/config'
 import { fetchMediaDetails } from '@/lib/api'
 import { MediaCard } from '@/components/MediaCard'
+import { MediaGrid } from '@/components/MediaGrid'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/mobile-ui/MobileNav'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -151,7 +152,7 @@ const Favorites = () => {
 
         {/* Page header */}
         <div className="border-b border-border/50 pt-[72px]">
-          <div className="container py-6">
+          <div className="mx-auto w-full max-w-[2560px] px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16 py-6">
             <div className="flex items-center gap-3">
               <Heart className="h-5 w-5 text-primary" fill="currentColor" />
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
@@ -223,7 +224,7 @@ const Favorites = () => {
         </div>
 
         {/* Content */}
-        <main className="flex-1 container py-6">
+        <main className="mx-auto w-full max-w-[2560px] px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16 py-6 flex-1">
           {error ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-destructive/20">
@@ -285,15 +286,13 @@ const Favorites = () => {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 md:gap-4 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
-              {filteredMedia.map((item) => (
-                <MediaCard
-                  key={item.id}
-                  media={item}
-                  onClick={handleMediaClick}
-                />
-              ))}
-            </div>
+            <MediaGrid
+              media={filteredMedia}
+              isLoading={loading}
+              hasMore={false}
+              onLoadMore={() => {}}
+              onMediaClick={handleMediaClick}
+            />
           )}
         </main>
       </div>
