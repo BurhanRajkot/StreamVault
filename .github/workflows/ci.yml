@@ -28,6 +28,9 @@ env:
   NODE_VERSION: "22"
   BUN_VERSION:  "latest"
   PLATFORMS:    "linux/amd64,linux/arm64"
+  # Opt into Node.js 24 for all JS-based actions ahead of the
+  # June 2026 forced migration (GitHub deprecation notice).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 # ============================================================
 #  PHASE 0 — Change Detection
@@ -47,11 +50,11 @@ jobs:
       infra:    ${{ steps.filter.outputs.infra }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Detect changed paths
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             frontend:
@@ -89,12 +92,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout (full history for Gitleaks)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Gitleaks — detect leaked credentials
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -108,7 +111,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Review dependency changes
         uses: actions/dependency-review-action@v4
@@ -129,7 +132,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
@@ -172,7 +175,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── Bun global cache (~/.bun/install/cache) ────────────
       # setup-bun does not cache dependencies itself, so we do
@@ -228,19 +231,19 @@ jobs:
       security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
 
@@ -303,7 +306,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── Docker build infrastructure ────────────────────────
       - name: Setup QEMU (cross-compilation for ARM64)
@@ -369,7 +372,7 @@ jobs:
 
       - name: Upload frontend Trivy SARIF to GitHub Security
         if: always()                 # Upload even if scan failed
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-frontend.sarif
           category:   trivy-frontend
@@ -439,7 +442,7 @@ jobs:
 
       - name: Upload backend Trivy SARIF to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-backend.sarif
           category:   trivy-backend
@@ -492,7 +495,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── Keyless auth via OIDC (replace with your provider) ─
       # GCP example — configure Workload Identity Pool + Provider
@@ -533,7 +536,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # - name: Authenticate to Google Cloud (OIDC)
       #   uses: google-github-actions/auth@v3
