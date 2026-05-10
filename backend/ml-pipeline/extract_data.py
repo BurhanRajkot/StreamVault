@@ -17,10 +17,25 @@ supabase: Client = create_client(url, key)
 def extract_training_data():
     print("Extracting interaction matrix from Supabase...")
 
-    # We fetch the ml_interactions table.
-    # In a real production environment, you would use pagination or export to CSV to handle millions of rows.
-    response = supabase.table('ml_interactions').select("*").execute()
-    data = response.data
+    # We fetch the ml_interactions table using pagination to handle large datasets.
+    data = []
+    page_size = 1000
+    start = 0
+
+    while True:
+        end = start + page_size - 1
+        response = supabase.table('ml_interactions').select("*").range(start, end).execute()
+        page_data = response.data
+
+        if not page_data:
+            break
+
+        data.extend(page_data)
+
+        if len(page_data) < page_size:
+            break
+
+        start += page_size
 
     if not data:
         print("No interaction data found. Ensure users have interacted with movies on the site.")
