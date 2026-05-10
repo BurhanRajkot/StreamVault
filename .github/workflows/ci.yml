@@ -218,14 +218,14 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate frontend attestation
-        uses: actions/attest@v2
+        uses: actions/attest-build-provenance@v2
         with:
           subject-name: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
           subject-digest: ${{ steps.build_frontend.outputs.digest }}
           push-to-registry: true
 
       - name: Generate backend attestation
-        uses: actions/attest@v2
+        uses: actions/attest-build-provenance@v2
         with:
           subject-name: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
           subject-digest: ${{ steps.build_backend.outputs.digest }}
