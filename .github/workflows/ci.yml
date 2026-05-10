@@ -2,6 +2,7 @@
 #  StreamVault - Enterprise CI/CD Pipeline
 #  Architecture: DAG-based, path-filtered, security-hardened
 # ------------------------------------------------------------
+
 name: StreamVault CI/CD
 
 on:
@@ -481,7 +482,7 @@ jobs:
   #  kubectl / helm / gcloud run commands.
   # ============================================================
 
-deploy-canary:
+  deploy-canary:
     name: "🚀 Deploy — Canary (5% traffic)"
     needs: [publish-images]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
