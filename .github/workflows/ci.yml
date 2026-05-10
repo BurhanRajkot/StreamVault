@@ -97,7 +97,7 @@ jobs:
           fetch-depth: 0
 
       - name: Gitleaks — detect leaked credentials
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
