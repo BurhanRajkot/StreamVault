@@ -1,8 +1,7 @@
 # ============================================================
-#  StreamVault — Enterprise CI/CD Pipeline
+#  StreamVault - Enterprise CI/CD Pipeline
 #  Architecture: DAG-based, path-filtered, security-hardened
 # ============================================================
-
 name: StreamVault CI/CD
 
 on:
