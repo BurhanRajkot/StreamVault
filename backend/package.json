@@ -7,7 +7,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "tsc",
     "start": "bun dist/index.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src --ext .ts"
   },
   "keywords": [],
   "author": "",
