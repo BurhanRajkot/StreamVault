@@ -1,8 +1,10 @@
-import { getUserProfile } from './backend/src/cinematch/features/userProfile';
+import { getUserProfile, invalidateUserProfile } from './backend/src/cinematch/features/userProfile';
 import { supabaseAdmin } from './backend/src/lib/supabase';
 
 async function run() {
   const userId = 'test_user_' + Date.now();
+
+  console.log(`🚀 Starting benchmark for user: ${userId}`);
 
   // Create some interactions
   const interactions = [];
@@ -17,16 +19,38 @@ async function run() {
     });
   }
 
-  await supabaseAdmin.from('UserInteractions').insert(interactions);
-
-  const start = performance.now();
-  for (let i = 0; i < 10; i++) {
-    // invalidate cache if we want to measure db speed
-    require('./backend/src/cinematch/features/userProfile').invalidateUserProfile(userId);
-    await getUserProfile(userId);
+  console.log(`📦 Inserting ${interactions.length} interactions...`);
+  const { error: insertError } = await supabaseAdmin.from('UserInteractions').insert(interactions);
+  if (insertError) {
+    console.error('❌ Failed to insert interactions:', insertError);
+    return;
   }
-  const end = performance.now();
 
-  console.log(`Average time: ${(end - start) / 10} ms`);
+  const iterations = 10;
+  let totalTime = 0;
+
+  console.log(`⏱️ Running ${iterations} profile builds...`);
+
+  for (let i = 0; i < iterations; i++) {
+    // invalidate cache to measure raw DB + processing speed
+    invalidateUserProfile(userId);
+    
+    const start = performance.now();
+    await getUserProfile(userId);
+    const end = performance.now();
+    
+    const duration = end - start;
+    totalTime += duration;
+    console.log(`   Iteration ${i + 1}: ${duration.toFixed(2)}ms`);
+  }
+
+  const avgTime = totalTime / iterations;
+  console.log(`\n✅ Benchmark Complete!`);
+  console.log(`📊 Average Execution Time: ${avgTime.toFixed(2)}ms`);
+
+  // Cleanup
+  console.log(`🧹 Cleaning up test data...`);
+  await supabaseAdmin.from('UserInteractions').delete().eq('userId', userId);
 }
+
 run().catch(console.error);
