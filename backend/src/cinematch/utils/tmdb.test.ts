@@ -1,23 +1,33 @@
 import { test, expect, describe, mock, beforeAll, afterAll, afterEach } from "bun:test";
-import { fetchTMDB } from "./tmdb";
 
 describe("fetchTMDB error paths", () => {
+  let fetchTMDB: (path: string, options?: { timeoutMs?: number }) => Promise<any>;
   let originalFetch: typeof global.fetch;
-  let originalEnv: NodeJS.ProcessEnv;
+  let originalApiKey: string | undefined;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     originalFetch = global.fetch;
-    originalEnv = process.env;
+    originalApiKey = process.env.TMDB_API_KEY;
+
+    // Set a fake API key so fetchTMDB proceeds past the early-return guard.
+    // TMDB_API_KEY is captured at module level, so we must import a fresh
+    // module instance after setting the env var.
+    process.env.TMDB_API_KEY = "test-api-key-12345";
+    const mod = await import(`./tmdb?cache=${Date.now()}`);
+    fetchTMDB = mod.fetchTMDB;
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    process.env = { ...originalEnv };
   });
 
   afterAll(() => {
     global.fetch = originalFetch;
-    process.env = originalEnv;
+    if (originalApiKey === undefined) {
+      delete process.env.TMDB_API_KEY;
+    } else {
+      process.env.TMDB_API_KEY = originalApiKey;
+    }
   });
 
   test("returns { results: [] } when fetch response is not ok", async () => {
@@ -48,24 +58,31 @@ describe("fetchTMDB error paths", () => {
   });
 
   test("returns { results: [] } when request times out", async () => {
-    global.fetch = mock(async (input: any, init: any) => {
+-<<<<<<< coderabbitai/chat/0745faa
+-    global.fetch = mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+-=======
+-    global.fetch = mock(async (input: any, init: any) => {
+->>>>>>> test-tmdb-error-paths-10385787311398840115
++    global.fetch = mock(
++      async (_input: RequestInfo | URL, init?: RequestInit) => {
       // Simulate a long delay that exceeds the timeout
-      return new Promise<Response>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          resolve(new Response(JSON.stringify({ results: [{ id: 1 }] }), { status: 200 }));
-        }, 100);
+      return new Promise<Response>((_resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("Should have been aborted before this fires"));
+        }, 5000);
 
         if (init?.signal) {
-          init.signal.addEventListener('abort', () => {
-            clearTimeout(timeout);
-            reject(new Error("AbortError"));
+          init.signal.addEventListener("abort", () => {
+            clearTimeout(timer);
+            // Use DOMException with name "AbortError" to match the real fetch API
+            reject(new DOMException("The operation was aborted.", "AbortError"));
           });
         }
       });
     }) as unknown as typeof fetch;
 
-    // Use a very short timeout
+    // Use a very short timeout so the AbortController fires quickly
     const result = await fetchTMDB("/test-timeout", { timeoutMs: 10 });
     expect(result).toEqual({ results: [] });
   });
-});
+
