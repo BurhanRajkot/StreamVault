@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+import { describe, beforeAll, afterAll, test, expect } from "bun:test";
 
 describe("fetchTMDB without API KEY", () => {
   let savedTmdbApiKey: string | undefined;
