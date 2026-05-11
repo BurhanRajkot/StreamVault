@@ -677,18 +677,25 @@ export async function verifyAdminToken(
  * Admin logout (client-side token removal)
  */
 export async function adminLogout(): Promise<void> {
+  const token = localStorage.getItem('adminToken')
+
+  if (token) {
+    // Optional: call backend logout endpoint for consistency
+    try {
+      await fetch(`${API_BASE}/admin/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+    } catch (error) {
+      // Ignore errors but still proceed to clear local token
+      console.error('Admin logout error:', error)
+    }
+  }
+
   // Remove token from localStorage
   localStorage.removeItem('adminToken')
-
-  // Optional: call backend logout endpoint for consistency
-  try {
-    await fetch(`${API_BASE}/admin/logout`, {
-      method: 'POST',
-    })
-  } catch (error) {
-    // Ignore errors - token is already removed client-side
-    console.error('Admin logout error:', error)
-  }
 }
 
 /**
