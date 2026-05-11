@@ -97,7 +97,8 @@ jobs:
           fetch-depth: 0
 
       - name: Gitleaks — detect leaked credentials
-        uses: gitleaks/gitleaks-action@v2
+        # v2.3.9+ ships with a Node 24 runtime — eliminates the Node 20 deprecation warning.
+        uses: gitleaks/gitleaks-action@v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
