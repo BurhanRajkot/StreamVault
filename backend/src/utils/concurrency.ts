@@ -19,12 +19,7 @@ export async function mapConcurrent<T, R>(
   const worker = async () => {
     while (currentIndex < items.length) {
       const index = currentIndex++;
-      try {
-        results[index] = await mapper(items[index], index);
-      } catch (err) {
-        // If the mapper fails, we let it propagate, or the caller handles it inside the mapper
-        throw err;
-      }
+      results[index] = await mapper(items[index], index);
     }
   };
 

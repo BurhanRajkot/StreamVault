@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@eslint/js": "^10.0.1",
     "@supabase/supabase-js": "^2.93.1",
     "@types/qrcode": "^1.5.6",
     "bottleneck": "^2.19.5",
