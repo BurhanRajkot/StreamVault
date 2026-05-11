@@ -6,30 +6,30 @@ import { Helmet } from "react-helmet-async";
 
 // Real TMDB movie posters split across 3 columns — hardcoded, zero flicker
 const COL1 = [
-  "https://image.tmdb.org/t/p/w154/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", // Interstellar
-  "https://image.tmdb.org/t/p/w154/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", // Inception
-  "https://image.tmdb.org/t/p/w154/lyQBXAFkuhiCO6IeiDfh3Y0hlsT.jpg", // Shawshank
-  "https://image.tmdb.org/t/p/w154/hA2ple9q4qnwxp3hKVNhroipsir.jpg", // Mad Max
-  "https://image.tmdb.org/t/p/w154/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg", // Arrival
-  "https://image.tmdb.org/t/p/w154/eWdyYQreja6JivjKpE7PDFqCfTh.jpg", // Grand Budapest
+  "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", // Interstellar
+  "https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", // Inception
+  "https://image.tmdb.org/t/p/w500/lyQBXAFkuhiCO6IeiDfh3Y0hlsT.jpg", // Shawshank
+  "https://image.tmdb.org/t/p/w500/hA2ple9q4qnwxp3hKVNhroipsir.jpg", // Mad Max
+  "https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg", // Arrival
+  "https://image.tmdb.org/t/p/w500/eWdyYQreja6JivjKpE7PDFqCfTh.jpg", // Grand Budapest
 ];
 
 const COL2 = [
-  "https://image.tmdb.org/t/p/w154/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg", // Joker
-  "https://image.tmdb.org/t/p/w154/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", // Fight Club
-  "https://image.tmdb.org/t/p/w154/or06FN3Dka5tukK1e9sl16pB3iy.jpg", // Avengers
-  "https://image.tmdb.org/t/p/w154/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg", // La La Land
-  "https://image.tmdb.org/t/p/w154/iZf0KyrE25z1sage4SYQLAjPole.jpg", // 1917
-  "https://image.tmdb.org/t/p/w154/3nSJBFCuLmPIg5dRkzU9jEFbFEd.jpg", // The Lighthouse
+  "https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg", // Joker
+  "https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", // Fight Club
+  "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg", // Avengers
+  "https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg", // La La Land
+  "https://image.tmdb.org/t/p/w500/iZf0KyrE25z1sage4SYQLAjPole.jpg", // 1917
+  "https://image.tmdb.org/t/p/w500/3nSJBFCuLmPIg5dRkzU9jEFbFEd.jpg", // The Lighthouse
 ];
 
 const COL3 = [
-  "https://image.tmdb.org/t/p/w154/d5NXSklXo0qyIYkgV94XAgMIckC.jpg", // Dune
-  "https://image.tmdb.org/t/p/w154/qJ2tW6WMUDux911r6m7haRef0WH.jpg", // The Dark Knight
-  "https://image.tmdb.org/t/p/w154/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", // Parasite
-  "https://image.tmdb.org/t/p/w154/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg", // Blade Runner 2049
-  "https://image.tmdb.org/t/p/w154/pThyQovXQrw2m0s9x82twj48Jq4.jpg", // Knives Out
-  "https://image.tmdb.org/t/p/w154/7fn624j5lj3xTme2SgiLCeuedmO.jpg", // Whiplash
+  "https://image.tmdb.org/t/p/w500/d5NXSklXo0qyIYkgV94XAgMIckC.jpg", // Dune
+  "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg", // The Dark Knight
+  "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", // Parasite
+  "https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg", // Blade Runner 2049
+  "https://image.tmdb.org/t/p/w500/pThyQovXQrw2m0s9x82twj48Jq4.jpg", // Knives Out
+  "https://image.tmdb.org/t/p/w500/7fn624j5lj3xTme2SgiLCeuedmO.jpg", // Whiplash
 ];
 
 // Repeat each column so the infinite loop is seamless
