@@ -488,7 +488,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production-canary    # Requires manual approval gate in GitHub Environments
+    environment:
+      name: production-canary    # Requires manual approval gate in GitHub Environments
     permissions:
       contents: read
       id-token: write                 # Required for OIDC token generation
@@ -529,7 +530,8 @@ jobs:
     needs: [deploy-canary]
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production           # Second manual approval gate
+    environment:
+      name: production           # Second manual approval gate
     permissions:
       contents: read
       id-token: write
