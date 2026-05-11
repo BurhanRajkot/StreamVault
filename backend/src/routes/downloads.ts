@@ -4,6 +4,7 @@ import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
 import path from 'path'
+import { getUserId } from '../lib/utils'
 
 const router = Router()
 
@@ -14,10 +15,6 @@ function sanitizeFilename(filename: string): string {
   // Only allow alphanumeric, dots, hyphens, and underscores
   const sanitized = basename.replace(/[^a-zA-Z0-9._-]/g, '_')
   return sanitized
-}
-
-function getUserId(req: Request) {
-  return (req as any).auth?.payload?.sub as string | undefined
 }
 
 async function isPaidUser(userId: string): Promise<boolean> {

@@ -4,13 +4,9 @@ import { checkJwt } from '../middleware/auth'
 import { v4 as uuidv4 } from 'uuid'
 import * as cache from '../services/cache'
 import { ensureUser } from '../lib/ensureUser'
+import { getUserId } from '../lib/utils'
 
 const router = Router()
-
-
-function getUserId(req: Request) {
-  return (req as any).auth?.payload?.sub as string | undefined
-}
 
 router.get('/', checkJwt, async (req: Request, res: Response) => {
   const userId = getUserId(req)

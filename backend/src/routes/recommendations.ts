@@ -1,3 +1,4 @@
+import { getUserId } from '../lib/utils'
 // ============================================================
 // CineMatch AI — Recommendations API Route
 // Backend serving layer — equivalent to X's Feed Serving API
@@ -81,7 +82,7 @@ const interactionRateLimiter = rateLimit({
   // Key by userId (from JWT) so authenticated users get their own limit bucket.
   // Fall back to a static key — express-rate-limit itself handles IP keying safely.
   keyGenerator: (req: Request) => {
-    const userId = (req as any).auth?.payload?.sub as string | undefined
+    const userId = getUserId(req)
     return userId ?? 'anonymous'
   },
 })
@@ -90,7 +91,7 @@ const interactionRateLimiter = rateLimit({
 // Personalized recommendations for authenticated user.
 // Pipeline: user profile → candidates → filters → ranking → cache → serve.
 router.get('/', checkJwt, async (req: Request, res: Response) => {
-  const userId = (req as any).auth?.payload?.sub as string | undefined
+  const userId = getUserId(req)
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
@@ -156,7 +157,7 @@ router.get('/guest', async (_req: Request, res: Response) => {
 // Returns user's computed taste vectors (genre, keyword, cast).
 // Powers a "Your Taste Profile" UI card.
 router.get('/profile', checkJwt, async (req: Request, res: Response) => {
-  const userId = (req as any).auth?.payload?.sub as string | undefined
+  const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
   try {
@@ -211,7 +212,7 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
 // Log a user interaction event — triggers cache invalidation.
 // Rate-limited to 20/min per user to prevent flooding.
 router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Request, res: Response) => {
-  const userId = (req as any).auth?.payload?.sub as string | undefined
+  const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
   const {
@@ -297,13 +298,13 @@ const onboardingRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Onboarding already seeded. Try again later.' },
   keyGenerator: (req: Request) => {
-    const userId = (req as any).auth?.payload?.sub as string | undefined
+    const userId = getUserId(req)
     return userId ?? 'anonymous'
   },
 })
 
 router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request, res: Response) => {
-  const userId = (req as any).auth?.payload?.sub as string | undefined
+  const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
   const { selections } = req.body
@@ -517,7 +518,7 @@ router.post('/guest/interaction', interactionRateLimiter, async (req: Request, r
 // GDPR-compliant "Reset my recommendations" — deletes all user interactions
 // and both cache layers. Next request will be treated as a new user.
 router.delete('/history', checkJwt, async (req: Request, res: Response) => {
-  const userId = (req as any).auth?.payload?.sub as string | undefined
+  const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
   try {
