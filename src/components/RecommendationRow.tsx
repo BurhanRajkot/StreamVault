@@ -257,6 +257,129 @@ interface RecoCardProps {
   isDisliked?: boolean
 }
 
+
+
+interface RecoCardDislikeButtonProps {
+  itemTitle: string;
+  isDisliked: boolean;
+  onDislike: (e: React.MouseEvent) => void;
+}
+
+
+interface RecoCardQuickViewProps {
+  showQuickView: boolean;
+  item: RecoItem;
+  onClick: (item: RecoItem, index: number, source: string) => void;
+  index: number;
+  source: string;
+  setShowQuickView: (val: boolean) => void;
+  cardRef: React.RefObject<HTMLDivElement>;
+}
+
+function RecoCardQuickView({ showQuickView, item, onClick, index, source, setShowQuickView, cardRef }: RecoCardQuickViewProps) {
+  if (!showQuickView) return null;
+
+  return (
+    <QuickViewModal
+      media={{
+        id: item.tmdbId,
+        title: item.title,
+        poster_path: item.posterPath,
+        backdrop_path: item.backdropPath,
+        overview: item.overview,
+        vote_average: item.voteAverage,
+        release_date: item.mediaType === 'movie' ? item.releaseDate : undefined,
+        first_air_date: item.mediaType === 'tv' ? item.releaseDate : undefined,
+        media_type: item.mediaType,
+      }}
+      onClose={() => setShowQuickView(false)}
+      onPlay={() => onClick(item, index, source)}
+      triggerRef={cardRef}
+    />
+  );
+}
+
+function RecoCardDislikeButton({ itemTitle, isDisliked, onDislike }: RecoCardDislikeButtonProps) {
+  return (
+    <button
+      onClick={onDislike}
+      aria-label={`Not interested in ${itemTitle}`}
+      className={cn(
+        'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm shadow-lg',
+        'p-2',
+        'opacity-0 group-hover:opacity-100 transition-all duration-200',
+        'hover:scale-110 active:scale-95',
+        'hover:bg-background cursor-pointer'
+      )}
+    >
+      <ThumbsDown
+        className={cn(
+          'transition-all h-4 w-4',
+          isDisliked
+            ? 'fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] scale-110'
+            : 'text-zinc-400 hover:text-white'
+        )}
+      />
+    </button>
+  );
+}
+
+interface RecoCardPosterProps {
+
+  imgSrc: string | null;
+  item: RecoItem;
+  setImgError: (err: boolean) => void;
+  isDisliked: boolean;
+  onDislike?: (e: React.MouseEvent) => void;
+}
+
+function RecoCardPoster({ imgSrc, item, setImgError, isDisliked, onDislike }: RecoCardPosterProps) {
+  return (
+    <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl bg-secondary/30">
+      {imgSrc ? (
+        <img
+          src={imgSrc}
+          alt={item.title}
+          srcSet={getImageSrcSet(item.posterPath, 'poster')}
+          sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 175px"
+          loading="lazy"
+          fetchPriority="low"
+          decoding="async"
+          width={500}
+          height={750}
+          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:brightness-110"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-secondary/50">
+          <span className="text-3xl font-bold text-muted-foreground/30">
+            {item.title.charAt(0).toUpperCase()}
+          </span>
+        </div>
+      )}
+
+      {/* Play Overlay (hover + touch) */}
+      {!isDisliked && (
+        <div
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none"
+        >
+          <div className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:scale-110 hover:bg-white">
+            <Play className="h-6 w-6 text-black fill-black ml-0.5" />
+          </div>
+        </div>
+      )}
+
+      {/* Dislike button – top-right, visible on hover */}
+      {onDislike && (
+        <RecoCardDislikeButton
+          itemTitle={item.title}
+          isDisliked={isDisliked}
+          onDislike={onDislike}
+        />
+      )}
+    </div>
+  )
+}
 function RecoCard({ item, index, source, isDragging = false, onClick, onDislike, isDisliked = false }: RecoCardProps) {
   const [imgError, setImgError] = useState(false)
   const [showQuickView, setShowQuickView] = useState(false)
@@ -320,86 +443,23 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
       tabIndex={0}
       aria-label={`Open ${item.title}`}
     >
-      {/* ── Poster ─────────────────────────────────────── */}
-      <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl bg-secondary/30">
-        {imgSrc ? (
-          <img
-            src={imgSrc}
-            alt={item.title}
-            srcSet={getImageSrcSet(item.posterPath, 'poster')}
-            sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 175px"
-            loading="lazy"
-            fetchPriority="low"
-            decoding="async"
-            width={500}
-            height={750}
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:brightness-110"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-secondary/50">
-            <span className="text-3xl font-bold text-muted-foreground/30">
-              {item.title.charAt(0).toUpperCase()}
-            </span>
-          </div>
-        )}
+      <RecoCardPoster
+        imgSrc={imgSrc}
+        item={item}
+        setImgError={setImgError}
+        isDisliked={isDisliked}
+        onDislike={onDislike ? handleDislike : undefined}
+      />
 
-        {/* Play Overlay (hover + touch) */}
-        {!isDisliked && (
-          <div
-            className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none"
-          >
-            <div className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:scale-110 hover:bg-white">
-              <Play className="h-6 w-6 text-black fill-black ml-0.5" />
-            </div>
-          </div>
-        )}
-
-        {/* Dislike button – top-right, visible on hover */}
-        {onDislike && (
-          <button
-            onClick={handleDislike}
-            aria-label={`Not interested in ${item.title}`}
-            className={cn(
-              'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm shadow-lg',
-              'p-2',
-              'opacity-0 group-hover:opacity-100 transition-all duration-200',
-              'hover:scale-110 active:scale-95',
-              'hover:bg-background cursor-pointer'
-            )}
-          >
-            <ThumbsDown
-              className={cn(
-                'transition-all h-4 w-4',
-                isDisliked
-                  ? 'fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] scale-110'
-                  : 'text-zinc-400 hover:text-white'
-              )}
-            />
-          </button>
-        )}
-
-
-      </div>
-
-      {showQuickView && (
-        <QuickViewModal
-          media={{
-            id: item.tmdbId,
-            title: item.title,
-            poster_path: item.posterPath,
-            backdrop_path: item.backdropPath,
-            overview: item.overview,
-            vote_average: item.voteAverage,
-            release_date: item.mediaType === 'movie' ? item.releaseDate : undefined,
-            first_air_date: item.mediaType === 'tv' ? item.releaseDate : undefined,
-            media_type: item.mediaType,
-          }}
-          onClose={() => setShowQuickView(false)}
-          onPlay={() => onClick(item, index, source)}
-          triggerRef={cardRef}
-        />
-      )}
+      <RecoCardQuickView
+        showQuickView={showQuickView}
+        item={item}
+        onClick={onClick}
+        index={index}
+        source={source}
+        setShowQuickView={setShowQuickView}
+        cardRef={cardRef}
+      />
     </div>
   )
 }
