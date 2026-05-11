@@ -1,7 +1,7 @@
-# ------------------------------------------------------------
-#  StreamVault - Enterprise CI/CD Pipeline
+# ============================================================
+#  StreamVault — Enterprise CI/CD Pipeline
 #  Architecture: DAG-based, path-filtered, security-hardened
-# ------------------------------------------------------------
+# ============================================================
 
 name: StreamVault CI/CD
 
@@ -515,27 +515,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: production-canary
+      name: production-canary    # Requires manual approval gate in GitHub Environments
     permissions:
       contents: read
-      id-token: write
+      id-token: write                 # Required for OIDC token generation
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      # ── Keyless auth via OIDC (replace with your provider) ─
+      # GCP example — configure Workload Identity Pool + Provider
+      # in GCP Console, then fill in the placeholders below.
+      #
+      # - name: Authenticate to Google Cloud (OIDC)
+      #   uses: google-github-actions/auth@v3
+      #   with:
+      #     workload_identity_provider: projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
+      #     service_account: streamvault-deployer@PROJECT_ID.iam.gserviceaccount.com
+
+      # ── Canary rollout (5% traffic) ─────────────────────────
       - name: Deploy canary release
         run: |
-          echo "Deploying canary to 5% of traffic..."
+          echo "🟡 Deploying canary to 5% of traffic..."
           # kubectl apply -f k8s/canary/
           # kubectl set image deployment/streamvault-canary \
           #   frontend=ghcr.io/${{ github.repository_owner }}/streamvault-frontend:sha-${{ github.sha }} \
           #   backend=ghcr.io/${{ github.repository_owner }}/streamvault-backend:sha-${{ github.sha }}
-          echo "Canary deployed (stub - replace with real commands)."
+          echo "Canary deployed (stub — replace with real commands)."
 
       - name: Health-check canary
         run: |
-          echo "Waiting for canary pods to stabilize..."
+          echo "⏳ Waiting for canary pods to stabilize..."
           # kubectl rollout status deployment/streamvault-canary --timeout=5m
           # curl -sf https://canary.streamvault.example.com/health || exit 1
           echo "Health check passed (stub)."
@@ -546,7 +557,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: production
+      name: production           # Second manual approval gate
     permissions:
       contents: read
       id-token: write
@@ -555,9 +566,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Promote canary to production
+      # - name: Authenticate to Google Cloud (OIDC)
+      #   uses: google-github-actions/auth@v3
+      #   with:
+      #     workload_identity_provider: ...
+      #     service_account: ...
+
+      - name: Promote canary → production
         run: |
-          echo "Promoting to 100% production traffic..."
+          echo "🟢 Promoting to 100% production traffic..."
           # kubectl apply -f k8s/production/
           # kubectl set image deployment/streamvault ...
           echo "Production deploy complete (stub)."
@@ -570,6 +587,6 @@ jobs:
       - name: Automated rollback on failure
         if: failure()
         run: |
-          echo "Deployment failed - initiating automatic rollback..."
+          echo "🔴 Deployment failed — initiating automatic rollback..."
           # kubectl rollout undo deployment/streamvault
           echo "Rollback complete."
