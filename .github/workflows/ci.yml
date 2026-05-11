@@ -1,0 +1,588 @@
+# StreamVault CI/CD
+# Path-filtered, security-hardened, SLSA L3-attested pipeline.
+
+name: StreamVault CI/CD
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+  schedule:
+    - cron: "31 2 * * 1"   # Weekly security sweep — Monday 02:31 UTC
+
+concurrency:
+  group: streamvault-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  BUN_VERSION:  "latest"
+  PLATFORMS:    "linux/amd64,linux/arm64"
+  # Opt in to Node.js 24 for JS-based actions ahead of the June 2026 migration.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# ──────────────────────────────────────────────────────────────
+#  CHANGE DETECTION
+#  Skips downstream jobs when their paths are unmodified.
+# ──────────────────────────────────────────────────────────────
+jobs:
+
+  change-detection:
+    name: "Detect Changes"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend:  ${{ steps.filter.outputs.backend }}
+      docker:   ${{ steps.filter.outputs.docker }}
+      infra:    ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            frontend:
+              - "src/**"
+              - "public/**"
+              - "package.json"
+              - "package-lock.json"
+              - "tsconfig*.json"
+              - "vite.config.*"
+              - "shared/**"
+            backend:
+              - "backend/**"
+              - "shared/**"
+            docker:
+              - "Dockerfile"
+              - "backend/Dockerfile"
+              - "docker-compose*.yml"
+              - ".dockerignore"
+            infra:
+              - "infra/**"
+              - "k8s/**"
+              - ".github/workflows/**"
+
+# ──────────────────────────────────────────────────────────────
+#  SECRET SCAN  (always runs — fail fast before any build)
+# ──────────────────────────────────────────────────────────────
+
+  secret-scan:
+    name: "Secret Scan"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # Full history required by Gitleaks
+
+      - name: Install Gitleaks
+        # Install the binary directly to avoid the Node.js wrapper's deprecation noise.
+        run: |
+          GITLEAKS_VERSION="8.24.3"
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan for leaked credentials
+        run: |
+          gitleaks detect \
+            --redact \
+            --exit-code=2 \
+            --report-format=sarif \
+            --report-path=results.sarif \
+            --log-opts=-1
+
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+          category: gitleaks
+
+# ──────────────────────────────────────────────────────────────
+#  DEPENDENCY REVIEW  (pull requests only)
+# ──────────────────────────────────────────────────────────────
+
+  dependency-review:
+    name: "Dependency Review"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Requires the Dependency Graph feature to be enabled in repo settings.
+    # Settings → Code security and analysis → Dependency graph.
+    # Remove continue-on-error once it's enabled.
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4.7.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+
+# ──────────────────────────────────────────────────────────────
+#  FRONTEND CI
+#  Runs on: src/**, public/**, package*, tsconfig*, vite.config*
+# ──────────────────────────────────────────────────────────────
+
+  frontend-ci:
+    name: "Frontend — Type-check, Lint, Build & Test"
+    needs: [change-detection, secret-scan]
+    if: needs.change-detection.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Check bundle size
+        run: |
+          BUNDLE_KB=$(du -sk dist/ | cut -f1)
+          echo "Bundle size: ${BUNDLE_KB} KB"
+          # Warn (but don't fail) if the uncompressed bundle exceeds 25 MB.
+          if [ "$BUNDLE_KB" -gt 25600 ]; then
+            echo "::warning title=Bundle size::Uncompressed dist/ is ${BUNDLE_KB} KB — consider code splitting."
+          fi
+
+      - name: Run tests
+        run: |
+          SCRIPT=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts?.test||'')")
+          if [ -n "$SCRIPT" ]; then
+            npm test
+          else
+            echo "No test script defined — skipping."
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
+
+# ──────────────────────────────────────────────────────────────
+#  BACKEND CI
+#  Runs on: backend/**, shared/**
+# ──────────────────────────────────────────────────────────────
+
+  backend-ci:
+    name: "Backend — Lint, Build & Test"
+    needs: [change-detection, secret-scan]
+    if: needs.change-detection.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      # Cache Bun's global package store. Key is tied to the lockfile;
+      # restore-keys allow partial hits when packages are added/removed.
+      - name: Restore Bun cache
+        id: bun-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('backend/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Setup Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: bun install --frozen-lockfile
+
+      - name: Type-check
+        working-directory: ./backend
+        run: bunx tsc --noEmit
+
+      - name: Lint
+        working-directory: ./backend
+        run: bun run lint
+
+      - name: Build
+        working-directory: ./backend
+        run: bun run build
+
+      - name: Run tests
+        working-directory: ./backend
+        run: |
+          SCRIPT=$(jq -r '.scripts.test // empty' package.json)
+          if [ -n "$SCRIPT" ]; then
+            bun run test
+          else
+            echo "No test script defined — skipping."
+          fi
+
+# ──────────────────────────────────────────────────────────────
+#  CODEQL ANALYSIS
+#  Uploads results to the Security tab; runs in parallel with CI.
+# ──────────────────────────────────────────────────────────────
+
+  codeql:
+    name: "CodeQL Analysis"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions:         read
+      contents:        read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - uses: github/codeql-action/autobuild@v4
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:javascript-typescript"
+
+# ──────────────────────────────────────────────────────────────
+#  STATUS GATE
+#  Branch protection requires a single required check.
+#  This job is always triggered and evaluates all upstream
+#  outcomes — 'skipped' (path filter) is treated as passing.
+# ──────────────────────────────────────────────────────────────
+
+  status-check:
+    name: "All Checks Passed"
+    needs: [frontend-ci, backend-ci, codeql]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate outcomes
+        run: |
+          frontend="${{ needs.frontend-ci.result }}"
+          backend="${{ needs.backend-ci.result }}"
+          codeql="${{ needs.codeql.result }}"
+
+          printf "%-20s %s\n" "Job" "Result"
+          printf "%-20s %s\n" "---" "------"
+          printf "%-20s %s\n" "frontend-ci"  "$frontend"
+          printf "%-20s %s\n" "backend-ci"   "$backend"
+          printf "%-20s %s\n" "codeql"       "$codeql"
+
+          FAILED=0
+          for result in "$frontend" "$backend" "$codeql"; do
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "One or more required jobs failed — see above."
+            exit 1
+          fi
+          echo ""
+          echo "All checks passed or were skipped by path filter."
+
+# ──────────────────────────────────────────────────────────────
+#  DOCKER BUILD & PUBLISH  (main branch pushes only)
+#
+#  Order of operations per image:
+#    1. Build locally (no push)
+#    2. Trivy scan — block on CRITICAL/HIGH CVEs
+#    3. Push multi-platform image with provenance + SBOM
+#
+#  Registry: ghcr.io/<owner-lc>/streamvault-{frontend,backend}
+# ──────────────────────────────────────────────────────────────
+
+  publish-images:
+    name: "Build, Scan & Publish Docker Images"
+    runs-on: ubuntu-latest
+    needs: [status-check, secret-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 60
+    permissions:
+      contents:        read
+      packages:        write
+      attestations:    write
+      id-token:        write
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GHCR image names must be lowercase.
+      - name: Resolve image namespace
+        id: ns
+        run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      # ── Frontend ────────────────────────────────────────────
+
+      - name: Docker metadata — frontend
+        id: meta_frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+          labels: |
+            org.opencontainers.image.title=StreamVault Frontend
+            org.opencontainers.image.description=StreamVault web application frontend
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+
+      - name: Build frontend image (local, pre-scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: streamvault-frontend:scan
+          cache-from: type=gha,scope=frontend
+          cache-to:   type=gha,scope=frontend,mode=max
+
+      - name: Scan frontend image with Trivy
+        id: trivy_frontend
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref:      streamvault-frontend:scan
+          format:         sarif
+          output:         trivy-frontend.sarif
+          severity:       CRITICAL,HIGH
+          exit-code:      "1"
+          ignore-unfixed: true
+
+      - name: Upload frontend Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-frontend.sarif
+          category:   trivy-frontend
+
+      - name: Build and push frontend image (multi-platform)
+        id: build_frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: ${{ env.PLATFORMS }}
+          provenance: true
+          sbom: true
+          tags:   ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to:   type=gha,scope=frontend,mode=max
+
+      - name: Attest frontend build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
+          subject-digest:   ${{ steps.build_frontend.outputs.digest }}
+          push-to-registry: true
+
+      # ── Backend ─────────────────────────────────────────────
+
+      - name: Docker metadata — backend
+        id: meta_backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+          labels: |
+            org.opencontainers.image.title=StreamVault Backend
+            org.opencontainers.image.description=StreamVault API backend
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+
+      - name: Build backend image (local, pre-scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: streamvault-backend:scan
+          cache-from: type=gha,scope=backend
+          cache-to:   type=gha,scope=backend,mode=max
+
+      - name: Scan backend image with Trivy
+        id: trivy_backend
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref:      streamvault-backend:scan
+          format:         sarif
+          output:         trivy-backend.sarif
+          severity:       CRITICAL,HIGH
+          exit-code:      "1"
+          ignore-unfixed: true
+
+      - name: Upload backend Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-backend.sarif
+          category:   trivy-backend
+
+      - name: Build and push backend image (multi-platform)
+        id: build_backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          platforms: ${{ env.PLATFORMS }}
+          provenance: true
+          sbom: true
+          tags:   ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to:   type=gha,scope=backend,mode=max
+
+      - name: Attest backend build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
+          subject-digest:   ${{ steps.build_backend.outputs.digest }}
+          push-to-registry: true
+
+# ──────────────────────────────────────────────────────────────
+#  DEPLOYMENT  (main branch pushes only)
+#
+#  Uses Workload Identity Federation — no long-lived secrets.
+#  Swap the commented-out auth step for your cloud provider:
+#    GCP   → google-github-actions/auth@v3
+#    AWS   → aws-actions/configure-aws-credentials@v4
+#    Azure → azure/login@v2
+#
+#  Two-stage rollout with independent approval gates:
+#    1. Canary  →  5% traffic
+#    2. Full production promotion
+# ──────────────────────────────────────────────────────────────
+
+  deploy-canary:
+    name: "Deploy — Canary (5%)"
+    needs: [publish-images]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-canary   # Requires manual approval gate in GitHub Environments
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # - name: Authenticate to Google Cloud
+      #   uses: google-github-actions/auth@v3
+      #   with:
+      #     workload_identity_provider: projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
+      #     service_account: streamvault-deployer@PROJECT_ID.iam.gserviceaccount.com
+
+      - name: Deploy canary release
+        run: |
+          # kubectl apply -f k8s/canary/
+          # kubectl set image deployment/streamvault-canary \
+          #   frontend=ghcr.io/${{ github.repository_owner }}/streamvault-frontend:sha-${{ github.sha }} \
+          #   backend=ghcr.io/${{ github.repository_owner }}/streamvault-backend:sha-${{ github.sha }}
+          echo "Canary deploy — replace with real commands."
+
+      - name: Health-check canary
+        run: |
+          # kubectl rollout status deployment/streamvault-canary --timeout=5m
+          # curl -sf https://canary.streamvault.example.com/health
+          echo "Health check — replace with real commands."
+
+  deploy-production:
+    name: "Deploy — Production (100%)"
+    needs: [deploy-canary]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production   # Second manual approval gate
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # - name: Authenticate to Google Cloud
+      #   uses: google-github-actions/auth@v3
+      #   with:
+      #     workload_identity_provider: ...
+      #     service_account: ...
+
+      - name: Promote canary to production
+        run: |
+          # kubectl apply -f k8s/production/
+          # kubectl set image deployment/streamvault ...
+          echo "Production promotion — replace with real commands."
+
+      - name: Verify rollout
+        run: |
+          # kubectl rollout status deployment/streamvault --timeout=10m
+          echo "Rollout verification — replace with real commands."
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          # kubectl rollout undo deployment/streamvault
+          echo "Rollback — replace with real commands."

@@ -1,42 +1,34 @@
-import { test, expect, describe } from 'bun:test';
-import { bayesianAverage } from './searchAlgorithm';
+import { describe, expect, test } from "bun:test";
+import { normalizeText } from "./searchAlgorithm";
 
-describe('bayesianAverage', () => {
-  test('calculates standard bayesian average correctly', () => {
-    // v: 100, m: 50, R: 8.0, C: 6.5
-    // (100 / 150) * 8.0 + (50 / 150) * 6.5
-    // 0.666... * 8.0 + 0.333... * 6.5
-    // 5.333... + 2.166... = 7.5
-    expect(bayesianAverage(100, 50, 8.0, 6.5)).toBeCloseTo(7.5);
+describe("searchAlgorithm - normalizeText", () => {
+  test("should handle empty strings", () => {
+    expect(normalizeText("")).toBe("");
   });
 
-  test('returns exactly the mean rating (C) when there are zero votes (v = 0)', () => {
-    // v: 0, m: 50, R: 8.0, C: 6.5
-    // (0 / 50) * 8.0 + (50 / 50) * 6.5 = 6.5
-    expect(bayesianAverage(0, 50, 8.0, 6.5)).toBe(6.5);
+  test("should lowercase text", () => {
+    expect(normalizeText("HELLO")).toBe("hello");
+    expect(normalizeText("CamelCase")).toBe("camelcase");
   });
 
-  test('returns exactly the movie rating (R) when minimum votes threshold is zero (m = 0)', () => {
-    // v: 100, m: 0, R: 8.0, C: 6.5
-    // (100 / 100) * 8.0 + (0 / 100) * 6.5 = 8.0
-    expect(bayesianAverage(100, 0, 8.0, 6.5)).toBe(8.0);
+  test("should remove diacritics and accents", () => {
+    expect(normalizeText("Amélie")).toBe("amelie");
+    expect(normalizeText("café")).toBe("cafe");
+    expect(normalizeText("niño")).toBe("nino");
+    expect(normalizeText("façade")).toBe("facade");
+    expect(normalizeText("über")).toBe("uber");
+    expect(normalizeText("résumé")).toBe("resume");
   });
 
-  test('handles R = 0 correctly', () => {
-    // v: 50, m: 50, R: 0, C: 6.5
-    // (50 / 100) * 0 + (50 / 100) * 6.5 = 3.25
-    expect(bayesianAverage(50, 50, 0, 6.5)).toBe(3.25);
+  test("should handle mixed casing with accents", () => {
+    expect(normalizeText("ÀÉÎÕÜ")).toBe("aeiou");
   });
 
-  test('handles C = 0 correctly', () => {
-    // v: 50, m: 50, R: 8.0, C: 0
-    // (50 / 100) * 8.0 + (50 / 100) * 0 = 4.0
-    expect(bayesianAverage(50, 50, 8.0, 0)).toBe(4.0);
+  test("should preserve numbers and symbols", () => {
+    expect(normalizeText("Movie 123! @#$")).toBe("movie 123! @#$");
   });
 
-  test('returns NaN when both v and m are zero (division by zero)', () => {
-    // v: 0, m: 0, R: 8.0, C: 6.5
-    // (0 / 0) * 8.0 + (0 / 0) * 6.5 = NaN
-    expect(bayesianAverage(0, 0, 8.0, 6.5)).toBeNaN();
+  test("should handle whitespace correctly", () => {
+    expect(normalizeText("  Hello World  ")).toBe("  hello world  ");
   });
 });
