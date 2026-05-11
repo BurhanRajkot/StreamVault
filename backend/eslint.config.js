@@ -1,8 +1,9 @@
-import js from "@eslint/js";
-import globals from "globals";
-import tseslint from "typescript-eslint";
+// ESLint v9+ flat config (CJS — no "type": "module" in package.json)
+const js = require("@eslint/js");
+const globals = require("globals");
+const tseslint = require("typescript-eslint");
 
-export default tseslint.config(
+module.exports = tseslint.config(
   { ignores: ["dist/**"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
