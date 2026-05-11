@@ -1,7 +1,5 @@
-# ============================================================
-#  StreamVault — Enterprise CI/CD Pipeline
-#  Architecture: DAG-based, path-filtered, security-hardened
-# ============================================================
+# StreamVault CI/CD
+# Path-filtered, security-hardened, SLSA L3-attested pipeline.
 
 name: StreamVault CI/CD
 
@@ -14,33 +12,28 @@ on:
   schedule:
     - cron: "31 2 * * 1"   # Weekly security sweep — Monday 02:31 UTC
 
-# ── Cancel superseded runs immediately ──────────────────────
 concurrency:
   group: streamvault-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ── Org-wide least-privilege default ────────────────────────
 permissions:
   contents: read
 
-# ── Pinned toolchain versions (single source of truth) ──────
 env:
   NODE_VERSION: "22"
   BUN_VERSION:  "latest"
   PLATFORMS:    "linux/amd64,linux/arm64"
-  # Opt into Node.js 24 for all JS-based actions ahead of the
-  # June 2026 forced migration (GitHub deprecation notice).
+  # Opt in to Node.js 24 for JS-based actions ahead of the June 2026 migration.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
-# ============================================================
-#  PHASE 0 — Change Detection
-#  Determines which service(s) were actually touched so
-#  subsequent jobs can be skipped when irrelevant.
-# ============================================================
+# ──────────────────────────────────────────────────────────────
+#  CHANGE DETECTION
+#  Skips downstream jobs when their paths are unmodified.
+# ──────────────────────────────────────────────────────────────
 jobs:
 
   change-detection:
-    name: "🔍 Change Detection"
+    name: "Detect Changes"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -49,8 +42,7 @@ jobs:
       docker:   ${{ steps.filter.outputs.docker }}
       infra:    ${{ steps.filter.outputs.infra }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
       - name: Detect changed paths
         id: filter
@@ -78,35 +70,32 @@ jobs:
               - "k8s/**"
               - ".github/workflows/**"
 
-  # ============================================================
-  #  PHASE 1 — Security Pre-Flight (always runs)
-  #  Fail fast on secrets or workflow vulnerabilities before
-  #  spending any compute on builds.
-  # ============================================================
+# ──────────────────────────────────────────────────────────────
+#  SECRET SCAN  (always runs — fail fast before any build)
+# ──────────────────────────────────────────────────────────────
 
   secret-scan:
-    name: "🔐 Secret Scan"
+    name: "Secret Scan"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
       security-events: write
     steps:
-      - name: Checkout (full history for Gitleaks)
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          fetch-depth: 0   # Full history required by Gitleaks
 
-      - name: Install Gitleaks binary
-        # Use the binary directly — avoids the gitleaks-action Node.js wrapper
-        # which bundles Node 20 and generates a deprecation warning on Node 24 runners.
+      - name: Install Gitleaks
+        # Install the binary directly to avoid the Node.js wrapper's deprecation noise.
         run: |
           GITLEAKS_VERSION="8.24.3"
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version
 
-      - name: Gitleaks — detect leaked credentials
+      - name: Scan for leaked credentials
         run: |
           gitleaks detect \
             --redact \
@@ -122,43 +111,44 @@ jobs:
           sarif_file: results.sarif
           category: gitleaks
 
+# ──────────────────────────────────────────────────────────────
+#  DEPENDENCY REVIEW  (pull requests only)
+# ──────────────────────────────────────────────────────────────
+
   dependency-review:
-    name: "📦 Dependency Review"
+    name: "Dependency Review"
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # continue-on-error: Dependency Graph may be disabled on free/private repos.
-    # Enable it at: Settings → Code security and analysis → Dependency graph.
-    # Once enabled, remove this line to make the check required.
+    # Requires the Dependency Graph feature to be enabled in repo settings.
+    # Settings → Code security and analysis → Dependency graph.
+    # Remove continue-on-error once it's enabled.
     continue-on-error: true
     permissions:
       contents: read
       pull-requests: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
       - name: Review dependency changes
-        # v4.7.0+ ships a Node 24 runtime — silences the Node 20 deprecation warning.
         uses: actions/dependency-review-action@v4.7.0
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
 
-  # ============================================================
-  #  PHASE 2 — Frontend CI
-  #  Only runs when frontend/* or shared/* files changed.
-  # ============================================================
+# ──────────────────────────────────────────────────────────────
+#  FRONTEND CI
+#  Runs on: src/**, public/**, package*, tsconfig*, vite.config*
+# ──────────────────────────────────────────────────────────────
 
   frontend-ci:
-    name: "⚡ Frontend — Lint, Build & Test"
+    name: "Frontend — Type-check, Lint, Build & Test"
     needs: [change-detection, secret-scan]
     if: needs.change-detection.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
@@ -170,49 +160,62 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Type-check
+        run: npx tsc --noEmit
+
       - name: Lint
         run: npm run lint
 
       - name: Build
         run: npm run build
 
-      - name: Test (if present)
-        run: npm run test --if-present
+      - name: Check bundle size
+        run: |
+          BUNDLE_KB=$(du -sk dist/ | cut -f1)
+          echo "Bundle size: ${BUNDLE_KB} KB"
+          # Warn (but don't fail) if the uncompressed bundle exceeds 25 MB.
+          if [ "$BUNDLE_KB" -gt 25600 ]; then
+            echo "::warning title=Bundle size::Uncompressed dist/ is ${BUNDLE_KB} KB — consider code splitting."
+          fi
 
-      # Cache the build output for the Docker stage
-      - name: Upload frontend build artifact
+      - name: Run tests
+        run: |
+          SCRIPT=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts?.test||'')")
+          if [ -n "$SCRIPT" ]; then
+            npm test
+          else
+            echo "No test script defined — skipping."
+          fi
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: dist/
           retention-days: 1
 
-  # ============================================================
-  #  PHASE 2 — Backend CI
-  #  Only runs when backend/* or shared/* files changed.
-  #  Implements full Bun global-cache preservation.
-  # ============================================================
+# ──────────────────────────────────────────────────────────────
+#  BACKEND CI
+#  Runs on: backend/**, shared/**
+# ──────────────────────────────────────────────────────────────
 
   backend-ci:
-    name: "🚀 Backend — Lint, Build & Test"
+    name: "Backend — Lint, Build & Test"
     needs: [change-detection, secret-scan]
     if: needs.change-detection.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      # ── Bun global cache (~/.bun/install/cache) ────────────
-      # setup-bun does not cache dependencies itself, so we do
-      # it explicitly. Key includes lockfile hash for exact hits;
-      # restore-keys allow partial hits on new packages.
-      - name: Restore Bun dependency cache
+      # Cache Bun's global package store. Key is tied to the lockfile;
+      # restore-keys allow partial hits when packages are added/removed.
+      - name: Restore Bun cache
         id: bun-cache
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('backend/bun.lockb') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('backend/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -225,6 +228,10 @@ jobs:
         working-directory: ./backend
         run: bun install --frozen-lockfile
 
+      - name: Type-check
+        working-directory: ./backend
+        run: bunx tsc --noEmit
+
       - name: Lint
         working-directory: ./backend
         run: bun run lint
@@ -233,22 +240,23 @@ jobs:
         working-directory: ./backend
         run: bun run build
 
-      - name: Test (if present)
+      - name: Run tests
         working-directory: ./backend
         run: |
-          if node -e "const p=require('./package.json');process.exit(p.scripts?.test ? 0 : 1)" 2>/dev/null; then
+          SCRIPT=$(jq -r '.scripts.test // empty' package.json)
+          if [ -n "$SCRIPT" ]; then
             bun run test
           else
-            echo "No test script found — skipping."
+            echo "No test script defined — skipping."
           fi
 
-  # ============================================================
-  #  PHASE 3 — Static Analysis (CodeQL)
-  #  Runs in parallel with CI jobs; uploads to Security tab.
-  # ============================================================
+# ──────────────────────────────────────────────────────────────
+#  CODEQL ANALYSIS
+#  Uploads results to the Security tab; runs in parallel with CI.
+# ──────────────────────────────────────────────────────────────
 
   codeql:
-    name: "🔬 CodeQL Analysis"
+    name: "CodeQL Analysis"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -256,8 +264,7 @@ jobs:
       contents:        read
       security-events: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -265,77 +272,82 @@ jobs:
           languages: javascript-typescript
           queries: security-and-quality
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+      - uses: github/codeql-action/autobuild@v4
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
 
-  # ============================================================
-  #  PHASE 4 — Global Status Check
-  #  Satisfies branch-protection rules even when path-filtered
-  #  jobs are legitimately skipped. Always runs; evaluates
-  #  outcomes of Phase 2 jobs.
-  # ============================================================
+# ──────────────────────────────────────────────────────────────
+#  STATUS GATE
+#  Branch protection requires a single required check.
+#  This job is always triggered and evaluates all upstream
+#  outcomes — 'skipped' (path filter) is treated as passing.
+# ──────────────────────────────────────────────────────────────
 
   status-check:
-    name: "✅ All Checks Passed"
+    name: "All Checks Passed"
     needs: [frontend-ci, backend-ci, codeql]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Evaluate job outcomes
+      - name: Evaluate outcomes
         run: |
-          echo "frontend-ci : ${{ needs.frontend-ci.result }}"
-          echo "backend-ci  : ${{ needs.backend-ci.result }}"
-          echo "codeql      : ${{ needs.codeql.result }}"
+          frontend="${{ needs.frontend-ci.result }}"
+          backend="${{ needs.backend-ci.result }}"
+          codeql="${{ needs.codeql.result }}"
 
-          # A job result of 'skipped' is acceptable (path filter).
-          # Fail the check only if a job explicitly failed or cancelled.
-          for result in \
-            "${{ needs.frontend-ci.result }}" \
-            "${{ needs.backend-ci.result }}" \
-            "${{ needs.codeql.result }}"; do
+          printf "%-20s %s\n" "Job" "Result"
+          printf "%-20s %s\n" "---" "------"
+          printf "%-20s %s\n" "frontend-ci"  "$frontend"
+          printf "%-20s %s\n" "backend-ci"   "$backend"
+          printf "%-20s %s\n" "codeql"       "$codeql"
+
+          FAILED=0
+          for result in "$frontend" "$backend" "$codeql"; do
             if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
-              echo "❌ One or more required jobs failed."
-              exit 1
+              FAILED=1
             fi
           done
-          echo "✅ All required checks passed or were appropriately skipped."
 
-  # ============================================================
-  #  PHASE 5 — Build & Publish Docker Images (main branch only)
-  #
-  #  Improvements over baseline:
-  #   • Multi-platform builds (amd64 + arm64 via QEMU)
-  #   • Trivy container scan BEFORE registry push
-  #   • SARIF upload to GitHub Security dashboard
-  #   • Build provenance attestations & SBOMs (SLSA L3)
-  #   • Normalized image namespace (lowercase owner)
-  # ============================================================
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "One or more required jobs failed — see above."
+            exit 1
+          fi
+          echo ""
+          echo "All checks passed or were skipped by path filter."
+
+# ──────────────────────────────────────────────────────────────
+#  DOCKER BUILD & PUBLISH  (main branch pushes only)
+#
+#  Order of operations per image:
+#    1. Build locally (no push)
+#    2. Trivy scan — block on CRITICAL/HIGH CVEs
+#    3. Push multi-platform image with provenance + SBOM
+#
+#  Registry: ghcr.io/<owner-lc>/streamvault-{frontend,backend}
+# ──────────────────────────────────────────────────────────────
 
   publish-images:
-    name: "🐳 Build, Scan & Publish Docker Images"
+    name: "Build, Scan & Publish Docker Images"
     runs-on: ubuntu-latest
     needs: [status-check, secret-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 60
     permissions:
-      contents:      read
-      packages:      write
-      attestations:  write
-      id-token:      write
-      security-events: write   # for Trivy SARIF upload
+      contents:        read
+      packages:        write
+      attestations:    write
+      id-token:        write
+      security-events: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      # ── Docker build infrastructure ────────────────────────
-      - name: Setup QEMU (cross-compilation for ARM64)
+      - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Setup Docker Buildx
@@ -350,14 +362,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── Normalize owner to lowercase (GHCR requirement) ───
+      # GHCR image names must be lowercase.
       - name: Resolve image namespace
         id: ns
         run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
-      # ══════════════════════════════════════════════════════
-      #  FRONTEND IMAGE
-      # ══════════════════════════════════════════════════════
+      # ── Frontend ────────────────────────────────────────────
 
       - name: Docker metadata — frontend
         id: meta_frontend
@@ -373,7 +383,6 @@ jobs:
             org.opencontainers.image.description=StreamVault web application frontend
             org.opencontainers.image.vendor=${{ github.repository_owner }}
 
-      # Build locally first (no push) so Trivy can scan it
       - name: Build frontend image (local, pre-scan)
         uses: docker/build-push-action@v6
         with:
@@ -385,25 +394,24 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to:   type=gha,scope=frontend,mode=max
 
-      - name: Scan frontend image — Trivy
+      - name: Scan frontend image with Trivy
         id: trivy_frontend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
-          image-ref:    streamvault-frontend:scan
-          format:       sarif
-          output:       trivy-frontend.sarif
-          severity:     CRITICAL,HIGH
-          exit-code:    "1"          # Block push on CRITICAL/HIGH CVEs
+          image-ref:      streamvault-frontend:scan
+          format:         sarif
+          output:         trivy-frontend.sarif
+          severity:       CRITICAL,HIGH
+          exit-code:      "1"
           ignore-unfixed: true
 
-      - name: Upload frontend Trivy SARIF to GitHub Security
-        if: always()                 # Upload even if scan failed
+      - name: Upload frontend Trivy SARIF
+        if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-frontend.sarif
           category:   trivy-frontend
 
-      # Now push the clean image multi-platform
       - name: Build and push frontend image (multi-platform)
         id: build_frontend
         uses: docker/build-push-action@v6
@@ -422,13 +430,11 @@ jobs:
       - name: Attest frontend build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name:   ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
-          subject-digest: ${{ steps.build_frontend.outputs.digest }}
+          subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
+          subject-digest:   ${{ steps.build_frontend.outputs.digest }}
           push-to-registry: true
 
-      # ══════════════════════════════════════════════════════
-      #  BACKEND IMAGE
-      # ══════════════════════════════════════════════════════
+      # ── Backend ─────────────────────────────────────────────
 
       - name: Docker metadata — backend
         id: meta_backend
@@ -455,18 +461,18 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to:   type=gha,scope=backend,mode=max
 
-      - name: Scan backend image — Trivy
+      - name: Scan backend image with Trivy
         id: trivy_backend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
-          image-ref:    streamvault-backend:scan
-          format:       sarif
-          output:       trivy-backend.sarif
-          severity:     CRITICAL,HIGH
-          exit-code:    "1"
+          image-ref:      streamvault-backend:scan
+          format:         sarif
+          output:         trivy-backend.sarif
+          severity:       CRITICAL,HIGH
+          exit-code:      "1"
           ignore-unfixed: true
 
-      - name: Upload backend Trivy SARIF to GitHub Security
+      - name: Upload backend Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
@@ -491,102 +497,92 @@ jobs:
       - name: Attest backend build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name:   ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
-          subject-digest: ${{ steps.build_backend.outputs.digest }}
+          subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
+          subject-digest:   ${{ steps.build_backend.outputs.digest }}
           push-to-registry: true
 
-  # ============================================================
-  #  PHASE 6 — OIDC-based Cloud Deployment (Canary → Full)
-  #
-  #  Uses Workload Identity Federation — zero long-lived secrets.
-  #  Adapt the auth step for your cloud provider:
-  #    GCP  → google-github-actions/auth@v3
-  #    AWS  → aws-actions/configure-aws-credentials@v4
-  #    Azure → azure/login@v2
-  #
-  #  Replace the placeholder deploy steps with your actual
-  #  kubectl / helm / gcloud run commands.
-  # ============================================================
+# ──────────────────────────────────────────────────────────────
+#  DEPLOYMENT  (main branch pushes only)
+#
+#  Uses Workload Identity Federation — no long-lived secrets.
+#  Swap the commented-out auth step for your cloud provider:
+#    GCP   → google-github-actions/auth@v3
+#    AWS   → aws-actions/configure-aws-credentials@v4
+#    Azure → azure/login@v2
+#
+#  Two-stage rollout with independent approval gates:
+#    1. Canary  →  5% traffic
+#    2. Full production promotion
+# ──────────────────────────────────────────────────────────────
 
   deploy-canary:
-    name: "🚀 Deploy — Canary (5% traffic)"
+    name: "Deploy — Canary (5%)"
     needs: [publish-images]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: production-canary    # Requires manual approval gate in GitHub Environments
-    permissions:
-      contents: read
-      id-token: write                 # Required for OIDC token generation
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      # ── Keyless auth via OIDC (replace with your provider) ─
-      # GCP example — configure Workload Identity Pool + Provider
-      # in GCP Console, then fill in the placeholders below.
-      #
-      # - name: Authenticate to Google Cloud (OIDC)
-      #   uses: google-github-actions/auth@v3
-      #   with:
-      #     workload_identity_provider: projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
-      #     service_account: streamvault-deployer@PROJECT_ID.iam.gserviceaccount.com
-
-      # ── Canary rollout (5% traffic) ─────────────────────────
-      - name: Deploy canary release
-        run: |
-          echo "🟡 Deploying canary to 5% of traffic..."
-          # kubectl apply -f k8s/canary/
-          # kubectl set image deployment/streamvault-canary \
-          #   frontend=ghcr.io/${{ github.repository_owner }}/streamvault-frontend:sha-${{ github.sha }} \
-          #   backend=ghcr.io/${{ github.repository_owner }}/streamvault-backend:sha-${{ github.sha }}
-          echo "Canary deployed (stub — replace with real commands)."
-
-      - name: Health-check canary
-        run: |
-          echo "⏳ Waiting for canary pods to stabilize..."
-          # kubectl rollout status deployment/streamvault-canary --timeout=5m
-          # curl -sf https://canary.streamvault.example.com/health || exit 1
-          echo "Health check passed (stub)."
-
-  deploy-production:
-    name: "🌐 Deploy — Production (100% traffic)"
-    needs: [deploy-canary]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment:
-      name: production           # Second manual approval gate
+      name: production-canary   # Requires manual approval gate in GitHub Environments
     permissions:
       contents: read
       id-token: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      # - name: Authenticate to Google Cloud (OIDC)
+      # - name: Authenticate to Google Cloud
+      #   uses: google-github-actions/auth@v3
+      #   with:
+      #     workload_identity_provider: projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
+      #     service_account: streamvault-deployer@PROJECT_ID.iam.gserviceaccount.com
+
+      - name: Deploy canary release
+        run: |
+          # kubectl apply -f k8s/canary/
+          # kubectl set image deployment/streamvault-canary \
+          #   frontend=ghcr.io/${{ github.repository_owner }}/streamvault-frontend:sha-${{ github.sha }} \
+          #   backend=ghcr.io/${{ github.repository_owner }}/streamvault-backend:sha-${{ github.sha }}
+          echo "Canary deploy — replace with real commands."
+
+      - name: Health-check canary
+        run: |
+          # kubectl rollout status deployment/streamvault-canary --timeout=5m
+          # curl -sf https://canary.streamvault.example.com/health
+          echo "Health check — replace with real commands."
+
+  deploy-production:
+    name: "Deploy — Production (100%)"
+    needs: [deploy-canary]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production   # Second manual approval gate
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # - name: Authenticate to Google Cloud
       #   uses: google-github-actions/auth@v3
       #   with:
       #     workload_identity_provider: ...
       #     service_account: ...
 
-      - name: Promote canary → production
+      - name: Promote canary to production
         run: |
-          echo "🟢 Promoting to 100% production traffic..."
           # kubectl apply -f k8s/production/
           # kubectl set image deployment/streamvault ...
-          echo "Production deploy complete (stub)."
+          echo "Production promotion — replace with real commands."
 
-      - name: Verify production rollout
+      - name: Verify rollout
         run: |
           # kubectl rollout status deployment/streamvault --timeout=10m
-          echo "Rollout verified (stub)."
+          echo "Rollout verification — replace with real commands."
 
-      - name: Automated rollback on failure
+      - name: Rollback on failure
         if: failure()
         run: |
-          echo "🔴 Deployment failed — initiating automatic rollback..."
           # kubectl rollout undo deployment/streamvault
-          echo "Rollback complete."
+          echo "Rollback — replace with real commands."
