@@ -7,7 +7,9 @@ describe("utils - cn", () => {
   });
 
   test("should handle conditional classes", () => {
-    expect(cn("a", true && "b", false && "c")).toBe("a b");
+    const isB = true;
+    const isC = false;
+    expect(cn("a", isB && "b", isC && "c")).toBe("a b");
   });
 
   test("should handle object classes", () => {
@@ -56,10 +58,10 @@ describe("utils - slugify", () => {
 
   test("should return empty string for null/undefined/empty input", () => {
     expect(slugify("")).toBe("");
-    // @ts-ignore
-    expect(slugify(null)).toBe("");
-    // @ts-ignore
-    expect(slugify(undefined)).toBe("");
+    // @ts-expect-error
+    expect(slugify(null as unknown as string)).toBe("");
+    // @ts-expect-error
+    expect(slugify(undefined as unknown as string)).toBe("");
   });
 
   test("should handle complex strings", () => {
