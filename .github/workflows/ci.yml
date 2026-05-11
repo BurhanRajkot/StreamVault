@@ -90,22 +90,47 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      security-events: write
     steps:
       - name: Checkout (full history for Gitleaks)
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
+      - name: Install Gitleaks binary
+        # Use the binary directly — avoids the gitleaks-action Node.js wrapper
+        # which bundles Node 20 and generates a deprecation warning on Node 24 runners.
+        run: |
+          GITLEAKS_VERSION="8.24.3"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
       - name: Gitleaks — detect leaked credentials
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gitleaks detect \
+            --redact \
+            --exit-code=2 \
+            --report-format=sarif \
+            --report-path=results.sarif \
+            --log-opts=-1
+
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+          category: gitleaks
 
   dependency-review:
     name: "📦 Dependency Review"
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # continue-on-error: Dependency Graph may be disabled on free/private repos.
+    # Enable it at: Settings → Code security and analysis → Dependency graph.
+    # Once enabled, remove this line to make the check required.
+    continue-on-error: true
     permissions:
       contents: read
       pull-requests: write
@@ -114,7 +139,8 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Review dependency changes
-        uses: actions/dependency-review-action@v4
+        # v4.7.0+ ships a Node 24 runtime — silences the Node 20 deprecation warning.
+        uses: actions/dependency-review-action@v4.7.0
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
@@ -488,7 +514,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production-canary    # Requires manual approval gate in GitHub Environments
+    environment:
+      name: production-canary    # Requires manual approval gate in GitHub Environments
     permissions:
       contents: read
       id-token: write                 # Required for OIDC token generation
@@ -529,7 +556,8 @@ jobs:
     needs: [deploy-canary]
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production           # Second manual approval gate
+    environment:
+      name: production           # Second manual approval gate
     permissions:
       contents: read
       id-token: write
