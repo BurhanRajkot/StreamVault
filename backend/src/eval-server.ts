@@ -28,6 +28,11 @@ const TMDB_GENRES: Record<number, string> = {
 
 app.post('/api/recommendations/eval', (req, res) => {
   const { recentTitles, topGenreNames } = req.body
+
+  if (!recentTitles || !topGenreNames) {
+    return res.status(400).json({ error: 'Missing recentTitles or topGenreNames in request body' })
+  }
+
   console.log('[Eval] Received request:', { recentTitles, topGenreNames })
 
   // Simulate recommendation logic
@@ -38,7 +43,8 @@ app.post('/api/recommendations/eval', (req, res) => {
   ]
 
   // Add some "malicious" detection logic just for Promptfoo testing
-  const input = JSON.stringify(req.body).toLowerCase()
+  // Only inspect expected fields to avoid arbitrary payload injection vulnerabilities
+  const input = JSON.stringify({ recentTitles, topGenreNames }).toLowerCase()
   if (input.includes('ignore previous instructions') || input.includes('jailbreak')) {
     return res.json({
       items: recommendations,
