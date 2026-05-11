@@ -180,16 +180,11 @@ jobs:
 
       - name: Run tests
         run: |
-          if npm run test --if-present 2>/dev/null; then
-            echo "Tests passed."
+          SCRIPT=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts?.test||'')")
+          if [ -n "$SCRIPT" ]; then
+            npm test
           else
-            SCRIPT=$(node -e "const p=require('./package.json');console.log(p.scripts?.test||'')")
-            if [ -z "$SCRIPT" ]; then
-              echo "No test script defined — skipping."
-            else
-              echo "::error title=Test failure::Tests exited with a non-zero code."
-              exit 1
-            fi
+            echo "No test script defined — skipping."
           fi
 
       - name: Upload build artifact
@@ -220,7 +215,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('backend/bun.lockb') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('backend/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -248,7 +243,7 @@ jobs:
       - name: Run tests
         working-directory: ./backend
         run: |
-          SCRIPT=$(bun -e "const p=require('./package.json');console.log(p.scripts?.test||'')")
+          SCRIPT=$(jq -r '.scripts.test // empty' package.json)
           if [ -n "$SCRIPT" ]; then
             bun run test
           else
@@ -401,7 +396,7 @@ jobs:
 
       - name: Scan frontend image with Trivy
         id: trivy_frontend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref:      streamvault-frontend:scan
           format:         sarif
@@ -468,7 +463,7 @@ jobs:
 
       - name: Scan backend image with Trivy
         id: trivy_backend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref:      streamvault-backend:scan
           format:         sarif
