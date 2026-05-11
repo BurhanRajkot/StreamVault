@@ -58,9 +58,9 @@ describe("utils - slugify", () => {
 
   test("should return empty string for null/undefined/empty input", () => {
     expect(slugify("")).toBe("");
-    // @ts-expect-error
+    // @ts-expect-error: testing invalid null input
     expect(slugify(null as unknown as string)).toBe("");
-    // @ts-expect-error
+    // @ts-expect-error: testing invalid undefined input
     expect(slugify(undefined as unknown as string)).toBe("");
   });
 
