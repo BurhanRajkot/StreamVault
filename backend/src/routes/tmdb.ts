@@ -4,6 +4,7 @@ import { logger } from '../lib/logger'
 import { hybridSearch } from '../cinematch/search/hybridSearch'
 import { globalTrie } from '../cinematch/search/trieAutocomplete'
 import { withTmdbRateLimit } from '../services/tmdbLimiter'
+import { mapConcurrent } from '../utils/concurrency'
 
 const router = Router()
 
@@ -396,27 +397,26 @@ router.post('/continue-watching-details', async (req: Request, res: Response) =>
     // We wrap fetchTMDB with our bottleneck instance to protect against 429 errors from TMDB
     const safeFetchTMDB = withTmdbRateLimit(fetchTMDB)
 
-    // Using Promise.all here is safe because Bottleneck controls the actual execution concurrency!
-    const resolvedItems = await Promise.all(
-      items.map(async (item) => {
-        const tmdbId = Number(item?.tmdbId)
-        const mediaType = item?.mediaType
+    // Use mapConcurrent to bound promise creation and memory allocation.
+    // We limit to 5 concurrent fetches per request so a single user doesn't saturate the global tmdbLimiter.
+    const resolvedItems = await mapConcurrent(items, async (item) => {
+      const tmdbId = Number(item?.tmdbId)
+      const mediaType = item?.mediaType
 
-        if (!Number.isInteger(tmdbId) || tmdbId <= 0) return null
-        if (mediaType !== 'movie' && mediaType !== 'tv') return null
+      if (!Number.isInteger(tmdbId) || tmdbId <= 0) return null
+      if (mediaType !== 'movie' && mediaType !== 'tv') return null
 
-        try {
-          const tmdbData = await safeFetchTMDB(`/${mediaType}/${tmdbId}`)
-          return {
-            media: tmdbData,
-            item,
-          }
-        } catch (err: any) {
-          logger.warn(`Failed to fetch tmdb details for ${mediaType} ${tmdbId}:`, { error: err.message || err })
-          return null
+      try {
+        const tmdbData = await safeFetchTMDB(`/${mediaType}/${tmdbId}`)
+        return {
+          media: tmdbData,
+          item,
         }
-      })
-    )
+      } catch (err: any) {
+        logger.warn(`Failed to fetch tmdb details for ${mediaType} ${tmdbId}:`, { error: err.message || err })
+        return null
+      }
+    }, 5)
 
     // Filter out any failed fetches and return
     res.json(resolvedItems.filter(Boolean))
