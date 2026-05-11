@@ -231,7 +231,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./backend
-        run: bun install --frozen-lockfile
+        run: bun install --no-save
 
       - name: Type-check
         working-directory: ./backend
