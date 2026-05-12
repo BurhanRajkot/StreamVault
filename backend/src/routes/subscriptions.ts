@@ -4,6 +4,7 @@ import { SUBSCRIPTION_PLANS, UPI_CONFIG } from '../lib/upi'
 import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
 import { checkJwt } from '../middleware/auth'
+import { getUserId } from '../utils/auth'
 import QRCode from 'qrcode'
 import { strictRateLimiter } from '../cybersecurity'
 
@@ -49,7 +50,7 @@ router.get('/plans', async (_req, res) => {
 router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => {
   try {
     // userId must come from the verified JWT, never from the body
-    const userId = (req as any).auth?.payload?.sub || null
+    const userId = getUserId(req) || null
     const { email, planId, transactionId } = req.body
 
     if (!planId || !transactionId) {

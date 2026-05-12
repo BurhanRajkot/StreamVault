@@ -7,12 +7,9 @@ import { invalidateRecommendationCache } from '../cinematch/mixer/homeTimeline'
 import * as cache from '../services/cache'
 import { v4 as uuidv4 } from 'uuid'
 import { ensureUser } from '../lib/ensureUser'
+import { getUserId } from '../utils/auth'
 
 const router = Router()
-
-function getUserId(req: Request) {
-  return (req as any).auth?.payload?.sub as string | undefined
-}
 
 // ── GET /dislikes ───────────────────────────────────────────
 // Returns a list of the user's current disliked items
