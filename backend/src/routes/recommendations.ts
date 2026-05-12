@@ -331,11 +331,17 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
     // vectors on their very first homepage load.
     const { getMovieFeatures: fetchFeatures } = await import('../cinematch/features/movieFeatures')
 
-    const featureResults = await Promise.allSettled(
-      selections.map((item: { tmdbId: number; mediaType: MediaType }) =>
-        fetchFeatures(Number(item.tmdbId), item.mediaType)
+    const featureResults: PromiseSettledResult<any>[] = []
+    const CHUNK_SIZE = 10
+    for (let i = 0; i < selections.length; i += CHUNK_SIZE) {
+      const chunk = selections.slice(i, i + CHUNK_SIZE)
+      const chunkResults = await Promise.allSettled(
+        chunk.map((item: { tmdbId: number; mediaType: MediaType }) =>
+          fetchFeatures(Number(item.tmdbId), item.mediaType)
+        )
       )
-    )
+      featureResults.push(...chunkResults)
+    }
 
     // ── Phase 2: Build initial taste vectors ───────────────────────────────
     // Each onboarding selection carries a 0.9 weight (same as an explicit favorite).
@@ -409,19 +415,25 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
     // These write to UserInteractions for ML telemetry + future retraining.
     // The incremental genre update inside logInteraction is effectively a no-op
     // now since we already wrote the full warm map above.
-    void Promise.allSettled(
-      selections.map((item: { tmdbId: number; mediaType: MediaType }) =>
-        logInteraction({
-          userId,
-          tmdbId: Number(item.tmdbId),
-          mediaType: item.mediaType,
-          eventType: 'favorite',
-          recommendationSource: 'onboarding',
-        }).catch((err: any) =>
-          logger.warn('CineMatch onboarding seed failed for item', { tmdbId: item.tmdbId, error: err?.message })
+    // We still chunk these to avoid overwhelming the database/pool with up to 50 concurrent writes.
+    ;(async () => {
+      for (let i = 0; i < selections.length; i += CHUNK_SIZE) {
+        const chunk = selections.slice(i, i + CHUNK_SIZE)
+        await Promise.allSettled(
+          chunk.map((item: { tmdbId: number; mediaType: MediaType }) =>
+            logInteraction({
+              userId,
+              tmdbId: Number(item.tmdbId),
+              mediaType: item.mediaType,
+              eventType: 'favorite',
+              recommendationSource: 'onboarding',
+            }).catch((err: any) =>
+              logger.warn('CineMatch onboarding seed failed for item', { tmdbId: item.tmdbId, error: err?.message })
+            )
+          )
         )
-      )
-    )
+      }
+    })()
 
     // ── Phase 5: Bust all caches ───────────────────────────────────────────
     invalidateRecommendationCache(userId)
