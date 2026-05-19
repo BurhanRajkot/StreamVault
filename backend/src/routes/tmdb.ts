@@ -126,7 +126,7 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
 
     validParams.forEach(param => {
         if (req.query[param]) {
-            url += `&${param}=${req.query[param]}`
+            url += `&${param}=${encodeURIComponent(String(req.query[param]))}`
         }
     })
 
