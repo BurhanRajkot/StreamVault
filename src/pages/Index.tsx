@@ -107,6 +107,7 @@ const Index = () => {
           eventType: 'click',
           displayPosition: index,
           recommendationSource: source,
+          genreIds: item.genreIds,
         })
       } catch { /* non-critical */ }
     }
@@ -121,6 +122,7 @@ const Index = () => {
         tmdbId: item.tmdbId,
         mediaType: item.mediaType,
         eventType: 'dislike',
+        genreIds: item.genreIds,
       })
     } catch { /* non-critical */ }
   }, [isAuthenticated, getAccessTokenSilently])
