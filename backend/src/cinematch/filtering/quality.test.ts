@@ -16,7 +16,7 @@ describe('Quality Filters', () => {
         releaseDate: '2023-01-01',
         popularity: 10,
         genreIds: [],
-        source: 'tmdb_search',
+        source: 'trending',
         voteCount,
         voteAverage,
       } as Candidate
