@@ -79,10 +79,13 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
 
     try {
       const token = await getAccessTokenSilently()
+      const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+
       logRecommendationInteraction(token, {
         tmdbId: media.id,
         mediaType: mode as 'movie' | 'tv',
         eventType: type,
+        genreIds,
         ...(type === 'rate' && { rating: 5 }) // 'rate' with 5 stars = Loved it
       })
     } catch (err) {
