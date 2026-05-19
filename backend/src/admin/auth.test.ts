@@ -11,6 +11,7 @@ process.env.ADMIN_SECRET = 'test-secret'
 process.env.ADMIN_JWT_SECRET = 'test-jwt-secret'
 
 // Use require or dynamic import to load auth after env vars are set
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const authModule = require('./auth.ts')
 
 describe('Admin Auth - generateAdminToken', () => {
