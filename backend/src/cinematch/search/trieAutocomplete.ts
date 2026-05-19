@@ -151,11 +151,16 @@ export async function seedTrieBackground() {
     for (let page = 1; page <= 3; page++) {
       const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
       fetchPromises.push(
-        fetch(url)
+        fetch(url, { headers: { accept: 'application/json' } })
           .then(async res => {
             if (!res.ok) return { ep, items: [] }
-            const data = await res.json()
-            return { ep, items: data.results || [] }
+            const text = await res.text()
+            try {
+              const data = JSON.parse(text)
+              return { ep, items: data.results || [] }
+            } catch (parseErr) {
+              throw new Error(`JSON parse error. Body: ${text.substring(0, 150)}...`)
+            }
           })
           .catch(err => {
             logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err.message })

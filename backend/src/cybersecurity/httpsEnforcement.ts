@@ -15,6 +15,11 @@ export function httpsEnforcement(req: Request, res: Response, next: NextFunction
     return next()
   }
 
+  // Skip HTTPS enforcement for health checks to keep load balancers happy
+  if (req.path === '/' || req.path === '/ping' || req.path === '/health') {
+    return next()
+  }
+
   // Check if request is already HTTPS
   const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https'
 
