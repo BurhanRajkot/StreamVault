@@ -51,7 +51,8 @@ function MediaCardComponent({
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation()
-    toggleFavorite(media.id, mediaType)
+    const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+    toggleFavorite(media.id, mediaType, genreIds)
   }
 
   const handleDislike = (e: React.MouseEvent) => {
@@ -90,6 +91,8 @@ function MediaCardComponent({
       localStorage.setItem('stream_provider', provider)
     }
 
+    const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+
     if (isAuthenticated) {
       getAccessTokenSilently().then(token => {
         logRecommendationInteraction(token, {
@@ -97,6 +100,7 @@ function MediaCardComponent({
           mediaType: mediaType,
           eventType: 'click',
           selectedServer: provider,
+          genreIds,
         }).catch(console.error)
       }).catch(console.error)
     } else {
@@ -105,6 +109,7 @@ function MediaCardComponent({
         mediaType: mediaType,
         eventType: 'click',
         selectedServer: provider,
+        genreIds,
       }).catch(console.error)
     }
 

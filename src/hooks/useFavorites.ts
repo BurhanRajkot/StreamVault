@@ -92,7 +92,7 @@ export function useFavoritesInternal() {
   const isFavorited = (tmdbId: number, mediaType: 'movie' | 'tv') =>
     favorites.some((f) => f.tmdbId === tmdbId && f.mediaType === mediaType)
 
-  const toggleFavorite = async (tmdbId: number, mediaType: 'movie' | 'tv') => {
+  const toggleFavorite = async (tmdbId: number, mediaType: 'movie' | 'tv', genreIds?: number[]) => {
     if (!isAuthenticated) {
       toast.error('Please log in to add favorites')
       return
@@ -170,6 +170,7 @@ export function useFavoritesInternal() {
               tmdbId,
               mediaType,
               eventType: 'favorite',
+              genreIds,
             })
           } catch { /* non-critical */ }
         })()

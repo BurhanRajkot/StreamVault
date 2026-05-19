@@ -708,7 +708,11 @@ export function MovieDetailModal({
           </button>
           <div className="flex gap-4 pointer-events-auto">
             <button
-              onClick={(e) => { e.stopPropagation(); toggleFavorite(initialMedia.id, typedMode) }}
+              onClick={(e) => {
+                e.stopPropagation();
+                const genreIds = initialMedia.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined;
+                toggleFavorite(initialMedia.id, typedMode, genreIds);
+              }}
               aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
               aria-pressed={favorited}
               className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-foreground/70 hover:text-foreground bg-background/30 group cursor-pointer"
