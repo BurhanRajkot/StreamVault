@@ -295,10 +295,10 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
     const queryParts: string[] = []
 
     if (req.query.append_to_response) {
-      queryParts.push(`append_to_response=${req.query.append_to_response}`)
+      queryParts.push(`append_to_response=${encodeURIComponent(String(req.query.append_to_response))}`)
     }
     if (req.query.include_image_language) {
-      queryParts.push(`include_image_language=${req.query.include_image_language}`)
+      queryParts.push(`include_image_language=${encodeURIComponent(String(req.query.include_image_language))}`)
     }
 
     if (queryParts.length > 0) {
