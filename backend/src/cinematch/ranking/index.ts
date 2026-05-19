@@ -3,11 +3,13 @@ import { getMovieFeatures } from '../features'
 import { scoreCandidates, buildSessionContext } from './phoenixScorer'
 import { applyDiversityReranking } from './diversityReranker'
 import { computeDynamicWeights } from './dynamicWeights'
+import { mapConcurrent } from '../../utils/concurrency'
 
 // Max candidates to rank — prevents N+1 hydration on huge candidate pools
 const MAX_RANK_CANDIDATES = 150
 // Hydration budget — avoid issuing dozens of network calls in ranking
 const MAX_HYDRATION_CANDIDATES = 30
+const MAX_CONCURRENT_HYDRATION = 5
 const HYDRATION_TIMEOUT_MS = Number(process.env.CINEMATCH_RANK_HYDRATION_TIMEOUT_MS || 1200)
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -38,10 +40,11 @@ export async function rankCandidates(
   // the ranker will give a small additive boost to more crime thrillers.
   // Runs in parallel with feature hydration below.
   const sessionContextPromise = buildSessionContext(profile)
-  let hydrationBudget = MAX_HYDRATION_CANDIDATES
 
-  // Score all candidates in parallel; hydrate missing genre/keyword/cast data
-  const scoringPromises = rankedCandidates.map(async (candidate) => {
+  const hydrationState = { budget: MAX_HYDRATION_CANDIDATES }
+
+  // Score all candidates with limited concurrency; hydrate missing genre/keyword/cast data
+  const scoringPromise = mapConcurrent(rankedCandidates, MAX_CONCURRENT_HYDRATION, async (candidate) => {
     // Only hydrate candidates that are truly uncategorized (no genre info at all).
     // keywords and castIds are optional scoring signals — missing them is fine;
     // the scorer gracefully defaults. Hydrating every candidate via TMDB is the
@@ -49,8 +52,14 @@ export async function rankCandidates(
     let nextCandidate = candidate
     const needsHydration = nextCandidate.genreIds.length === 0
 
-    if (needsHydration && hydrationBudget > 0) {
-      hydrationBudget -= 1
+    // Synchronously check and decrement budget to prevent race conditions
+    let shouldHydrate = false
+    if (needsHydration && hydrationState.budget > 0) {
+      hydrationState.budget -= 1
+      shouldHydrate = true
+    }
+
+    if (shouldHydrate) {
       const features = await withTimeout(
         getMovieFeatures(nextCandidate.tmdbId, nextCandidate.mediaType),
         HYDRATION_TIMEOUT_MS,
@@ -80,7 +89,7 @@ export async function rankCandidates(
 
   // Hydrate candidates and resolve session context in parallel
   const [hydratedCandidates, sessionContext] = await Promise.all([
-    Promise.all(scoringPromises),
+    scoringPromise,
     sessionContextPromise,
   ])
 
