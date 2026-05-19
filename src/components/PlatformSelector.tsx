@@ -130,7 +130,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                   )}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none'
-                    e.currentTarget.parentElement?.classList.add('bg-card')
+                    const parent = e.currentTarget.parentElement
+                    if (parent && parent.classList) {
+                      parent.classList.add('bg-card')
+                    }
                   }}
                 />
 

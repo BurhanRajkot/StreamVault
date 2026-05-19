@@ -69,8 +69,8 @@ app.get('/', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'streamvault-backend' })
 })
 
-// HEALTH ENDPOINT (FOR UPTIMEROBOT + WARMUP)
-app.get('/health', (_req, res) => {
+// PING ENDPOINT (FOR UPTIMEROBOT + WARMUP) - Renamed from /health to avoid adblockers
+app.get('/ping', (_req, res) => {
   res.status(200).json({
     status: 'ok',
     uptime: process.uptime(),

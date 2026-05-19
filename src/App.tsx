@@ -12,20 +12,33 @@ import { FavoritesProvider } from './context/FavoritesContext'
 import { DislikesProvider } from './context/DislikesContext'
 import { SmoothScrollProvider } from './components/SmoothScrollProvider'
 
+// Helper to handle dynamic import failures (e.g. chunk 404s after new deployment)
+const lazyImport = (fn: () => Promise<any>) => lazy(() => 
+  fn().catch((error) => {
+    if (error.message.includes('Failed to fetch dynamically imported module') || error.message.includes('Importing a module script failed')) {
+      if (!sessionStorage.getItem('chunk_reload')) {
+        sessionStorage.setItem('chunk_reload', 'true')
+        window.location.reload()
+      }
+    }
+    return Promise.reject(error)
+  })
+)
+
 // Route-level code splitting — only load pages when navigated to
-const Favorites = lazy(() => import('./pages/Favorites'))
-const Downloads = lazy(() => import('./pages/Downloads'))
-const Watch = lazy(() => import('./pages/Watch'))
-const Pricing = lazy(() => import('./pages/Pricing'))
-const SubscriptionSuccess = lazy(() => import('./pages/SubscriptionSuccess'))
-const Login = lazy(() => import('./auth/Login'))
-const Signup = lazy(() => import('./auth/Signup'))
-const NotFound = lazy(() => import('./pages/NotFound'))
+const Favorites = lazyImport(() => import('./pages/Favorites'))
+const Downloads = lazyImport(() => import('./pages/Downloads'))
+const Watch = lazyImport(() => import('./pages/Watch'))
+const Pricing = lazyImport(() => import('./pages/Pricing'))
+const SubscriptionSuccess = lazyImport(() => import('./pages/SubscriptionSuccess'))
+const Login = lazyImport(() => import('./auth/Login'))
+const Signup = lazyImport(() => import('./auth/Signup'))
+const NotFound = lazyImport(() => import('./pages/NotFound'))
 // ServerError is statically imported by ErrorBoundary (class component, can't lazy-load there)
 // so we keep it static here to avoid the mixed static/dynamic import Vite warning
 import ServerError from './pages/ServerError'
-const AccessDenied = lazy(() => import('./pages/AccessDenied'))
-const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'))
+const AccessDenied = lazyImport(() => import('./pages/AccessDenied'))
+const AdminDashboard = lazyImport(() => import('./pages/admin/Dashboard'))
 
 // Minimal loading fallback — matches dark background so there's no flash
 const PageFallback = () => (
@@ -93,7 +106,7 @@ function PrefetchRecommendations() {
 export default function App() {
   // FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
-    fetch(`${API_BASE}/health`).catch(() => {
+    fetch(`${API_BASE}/ping`).catch(() => {
       // silently ignore errors — backend may not be running locally
     })
   }, [])
