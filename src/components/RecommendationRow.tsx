@@ -246,6 +246,8 @@ export function RecommendationRow({
   )
 }
 
+import { GenericMediaCard } from './GenericMediaCard'
+
 // ── Individual card ────────────────────────────────────────
 interface RecoCardProps {
   item: RecoItem
@@ -258,105 +260,44 @@ interface RecoCardProps {
 }
 
 function RecoCard({ item, index, source, isDragging = false, onClick, onDislike, isDisliked = false }: RecoCardProps) {
-  const [imgError, setImgError] = useState(false)
-  const [showQuickView, setShowQuickView] = useState(false)
-  const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
-
-  const handleMouseEnter = () => {
-    if (window.innerWidth < 768) return
-    hoverTimeout.current = setTimeout(() => {
-      setShowQuickView(true)
-    }, 1500)
-  }
-
-  const handleMouseLeave = () => {
-    if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
-    setShowQuickView(false)
-  }
-
-  const imgSrc = !imgError && item.posterPath
-    ? getImageUrl(item.posterPath, 'poster')
-    : null
-
   const handleDislike = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     onDislike?.(item)
   }, [item, onDislike])
 
-  const handleClick = (e: React.MouseEvent) => {
-    if (isDragging) {
-      e.preventDefault()
-      return
-    }
+  const handleClick = () => {
+    if (isDragging) return
     onClick(item, index, source)
   }
 
-  const handleCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onClick(item, index, source)
-    }
-  }
-
   return (
-    <div
-      ref={cardRef}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onKeyDown={handleCardKeyDown}
+    <GenericMediaCard
+      id={item.tmdbId}
+      title={item.title}
+      posterPath={item.posterPath}
+      backdropPath={item.backdropPath}
+      overview={item.overview}
+      voteAverage={item.voteAverage}
+      releaseDate={item.releaseDate}
+      mediaType={item.mediaType}
+      isDisliked={isDisliked}
       className={cn(
-        'group relative flex-shrink-0 cursor-pointer text-left',
         'w-[clamp(120px,11vw,340px)]',
-        'rounded-xl bg-card border border-border/50',
-        'transition-[transform,opacity,box-shadow,border-color] duration-300 ease-in-out',
-        showQuickView ? 'z-50' : 'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden',
-        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
+        'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden'
       )}
-      style={{ scrollSnapAlign: 'start' }}
+      imageClassName="group-hover:scale-110 group-hover:brightness-110"
       onClick={handleClick}
-      role="button"
-      tabIndex={0}
-      aria-label={`Open ${item.title}`}
-    >
-      {/* ── Poster ─────────────────────────────────────── */}
-      <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl bg-secondary/30">
-        {imgSrc ? (
-          <img
-            src={imgSrc}
-            alt={item.title}
-            srcSet={getImageSrcSet(item.posterPath, 'poster')}
-            sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 175px"
-            loading="lazy"
-            fetchPriority="low"
-            decoding="async"
-            width={500}
-            height={750}
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:brightness-110"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-secondary/50">
-            <span className="text-3xl font-bold text-muted-foreground/30">
-              {item.title.charAt(0).toUpperCase()}
-            </span>
-          </div>
-        )}
-
-        {/* Play Overlay (hover + touch) */}
-        {!isDisliked && (
-          <div
-            className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none"
-          >
+      overlay={
+        !isDisliked && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
             <div className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:scale-110 hover:bg-white">
               <Play className="h-6 w-6 text-black fill-black ml-0.5" />
             </div>
           </div>
-        )}
-
-        {/* Dislike button – top-right, visible on hover */}
-        {onDislike && (
+        )
+      }
+      topRightOverlay={
+        onDislike && (
           <button
             onClick={handleDislike}
             aria-label={`Not interested in ${item.title}`}
@@ -377,29 +318,8 @@ function RecoCard({ item, index, source, isDragging = false, onClick, onDislike,
               )}
             />
           </button>
-        )}
-
-
-      </div>
-
-      {showQuickView && (
-        <QuickViewModal
-          media={{
-            id: item.tmdbId,
-            title: item.title,
-            poster_path: item.posterPath,
-            backdrop_path: item.backdropPath,
-            overview: item.overview,
-            vote_average: item.voteAverage,
-            release_date: item.mediaType === 'movie' ? item.releaseDate : undefined,
-            first_air_date: item.mediaType === 'tv' ? item.releaseDate : undefined,
-            media_type: item.mediaType,
-          }}
-          onClose={() => setShowQuickView(false)}
-          onPlay={() => onClick(item, index, source)}
-          triggerRef={cardRef}
-        />
-      )}
-    </div>
+        )
+      }
+    />
   )
 }
