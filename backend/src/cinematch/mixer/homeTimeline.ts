@@ -33,6 +33,47 @@ const CACHE_TTL_DB = 300    // Seconds to persist in Supabase RecommendationCach
 const STALE_WHILE_REVALIDATE_TTL = 600  // Serve stale cache up to 10 min, recompute in bg
 const SOURCE_TIMEOUT_MS = Number(process.env.CINEMATCH_SOURCE_TIMEOUT_MS || 2500)
 
+// ── In-Flight Request Deduplication ───────────────────────
+const activeRebuilds = new Map<string, Promise<{ candidates: ScoredCandidate[], profile: UserProfile }>>()
+
+async function computeAndCacheRecommendations(
+  userId: string,
+  useVectorML?: boolean
+): Promise<{ candidates: ScoredCandidate[], profile: UserProfile }> {
+  // If a rebuild is already running for this user, return that Promise
+  const existingRebuild = activeRebuilds.get(userId)
+  if (existingRebuild) {
+    return existingRebuild
+  }
+
+  const rebuildPromise = (async () => {
+    const profile = await getUserProfile(userId)
+    const sourcesPromise = fetchAllSources(profile, useVectorML)
+    const rawCandidates = await Promise.race([
+      sourcesPromise,
+      new Promise<Awaited<ReturnType<typeof fetchAllSources>>>(resolve =>
+        setTimeout(() => resolve([]), SOURCE_TIMEOUT_MS)
+      ),
+    ])
+    const filtered = applyFilters(rawCandidates, profile)
+    const ranked = await rankCandidates(filtered, profile)
+    const cachePayload = ranked.slice(0, TOP_K)
+
+    // Promote to caches
+    recCache.set(userId, cachePayload)
+    persistToDb(userId, cachePayload).catch(() => {})
+
+    return { candidates: cachePayload, profile }
+  })()
+
+  activeRebuilds.set(userId, rebuildPromise)
+
+  try {
+    return await rebuildPromise
+  } finally {
+    activeRebuilds.delete(userId)
+  }
+}
 
 // ── Supabase Cache Persistence ────────────────────────────
 async function persistToDb(userId: string, ranked: ScoredCandidate[]): Promise<void> {
@@ -56,26 +97,43 @@ interface DbCacheResult {
   isStale: boolean
 }
 
+const activeDbReads = new Map<string, Promise<DbCacheResult | null>>()
+
 async function readFromDb(userId: string): Promise<DbCacheResult | null> {
-  try {
-    const { data } = await supabaseAdmin
-      .from('RecommendationCache')
-      .select('recommendations, computedAt, ttlSeconds')
-      .eq('userId', userId)
-      .single()
+  const existingRead = activeDbReads.get(userId)
+  if (existingRead) {
+    return existingRead
+  }
 
-    if (!data) return null
-    const ageSeconds = (Date.now() - new Date(data.computedAt).getTime()) / 1000
+  const readPromise = (async () => {
+    try {
+      const { data } = await supabaseAdmin
+        .from('RecommendationCache')
+        .select('recommendations, computedAt, ttlSeconds')
+        .eq('userId', userId)
+        .single()
 
-    // Hard-expired: too stale to serve even as fallback
-    if (ageSeconds > STALE_WHILE_REVALIDATE_TTL) return null
+      if (!data) return null
+      const ageSeconds = (Date.now() - new Date(data.computedAt).getTime()) / 1000
 
-    return {
-      candidates: data.recommendations as ScoredCandidate[],
-      isStale: ageSeconds > data.ttlSeconds,  // true = past TTL but within SWR window
+      // Hard-expired: too stale to serve even as fallback
+      if (ageSeconds > STALE_WHILE_REVALIDATE_TTL) return null
+
+      return {
+        candidates: data.recommendations as ScoredCandidate[],
+        isStale: ageSeconds > data.ttlSeconds,  // true = past TTL but within SWR window
+      }
+    } catch {
+      return null
     }
-  } catch {
-    return null
+  })()
+
+  activeDbReads.set(userId, readPromise)
+
+  try {
+    return await readPromise
+  } finally {
+    activeDbReads.delete(userId)
   }
 }
 
@@ -146,16 +204,9 @@ export async function getRecommendations(
 
       if (dbResult.isStale) {
         // Fire-and-forget recompute so next request hits fresh L1/L2
-        setImmediate(async () => {
-          try {
-            const profile = await getUserProfile(userId)
-            const rawCandidates = await fetchAllSources(profile, options.useVectorML)
-            const filtered = applyFilters(rawCandidates, profile)
-            const ranked = await rankCandidates(filtered, profile)
-            const cachePayload = ranked.slice(0, TOP_K)
-            recCache.set(userId, cachePayload)
-            persistToDb(userId, cachePayload).catch(() => {})
-          } catch { /* non-critical background refresh */ }
+        // Deduplicated background task!
+        computeAndCacheRecommendations(userId, options.useVectorML).catch((err) => {
+          console.warn(`[CineMatch] SWR background rebuild failed for user ${userId}:`, err)
         })
       }
 
@@ -163,35 +214,12 @@ export async function getRecommendations(
     }
   }
 
-  // Step 1: Query Hydration — build user profile
-  const profile = await getUserProfile(userId)
+  // Fallthrough / Absent / Force Refresh
+  // Await the deduplicated pipeline run
+  const { candidates, profile } = await computeAndCacheRecommendations(userId, options.useVectorML)
+  const topK = candidates.slice(0, limit)
 
-  // Step 2: Candidate Sourcing (all sources in parallel, with 6s timeout guard)
-  // The timeout ensures slow sources (collaborative, graphTraversal) never block
-  // the response. They simply contribute 0 candidates for this request.
-  const sourcesPromise = fetchAllSources(profile, options.useVectorML)
-  const rawCandidates = await Promise.race([
-    sourcesPromise,
-    new Promise<Awaited<ReturnType<typeof fetchAllSources>>>(resolve =>
-      setTimeout(() => resolve([]), SOURCE_TIMEOUT_MS)
-    ),
-  ])
-
-  // Step 3: Pre-Scoring Filters
-  const filtered = applyFilters(rawCandidates, profile)
-
-  // Step 4: 6-Signal Ranking Engine
-  const ranked = await rankCandidates(filtered, profile)
-
-  // Step 5: Select Top-K
-  const cachePayload = ranked.slice(0, TOP_K)
-  const topK = cachePayload.slice(0, limit)
-
-  // Step 6: Persist to caches (async, non-blocking)
   const pipelineMs = Date.now() - startTime
-  recCache.set(userId, cachePayload)
-  persistToDb(userId, cachePayload).catch(() => {})
-
   // Profiling removed for production
 
   return {
