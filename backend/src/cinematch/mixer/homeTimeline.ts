@@ -207,8 +207,8 @@ export async function getRecommendations(
         // Deduplicated background task!
         computeAndCacheRecommendations(userId, options.useVectorML).catch((err) => {
           // Sanitize userId to prevent log forging (CWE-117)
-          const safeUserId = encodeURIComponent(String(userId))
-          console.warn(`[CineMatch] SWR background rebuild failed for user ${safeUserId}:`, err)
+          const safeUserId = String(userId).replace(/[\r\n]/g, '')
+          console.warn('[CineMatch] SWR background rebuild failed for user', { userId: safeUserId, error: err })
         })
       }
 
