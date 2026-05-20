@@ -151,15 +151,22 @@ export async function seedTrieBackground() {
     for (let page = 1; page <= 3; page++) {
       const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
       fetchPromises.push(
-        fetch(url, { headers: { accept: 'application/json' } })
+        fetch(url, {
+          headers: {
+            'accept': 'application/json',
+            // Disable gzip: Bun's fetch() does not auto-decompress, so raw bytes
+            // would corrupt the body and cause JSON.parse to throw.
+            'accept-encoding': 'identity',
+          }
+        })
           .then(async res => {
             if (!res.ok) return { ep, items: [] }
-            const text = await res.text()
             try {
-              const data = JSON.parse(text)
+              const data = await res.json() as { results?: any[] }
               return { ep, items: data.results || [] }
             } catch (parseErr) {
-              throw new Error(`JSON parse error. Body: ${text.substring(0, 150)}...`)
+              const preview = await res.text().catch(() => '<unreadable>')
+              throw new Error(`JSON parse error. Body preview: ${preview.substring(0, 150)}`)
             }
           })
           .catch(err => {
