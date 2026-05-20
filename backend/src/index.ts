@@ -69,7 +69,16 @@ app.get('/', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'streamvault-backend' })
 })
 
-// PING ENDPOINT (FOR UPTIMEROBOT + WARMUP) - Renamed from /health to avoid adblockers
+// HEALTH ENDPOINT (FOR RENDER HEALTH CHECKS - DO NOT REMOVE OR RENAME)
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    time: new Date().toISOString(),
+  })
+})
+
+// PING ENDPOINT (ALIAS - used by frontend warmup to bypass adblockers)
 app.get('/ping', (_req, res) => {
   res.status(200).json({
     status: 'ok',
