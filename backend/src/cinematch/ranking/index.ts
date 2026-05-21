@@ -3,6 +3,7 @@ import { getMovieFeatures } from '../features'
 import { scoreCandidates, buildSessionContext } from './phoenixScorer'
 import { applyDiversityReranking } from './diversityReranker'
 import { computeDynamicWeights } from './dynamicWeights'
+import { applyWildcardInjection } from './exploration'
 import { mapConcurrent } from '../../utils/concurrency'
 
 // Max candidates to rank — prevents N+1 hydration on huge candidate pools
@@ -38,8 +39,13 @@ export async function rankCandidates(
   // ── Phase 2: Build session context from last 3 watched ──
   // This enables session momentum — if you just watched 2 crime thrillers,
   // the ranker will give a small additive boost to more crime thrillers.
+  // We also pass the current UTC hour as a rough proxy for time of day, since
+  // we do not have perfect client timezone access at read time without query params.
+  const currentUtcHour = new Date().getUTCHours()
+  const localHourEstimate = (currentUtcHour - 4 + 24) % 24 // Roughly US Eastern Time proxy for now, ideally passed via context
+
   // Runs in parallel with feature hydration below.
-  const sessionContextPromise = buildSessionContext(profile)
+  const sessionContextPromise = buildSessionContext(profile, localHourEstimate)
 
   const hydrationState = { budget: MAX_HYDRATION_CANDIDATES }
 
@@ -97,5 +103,8 @@ export async function rankCandidates(
   const scored = scoreCandidates(hydratedCandidates, profile, dynamicWeights, sessionContext)
 
   // Apply three-stage diversity reranking: genre saturation + novelty + serendipity
-  return applyDiversityReranking(scored, profile)
+  const diversed = applyDiversityReranking(scored, profile)
+
+  // Inject Multi-Armed Bandit / Wildcards for exploration
+  return applyWildcardInjection(diversed, profile)
 }

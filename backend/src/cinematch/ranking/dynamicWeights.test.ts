@@ -30,22 +30,36 @@ describe('Dynamic Weights', () => {
     const profile = createMockProfile(true, 100, 100) // even with high vectors, isNewUser overrides
     const weights = computeDynamicWeights(profile)
     
-    expect(weights.castAffinity).toBeCloseTo(0.08)
-    expect(weights.keywordAffinity).toBeCloseTo(0.10)
-    expect(weights.popularity).toBeCloseTo(0.18)
-    expect(weights.freshness).toBeCloseTo(0.16)
+    expect(weights.castAffinity).toBeCloseTo(0.05)
+    expect(weights.keywordAffinity).toBeCloseTo(0.05)
+    expect(weights.popularity).toBeCloseTo(0.40)
+    expect(weights.freshness).toBeCloseTo(0.30)
   })
 
   it('should return base weights for users with few interactions', () => {
     const profile = createMockProfile(false, 10, 10)
+    // Make sure we pass the cold-start threshold of 5
+    ;(profile as any).recentlyWatched = [1, 2, 3, 4, 5, 6]
     const weights = computeDynamicWeights(profile)
     
     expect(weights.castAffinity).toBeCloseTo(0.08)
     expect(weights.keywordAffinity).toBeCloseTo(0.10)
   })
 
+  it('should return segmentation weights for early cold start interactions', () => {
+    const profile = createMockProfile(false, 10, 10)
+    // 1-5 interactions triggers the segmentation branch
+    ;(profile as any).recentlyWatched = [1, 2, 3]
+    const weights = computeDynamicWeights(profile)
+
+    expect(weights.genreAffinity).toBeCloseTo(0.50)
+    expect(weights.popularity).toBeCloseTo(0.10)
+    expect(weights.freshness).toBeCloseTo(0.10)
+  })
+
   it('should boost cast affinity for users with moderate cast interactions', () => {
     const profile = createMockProfile(false, 30, 0)
+    ;(profile as any).recentlyWatched = [1, 2, 3, 4, 5, 6]
     const weights = computeDynamicWeights(profile)
     
     // castBoost = 0.02
@@ -57,6 +71,7 @@ describe('Dynamic Weights', () => {
 
   it('should significantly boost cast and keyword affinity for heavy users', () => {
     const profile = createMockProfile(false, 60, 150)
+    ;(profile as any).recentlyWatched = [1, 2, 3, 4, 5, 6]
     const weights = computeDynamicWeights(profile)
     
     // castBoost = 0.05, keywordBoost = 0.05
