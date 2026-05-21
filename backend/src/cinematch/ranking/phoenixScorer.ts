@@ -144,6 +144,36 @@ export interface SessionContext {
   sessionCastIds: number[]
   /** Keyword IDs from items watched/clicked in the current session */
   sessionKeywordIds: number[]
+  /** The current hour of the day (0-23) in the user's local timezone (or UTC fallback) */
+  localHour?: number
+}
+
+// ── Time-of-Day Context ───────────────────────────────────
+// Adjusts scores based on the time of day.
+// e.g. Shorter/lighter content on weekday days, heavier/longer at night.
+// We use genres as proxies:
+// Daytime (6am - 5pm): Comedy(35), Animation(16), Family(10751) get a slight boost.
+// Evening/Night (6pm - 2am): Drama(18), Thriller(53), Horror(27), Crime(80) get a slight boost.
+function timeOfDayScore(candidate: Candidate, localHour?: number): number {
+  if (localHour === undefined) return 0
+
+  let score = 0
+  const isDaytime = localHour >= 6 && localHour < 18
+  const isNighttime = localHour >= 18 || localHour < 3
+
+  const hasGenre = (id: number) => candidate.genreIds.includes(id)
+
+  if (isDaytime) {
+    if (hasGenre(35) || hasGenre(16) || hasGenre(10751)) {
+      score += 0.05 // Light daytime boost
+    }
+  } else if (isNighttime) {
+    if (hasGenre(18) || hasGenre(53) || hasGenre(27) || hasGenre(80)) {
+      score += 0.05 // Heavy nighttime boost
+    }
+  }
+
+  return score
 }
 
 // ── Session Momentum Score ────────────────────────────────
@@ -189,10 +219,10 @@ function sessionMomentumScore(
 // the same interactions, so we don't need to call getMovieFeatures again.
 // This eliminates 3 cold-start TMDB calls that used to run in parallel
 // with ranking and compete for the same network slots.
-export async function buildSessionContext(profile: UserProfile): Promise<SessionContext> {
+export async function buildSessionContext(profile: UserProfile, localHour?: number): Promise<SessionContext> {
   const recentItems = profile.recentlyWatched.slice(0, 3)
   if (recentItems.length === 0) {
-    return { sessionGenreIds: [], sessionCastIds: [], sessionKeywordIds: [] }
+    return { sessionGenreIds: [], sessionCastIds: [], sessionKeywordIds: [], localHour }
   }
 
   // Top genres from the user's genre vector (already computed, zero cost)
@@ -220,6 +250,7 @@ export async function buildSessionContext(profile: UserProfile): Promise<Session
     sessionGenreIds: topGenreIds,
     sessionCastIds: topCastIds,
     sessionKeywordIds: topKeywordIds,
+    localHour,
   }
 }
 
@@ -286,10 +317,28 @@ export function scoreCandidates(
   const sessionCastSet = new Set(session.sessionCastIds)
   const sessionKwSet = new Set(session.sessionKeywordIds)
 
+  // Cold Start boost multiplier - if the user is new, session momentum means EVERYTHING
+  // because it's their first and only signal
+  const isColdStart = profile.isNewUser || profile.recentlyWatched.length <= 5
+  const momentumMultiplier = isColdStart ? 4.0 : 1.0
+
   return candidates.map(candidate => {
     const base = scoreCandidate(candidate, profile, weights, session)
     // Session momentum using pre-built Sets
-    const sessionBoost = sessionMomentumScore(candidate, sessionGenreSet, sessionCastSet, sessionKwSet)
-    return { ...base, score: base.score + sessionBoost }
+    let sessionBoost = sessionMomentumScore(candidate, sessionGenreSet, sessionCastSet, sessionKwSet) * momentumMultiplier
+
+    // For extreme cold starts (1-2 interactions), we want to practically guarantee
+    // that the engine immediately shifts. We give an artificial "segmentation" floor
+    // to any candidate matching the session genres.
+    if (isColdStart && profile.recentlyWatched.length > 0 && sessionGenreSet.size > 0) {
+      if (candidate.genreIds.some(g => sessionGenreSet.has(g))) {
+        sessionBoost += 0.2 // massive flat boost to ensure these items float to the top
+      }
+    }
+
+    // Time of day boost
+    const timeBoost = timeOfDayScore(candidate, session.localHour)
+
+    return { ...base, score: base.score + sessionBoost + timeBoost }
   })
 }
