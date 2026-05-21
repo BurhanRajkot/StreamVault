@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { Media } from '@/lib/config'
 import { MediaCard, MediaCardSkeleton } from './MediaCard'
 
@@ -77,9 +77,8 @@ export function MediaGrid({
 
   const totalRows = rows.length + skeletonRowCount
 
-  const rowVirtualizer = useVirtualizer({
+  const rowVirtualizer = useWindowVirtualizer({
     count: totalRows,
-    getScrollElement: () => document.documentElement,
     estimateSize: () => rowHeight,
     overscan: 5,           // pre-render 5 rows above/below viewport for silky-smooth scrolling
     gap,
