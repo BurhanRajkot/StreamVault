@@ -1,7 +1,7 @@
 import { logger } from '../../lib/logger'
 import { HybridSearchResult } from './hybridSearch'
 
-const MODEL_NAME = 'gemini-2.5-flash'
+const MODEL_NAME = 'gemini-flash-latest'
 
 /**
  * Stage 2 Precision Re-Ranking (Cross-Encoder Proxy)

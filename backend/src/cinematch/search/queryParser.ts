@@ -1,7 +1,8 @@
 import { logger } from '../../lib/logger'
 import { TMDB_GENRES } from '../types'
 
-const MODEL_NAME = 'gemini-2.5-flash'
+const MODEL_NAME = 'gemini-flash-latest'
+
 export interface ParsedQuery {
   isConversational: boolean
   remainingQuery?: string
@@ -86,7 +87,11 @@ Query: "${query}"
     const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
     const parsed = JSON.parse(textContent)
 
-    if (!parsed.isConversational) {
+    const hasStructuredFilters = 
+      (parsed.genres && Array.isArray(parsed.genres) && parsed.genres.length > 0) ||
+      !!parsed.decade
+
+    if (!parsed.isConversational && !hasStructuredFilters) {
       return null
     }
 
