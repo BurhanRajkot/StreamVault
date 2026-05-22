@@ -51,7 +51,7 @@ export function MobileNav({ mode, onModeChange }: MobileNavProps) {
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 z-50 w-full sm:hidden pb-safe">
+    <div role="navigation" aria-label="Mobile navigation" className="fixed bottom-0 left-0 z-50 w-full sm:hidden pb-safe">
       {/* Glassmorphism Background - Darker and blurrier for "Premium" feel */}
       <div className="absolute inset-0 bg-background/90 backdrop-blur-2xl border-t border-border/40" />
 
