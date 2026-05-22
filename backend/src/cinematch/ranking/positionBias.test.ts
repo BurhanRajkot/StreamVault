@@ -1,8 +1,20 @@
-process.env.SUPABASE_URL = 'https://example.supabase.co'
-process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
+import { describe, it, expect, mock, beforeAll } from 'bun:test'
 
-import { describe, it, expect } from 'bun:test'
-import { ipsCorrectWeight, PropensityTable } from './positionBias'
+// mock.module must be called before any dynamic import that triggers supabase.ts.
+// Using a static import would hoist past this call and fail.
+mock.module('../../lib/supabase', () => ({
+  supabaseAdmin: {}
+}))
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let ipsCorrectWeight: any
+
+beforeAll(async () => {
+  const mod = await import('./positionBias')
+  ipsCorrectWeight = mod.ipsCorrectWeight
+})
+
+type PropensityTable = Map<number, number>
 
 describe('Position Bias / IPS', () => {
   it('should compute IPS corrected weights properly', () => {

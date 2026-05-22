@@ -1,9 +1,7 @@
 import { logger } from '../../lib/logger'
 import { TMDB_GENRES } from '../types'
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const MODEL_NAME = 'gpt-4o-mini'
-
+const MODEL_NAME = 'gemini-2.5-flash'
 export interface ParsedQuery {
   isConversational: boolean
   remainingQuery?: string
@@ -38,7 +36,8 @@ export function isComplexQuery(query: string): boolean {
  * Returns null if the parse fails or if it's not conversational.
  */
 export async function parseQueryNLU(query: string): Promise<ParsedQuery | null> {
-  if (!OPENAI_API_KEY || !isComplexQuery(query)) {
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+  if (!GEMINI_API_KEY || !isComplexQuery(query)) {
     return null
   }
 
@@ -64,27 +63,28 @@ Query: "${query}"
 `
   try {
     const startTime = Date.now()
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_API_KEY}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: MODEL_NAME,
-        messages: [{ role: 'system', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.0,
+        }
       })
     })
 
     if (!response.ok) {
-        logger.warn('[NLU] OpenAI API failed for query parsing')
+        logger.warn('[NLU] Gemini API failed for query parsing')
         return null
     }
 
     const data = await response.json()
-    const parsed = JSON.parse(data.choices[0].message.content)
+    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+    const parsed = JSON.parse(textContent)
 
     if (!parsed.isConversational) {
       return null

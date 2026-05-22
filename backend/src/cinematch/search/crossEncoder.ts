@@ -1,8 +1,7 @@
 import { logger } from '../../lib/logger'
 import { HybridSearchResult } from './hybridSearch'
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const MODEL_NAME = 'gpt-4o-mini'
+const MODEL_NAME = 'gemini-2.5-flash'
 
 /**
  * Stage 2 Precision Re-Ranking (Cross-Encoder Proxy)
@@ -19,7 +18,8 @@ export async function crossEncoderReRank(
   candidates: HybridSearchResult[],
   topK: number = 10
 ): Promise<HybridSearchResult[]> {
-  if (!OPENAI_API_KEY || candidates.length === 0) {
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+  if (!GEMINI_API_KEY || candidates.length === 0) {
     return candidates
   }
 
@@ -51,17 +51,17 @@ Return a strict JSON object with a single key "scores" containing an array of ob
 
   try {
     const startTime = Date.now()
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_API_KEY}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: MODEL_NAME,
-        messages: [{ role: 'system', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.0,
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.0,
+        }
       })
     })
 
@@ -70,7 +70,8 @@ Return a strict JSON object with a single key "scores" containing an array of ob
     }
 
     const data = await response.json()
-    const parsed = JSON.parse(data.choices[0].message.content)
+    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+    const parsed = JSON.parse(textContent)
 
     // Merge cross-encoder scores
     const scoreMap = new Map<number, number>()

@@ -18,14 +18,14 @@ describe('Query Parser', () => {
   })
 
   describe('parseQueryNLU', () => {
-    const originalEnv = process.env.OPENAI_API_KEY
+    const originalEnv = process.env.GEMINI_API_KEY
     
     beforeEach(() => {
-      process.env.OPENAI_API_KEY = 'test_key'
+      process.env.GEMINI_API_KEY = 'test_key'
     })
 
     afterEach(() => {
-      process.env.OPENAI_API_KEY = originalEnv
+      process.env.GEMINI_API_KEY = originalEnv
     })
 
     it('should return null for non-complex queries without calling LLM', async () => {
@@ -41,16 +41,20 @@ describe('Query Parser', () => {
 
     it('should parse complex queries using mocked LLM response', async () => {
       const mockResponse = {
-        choices: [
+        candidates: [
           {
-            message: {
-              content: JSON.stringify({
-                isConversational: true,
-                remainingQuery: 'aliens',
-                mediaType: 'movie',
-                genres: [878, 28], // Sci-Fi, Action
-                decade: 1990
-              })
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    isConversational: true,
+                    remainingQuery: 'aliens',
+                    mediaType: 'movie',
+                    genres: [878, 28], // Sci-Fi, Action
+                    decade: 1990
+                  })
+                }
+              ]
             }
           }
         ]
@@ -75,12 +79,16 @@ describe('Query Parser', () => {
 
     it('should return null if LLM says it is not conversational', async () => {
        const mockResponse = {
-        choices: [
+        candidates: [
           {
-            message: {
-              content: JSON.stringify({
-                isConversational: false
-              })
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    isConversational: false
+                  })
+                }
+              ]
             }
           }
         ]

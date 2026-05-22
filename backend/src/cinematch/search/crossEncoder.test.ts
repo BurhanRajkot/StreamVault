@@ -3,14 +3,14 @@ import { crossEncoderReRank } from './crossEncoder'
 import { HybridSearchResult } from './hybridSearch'
 
 describe('Cross Encoder Re-Rank', () => {
-  const originalEnv = process.env.OPENAI_API_KEY
+  const originalEnv = process.env.GEMINI_API_KEY
   
   beforeEach(() => {
-    process.env.OPENAI_API_KEY = 'test_key'
+    process.env.GEMINI_API_KEY = 'test_key'
   })
 
   afterEach(() => {
-    process.env.OPENAI_API_KEY = originalEnv
+    process.env.GEMINI_API_KEY = originalEnv
   })
 
   const createCandidate = (id: number, score: number): HybridSearchResult => ({
@@ -42,17 +42,21 @@ describe('Cross Encoder Re-Rank', () => {
     ]
 
     const mockResponse = {
-      choices: [
+      candidates: [
         {
-          message: {
-            content: JSON.stringify({
-              scores: [
-                { id: 1, score: 0.2 },
-                { id: 2, score: 0.1 },
-                { id: 3, score: 0.9 }, // High score from LLM
-                { id: 4, score: 0.0 }
-              ]
-            })
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({
+                  scores: [
+                    { id: 1, score: 0.2 },
+                    { id: 2, score: 0.1 },
+                    { id: 3, score: 0.9 }, // High score from LLM
+                    { id: 4, score: 0.0 }
+                  ]
+                })
+              }
+            ]
           }
         }
       ]
@@ -84,14 +88,18 @@ describe('Cross Encoder Re-Rank', () => {
     ]
 
     const mockResponse = {
-      choices: [
+      candidates: [
         {
-          message: {
-            content: JSON.stringify({
-              scores: [
-                { id: 1, score: 0.5 }
-              ]
-            })
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({
+                  scores: [
+                    { id: 1, score: 0.5 }
+                  ]
+                })
+              }
+            ]
           }
         }
       ]
