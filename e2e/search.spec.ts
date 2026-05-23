@@ -36,37 +36,67 @@ test.describe('Search UI', () => {
   })
 
   test('should show autocomplete suggestions after typing', async ({ page }) => {
+    // Intercept search request to return mock predictable data
+    await page.route('**/tmdb/search/hybrid*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          results: [
+            { id: 27205, title: 'Inception', media_type: 'movie', poster_path: '/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg', vote_average: 8.4 }
+          ],
+          total_results: 1,
+          total_pages: 1
+        })
+      })
+    })
+
     const openSearchButton = page.locator('button[aria-label="Open search"]').first()
     await openSearchButton.click()
 
     const searchInput = page.locator('input[placeholder*="Search"]').first()
     await searchInput.fill('inc')
 
-    // Wait up to 3s for suggestions to appear (autocomplete might call the API)
-    const suggestions = page.locator('[role="listbox"], [role="option"], [data-testid="autocomplete-result"]')
-    const hasSuggestions = await suggestions.count().then(c => c > 0)
-      .catch(() => false)
-
-    // It's acceptable if suggestions are empty in a test environment (no API key)
-    // We just ensure no crash happened
-    expect(hasSuggestions).toBeDefined()
+    // Suggestions or grid cards should appear
+    const firstCard = page.locator('.group.relative.cursor-pointer, [role="button"]:has(img)').first()
+    await expect(firstCard).toBeVisible({ timeout: 10_000 })
   })
 
   test('search box should be keyboard accessible (Enter submits)', async ({ page }) => {
+    await page.route('**/tmdb/search/hybrid*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          results: [
+            { id: 27205, title: 'Inception', media_type: 'movie', poster_path: '/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg', vote_average: 8.4 }
+          ],
+          total_results: 1,
+          total_pages: 1
+        })
+      })
+    })
+
     const openSearchButton = page.locator('button[aria-label="Open search"]').first()
     await openSearchButton.click()
 
     const searchInput = page.locator('input[placeholder*="Search"]').first()
-    await searchInput.fill('batman')
+    await searchInput.fill('inception')
     await page.keyboard.press('Enter')
 
-    // After submit, URL should change or search results should appear
-    await page.waitForTimeout(1000)
-    const url = page.url()
-    const hasResults = url.includes('search') || url.includes('batman') ||
-      await page.locator('[data-testid="search-results"]').count() > 0
+    // Expect search results cards to render
+    const card = page.locator('.group.relative.cursor-pointer, [role="button"]:has(img)').first()
+    await expect(card).toBeVisible({ timeout: 10_000 })
 
-    // We don't assert a specific outcome since auth may gate results
-    expect(hasResults).toBeDefined()
+    // Click on result card and make sure details modal opens
+    await card.click()
+    const closeBtn = page.locator('button[aria-label="Close modal"], button:has-text("Close")').first()
+    await expect(closeBtn).toBeVisible({ timeout: 10_000 })
+    await closeBtn.click()
+
+    // Clear search using the "Close search" or clear button
+    const clearBtn = page.locator('button[aria-label="Close search"], button:has(svg)').first()
+    await clearBtn.click()
+    await expect(searchInput).not.toBeVisible()
   })
 })
