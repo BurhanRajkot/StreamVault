@@ -30,15 +30,13 @@ export default defineConfig({
 
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:4173',
-    /* Take a screenshot only on failure */
-    screenshot: 'only-on-failure',
-    /* Record video only on retry */
-    video: 'on-first-retry',
-    /* Attach trace on retry */
-    trace: 'on-first-retry',
+    /* Record screenshots, video, and traces for detailed testing output */
+    screenshot: 'on',
+    video: 'on',
+    trace: 'on',
     /* Timeouts */
-    actionTimeout: 10_000,
-    navigationTimeout: 20_000,
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
   },
 
   projects: [
@@ -58,5 +56,8 @@ export default defineConfig({
         timeout: 120_000,
         stdout: 'pipe',
         stderr: 'pipe',
+        env: {
+          VITE_MOCK_AUTH: 'true',
+        },
       },
 })

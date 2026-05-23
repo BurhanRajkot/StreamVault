@@ -55,6 +55,9 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      ...(process.env.VITE_MOCK_AUTH === "true"
+        ? { "@auth0/auth0-react": path.resolve(__dirname, "./src/auth/mock-auth0.tsx") }
+        : {}),
     },
   },
   build: {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { PageMeta } from '@/seo/PageMeta'
-import { Check, X, Loader2, ArrowLeft } from 'lucide-react'
+import { Check, X, Loader2, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/Footer'
@@ -14,6 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { getAdminToken, isAdminAuthenticated } from '@/lib/api'
+import AdminLoginModal from '@/components/AdminLoginModal'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -33,14 +35,34 @@ export default function AdminDashboard() {
   const [requests, setRequests] = useState<SubscriptionRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(isAdminAuthenticated())
+  const [showLoginModal, setShowLoginModal] = useState(false)
   const { toast } = useToast()
 
   const fetchRequests = useCallback(async () => {
+    const adminToken = getAdminToken()
+    if (!adminToken) {
+      setIsAdmin(false)
+      setLoading(false)
+      return
+    }
+
     try {
-      const res = await fetch(`${API_URL}/subscriptions/admin/requests`)
-      if (!res.ok) throw new Error('Failed to fetch requests')
+      const res = await fetch(`${API_URL}/subscriptions/admin/requests`, {
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      })
+      if (!res.ok) {
+        if (res.status === 401) {
+          setIsAdmin(false)
+          localStorage.removeItem('adminToken')
+        }
+        throw new Error('Failed to fetch requests')
+      }
       const data = await res.json()
       setRequests(data)
+      setIsAdmin(true)
     } catch (err) {
       toast({
         title: 'Error',
@@ -57,11 +79,25 @@ export default function AdminDashboard() {
   }, [fetchRequests])
 
   const handleAction = async (requestId: string, action: 'approve' | 'reject') => {
+    const adminToken = getAdminToken()
+    if (!adminToken) {
+      setIsAdmin(false)
+      toast({
+        title: 'Authentication Required',
+        description: 'You must be logged in as admin to perform this action',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setProcessingId(requestId)
     try {
       const res = await fetch(`${API_URL}/subscriptions/admin/${action}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
         body: JSON.stringify({ requestId }),
       })
 
@@ -85,6 +121,48 @@ export default function AdminDashboard() {
     }
   }
 
+  if (!isAdmin) {
+    return (
+      <>
+        <PageMeta title="Admin Access Required" noindex />
+        <div className="min-h-screen flex flex-col bg-background">
+          <header className="border-b border-border/40 bg-background/80 backdrop-blur-xl">
+            <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
+              <h1 className="text-xl font-bold">Admin Dashboard</h1>
+              <Link to="/">
+                <Button variant="ghost" size="sm">Back to Home</Button>
+              </Link>
+            </div>
+          </header>
+          <main className="flex-1 flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="max-w-md w-full border rounded-2xl bg-card p-8 shadow-2xl text-center space-y-6">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <ShieldCheck className="h-8 w-8" />
+              </div>
+              <h2 className="text-2xl font-bold">Admin Access Required</h2>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                This dashboard is restricted to administrator accounts. Please log in with today's authorization code to continue.
+              </p>
+              <Button onClick={() => setShowLoginModal(true)} className="w-full h-11">
+                Log In as Admin
+              </Button>
+            </div>
+          </main>
+          <Footer />
+          <AdminLoginModal
+            isOpen={showLoginModal}
+            onClose={() => setShowLoginModal(false)}
+            onSuccess={() => {
+              setIsAdmin(true)
+              setLoading(true)
+              fetchRequests()
+            }}
+          />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <PageMeta title="Admin Dashboard" noindex />
@@ -93,9 +171,21 @@ export default function AdminDashboard() {
         <header className="border-b border-border/40 bg-background/80 backdrop-blur-xl">
           <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
             <h1 className="text-xl font-bold">Admin Dashboard</h1>
-            <Link to="/">
-              <Button variant="ghost" size="sm">Back to Home</Button>
-            </Link>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  localStorage.removeItem('adminToken')
+                  setIsAdmin(false)
+                }}
+              >
+                Logout
+              </Button>
+              <Link to="/">
+                <Button variant="ghost" size="sm">Back to Home</Button>
+              </Link>
+            </div>
           </div>
         </header>
 
@@ -140,9 +230,9 @@ export default function AdminDashboard() {
                         </TableCell>
                         <TableCell className="font-medium">{request.email || request.user_id}</TableCell>
                         <TableCell>
-                            <Badge variant="outline" className={request.plan_id === 'premium' ? 'border-violet-500 text-violet-500' : ''}>
-                                {request.plan_id.toUpperCase()}
-                            </Badge>
+                          <Badge variant="outline" className={request.plan_id === 'premium' ? 'border-violet-500 text-violet-500' : ''}>
+                            {request.plan_id.toUpperCase()}
+                          </Badge>
                         </TableCell>
                         <TableCell>₹{request.amount}</TableCell>
                         <TableCell className="font-mono text-xs">{request.transaction_id}</TableCell>
@@ -173,9 +263,9 @@ export default function AdminDashboard() {
                                 disabled={processingId === request.id}
                               >
                                 {processingId === request.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                                  <Loader2 className="h-4 w-4 animate-spin text-white" />
                                 ) : (
-                                    <Check className="h-4 w-4 text-white" />
+                                  <Check className="h-4 w-4 text-white" />
                                 )}
                               </Button>
                             </div>
@@ -189,6 +279,7 @@ export default function AdminDashboard() {
             )}
           </div>
         </main>
+        <Footer />
       </div>
     </>
   )

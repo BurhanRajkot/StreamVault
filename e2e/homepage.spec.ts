@@ -205,3 +205,105 @@ test.describe('Not Found Page', () => {
     await expect(errText).toBeVisible({ timeout: 10_000 })
   })
 })
+
+test.describe('Interactive UI Features', () => {
+  test('should switch between light and dark themes', async ({ page }) => {
+    await page.goto('/')
+    await page.evaluate(() => {
+      window.localStorage.setItem('theme', 'light')
+    })
+    await page.reload()
+    await page.waitForLoadState('domcontentloaded')
+    
+    const themeBtn = page.locator('button[aria-label*="Switch to"]').first()
+    await expect(themeBtn).toBeVisible()
+    
+    // Get the current theme class on <html>
+    const initialClass = await page.locator('html').getAttribute('class')
+    
+    // Click theme button
+    await themeBtn.click()
+    
+    // Verify theme class changed
+    const newClass = await page.locator('html').getAttribute('class')
+    expect(newClass).not.toBe(initialClass)
+  })
+
+  test('should filter content when clicking on an OTT provider', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    
+    const providerBtn = page.locator('button[aria-label^="Filter by"]').first()
+    if (await providerBtn.count() > 0) {
+      await expect(providerBtn).toBeVisible()
+      await providerBtn.click()
+      
+      // Check that it gets selected (has a Check icon inside it or gets visual active state)
+      const checkIcon = providerBtn.locator('svg')
+      await expect(checkIcon).toBeVisible()
+      
+      // Clicking "Show all providers" should reset it
+      const showAllBtn = page.locator('button[aria-label="Show all providers"]')
+      await showAllBtn.click()
+      await expect(checkIcon).not.toBeVisible()
+    }
+  })
+
+  test('should open movie details modal when clicking a media card', async ({ page }) => {
+    // Intercept discover calls to guarantee cards are present
+    await page.route('**/tmdb/discover/movie*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          results: [
+            { id: 27205, title: 'Inception', media_type: 'movie', poster_path: '/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg', vote_average: 8.4 }
+          ],
+          total_pages: 1
+        })
+      })
+    })
+
+    await page.route('**/tmdb/trending/*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          results: [
+            { id: 27205, title: 'Inception', media_type: 'movie', poster_path: '/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg', vote_average: 8.4 }
+          ]
+        })
+      })
+    })
+
+    await page.route('**/tmdb/movie/27205*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 27205,
+          title: 'Inception',
+          overview: 'Cobb steals information from dreams.',
+          poster_path: '/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg',
+          vote_average: 8.4
+        })
+      })
+    })
+
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    
+    // Find a media card in the popular grid or recently added
+    const mediaCard = page.locator('.group.relative.cursor-pointer, [role="button"]:has(img)').first()
+    await expect(mediaCard).toBeVisible({ timeout: 10000 })
+    await mediaCard.click()
+    
+    // Modal or watch details should become visible
+    const closeBtn = page.locator('button:has-text("Back"), button:has-text("Close")').first()
+    await expect(closeBtn).toBeVisible({ timeout: 15000 })
+    
+    // Close details modal
+    await closeBtn.click()
+    await expect(closeBtn).not.toBeVisible()
+  })
+})
