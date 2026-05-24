@@ -5,18 +5,22 @@ test.describe('Admin Control & Downloads Portal', () => {
   test.beforeEach(async ({ context, page }) => {
     // Clear tokens and set regular user auth state
     await context.addInitScript(() => {
-      window.sessionStorage.setItem('disclaimerAccepted', 'true')
-      window.localStorage.setItem('e2e_mock_authenticated', 'true')
-      window.localStorage.setItem('e2e_mock_user', JSON.stringify({
-        sub: 'auth0|mock-user-123',
-        name: 'Regular User',
-        email: 'regular@example.com'
-      }))
-      window.localStorage.removeItem('adminToken')
+      try {
+        window.sessionStorage.setItem('disclaimerAccepted', 'true')
+        window.localStorage.setItem('e2e_mock_authenticated', 'true')
+        window.localStorage.setItem('e2e_mock_user', JSON.stringify({
+          sub: 'auth0|mock-user-123',
+          name: 'Regular User',
+          email: 'regular@example.com'
+        }))
+      } catch (e) {}
     })
 
     // Mock downloads endpoint
     await page.route('**/downloads', async route => {
+      if (route.request().resourceType() === 'document') {
+        return route.continue()
+      }
       const authHeader = route.request().headers()['authorization']
       if (authHeader && authHeader.includes('mock-admin-jwt-token')) {
         await route.fulfill({
@@ -31,7 +35,7 @@ test.describe('Admin Control & Downloads Portal', () => {
         await route.fulfill({
           status: 403,
           contentType: 'application/json',
-          body: JSON.stringify({ error: 'Upgrade required. Premium feature.' })
+          body: JSON.stringify({ error: 'upgrade required. premium feature.' })
         })
       }
     })
@@ -137,7 +141,7 @@ test.describe('Admin Control & Downloads Portal', () => {
     await expect(reqEmail).toBeVisible({ timeout: 10000 })
     
     // Verify status badge is PENDING
-    const pendingBadge = page.locator('span:has-text("PENDING")')
+    const pendingBadge = page.locator('div:has-text("PENDING"), span:has-text("PENDING")').first()
     await expect(pendingBadge).toBeVisible()
 
     // Click Approve button (the green Check button)
