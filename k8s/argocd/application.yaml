@@ -1,0 +1,47 @@
+# ArgoCD Application — StreamVault Production
+# ArgoCD monitors the production kustomize overlay for changes
+# and automatically syncs the cluster state.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: streamvault-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: streamvault
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/BurhanRajkot/StreamVault.git
+    targetRevision: main
+    path: k8s/overlays/production
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: streamvault
+
+  syncPolicy:
+    automated:
+      prune: true       # Remove resources no longer in Git
+      selfHeal: true    # Revert manual cluster changes
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences caused by Argo Rollouts controller
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Rollout
+      jsonPointers:
+        - /spec/template/metadata/annotations
+        - /status

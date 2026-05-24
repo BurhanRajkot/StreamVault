@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: streamvault
+
+resources:
+  - ../../base
+
+# Image tags are updated by the GitOps workflow (gitops-deploy.yml).
+# ArgoCD detects the commit and syncs the cluster.
+images:
+  - name: ghcr.io/burhanrajkot/streamvault-frontend
+    newTag: latest  # Replaced by GitOps workflow with sha-<commit>
+  - name: ghcr.io/burhanrajkot/streamvault-backend
+    newTag: latest  # Replaced by GitOps workflow with sha-<commit>
+
+patches:
+  - path: patches/replicas.yaml
+  - path: patches/resources.yaml

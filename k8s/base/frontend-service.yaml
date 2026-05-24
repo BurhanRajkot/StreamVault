@@ -1,0 +1,59 @@
+# Frontend Services — Stable + Canary for Argo Rollouts traffic splitting
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamvault-frontend-stable
+  labels:
+    app.kubernetes.io/name: streamvault-frontend
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: streamvault-frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamvault-frontend-canary
+  labels:
+    app.kubernetes.io/name: streamvault-frontend
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: streamvault-frontend
+---
+# Istio VirtualService for traffic routing between stable and canary
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: streamvault-frontend-vsvc
+spec:
+  hosts:
+    - streamvault.example.com  # Replace with your domain
+  gateways:
+    - streamvault-gateway
+  http:
+    - name: primary
+      route:
+        - destination:
+            host: streamvault-frontend-stable
+            port:
+              number: 80
+          weight: 100
+        - destination:
+            host: streamvault-frontend-canary
+            port:
+              number: 80
+          weight: 0
