@@ -11,8 +11,28 @@ test.describe('Search UI', () => {
   test.beforeEach(async ({ context, page }) => {
     // Dismiss the disclaimer modal globally
     await context.addInitScript(() => {
-      window.sessionStorage.setItem('disclaimerAccepted', 'true')
+      try {
+        window.sessionStorage.setItem('disclaimerAccepted', 'true')
+      } catch (e) {}
     })
+
+    // Mock TMDB movie details for modal opens
+    await page.route('**/tmdb/movie/27205*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 27205,
+          title: 'Inception',
+          overview: 'Cobb steals information from dreams.',
+          poster_path: '/ljsZTbVsrQSqZgWeep2B1QiDKuh.jpg',
+          vote_average: 8.4,
+          release_date: '2010-07-15',
+          genres: [{ id: 28, name: 'Action' }]
+        })
+      })
+    })
+
     await page.goto('/')
     await page.waitForLoadState('domcontentloaded')
   })
@@ -90,13 +110,15 @@ test.describe('Search UI', () => {
 
     // Click on result card and make sure details modal opens
     await card.click()
-    const closeBtn = page.locator('button[aria-label="Close modal"], button:has-text("Close")').first()
+    const closeBtn = page.locator('button:has-text("Back"), button:has-text("Close")').first()
     await expect(closeBtn).toBeVisible({ timeout: 10_000 })
     await closeBtn.click()
 
-    // Clear search using the "Close search" or clear button
-    const clearBtn = page.locator('button[aria-label="Close search"], button:has(svg)').first()
-    await clearBtn.click()
+    // Clear search using the "Close search" button if it is still open
+    const clearBtn = page.locator('button[aria-label="Close search"]').first()
+    if (await clearBtn.count() > 0) {
+      await clearBtn.click()
+    }
     await expect(searchInput).not.toBeVisible()
   })
 })

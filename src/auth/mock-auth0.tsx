@@ -33,21 +33,27 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const loginWithRedirect = async (options?: any) => {
-    localStorage.setItem('e2e_mock_authenticated', 'true')
-    setIsAuthenticated(true)
-    const mockUser = {
-      sub: 'auth0|mock-user-123',
-      name: 'E2E Tester',
-      email: 'tester@streamvault.test',
-      picture: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&h=100&q=80',
+    // If we are already on the login or signup page, mock the login and redirect back
+    if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
+      localStorage.setItem('e2e_mock_authenticated', 'true')
+      setIsAuthenticated(true)
+      const mockUser = {
+        sub: 'auth0|mock-user-123',
+        name: 'E2E Tester',
+        email: 'tester@streamvault.test',
+        picture: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&h=100&q=80',
+      }
+      localStorage.setItem('e2e_mock_user', JSON.stringify(mockUser))
+      setUser(mockUser)
+      
+      const searchParams = new URLSearchParams(window.location.search)
+      const returnTo = searchParams.get('returnTo') || '/'
+      window.location.href = returnTo
+    } else {
+      // Redirect to /login page with returnTo path
+      const returnTo = window.location.pathname + window.location.search
+      window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
     }
-    localStorage.setItem('e2e_mock_user', JSON.stringify(mockUser))
-    setUser(mockUser)
-    
-    // Support returnTo parameter or navigation redirect if specified in options
-    // Fall back to current path instead of root to prevent breaking route-protection tests
-    const redirectUri = options?.appState?.returnTo || window.location.pathname + window.location.search
-    window.location.href = redirectUri
   }
 
   const logout = (options?: any) => {
