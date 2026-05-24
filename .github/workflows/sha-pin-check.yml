@@ -26,5 +26,5 @@ jobs:
         with:
           # Allow local actions referenced via relative paths (./path/to/action).
           # These are implicitly pinned to the repository's executing commit.
-          allowList: |
+          allowlist: |
             actions/*

@@ -7,7 +7,7 @@ process.env.ADMIN_SECRET = 'test-secret'
 process.env.ADMIN_JWT_SECRET = 'test-jwt-secret'
 
 // Mock the auth module
-mock.module('./auth.ts', () => {
+mock.module('./auth', () => {
   return {
     verifyAdminToken: mock((token: string) => {
       if (token === 'valid-token') {
@@ -20,10 +20,10 @@ mock.module('./auth.ts', () => {
 
 // Now require modules dynamically after setting env vars and mocking
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const middlewareModule = require('./middleware.ts')
+const middlewareModule = require('./middleware')
 const { requireAdminAuth, optionalAdminAuth } = middlewareModule
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const authModule = require('./auth.ts')
+const authModule = require('./auth')
 const { verifyAdminToken } = authModule
 
 describe('Admin Middleware', () => {
