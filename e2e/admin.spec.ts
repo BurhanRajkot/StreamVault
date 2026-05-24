@@ -13,7 +13,7 @@ test.describe('Admin Control & Downloads Portal', () => {
           name: 'Regular User',
           email: 'regular@example.com'
         }))
-      } catch (e) {}
+      } catch (e) { /* sessionStorage/localStorage unavailable — intentionally ignored */ }
     })
 
     // Mock downloads endpoint
