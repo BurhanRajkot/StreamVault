@@ -1,5 +1,6 @@
 # StreamVault CI/CD
 # Path-filtered, security-hardened, SLSA L3-attested pipeline.
+# All third-party actions pinned to immutable commit SHAs.
 
 name: StreamVault CI/CD
 
@@ -20,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "24"
   BUN_VERSION:  "latest"
   PLATFORMS:    "linux/amd64,linux/arm64"
   # Opt in to Node.js 24 for JS-based actions ahead of the June 2026 migration.
@@ -42,11 +43,11 @@ jobs:
       docker:   ${{ steps.filter.outputs.docker }}
       infra:    ${{ steps.filter.outputs.infra }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Detect changed paths
         id: filter
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
         with:
           filters: |
             frontend:
@@ -82,7 +83,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
         with:
           fetch-depth: 0   # Full history required by Gitleaks
 
@@ -106,7 +107,7 @@ jobs:
 
       - name: Upload SARIF results
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
         with:
           sarif_file: results.sarif
           category: gitleaks
@@ -128,10 +129,10 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Review dependency changes
-        uses: actions/dependency-review-action@v4.7.0
+        uses: actions/dependency-review-action@38ecb5b593bf0eb19e335c03f97670f792489a8b  # v4.7.0
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
@@ -148,10 +149,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -193,7 +194,7 @@ jobs:
           fi
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: frontend-dist
           path: dist/
@@ -211,13 +212,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       # Cache Bun's global package store. Key is tied to the lockfile;
       # restore-keys allow partial hits when packages are added/removed.
       - name: Restore Bun cache
         id: bun-cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('backend/bun.lockb') }}
@@ -225,7 +226,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Setup Bun ${{ env.BUN_VERSION }}
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -251,7 +252,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: backend-test-results
           path: backend/test-results.xml
@@ -271,18 +272,18 @@ jobs:
       contents:        read
       security-events: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
         with:
           languages: javascript-typescript
           queries: security-and-quality
 
-      - uses: github/codeql-action/autobuild@v4
+      - uses: github/codeql-action/autobuild@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
 
       - name: Analyze
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
         with:
           category: "/language:javascript-typescript"
 
@@ -308,10 +309,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -324,7 +325,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Download built frontend artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: frontend-dist
           path: dist/
@@ -353,7 +354,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: playwright-report
           path: e2e/playwright-report/
@@ -361,7 +362,7 @@ jobs:
 
       - name: Upload Playwright test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: playwright-results
           path: e2e/test-results/
@@ -415,7 +416,7 @@ jobs:
 #
 #  Order of operations per image:
 #    1. Build locally (no push)
-#    2. Trivy scan — block on CRITICAL/HIGH CVEs
+#    2. Trivy scan — BLOCK on fixable CRITICAL/HIGH CVEs
 #    3. Push multi-platform image with provenance + SBOM
 #
 #  Registry: ghcr.io/<owner-lc>/streamvault-{frontend,backend}
@@ -435,18 +436,18 @@ jobs:
       security-events: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392  # v3.6.0
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2  # v3.10.0
         with:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772  # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -461,7 +462,7 @@ jobs:
 
       - name: Docker metadata — frontend
         id: meta_frontend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
         with:
           images: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
           tags: |
@@ -474,7 +475,7 @@ jobs:
             org.opencontainers.image.vendor=${{ github.repository_owner }}
 
       - name: Build frontend image (local, pre-scan)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
         with:
           context: .
           file: ./Dockerfile
@@ -486,25 +487,25 @@ jobs:
 
       - name: Scan frontend image with Trivy
         id: trivy_frontend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
         with:
           image-ref:      streamvault-frontend:scan
           format:         sarif
           output:         trivy-frontend.sarif
           severity:       CRITICAL,HIGH
-          exit-code:      "0"   # Report vulns but don't block publish — findings visible in Security tab
-          ignore-unfixed: true
+          exit-code:      "1"   # BLOCK on fixable CRITICAL/HIGH — hardened per supply chain policy
+          ignore-unfixed: true  # Don't block on zero-days with no upstream patch
 
       - name: Upload frontend Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
         with:
           sarif_file: trivy-frontend.sarif
           category:   trivy-frontend
 
       - name: Build and push frontend image (multi-platform)
         id: build_frontend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
         with:
           context: .
           file: ./Dockerfile
@@ -518,7 +519,7 @@ jobs:
           cache-to:   type=gha,scope=frontend,mode=max
 
       - name: Attest frontend build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd  # v2.3.0
         with:
           subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
           subject-digest:   ${{ steps.build_frontend.outputs.digest }}
@@ -528,7 +529,7 @@ jobs:
 
       - name: Docker metadata — backend
         id: meta_backend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
         with:
           images: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
           tags: |
@@ -541,7 +542,7 @@ jobs:
             org.opencontainers.image.vendor=${{ github.repository_owner }}
 
       - name: Build backend image (local, pre-scan)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -553,25 +554,25 @@ jobs:
 
       - name: Scan backend image with Trivy
         id: trivy_backend
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
         with:
           image-ref:      streamvault-backend:scan
           format:         sarif
           output:         trivy-backend.sarif
           severity:       CRITICAL,HIGH
-          exit-code:      "0"   # Report vulns but don't block publish — findings visible in Security tab
-          ignore-unfixed: true
+          exit-code:      "1"   # BLOCK on fixable CRITICAL/HIGH — hardened per supply chain policy
+          ignore-unfixed: true  # Don't block on zero-days with no upstream patch
 
       - name: Upload backend Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
         with:
           sarif_file: trivy-backend.sarif
           category:   trivy-backend
 
       - name: Build and push backend image (multi-platform)
         id: build_backend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -585,7 +586,7 @@ jobs:
           cache-to:   type=gha,scope=backend,mode=max
 
       - name: Attest backend build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd  # v2.3.0
         with:
           subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
           subject-digest:   ${{ steps.build_backend.outputs.digest }}
@@ -618,7 +619,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       # - name: Authenticate to Google Cloud
       #   uses: google-github-actions/auth@v3
@@ -652,7 +653,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       # - name: Authenticate to Google Cloud
       #   uses: google-github-actions/auth@v3

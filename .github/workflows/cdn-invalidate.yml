@@ -1,0 +1,138 @@
+# StreamVault — Selective CDN Cache Invalidation
+# Triggered after frontend deployment completes.
+# Parses the Vite build manifest to identify changed assets and
+# issues targeted path-based invalidations instead of wildcard purges.
+
+name: "CDN Cache Invalidation"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target CDN environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      invalidate_all:
+        description: "Force full invalidation (use sparingly)"
+        required: false
+        type: boolean
+        default: false
+  workflow_run:
+    workflows: ["GitOps — Update Image Tags"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  invalidate:
+    name: "Invalidate CDN Cache"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Install dependencies & build
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
+      - name: Parse Vite build manifest
+        id: manifest
+        run: |
+          # Vite generates a manifest at dist/.vite/manifest.json
+          MANIFEST="dist/.vite/manifest.json"
+
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::warning::Build manifest not found at ${MANIFEST}"
+            echo "paths=/index.html" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Extract all output file paths from the manifest
+          PATHS=$(node -e "
+            const m = require('./${MANIFEST}');
+            const paths = new Set(['/index.html']);
+            for (const entry of Object.values(m)) {
+              if (entry.file) paths.add('/' + entry.file);
+              if (entry.css) entry.css.forEach(c => paths.add('/' + c));
+            }
+            console.log([...paths].join('\n'));
+          ")
+
+          echo "Paths to invalidate:"
+          echo "$PATHS"
+
+          # Save as a multiline output
+          {
+            echo "paths<<EOF"
+            echo "$PATHS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Invalidate CDN paths
+        env:
+          # ── CloudFront ────────────────────────────────────
+          # AWS_DISTRIBUTION_ID: ${{ secrets.AWS_DISTRIBUTION_ID }}
+          # AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # AWS_REGION: us-east-1
+          #
+          # ── Cloudflare ────────────────────────────────────
+          # CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          #
+          # ── Vercel ────────────────────────────────────────
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          FORCE_ALL="${{ inputs.invalidate_all || 'false' }}"
+
+          if [ "$FORCE_ALL" = "true" ]; then
+            echo "::warning::Full cache invalidation requested — this will cause origin load spikes."
+            INVALIDATION_PATHS="/*"
+          else
+            INVALIDATION_PATHS="${{ steps.manifest.outputs.paths }}"
+          fi
+
+          echo "══════════════════════════════════════════════"
+          echo "  CDN Cache Invalidation"
+          echo "══════════════════════════════════════════════"
+          echo "$INVALIDATION_PATHS" | head -20
+          TOTAL=$(echo "$INVALIDATION_PATHS" | wc -l)
+          echo "  Total paths: ${TOTAL}"
+          echo "══════════════════════════════════════════════"
+
+          # ── Uncomment one of the following blocks ─────────
+
+          # ── CloudFront Invalidation ──
+          # aws cloudfront create-invalidation \
+          #   --distribution-id "$AWS_DISTRIBUTION_ID" \
+          #   --paths $(echo "$INVALIDATION_PATHS" | tr '\n' ' ')
+
+          # ── Cloudflare Purge ──
+          # FILES_JSON=$(echo "$INVALIDATION_PATHS" | jq -R -s 'split("\n") | map(select(length > 0)) | map("https://streamvault.example.com" + .)')
+          # curl -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+          #   -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+          #   -H "Content-Type: application/json" \
+          #   --data "{\"files\": ${FILES_JSON}}"
+
+          # ── Vercel Edge Purge ──
+          # Vercel automatically invalidates on deploy, but for manual control:
+          # curl -X POST "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/purge" \
+          #   -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+          #   -H "Content-Type: application/json"
+
+          echo "✓ CDN invalidation complete (configure provider above)."

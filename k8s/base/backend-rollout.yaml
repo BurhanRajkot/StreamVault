@@ -1,0 +1,113 @@
+# StreamVault Backend — Argo Rollout with Canary Strategy
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: streamvault-backend
+  labels:
+    app.kubernetes.io/name: streamvault-backend
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: streamvault-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: streamvault-backend
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: streamvault-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: backend
+          image: ghcr.io/burhanrajkot/streamvault-backend:latest  # Updated by GitOps workflow
+          ports:
+            - name: http
+              containerPort: 4000
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: streamvault-config
+                  key: REDIS_URL
+          envFrom:
+            - secretRef:
+                name: streamvault-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+  strategy:
+    canary:
+      canaryService: streamvault-backend-canary
+      stableService: streamvault-backend-stable
+      trafficRouting:
+        istio:
+          virtualServices:
+            - name: streamvault-backend-vsvc
+              routes:
+                - primary
+      steps:
+        - setWeight: 5
+        - pause: { duration: 5m }
+        - analysis:
+            templates:
+              - templateName: success-rate
+              - templateName: p95-latency
+            args:
+              - name: service-name
+                value: streamvault-backend-canary
+        - setWeight: 20
+        - pause: { duration: 5m }
+        - analysis:
+            templates:
+              - templateName: success-rate
+              - templateName: p95-latency
+            args:
+              - name: service-name
+                value: streamvault-backend-canary
+        - setWeight: 50
+        - pause: { duration: 10m }
+        - analysis:
+            templates:
+              - templateName: success-rate
+            args:
+              - name: service-name
+                value: streamvault-backend-canary
+        - setWeight: 100
+      maxSurge: 1
+      maxUnavailable: 0
+      abortScaleDownDelaySeconds: 30

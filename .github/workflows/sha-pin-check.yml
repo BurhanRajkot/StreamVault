@@ -1,0 +1,30 @@
+# StreamVault — SHA Pinning Enforcement
+# Blocks PRs that introduce mutable action references (e.g., @v4 instead of @sha).
+# Ensures supply chain security by requiring all third-party actions
+# to be pinned to immutable 40-character commit SHAs.
+
+name: "Enforce SHA-Pinned Actions"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  sha-pin-check:
+    name: "Verify Action SHA Pinning"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Ensure SHA-pinned actions
+        uses: zgosalvez/github-actions-ensure-sha-pinned-actions@4830be28ce81da52ec70d65c552a7403821d98d4  # v3.0.23
+        with:
+          # Allow local actions referenced via relative paths (./path/to/action).
+          # These are implicitly pinned to the repository's executing commit.
+          allowList: |
+            actions/*

@@ -1,0 +1,58 @@
+# Backend Services — Stable + Canary for Argo Rollouts traffic splitting
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamvault-backend-stable
+  labels:
+    app.kubernetes.io/name: streamvault-backend
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: streamvault-backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamvault-backend-canary
+  labels:
+    app.kubernetes.io/name: streamvault-backend
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: streamvault-backend
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: streamvault-backend-vsvc
+spec:
+  hosts:
+    - api.streamvault.example.com  # Replace with your API domain
+  gateways:
+    - streamvault-gateway
+  http:
+    - name: primary
+      route:
+        - destination:
+            host: streamvault-backend-stable
+            port:
+              number: 4000
+          weight: 100
+        - destination:
+            host: streamvault-backend-canary
+            port:
+              number: 4000
+          weight: 0
