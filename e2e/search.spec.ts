@@ -13,7 +13,7 @@ test.describe('Search UI', () => {
     await context.addInitScript(() => {
       try {
         window.sessionStorage.setItem('disclaimerAccepted', 'true')
-      } catch (e) {}
+      } catch (e) { /* sessionStorage unavailable — intentionally ignored */ }
     })
 
     // Mock TMDB movie details for modal opens

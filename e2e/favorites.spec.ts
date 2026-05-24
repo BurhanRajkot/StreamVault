@@ -10,7 +10,7 @@ test.describe('Favorites Watchlist Flow', () => {
     await context.addInitScript(() => {
       try {
         window.sessionStorage.setItem('disclaimerAccepted', 'true')
-      } catch (e) {}
+      } catch (e) { /* sessionStorage unavailable — intentionally ignored */ }
     })
 
     // Mock favorites database endpoint
