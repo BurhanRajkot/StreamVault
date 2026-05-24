@@ -39,7 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           cacheLocation="localstorage"
           useRefreshTokens
         >
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
             <App />
             <Toaster />
           </ThemeProvider>

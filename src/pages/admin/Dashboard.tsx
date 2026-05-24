@@ -4,7 +4,7 @@ import { Check, X, Loader2, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/Footer'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import {
   Table,
   TableBody,
@@ -37,7 +37,7 @@ export default function AdminDashboard() {
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(isAdminAuthenticated())
   const [showLoginModal, setShowLoginModal] = useState(false)
-  const { toast } = useToast()
+
 
   const fetchRequests = useCallback(async () => {
     const adminToken = getAdminToken()
@@ -64,15 +64,11 @@ export default function AdminDashboard() {
       setRequests(data)
       setIsAdmin(true)
     } catch (err) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load subscription requests',
-        variant: 'destructive',
-      })
+      toast.error('Failed to load subscription requests')
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     fetchRequests()
@@ -82,11 +78,7 @@ export default function AdminDashboard() {
     const adminToken = getAdminToken()
     if (!adminToken) {
       setIsAdmin(false)
-      toast({
-        title: 'Authentication Required',
-        description: 'You must be logged in as admin to perform this action',
-        variant: 'destructive',
-      })
+      toast.error('You must be logged in as admin to perform this action')
       return
     }
 
@@ -103,19 +95,12 @@ export default function AdminDashboard() {
 
       if (!res.ok) throw new Error(`Failed to ${action} request`)
 
-      toast({
-        title: `Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
-        description: `Successfully processed the subscription request`,
-      })
+      toast.success(`Request ${action === 'approve' ? 'Approved' : 'Rejected'}`)
 
       // Refresh list
       fetchRequests()
     } catch (err) {
-      toast({
-        title: 'Action Failed',
-        description: `Could not ${action} the request. Please try again.`,
-        variant: 'destructive',
-      })
+      toast.error(`Could not ${action} the request. Please try again.`)
     } finally {
       setProcessingId(null)
     }

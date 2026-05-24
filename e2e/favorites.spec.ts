@@ -10,13 +10,14 @@ test.describe('Favorites Watchlist Flow', () => {
     await context.addInitScript(() => {
       try {
         window.sessionStorage.setItem('disclaimerAccepted', 'true')
-        window.localStorage.removeItem('e2e_mock_authenticated')
-        window.localStorage.removeItem('e2e_mock_user')
       } catch (e) {}
     })
 
     // Mock favorites database endpoint
     await page.route('**/favorites', async route => {
+      if (route.request().resourceType() === 'document') {
+        return route.continue()
+      }
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -104,7 +105,12 @@ test.describe('Favorites Watchlist Flow', () => {
     // Navigate to favorites unauthenticated
     await page.goto('/favorites')
 
-    // Wait for the mock auto-login to trigger and redirect
+    // Click the mock sign-in button on the login page
+    const loginBtn = page.locator('button:has-text("Sign In to Account")')
+    await expect(loginBtn).toBeVisible({ timeout: 10000 })
+    await loginBtn.click()
+
+    // Wait for the redirect back and verify it shows empty favorites
     const emptyHeader = page.locator('h3:has-text("Nothing saved yet")')
     await expect(emptyHeader).toBeVisible({ timeout: 15000 })
   })
@@ -127,30 +133,33 @@ test.describe('Favorites Watchlist Flow', () => {
     await movieCard.click()
 
     // Add to favorites
-    const favBtn = page.locator('button[aria-label="Add to favorites"]')
+    const favBtn = page.locator('button[aria-label="Add to favorites"]').last()
     await expect(favBtn).toBeVisible()
     await favBtn.click()
 
     // Verify button text changes to "Remove from favorites"
-    const unfavBtn = page.locator('button[aria-label="Remove from favorites"]')
+    const unfavBtn = page.locator('button[aria-label="Remove from favorites"]').last()
     await expect(unfavBtn).toBeVisible()
 
     // Navigate to /favorites and verify movie card is shown
     await page.goto('/favorites')
+    await page.waitForLoadState('networkidle')
     const favCard = page.locator('.group.relative.cursor-pointer, [role="button"]:has(img)').first()
     await expect(favCard).toBeVisible({ timeout: 10000 })
 
     // Open detail modal from favorites page
     await favCard.click()
 
-    // Remove from favorites
-    const removeBtn = page.locator('button[aria-label="Remove from favorites"]')
-    await expect(removeBtn).toBeVisible()
-    await removeBtn.click()
+    // Remove from favorites — the button lives in the modal top-nav which has
+    // `pointer-events-auto`, but Playwright's hit-test sees the pre-play layer
+    // (absolute inset-0 z-10) as intercepting, so we use force:true.
+    const removeBtn = page.locator('button[aria-label="Remove from favorites"]').last()
+    await expect(removeBtn).toBeVisible({ timeout: 10000 })
+    await removeBtn.click({ force: true })
 
-    // Close details modal
+    // Close details modal via the Back button in the top nav
     const closeBtn = page.locator('button:has-text("Back"), button:has-text("Close")').first()
-    await closeBtn.click()
+    await closeBtn.click({ force: true })
 
     // Verify page displays empty state again
     const emptyHeader = page.locator('h3:has-text("Nothing saved yet")')

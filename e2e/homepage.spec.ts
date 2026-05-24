@@ -224,9 +224,8 @@ test.describe('Interactive UI Features', () => {
     // Click theme button
     await themeBtn.click()
     
-    // Verify theme class changed
-    const newClass = await page.locator('html').getAttribute('class')
-    expect(newClass).not.toBe(initialClass)
+    // Verify theme class changed (uses auto-waiting locator assertion)
+    await expect(page.locator('html')).not.toHaveClass(initialClass || '')
   })
 
   test('should filter content when clicking on an OTT provider', async ({ page }) => {
