@@ -1,0 +1,14 @@
+# Production: scale for high availability
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: streamvault-frontend
+spec:
+  replicas: 5
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: streamvault-backend
+spec:
+  replicas: 5

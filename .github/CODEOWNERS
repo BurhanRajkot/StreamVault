@@ -1,0 +1,23 @@
+# StreamVault — Code Ownership
+# Require review from maintainers for security-sensitive paths.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Pipeline & CI/CD
+.github/workflows/      @dragon-manner
+
+# Container images
+Dockerfile              @dragon-manner
+backend/Dockerfile      @dragon-manner
+nginx.conf              @dragon-manner
+.dockerignore           @dragon-manner
+
+# Kubernetes & Infrastructure
+k8s/                    @dragon-manner
+
+# Database migrations
+backend/supabase/       @dragon-manner
+
+# Security-sensitive configuration
+.env.example            @dragon-manner
+vercel.json             @dragon-manner
+netlify.toml            @dragon-manner

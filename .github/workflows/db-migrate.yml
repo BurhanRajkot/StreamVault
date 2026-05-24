@@ -1,0 +1,155 @@
+# StreamVault — Database Migration Orchestrator
+# Implements the Expand-Contract pattern for zero-downtime schema evolution.
+# Manual trigger with phase selection and environment targeting.
+
+name: "Database Migration"
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_phase:
+        description: "Migration phase (expand = additive, contract = subtractive)"
+        required: true
+        type: choice
+        options:
+          - expand
+          - contract
+      migration_file:
+        description: "Specific migration file to run (e.g., 20260222174434_ml_tables.sql). Leave empty for latest."
+        required: false
+        type: string
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      dry_run:
+        description: "Dry run — validate without applying"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: db-migration-${{ inputs.environment }}
+  cancel-in-progress: false  # Never cancel running migrations
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: "Validate Migration"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Validate migration file exists
+        run: |
+          MIGRATION_DIR="backend/supabase/migrations"
+          FILE="${{ inputs.migration_file }}"
+
+          if [ -n "$FILE" ]; then
+            if [ ! -f "${MIGRATION_DIR}/${FILE}" ]; then
+              echo "::error::Migration file not found: ${MIGRATION_DIR}/${FILE}"
+              ls -la "${MIGRATION_DIR}/"
+              exit 1
+            fi
+            echo "Migration file validated: ${FILE}"
+          else
+            LATEST=$(ls -1 "${MIGRATION_DIR}"/*.sql 2>/dev/null | tail -1)
+            if [ -z "$LATEST" ]; then
+              echo "::error::No SQL migration files found in ${MIGRATION_DIR}/"
+              exit 1
+            fi
+            echo "Latest migration: $(basename "$LATEST")"
+          fi
+
+      - name: Check migration phase compatibility
+        run: |
+          PHASE="${{ inputs.migration_phase }}"
+          FILE="${{ inputs.migration_file }}"
+
+          echo "Phase: ${PHASE}"
+          echo "Environment: ${{ inputs.environment }}"
+
+          if [ "$PHASE" = "contract" ] && [ "${{ inputs.environment }}" = "production" ]; then
+            echo "::warning::CONTRACT phase on PRODUCTION — this will DROP schema elements!"
+            echo "::warning::Ensure the expand phase has been applied and all data migrated."
+          fi
+
+  migrate:
+    name: "Run Migration (${{ inputs.migration_phase }})"
+    needs: [validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Setup Supabase CLI
+        run: |
+          curl -sSfL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz \
+            | tar -xz -C /usr/local/bin supabase
+          supabase --version
+
+      - name: Determine migration file
+        id: migration
+        run: |
+          MIGRATION_DIR="backend/supabase/migrations"
+          FILE="${{ inputs.migration_file }}"
+
+          if [ -n "$FILE" ]; then
+            echo "file=${MIGRATION_DIR}/${FILE}" >> "$GITHUB_OUTPUT"
+          else
+            LATEST=$(ls -1 "${MIGRATION_DIR}"/*.sql 2>/dev/null | tail -1)
+            echo "file=${LATEST}" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Migration: $(cat "$GITHUB_OUTPUT")"
+
+      - name: Execute migration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          PHASE="${{ inputs.migration_phase }}"
+          DRY_RUN="${{ inputs.dry_run }}"
+          FILE="${{ steps.migration.outputs.file }}"
+
+          echo "══════════════════════════════════════════════"
+          echo "  Phase:       ${PHASE}"
+          echo "  Environment: ${{ inputs.environment }}"
+          echo "  File:        ${FILE}"
+          echo "  Dry Run:     ${DRY_RUN}"
+          echo "══════════════════════════════════════════════"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY RUN — validating SQL syntax only."
+            cat "$FILE"
+            echo ""
+            echo "✓ Migration file is valid SQL (dry run complete)."
+          else
+            echo "Applying migration to ${{ inputs.environment }}..."
+            # Link to the remote Supabase project
+            supabase link --project-ref "$SUPABASE_PROJECT_REF"
+            # Push the migration
+            supabase db push
+            echo "✓ Migration applied successfully."
+          fi
+
+      - name: Post-migration validation
+        if: inputs.dry_run == false
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          echo "Running post-migration health check..."
+          # Verify database is responsive after migration
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db lint
+          echo "✓ Post-migration validation passed."

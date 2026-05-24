@@ -1,0 +1,29 @@
+# Prometheus AnalysisTemplate — P95 Latency
+# Used by Argo Rollouts during canary steps.
+# Calculates the 95th percentile response time. Fails if P95
+# latency exceeds 300ms for 3 consecutive checks.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: p95-latency
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: p95-latency
+      interval: 1m
+      count: 5
+      successCondition: result[0] <= 0.3
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            histogram_quantile(
+              0.95,
+              sum(rate(
+                http_request_duration_seconds_bucket{
+                  service="{{args.service-name}}"
+                }[1m]
+              )) by (le)
+            )

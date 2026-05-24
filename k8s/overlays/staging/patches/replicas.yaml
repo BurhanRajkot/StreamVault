@@ -1,0 +1,14 @@
+# Staging: reduce replicas to save resources
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: streamvault-frontend
+spec:
+  replicas: 1
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: streamvault-backend
+spec:
+  replicas: 1
