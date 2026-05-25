@@ -50,7 +50,7 @@ test.describe('Homepage', () => {
 
   test('should have a meta description', async ({ page }) => {
     await page.goto('/')
-    const desc = await page.locator('meta[name="description"]').getAttribute('content')
+    const desc = await page.locator('meta[name="description"]').first().getAttribute('content')
     expect(desc).toBeTruthy()
     expect((desc ?? '').length).toBeGreaterThan(20)
   })
