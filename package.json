@@ -12,7 +12,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "bun test src/",
+    "test": "bun test ./src",
     "test:backend": "cd backend && bun test",
     "e2e": "playwright test",
     "e2e:ci": "playwright test --reporter=list,html",
