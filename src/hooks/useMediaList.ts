@@ -53,6 +53,8 @@ interface UseMediaListOptions {
     removeError: string
   }
   onAddSuccess?: (tmdbId: number, mediaType: 'movie' | 'tv', genreIds?: number[]) => void
+  /** Auth0 user.sub — include so different accounts never share the same in-memory list */
+  userId?: string | null
 }
 
 export function useMediaList({
@@ -60,9 +62,16 @@ export function useMediaList({
   unauthenticatedMessage,
   messages,
   onAddSuccess,
+  userId,
 }: UseMediaListOptions) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [items, setItems] = useState<MediaItem[]>([])
+
+  // When the logged-in user changes (e.g. friend logs in on same browser),
+  // wipe the list immediately so the old user's data is never visible.
+  useEffect(() => {
+    setItems([])
+  }, [userId])
 
   // Track in-flight requests to prevent race conditions from rapid double-clicks
   const pendingRef = useRef<Set<string>>(new Set())
@@ -102,7 +111,9 @@ export function useMediaList({
       console.error(`Failed to load ${endpoint}:`, err)
       setItems([])
     }
-  }, [isAuthenticated, getHeaders, endpoint])
+  // userId is intentionally included: if the account changes, we must re-fetch
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, getHeaders, endpoint, userId])
 
   useEffect(() => {
     loadItems()

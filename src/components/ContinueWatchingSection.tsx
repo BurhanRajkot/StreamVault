@@ -26,11 +26,13 @@ interface Props {
 }
 
 export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props) {
-  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+  const { isAuthenticated, isLoading: authLoading, user, getAccessTokenSilently } = useAuth0()
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const queryKey = ['continueWatching', isAuthenticated ? 'user' : 'guest', refreshKey]
+  // Include the user's unique ID in the key so each account gets its own isolated
+  // cache entry. Without this, User B logging in would see User A's cached data.
+  const queryKey = ['continueWatching', isAuthenticated ? (user?.sub ?? 'user') : 'guest', refreshKey]
 
   const [isHovered, setIsHovered] = useState(false)
   const [showLeftButton, setShowLeftButton] = useState(false)
@@ -66,8 +68,13 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
       const resolved = await fetchAggregatedContinueWatching(filtered)
       return resolved as ContinueWatchingEntry[]
     },
-    staleTime: 2 * 60 * 1000,  // 2 minutes — short enough to stay fresh
-    gcTime: 10 * 60 * 1000,    // keep in cache 10 min after unmount
+    // Don't run while Auth0 is still restoring session from localStorage —
+    // otherwise the query fires as 'guest' first, caches guest data, and then
+    // the user-key query fires too late (stale cache wins).
+    enabled: !authLoading,
+    staleTime: 2 * 60 * 1000,   // 2 minutes — short enough to stay fresh
+    gcTime: 10 * 60 * 1000,     // keep in cache 10 min after unmount
+    refetchOnMount: true,        // always re-validate on mount (user-data must be fresh)
     refetchOnWindowFocus: false, // prevent expensive re-fetch when returning to tab
   })
 

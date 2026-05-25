@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, useRef, lazy, Suspense } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
@@ -103,6 +103,31 @@ function PrefetchRecommendations() {
   return null
 }
 
+/**
+ * UserSwitchGuard — clears ALL React Query cache when the logged-in user changes.
+ *
+ * Scenario: User A watches something (data cached). User A logs out, User B logs in.
+ * Without this guard, User B would momentarily see User A's cached continue-watching /
+ * recommendations / favorites until each query re-fetches. queryClient.clear() nukes
+ * everything instantly so User B always starts with a clean slate.
+ */
+function UserSwitchGuard() {
+  const { user } = useAuth0()
+  const queryClient = useQueryClient()
+  const prevUserIdRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    const currentId = user?.sub
+    if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== currentId) {
+      // The logged-in account changed — wipe every cached query
+      queryClient.clear()
+    }
+    prevUserIdRef.current = currentId
+  }, [user?.sub, queryClient])
+
+  return null
+}
+
 export default function App() {
   // FRONTEND WARM-UP PING (ELIMINATES COLD START FOR FIRST USER)
   useEffect(() => {
@@ -115,6 +140,7 @@ export default function App() {
     <ErrorBoundary>
       <SmoothScrollProvider>
         <PrefetchRecommendations />
+        <UserSwitchGuard />
         <HelmetProvider>
           <FavoritesProvider>
             <DislikesProvider>
