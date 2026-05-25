@@ -99,9 +99,10 @@ export function MovieDetailModal({
       }
       try {
         if (isAuthenticated) {
-          const token = await getAccessTokenSilently({
-            authorizationParams: { audience: import.meta.env.VITE_AUTH0_AUDIENCE },
-          })
+          // Do NOT pass authorizationParams: { audience } here — that forces a
+          // silent-auth iframe round-trip which can fail in restricted browsers,
+          // resulting in progress never being saved. Auth0 serves a cached token.
+          const token = await getAccessTokenSilently()
           await updateContinueWatching(token, item)
         } else {
           saveGuestProgress(item)
