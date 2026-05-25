@@ -10,7 +10,7 @@ export interface Favorite {
 }
 
 export function useFavoritesInternal() {
-  const { getAccessTokenSilently } = useAuth0()
+  const { getAccessTokenSilently, user } = useAuth0()
 
   const handleAddSuccess = useCallback(
     (tmdbId: number, mediaType: 'movie' | 'tv', genreIds?: number[]) => {
@@ -46,6 +46,7 @@ export function useFavoritesInternal() {
       removeError: 'Failed to remove favorite',
     },
     onAddSuccess: handleAddSuccess,
+    userId: user?.sub ?? null,
   })
 
   return {
@@ -54,3 +55,4 @@ export function useFavoritesInternal() {
     toggleFavorite,
   }
 }
+

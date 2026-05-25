@@ -1,3 +1,4 @@
+import { useAuth0 } from '@auth0/auth0-react'
 import { useMediaList } from './useMediaList'
 
 export interface DislikeItem {
@@ -7,6 +8,8 @@ export interface DislikeItem {
 }
 
 export function useDislikesInternal() {
+  const { user } = useAuth0()
+
   const {
     items: dislikes,
     hasItem: isDisliked,
@@ -20,6 +23,7 @@ export function useDislikesInternal() {
       addError: 'Failed to log dislike',
       removeError: 'Failed to undo dislike',
     },
+    userId: user?.sub ?? null,
   })
 
   return {
@@ -28,3 +32,4 @@ export function useDislikesInternal() {
     toggleDislike,
   }
 }
+
