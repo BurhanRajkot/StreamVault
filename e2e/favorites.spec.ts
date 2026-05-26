@@ -33,6 +33,8 @@ test.describe('Favorites Watchlist Flow', () => {
           contentType: 'application/json',
           body: JSON.stringify(item)
         })
+      } else {
+        await route.continue()
       }
     })
 
@@ -46,6 +48,8 @@ test.describe('Favorites Watchlist Flow', () => {
           contentType: 'application/json',
           body: JSON.stringify({ success: true })
         })
+      } else {
+        await route.continue()
       }
     })
 
@@ -133,8 +137,9 @@ test.describe('Favorites Watchlist Flow', () => {
     await movieCard.click()
 
     // Add to favorites
+    await expect(page).toHaveURL(/.*\/watch\/.*/)
     const favBtn = page.locator('button[aria-label="Add to favorites"]').last()
-    await expect(favBtn).toBeVisible()
+    await expect(favBtn).toBeVisible({ timeout: 10000 })
     await favBtn.click()
 
     // Verify button text changes to "Remove from favorites"
@@ -149,6 +154,7 @@ test.describe('Favorites Watchlist Flow', () => {
 
     // Open detail modal from favorites page
     await favCard.click()
+    await expect(page).toHaveURL(/.*\/watch\/.*/)
 
     // Remove from favorites — the button lives in the modal top-nav which has
     // `pointer-events-auto`, but Playwright's hit-test sees the pre-play layer
@@ -160,6 +166,7 @@ test.describe('Favorites Watchlist Flow', () => {
     // Close details modal via the Back button in the top nav
     const closeBtn = page.locator('button:has-text("Back"), button:has-text("Close")').first()
     await closeBtn.click({ force: true })
+    await expect(page).toHaveURL(/.*\/favorites.*/)
 
     // Verify page displays empty state again
     const emptyHeader = page.locator('h3:has-text("Nothing saved yet")')

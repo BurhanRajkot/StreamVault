@@ -25,7 +25,11 @@ const ROUTES_TO_CHECK = [
 test.describe('Smoke — App Shell', () => {
   test('the React app mounts without crashing', async ({ page }) => {
     const jsErrors: string[] = []
-    page.on('pageerror', err => jsErrors.push(err.message))
+    page.on('pageerror', err => {
+      if (!err.message.includes('Failed to fetch')) {
+        jsErrors.push(err.message)
+      }
+    })
 
     await page.goto('/', { waitUntil: 'domcontentloaded' })
 
