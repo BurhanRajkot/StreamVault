@@ -56,7 +56,13 @@ const Watch = () => {
         media={media}
         mode={mode}
         onClose={() => {
-          navigate('/')
+          if (location.state?.backgroundLocation) {
+            navigate(location.state.backgroundLocation)
+          } else if (window.history.length > 2) {
+            navigate(-1)
+          } else {
+            navigate('/')
+          }
         }}
         initialSeason={season}
         initialEpisode={episode}
