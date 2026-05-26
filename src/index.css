@@ -253,7 +253,9 @@
       height: 100%;
       z-index: -1;
       pointer-events: none;
-      transition: opacity 0.5s ease-in-out, background 0.5s ease-in-out;
+      /* Promote to its own compositor layer so scroll doesn't trigger repaints */
+      will-change: opacity;
+      transition: opacity 0.5s ease-in-out;
 
       /* Creative Mesh Gradient (Light) */
       background:
@@ -587,16 +589,39 @@
    */
   .below-fold-section {
     content-visibility: auto;
-    /* Estimated height prevents layout shift when the browser skips rendering */
-    contain-intrinsic-size: 0 340px;
+    /* Accurate estimated height prevents layout shift and jank when browser skips rendering */
+    contain-intrinsic-size: 0 380px;
   }
 
   /** Horizontal row skeleton placeholder — avoids CLS while items load */
   .row-skeleton-container {
     min-height: 240px;
   }
-}
 
+  /* ── Hero Carousel Progress Bar (CSS-only, zero JS ticking) ──────────── */
+  .hero-progress-bar {
+    width: 0%;
+    will-change: width;
+    animation: hero-progress-fill 6000ms linear forwards;
+  }
+
+  @keyframes hero-progress-fill {
+    from { width: 0%; }
+    to   { width: 100%; }
+  }
+
+  /* ── GPU-composited scroll elements ─────────────────────────────────── */
+  /* Promote cards that scale on hover to their own layer ahead of time
+     so the GPU can handle the transform without triggering layout */
+  .group:hover {
+    will-change: transform;
+  }
+
+  /* Prevent hover-scale from triggering layout on siblings */
+  .media-card-grid {
+    isolation: isolate;
+  }
+}
 /* View Transitions API */
 ::view-transition-old(root),
 ::view-transition-new(root) {
