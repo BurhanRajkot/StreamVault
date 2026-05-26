@@ -81,7 +81,7 @@ export function MediaGrid({
     count: totalRows,
     getScrollElement: () => document.documentElement,
     estimateSize: () => rowHeight,
-    overscan: 5,           // pre-render 5 rows above/below viewport for silky-smooth scrolling
+    overscan: 2,           // pre-render 2 rows above/below; 5 was too many compositor layers
     gap,
   })
 
@@ -136,6 +136,7 @@ export function MediaGrid({
                 left: 0,
                 right: 0,
                 transform: `translateY(${virtualRow.start}px)`,
+                willChange: 'transform',
                 display: 'grid',
                 gridTemplateColumns: `repeat(${cols}, 1fr)`,
                 gap: `${gap}px`,

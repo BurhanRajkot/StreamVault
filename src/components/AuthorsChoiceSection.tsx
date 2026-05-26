@@ -146,6 +146,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
       <div
         id={`authors-choice-row-${mode}`}
         className="flex gap-4 overflow-x-auto scroll-smooth px-8 pb-4 no-scrollbar"
+        style={{ contain: 'layout' }}
       >
         {loading
           ? Array.from({ length: 8 }).map((_, i) => (
