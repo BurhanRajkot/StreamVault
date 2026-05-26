@@ -80,19 +80,26 @@ export function RecommendationRow({
 
   useEffect(() => {
     let unsubscribe: any;
+    // Only update React state when the show/hide boundary actually changes
+    // to avoid triggering re-renders on every animation frame
+    let prevLeft = false
+    let prevRight = true
+
     const handleXChange = (latest: number) => {
-      setShowLeftButton(latest < -10);
-      setShowRightButton(latest > -carouselWidth + 10 && carouselWidth > 0);
-    };
+      const nextLeft = latest < -10
+      const nextRight = latest > -carouselWidth + 10 && carouselWidth > 0
+      if (nextLeft !== prevLeft) { prevLeft = nextLeft; setShowLeftButton(nextLeft) }
+      if (nextRight !== prevRight) { prevRight = nextRight; setShowRightButton(nextRight) }
+    }
 
     if (x.on) {
-      unsubscribe = x.on('change', handleXChange);
+      unsubscribe = x.on('change', handleXChange)
     } else if ((x as any).onChange) {
-      unsubscribe = (x as any).onChange(handleXChange);
+      unsubscribe = (x as any).onChange(handleXChange)
     }
     
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) unsubscribe()
     }
   }, [x, carouselWidth])
 
@@ -183,6 +190,7 @@ export function RecommendationRow({
         <div
           ref={carouselRef}
           className="overflow-hidden pb-4"
+          style={{ contain: 'layout' }}
         >
         {/* ── Inner Physics Track ───────────────────────────────── */}
         <motion.div

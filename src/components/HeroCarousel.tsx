@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Media } from '@/lib/config'
 import { MediaCard } from './MediaCard'
@@ -13,48 +13,42 @@ const INTERVAL_MS = 6000
 
 export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [progress, setProgress] = useState(0)
+  // progressKey is bumped each time we reset the CSS animation — zero JS ticking
+  const [progressKey, setProgressKey] = useState(0)
   const touchStartX = useRef<number | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isPausedRef = useRef(false)
 
   const displayItems = items.slice(0, 5)
   const count = displayItems.length
 
-  /**
-   * startTimer — resets and restarts both the progress ticker and the slide advancer.
-   * Called on mount, on manual slide change, and whenever count changes.
-   */
-  const startTimer = () => {
+  const startTimer = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
-    if (progressRef.current) clearInterval(progressRef.current)
-    setProgress(0)
+    setProgressKey((k) => k + 1) // restart CSS progress animation
     if (count === 0) return
 
-    const tickMs = 60 // ~60fps progress update
-    progressRef.current = setInterval(() => {
-      setProgress((p) => Math.min(p + (tickMs / INTERVAL_MS) * 100, 100))
-    }, tickMs)
-
     intervalRef.current = setInterval(() => {
+      if (isPausedRef.current) return
       setCurrentIndex((prev) => (prev + 1) % count)
-      setProgress(0)
+      setProgressKey((k) => k + 1)
     }, INTERVAL_MS)
-  }
+  }, [count])
 
   useEffect(() => {
     startTimer()
+    // Pause when tab is hidden to save resources
+    const onVisibility = () => { isPausedRef.current = document.hidden }
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
-      if (progressRef.current) clearInterval(progressRef.current)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [count])
+  }, [startTimer])
 
-  const goTo = (index: number) => {
+  const goTo = useCallback((index: number) => {
     setCurrentIndex(index)
     startTimer()
-  }
+  }, [startTimer])
 
   const goToPrev = () => goTo((currentIndex - 1 + count) % count)
   const goToNext = () => goTo((currentIndex + 1) % count)
@@ -132,7 +126,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
         <ChevronRight className="h-5 w-5" />
       </button>
 
-      {/* Slide indicators with live progress fill on active dot */}
+      {/* Slide indicators with CSS-animated progress (zero JS per-tick) */}
       <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2">
         {displayItems.map((_, index) => (
           <button
@@ -148,8 +142,8 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
           >
             {index === currentIndex && (
               <span
-                className="absolute inset-y-0 left-0 rounded-full bg-white"
-                style={{ width: `${progress}%`, transition: 'width 60ms linear' }}
+                key={progressKey}
+                className="absolute inset-y-0 left-0 rounded-full bg-white hero-progress-bar"
               />
             )}
           </button>

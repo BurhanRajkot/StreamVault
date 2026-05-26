@@ -158,6 +158,7 @@ function MediaCardComponent({
           fetchPriority="high"
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-[10s] group-hover/hero:scale-110"
+          style={{ willChange: 'transform', transform: 'translateZ(0)' }}
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 pointer-events-none" />
