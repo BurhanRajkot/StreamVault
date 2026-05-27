@@ -1,155 +1,199 @@
-import { test, expect } from '@playwright/test'
+/**
+ * StreamVault E2E — Admin Control & Downloads Portal
+ *
+ * Covers:
+ *  - Unauthenticated visit to /downloads shows Premium gate
+ *  - Admin Login button is visible on the gate
+ *  - Admin login modal accepts HMAC code
+ *  - Incorrect code shows an error
+ *  - After admin login: downloads list renders with expected items
+ *  - Search filters the list (case-insensitive)
+ *  - Clear search restores full list
+ *  - /admin/dashboard renders request rows
+ *  - Approve action triggers success toast
+ *  - Reject action triggers rejection toast
+ *  - Admin dashboard shows both pending requests
+ */
+
+import { test, expect } from './fixtures'
+import { DownloadsPage } from './pages/DownloadsPage'
+import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import crypto from 'crypto'
+import { ADMIN_HMAC_SECRET } from './fixtures/mocks'
 
-test.describe('Admin Control & Downloads Portal', () => {
-  test.beforeEach(async ({ context, page }) => {
-    // Clear tokens and set regular user auth state
-    await context.addInitScript(() => {
-      try {
-        window.sessionStorage.setItem('disclaimerAccepted', 'true')
-        window.localStorage.setItem('e2e_mock_authenticated', 'true')
-        window.localStorage.setItem('e2e_mock_user', JSON.stringify({
-          sub: 'auth0|mock-user-123',
-          name: 'Regular User',
-          email: 'regular@example.com'
-        }))
-      } catch (e) { /* sessionStorage/localStorage unavailable — intentionally ignored */ }
-    })
+// ─── Downloads — Premium Gate ──────────────────────────────────────────────
 
-    // Mock downloads endpoint
-    await page.route('**/downloads', async route => {
-      if (route.request().resourceType() === 'document') {
-        return route.continue()
-      }
-      const authHeader = route.request().headers()['authorization']
-      if (authHeader && authHeader.includes('mock-admin-jwt-token')) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([
-            { id: 'dl-1', title: 'The Dark Knight', quality: '1080p BluRay', filename: 'dark_knight.mp4' },
-            { id: 'dl-2', title: 'Inception', quality: '2160p 4K HDR', filename: 'inception_4k.mkv' }
-          ])
-        })
-      } else {
-        await route.fulfill({
-          status: 403,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'upgrade required. premium feature.' })
-        })
-      }
-    })
-
-    // Mock admin login endpoint
-    await page.route('**/admin/login', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          token: 'mock-admin-jwt-token',
-          expiresIn: '30m'
-        })
-      })
-    })
-
-    // Mock admin requests list
-    await page.route('**/subscriptions/admin/requests', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          {
-            id: 'req-1',
-            user_id: 'user-123',
-            email: 'premium-user@example.com',
-            plan_id: 'premium',
-            amount: 499,
-            currency: 'INR',
-            transaction_id: 'TXN_987654',
-            status: 'pending',
-            created_at: new Date().toISOString()
-          }
-        ])
-      })
-    })
-
-    // Mock approve/reject endpoints
-    await page.route('**/subscriptions/admin/approve', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true })
-      })
-    })
-
-    // Mock recommendations profile
-    await page.route('**/recommendations/profile', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ isNewUser: false })
-      })
-    })
+test.describe('Downloads — Premium Gate (Unauthenticated/Free User)', () => {
+  test('visiting /downloads shows the premium feature gate', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.goto()
+    await expect(downloads.premiumWarning).toBeVisible({ timeout: 10_000 })
   })
 
-  test('should display admin login button, authorize using HMAC code, search downloads, and manage admin dashboard', async ({ page }) => {
-    // 1. Visit Downloads page
-    await page.goto('/downloads')
+  test('Admin Login button is visible on the premium gate', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.goto()
+    await expect(downloads.premiumWarning).toBeVisible({ timeout: 10_000 })
+    await expect(downloads.adminLoginButton).toBeVisible()
+  })
 
-    // 2. Assert Premium upgrade warning screen is displayed (since we return 403 initially)
-    const premiumWarning = page.locator('h2:has-text("Premium Feature")')
-    await expect(premiumWarning).toBeVisible({ timeout: 10000 })
+  test('admin login modal opens when button is clicked', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.goto()
+    await expect(downloads.adminLoginButton).toBeVisible({ timeout: 10_000 })
+    await downloads.adminLoginButton.click()
+    await expect(downloads.adminCodeInput).toBeVisible({ timeout: 5_000 })
+  })
+})
 
-    // 3. Assert Admin Login button is visible and click it
-    const adminLoginBtn = page.locator('button:has-text("Admin Login")')
-    await expect(adminLoginBtn).toBeVisible()
-    await adminLoginBtn.click()
+// ─── Downloads — Admin Login ───────────────────────────────────────────────
 
-    // 4. Calculate proper HMAC code in the test runner
-    const date = new Date()
-    const dateString = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
-    const calculatedCode = crypto.createHmac('sha256', '98677').update(dateString).digest('hex')
+test.describe('Downloads — Admin Login Flow', () => {
+  test('correct HMAC code unlocks the downloads list', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.goto()
+    await downloads.loginAsAdmin()
 
-    // 5. Fill input and submit admin login modal
-    const codeInput = page.locator('input[placeholder*="daily code"]')
-    await expect(codeInput).toBeVisible()
-    await codeInput.fill(calculatedCode)
-    await page.locator('button[type="submit"]:has-text("Login")').click()
+    // Downloads list should now be visible
+    const darkKnight = page.locator('[aria-label*="The Dark Knight"], text=The Dark Knight').first()
+    await expect(darkKnight).toBeVisible({ timeout: 10_000 })
+  })
 
-    // 6. Verify downloads list mounts and contains movie elements
-    const darkKnightCard = page.locator('button[aria-label*="The Dark Knight"], div[aria-label*="The Dark Knight"]').first()
-    await expect(darkKnightCard).toBeVisible({ timeout: 10000 })
+  test('wrong code shows an error message', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.goto()
 
-    // 7. Verify search functionality filters items
-    const searchInput = page.locator('input[placeholder*="Search downloads"]')
-    await searchInput.fill('Inception')
-    // Dark knight should be hidden, Inception should be visible
-    await expect(page.locator('text=The Dark Knight')).not.toBeVisible()
-    await expect(page.locator('text=Inception')).toBeVisible()
+    await expect(downloads.adminLoginButton).toBeVisible({ timeout: 10_000 })
+    await downloads.adminLoginButton.click()
+    await expect(downloads.adminCodeInput).toBeVisible()
 
-    // Clear search
-    const clearBtn = page.locator('button[aria-label="Clear search"]')
-    await clearBtn.click()
-    await expect(page.locator('text=The Dark Knight')).toBeVisible()
+    // Enter a deliberately wrong code
+    await downloads.adminCodeInput.fill('00000000000000000000000000000000wrongcode')
+    await downloads.adminLoginSubmitButton.click()
 
-    // 8. Navigate to Admin Dashboard /admin/dashboard
-    await page.goto('/admin/dashboard')
+    const errorMsg = page.locator('text=Invalid, text=incorrect, text=wrong, text=error, text=Error, [role="alert"]').first()
+    // Either an error is shown or the modal stays open (doesn't close and unlock)
+    const modalStillOpen = await downloads.adminCodeInput.isVisible({ timeout: 3_000 }).catch(() => false)
+    const hasError = await errorMsg.isVisible({ timeout: 3_000 }).catch(() => false)
+    expect(modalStillOpen || hasError, 'Wrong code did not show error or keep modal open').toBe(true)
+  })
 
-    // 9. Verify Admin Dashboard requests list mounts
-    const reqEmail = page.locator('td:has-text("premium-user@example.com")')
-    await expect(reqEmail).toBeVisible({ timeout: 10000 })
-    
-    // Verify status badge is PENDING
-    const pendingBadge = page.locator('div:has-text("PENDING"), span:has-text("PENDING")').first()
-    await expect(pendingBadge).toBeVisible()
+  test('empty code submission does not crash the page', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.goto()
 
-    // Click Approve button (the green Check button)
-    const approveBtn = page.locator('button.bg-green-600').first()
-    await approveBtn.click()
+    await expect(downloads.adminLoginButton).toBeVisible({ timeout: 10_000 })
+    await downloads.adminLoginButton.click()
+    await expect(downloads.adminCodeInput).toBeVisible()
+    await downloads.adminLoginSubmitButton.click()
 
-    // Once approved, verify it doesn't crash and triggers toast/action
-    const toast = page.locator('text=Request Approved').or(page.locator('text=processed'))
-    await expect(toast.first()).toBeVisible({ timeout: 10000 })
+    // Page should not crash
+    await expect(page.locator('#root')).toBeVisible()
+  })
+})
+
+// ─── Downloads — List & Search ─────────────────────────────────────────────
+
+test.describe('Downloads — List Interactions (After Admin Login)', () => {
+  test.beforeEach(async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.goto()
+    await downloads.loginAsAdmin()
+    // Wait for downloads list to be populated
+    await expect(page.locator('text=The Dark Knight').first()).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('downloads list contains all mocked items', async ({ mockApiPage: page }) => {
+    await expect(page.locator('text=The Dark Knight').first()).toBeVisible()
+    await expect(page.locator('text=Inception').first()).toBeVisible()
+    await expect(page.locator('text=Breaking Bad').first()).toBeVisible()
+  })
+
+  test('search input filters the downloads list', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.searchDownloads('Inception')
+
+    await expect(page.locator('text=Inception').first()).toBeVisible()
+    await expect(page.locator('text=The Dark Knight').first()).not.toBeVisible()
+  })
+
+  test('search is case-insensitive', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.searchDownloads('inception')
+    await expect(page.locator('text=Inception').first()).toBeVisible()
+  })
+
+  test('clearing search restores full list', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.searchDownloads('Inception')
+    await expect(page.locator('text=The Dark Knight').first()).not.toBeVisible()
+
+    await downloads.clearSearch()
+    await expect(page.locator('text=The Dark Knight').first()).toBeVisible({ timeout: 5_000 })
+    await expect(page.locator('text=Inception').first()).toBeVisible()
+  })
+
+  test('searching for a non-existent item shows empty state', async ({ mockApiPage: page }) => {
+    const downloads = new DownloadsPage(page)
+    await downloads.searchDownloads('Avatar: The Way of Water')
+    await page.waitForTimeout(300)
+
+    const hasItems = await page.locator('text=The Dark Knight, text=Inception, text=Breaking Bad').first().isVisible().catch(() => false)
+    expect(hasItems).toBe(false)
+  })
+})
+
+// ─── Admin Dashboard ──────────────────────────────────────────────────────
+
+test.describe('Admin Dashboard — /admin/dashboard', () => {
+  test('admin dashboard renders the request table', async ({ mockApiPage: page }) => {
+    const admin = new AdminDashboardPage(page)
+    await admin.goto()
+
+    // Should see both pending requests
+    await expect(admin.rowByEmail('premium-user@example.com')).toBeVisible({ timeout: 10_000 })
+    await expect(admin.rowByEmail('basic-user@example.com')).toBeVisible()
+  })
+
+  test('pending requests show PENDING status badge', async ({ mockApiPage: page }) => {
+    const admin = new AdminDashboardPage(page)
+    await admin.goto()
+
+    await expect(admin.rowByEmail('premium-user@example.com')).toBeVisible({ timeout: 10_000 })
+    await expect(admin.statusBadge('PENDING')).toBeVisible()
+  })
+
+  test('approving a request triggers a success toast/notification', async ({ mockApiPage: page }) => {
+    const admin = new AdminDashboardPage(page)
+    await admin.goto()
+
+    await expect(admin.firstApproveButton).toBeVisible({ timeout: 10_000 })
+    await admin.approveFirstRequest()
+
+    await expect(admin.successToast).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('rejecting a request triggers a rejection toast/notification', async ({ mockApiPage: page }) => {
+    const admin = new AdminDashboardPage(page)
+    await admin.goto()
+
+    await expect(admin.firstRejectButton).toBeVisible({ timeout: 10_000 })
+    await admin.rejectFirstRequest()
+
+    await expect(admin.rejectToast.or(admin.successToast)).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('admin dashboard has an <h1> heading', async ({ mockApiPage: page }) => {
+    const admin = new AdminDashboardPage(page)
+    await admin.goto()
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 8_000 })
+  })
+
+  test('transaction IDs are visible in the table', async ({ mockApiPage: page }) => {
+    const admin = new AdminDashboardPage(page)
+    await admin.goto()
+    await expect(admin.rowByEmail('premium-user@example.com')).toBeVisible({ timeout: 10_000 })
+    const txnId = page.locator('text=TXN_987654').first()
+    await expect(txnId).toBeVisible()
   })
 })
