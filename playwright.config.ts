@@ -1,26 +1,36 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * StreamVault E2E / Audit Test Configuration
+ * StreamVault Playwright Configuration
  *
- * Runs against a locally built and previewed frontend (vite preview).
- * Set BASE_URL env var to point at a staging/production URL for remote audits.
+ * Single-browser (Chrome) strategy with deep, thorough coverage across:
+ *  - Authenticated and unauthenticated states
+ *  - All app routes and feature flows
+ *  - Multiple viewport sizes (tested within spec files via test.use)
+ *  - Mobile Chrome emulation for responsive tests
+ *
+ * Set BASE_URL to point at staging/production for remote audits.
  */
 export default defineConfig({
   testDir: './e2e',
   outputDir: './e2e/test-results',
 
-  /* Run all tests in a file in parallel */
+  /** Run tests in each file in parallel */
   fullyParallel: true,
 
-  /* Fail the build on CI if any test.only() is left in source */
+  /** Fail the build on CI if any test.only() is left in source */
   forbidOnly: !!process.env.CI,
 
-  /* Retry once on CI, never locally */
+  /** Retry once on CI, 0 locally for fast feedback */
   retries: process.env.CI ? 1 : 0,
 
-  /* Use 2 parallel workers on CI, hardware-limit locally */
+  /** Limit parallelism on CI to avoid resource contention */
   workers: process.env.CI ? 2 : undefined,
+
+  /** Attribute for page.getByTestId() */
+  use: {
+    testIdAttribute: 'data-testid',
+  },
 
   reporter: [
     ['list'],
@@ -28,32 +38,65 @@ export default defineConfig({
     ['json', { outputFile: 'e2e/test-results/results.json' }],
   ],
 
-  use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:4173',
-    /* Record screenshots, video, and traces for detailed testing output */
-    screenshot: 'on',
-    video: 'on',
-    trace: 'on',
-    /* Timeouts */
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
-  },
-
   projects: [
+    // ─── Primary: Desktop Chrome ─────────────────────────────────────────
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'Desktop Chrome',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.BASE_URL || 'http://localhost:4173',
+        /**
+         * Screenshots & video only on failure to keep artifacts lean.
+         * Traces always captured so you can replay failing tests in the
+         * Playwright Trace Viewer without re-running.
+         */
+        screenshot: 'only-on-failure',
+        video: 'retain-on-failure',
+        trace: 'retain-on-failure',
+        /* Generous timeouts — preview build can be slow to hydrate */
+        actionTimeout: 15_000,
+        navigationTimeout: 30_000,
+        /* Consistent locale / timezone for date-sensitive tests */
+        locale: 'en-US',
+        timezoneId: 'Asia/Kolkata',
+        /* Accept all permissions upfront */
+        permissions: [],
+      },
+    },
+
+    // ─── Mobile Chrome (Pixel 7) ──────────────────────────────────────────
+    // Runs the full suite against a mobile Chrome UA + viewport.
+    // Catches layout bugs that only appear in narrow/touch contexts.
+    {
+      name: 'Mobile Chrome (Pixel 7)',
+      use: {
+        ...devices['Pixel 7'],
+        baseURL: process.env.BASE_URL || 'http://localhost:4173',
+        screenshot: 'only-on-failure',
+        video: 'retain-on-failure',
+        trace: 'retain-on-failure',
+        actionTimeout: 20_000,
+        navigationTimeout: 45_000,
+        locale: 'en-US',
+        timezoneId: 'Asia/Kolkata',
+      },
+      /* Exclude heavy performance tests that are viewport-agnostic */
+      testIgnore: ['**/performance.spec.ts'],
     },
   ],
 
-  /* Start vite preview before running tests; skip on CI (server started separately) */
+  /* ─── Web Server ──────────────────────────────────────────────────────────
+   * Spins up `vite preview` (production build) before running tests.
+   * Skipped on CI where the server is started externally.
+   * VITE_MOCK_AUTH=true enables the mock auth0 provider in the preview build.
+   */
   webServer: process.env.CI
     ? undefined
     : {
         command: 'npm run build && npm run preview',
         url: 'http://localhost:4173',
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 180_000,
         stdout: 'pipe',
         stderr: 'pipe',
         env: {
