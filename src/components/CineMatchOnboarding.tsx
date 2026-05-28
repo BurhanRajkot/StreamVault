@@ -335,7 +335,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
       {/* ── Bottom Action Bar ── */}
       <div className={[
         'fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6 transition-all duration-500',
-        selectedIds.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0',
+        selectedIds.length > 0 ? 'opacity-100' : 'opacity-60',
       ].join(' ')}>
         <div className="max-w-4xl mx-auto bg-zinc-900/95 backdrop-blur-xl border border-white/10 p-4 sm:p-5 rounded-2xl flex items-center justify-between shadow-2xl shadow-black/50">
           {/* Count + Progress */}
@@ -414,7 +414,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
   )
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] overflow-hidden">
+    <div data-testid="onboarding" className="fixed inset-0 z-[9999] bg-[#0a0a0a] overflow-hidden">
       <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
         {content}
       </div>
