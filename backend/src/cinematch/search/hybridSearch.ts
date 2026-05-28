@@ -9,7 +9,6 @@
 // This gives exact-match precision (BM25) while retaining the
 // broad recall of TMDB's search index.
 // ============================================================
-
 import { rankWithBM25, BM25Document } from './bm25'
 import { logger } from '../../lib/logger'
 import { parseQueryNLU } from './queryParser'
@@ -17,7 +16,6 @@ import { crossEncoderReRank } from './crossEncoder'
 import { fetchTMDB } from '../utils/tmdb'
 
 // ── TMDB Result shape (simplified) ───────────────────────
-
 interface TMDBMultiResult {
   id: number
   media_type: 'movie' | 'tv' | 'person'
@@ -37,16 +35,12 @@ interface TMDBMultiResult {
   profile_path?: string | null
   known_for?: TMDBMultiResult[]
 }
-
 // ── Hybrid Search Result ──────────────────────────────────
-
 export interface HybridSearchResult extends TMDBMultiResult {
   bm25Score: number
   hybridScore: number
 }
-
 // ── Fetch from TMDB ───────────────────────────────────────
-
 async function fetchMultiSearch(
   query: string,
   page: number = 1,
@@ -54,13 +48,18 @@ async function fetchMultiSearch(
   try {
     const url = `/search/multi?query=${encodeURIComponent(query)}&page=${page}`
     const data = await fetchTMDB(url)
-    return (data?.results || []) as TMDBMultiResult[]
+    // fetchTMDB swallows HTTP errors and returns { results: [] }
+    // but a successful multi-search response should have a page field.
+    if (!data || !data.page) {
+      logger.error('[HybridSearch] TMDB fetch failed or returned unexpected data')
+      return []
+    }
+    return (data.results || []) as TMDBMultiResult[]
   } catch (err: any) {
     logger.error('[HybridSearch] TMDB MultiSearch error', { error: err.message })
     return []
   }
 }
-
 async function fetchDiscover(
   mediaType: 'movie' | 'tv',
   filters: Record<string, string>,
@@ -70,18 +69,15 @@ async function fetchDiscover(
     const cleanFilters: Record<string, string> = {
       page: page.toString(),
     }
-
     for (const k in filters) {
       const v = filters[k]
       // Exclude api_key if it's there, as fetchTMDB handles it
       if (v && k !== 'api_key') cleanFilters[k] = v
     }
-
     // Sort by popularity for general discover queries
     if (!cleanFilters.sort_by) {
       cleanFilters.sort_by = 'popularity.desc'
     }
-
     const params = new URLSearchParams(cleanFilters)
     
     const url = `/discover/${mediaType}?${params.toString()}`
@@ -93,9 +89,7 @@ async function fetchDiscover(
     return []
   }
 }
-
 // ── BM25 Adapter ─────────────────────────────────────────
-
 // Adapter type that satisfies BM25Document without conflicting with TMDBMultiResult.id
 interface TMDBBm25Doc extends BM25Document {
   id: string          // String composite key ("movie:12345")
@@ -118,7 +112,6 @@ interface TMDBBm25Doc extends BM25Document {
   profile_path?: string | null
   known_for?: TMDBMultiResult[]
 }
-
 function toDocuments(results: TMDBMultiResult[]): TMDBBm25Doc[] {
   return results.map(r => ({
     ...r,
@@ -132,7 +125,6 @@ function toDocuments(results: TMDBMultiResult[]): TMDBBm25Doc[] {
     },
   }))
 }
-
 // ── Hybrid Score ──────────────────────────────────────────
 // Blend BM25 relevance with TMDB's own popularity signal
 // so highly-relevant niche results aren't buried by big blockbusters.
@@ -140,27 +132,22 @@ function toDocuments(results: TMDBMultiResult[]): TMDBBm25Doc[] {
 //  hybridScore = 0.75 * bm25_norm + 0.25 * popularity_norm
 //
 // where bm25_norm and popularity_norm are min-max normalised to [0,1].
-
 function computeHybridScores(
   bm25Results: Array<{ doc: TMDBBm25Doc; bm25Score: number }>,
 ): HybridSearchResult[] {
   if (bm25Results.length === 0) return []
-
   const maxBM25 = Math.max(...bm25Results.map(r => r.bm25Score), 1e-9)
   const popularities = bm25Results.map(r => r.doc.popularity || 0)
   const maxPop = Math.max(...popularities, 1e-9)
-
   return bm25Results.map(({ doc, bm25Score }) => {
     const bm25Norm = bm25Score / maxBM25
     const popNorm = (doc.popularity || 0) / maxPop
     const hybridScore = 0.75 * bm25Norm + 0.25 * popNorm
-
     // Reconstruct the TMDBMultiResult shape with the numeric id
     const tmdbResult: TMDBMultiResult = {
       ...doc,
       id: doc.numericId,
     }
-
     return {
       ...tmdbResult,
       bm25Score,
@@ -168,9 +155,7 @@ function computeHybridScores(
     }
   }).sort((a, b) => b.hybridScore - a.hybridScore)
 }
-
 // ── Public API ────────────────────────────────────────────
-
 export interface HybridSearchOptions {
   query: string
   page?: number
@@ -179,7 +164,6 @@ export interface HybridSearchOptions {
   /** If provided, restrict to only this media type */
   mediaType?: 'movie' | 'tv'
 }
-
 /**
  * Execute a hybrid search:
  *   1. Fetch TMDB /search/multi results
@@ -191,7 +175,6 @@ export interface HybridSearchOptions {
  */
 export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSearchResult[]> {
   const { query, page = 1, mediaOnly = false, mediaType } = opts
-
   let results: TMDBMultiResult[] = []
   
   // 1. Attempt LLM/NLU parsing of the query
@@ -224,20 +207,16 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
     // 2. Standard heuristic flow: Fetch from TMDB Multi Search
     results = await fetchMultiSearch(query, page)
   }
-
   // Apply type filters
   if (mediaType) {
     results = results.filter(r => r.media_type === mediaType)
   } else if (mediaOnly) {
     results = results.filter(r => r.media_type === 'movie' || r.media_type === 'tv')
   }
-
   if (results.length === 0) return []
-
   // Convert to BM25 document format and score
   const docs = toDocuments(results)
   const bm25Ranked = rankWithBM25(query, docs)
-
   // Check if BM25 produced any signal (all-zero = pure stopwords query)
   const hasSignal = bm25Ranked.some(r => r.bm25Score > 0)
   if (!hasSignal) {
@@ -245,13 +224,11 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
     logger.info('[HybridSearch] BM25 produced no signal, using TMDB ordering', { query })
     return results.map(r => ({ ...r, bm25Score: 0, hybridScore: r.popularity || 0 }))
   }
-
   logger.info('[HybridSearch] BM25 re-ranked results', {
     query,
     count: results.length,
     topResult: `${bm25Ranked[0]?.doc.title || bm25Ranked[0]?.doc.name} (${bm25Ranked[0]?.bm25Score.toFixed(3)})`,
   })
-
   const scoredHybrid = computeHybridScores(bm25Ranked)
   
   // 3. Stage 2 Precision Re-Ranking via Cross-Encoder proxy
