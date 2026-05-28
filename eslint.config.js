@@ -29,5 +29,12 @@ export default tseslint.config(
     rules: {
       "react-refresh/only-export-components": "off",
     },
+  },
+  {
+    files: ["e2e/**/*.{ts,tsx}", "src/auth/mock-auth0.tsx"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+      "react-refresh/only-export-components": "off",
+    },
   }
 );
