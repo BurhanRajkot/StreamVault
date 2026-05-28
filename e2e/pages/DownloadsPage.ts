@@ -1,6 +1,5 @@
 import { type Page, type Locator, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
-import crypto from 'crypto'
 import { ADMIN_HMAC_SECRET } from '../fixtures/mocks'
 
 export class DownloadsPage extends BasePage {
@@ -40,7 +39,17 @@ export class DownloadsPage extends BasePage {
 
     const date = new Date()
     const dateString = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
-    const code = crypto.createHmac('sha256', ADMIN_HMAC_SECRET).update(dateString).digest('hex')
+    
+    const enc = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(ADMIN_HMAC_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+    const signature = await crypto.subtle.sign('HMAC', key, enc.encode(dateString))
+    const code = Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('')
 
     await expect(this.adminCodeInput).toBeVisible()
     await this.adminCodeInput.fill(code)
