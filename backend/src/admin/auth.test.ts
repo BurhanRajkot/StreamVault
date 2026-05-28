@@ -40,3 +40,50 @@ describe('Admin Auth - generateAdminToken', () => {
     expect(decoded.exp).toBe(decoded.iat + 30 * 60)
   })
 })
+
+
+describe('Admin Auth - isAdminConfigured', () => {
+  const localOriginalEnv = { ...process.env }
+
+  afterEach(() => {
+    // Clean up specific keys to avoid polluting subsequent tests
+    for (const key in process.env) {
+      if (!(key in localOriginalEnv)) {
+        delete process.env[key]
+      }
+    }
+    for (const key in localOriginalEnv) {
+      process.env[key] = localOriginalEnv[key]
+    }
+  })
+
+  it('should return true when required env variables are present', async () => {
+    process.env.ADMIN_SECRET = 'my_admin_secret'
+    process.env.ADMIN_JWT_SECRET = 'my_jwt_secret'
+
+    // Dynamic import with cache-buster query string
+    const { isAdminConfigured } = await import(`./auth.ts?t=${Date.now()}`)
+    expect(isAdminConfigured()).toBe(true)
+  })
+
+  it('should throw an error on module load if ADMIN_SECRET and ADMIN_SECRET_CODE are missing', async () => {
+    delete process.env.ADMIN_SECRET
+    delete process.env.ADMIN_SECRET_CODE
+    process.env.ADMIN_JWT_SECRET = 'my_jwt_secret'
+
+    // Expect the import itself to reject/throw
+    await expect(import(`./auth.ts?t=${Date.now() + 1}`)).rejects.toThrow(
+      'ADMIN_SECRET or ADMIN_SECRET_CODE environment variable is required'
+    )
+  })
+
+  it('should throw an error on module load if ADMIN_JWT_SECRET is missing', async () => {
+    process.env.ADMIN_SECRET = 'my_admin_secret'
+    delete process.env.ADMIN_JWT_SECRET
+
+    // Expect the import itself to reject/throw
+    await expect(import(`./auth.ts?t=${Date.now() + 2}`)).rejects.toThrow(
+      'ADMIN_JWT_SECRET environment variable is required'
+    )
+  })
+})
