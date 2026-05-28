@@ -138,9 +138,8 @@ test.describe('Homepage — Keyboard Navigation', () => {
 test.describe('Homepage — Theme Switching', () => {
   test('theme toggle switches between light and dark', async ({ unauthMockPage: page }) => {
     const home = new HomePage(page)
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
     await home.setTheme('light')
-    await page.goto('/')
-    await page.waitForLoadState('domcontentloaded')
 
     const themeBtn = page.locator('button[aria-label*="Switch to"], button[aria-label*="dark"], button[aria-label*="light"]').first()
     if (await themeBtn.count() === 0) {
