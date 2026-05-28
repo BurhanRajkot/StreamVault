@@ -14,6 +14,7 @@ import { rankWithBM25, BM25Document } from './bm25'
 import { logger } from '../../lib/logger'
 import { parseQueryNLU } from './queryParser'
 import { crossEncoderReRank } from './crossEncoder'
+import { fetchTMDB } from '../utils/tmdb'
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
@@ -56,13 +57,16 @@ async function fetchMultiSearch(
   if (!TMDB_API_KEY) return []
 
   try {
-    const url = `${TMDB_BASE_URL}/search/multi?query=${encodeURIComponent(query)}&page=${page}&api_key=${TMDB_API_KEY}`
-    const res = await fetch(url)
-    if (!res.ok) {
-      logger.error('[HybridSearch] TMDB fetch failed', { status: res.status })
+    const path = `/search/multi?query=${encodeURIComponent(query)}&page=${page}`
+    const data = await fetchTMDB(path)
+
+    // fetchTMDB swallows HTTP errors and returns { results: [] }
+    // but a successful multi-search response should have a page field.
+    if (!data || !data.page) {
+      logger.error('[HybridSearch] TMDB fetch failed or returned unexpected data')
       return []
     }
-    const data = await res.json()
+
     return (data.results || []) as TMDBMultiResult[]
   } catch (err: any) {
     logger.error('[HybridSearch] TMDB network error', { error: err.message })
