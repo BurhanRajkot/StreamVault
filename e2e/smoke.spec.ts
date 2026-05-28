@@ -39,7 +39,7 @@ test.describe('Smoke — App Shell (unauthenticated)', () => {
 
     const root = page.locator('#root')
     await expect(root).toBeVisible()
-    await expect(root.locator('> *').first()).toBeVisible({ timeout: 10_000 })
+    await expect(root.locator('> *:not(script)').first()).toBeVisible({ timeout: 10_000 })
     expect(errors).toHaveLength(0)
   })
 
@@ -53,7 +53,7 @@ test.describe('Smoke — App Shell (unauthenticated)', () => {
 
     const root = page.locator('#root')
     await expect(root).toBeVisible()
-    await expect(root.locator('> *').first()).toBeVisible({ timeout: 10_000 })
+    await expect(root.locator('> *:not(script)').first()).toBeVisible({ timeout: 10_000 })
     expect(errors).toHaveLength(0)
   })
 
