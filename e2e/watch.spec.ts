@@ -106,7 +106,7 @@ test.describe('Watch Page — Back Navigation', () => {
 
     // Should no longer be on the watch page
     expect(page.url()).not.toContain('/watch/')
-    await expect(page.locator('#root > *').first()).toBeVisible()
+    await expect(page.locator('#root > *:not(script)').first()).toBeVisible()
   })
 
   test('browser back button works from /watch', async ({ mockApiPage: page }) => {
@@ -163,7 +163,7 @@ test.describe('Watch Page — Unauthenticated', () => {
     const watch = new WatchPage(page)
     await watch.goto('movie', MOVIE_SLUG)
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('#root > *').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('#root > *:not(script)').first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('unauthenticated user cannot add to favorites (prompted or button absent)', async ({ unauthMockPage: page }) => {

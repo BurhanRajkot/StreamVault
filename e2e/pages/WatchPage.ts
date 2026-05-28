@@ -6,8 +6,12 @@ export class WatchPage extends BasePage {
     super(page)
   }
 
-  async goto(mediaType: 'movie' | 'tv', idAndSlug: string) {
-    await this.page.goto(`/watch/${mediaType}/${idAndSlug}`, { waitUntil: 'domcontentloaded' })
+  async goto(mediaTypeOrPath?: 'movie' | 'tv' | string, idAndSlug?: string) {
+    if (mediaTypeOrPath && idAndSlug) {
+      await this.page.goto(`/watch/${mediaTypeOrPath}/${idAndSlug}`, { waitUntil: 'domcontentloaded' })
+    } else {
+      await super.goto(mediaTypeOrPath)
+    }
   }
 
   // ─── URL Checks ───────────────────────────────────────────────────────────
