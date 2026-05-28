@@ -14,9 +14,7 @@ import { rankWithBM25, BM25Document } from './bm25'
 import { logger } from '../../lib/logger'
 import { parseQueryNLU } from './queryParser'
 import { crossEncoderReRank } from './crossEncoder'
-
-const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
+import { fetchTMDB } from '../utils/tmdb'
 
 // ── TMDB Result shape (simplified) ───────────────────────
 
@@ -53,19 +51,12 @@ async function fetchMultiSearch(
   query: string,
   page: number = 1,
 ): Promise<TMDBMultiResult[]> {
-  if (!TMDB_API_KEY) return []
-
   try {
-    const url = `${TMDB_BASE_URL}/search/multi?query=${encodeURIComponent(query)}&page=${page}&api_key=${TMDB_API_KEY}`
-    const res = await fetch(url)
-    if (!res.ok) {
-      logger.error('[HybridSearch] TMDB fetch failed', { status: res.status })
-      return []
-    }
-    const data = await res.json()
-    return (data.results || []) as TMDBMultiResult[]
+    const url = `/search/multi?query=${encodeURIComponent(query)}&page=${page}`
+    const data = await fetchTMDB(url)
+    return (data?.results || []) as TMDBMultiResult[]
   } catch (err: any) {
-    logger.error('[HybridSearch] TMDB network error', { error: err.message })
+    logger.error('[HybridSearch] TMDB MultiSearch error', { error: err.message })
     return []
   }
 }
@@ -75,35 +66,30 @@ async function fetchDiscover(
   filters: Record<string, string>,
   page: number = 1
 ): Promise<TMDBMultiResult[]> {
-  if (!TMDB_API_KEY) return []
-  
   try {
     const cleanFilters: Record<string, string> = {
-      api_key: TMDB_API_KEY,
       page: page.toString(),
     }
 
     for (const k in filters) {
       const v = filters[k]
-      if (v) cleanFilters[k] = v
+      // Exclude api_key if it's there, as fetchTMDB handles it
+      if (v && k !== 'api_key') cleanFilters[k] = v
     }
 
     // Sort by popularity for general discover queries
-    cleanFilters.sort_by = 'popularity.desc'
+    if (!cleanFilters.sort_by) {
+      cleanFilters.sort_by = 'popularity.desc'
+    }
 
     const params = new URLSearchParams(cleanFilters)
     
-    const url = `${TMDB_BASE_URL}/discover/${mediaType}?${params.toString()}`
-    const res = await fetch(url)
-    if (!res.ok) {
-      logger.error('[HybridSearch] TMDB discover failed', { status: res.status })
-      return []
-    }
-    const data = await res.json()
+    const url = `/discover/${mediaType}?${params.toString()}`
+    const data = await fetchTMDB(url)
     // Inject missing media_type since /discover doesn't return it
-    return (data.results || []).map((r: any) => ({ ...r, media_type: mediaType }))
+    return (data?.results || []).map((r: any) => ({ ...r, media_type: mediaType }))
   } catch (err: any) {
-    logger.error('[HybridSearch] TMDB network error', { error: err.message })
+    logger.error('[HybridSearch] TMDB Discover error', { error: err.message })
     return []
   }
 }
