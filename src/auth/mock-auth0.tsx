@@ -86,6 +86,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth0() {
   const context = useContext(Auth0Context)
   if (!context) {
