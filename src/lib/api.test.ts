@@ -1,5 +1,6 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { adminLogin } from './api';
+import { adminLogin, getImageUrl } from './api';
+import { CONFIG } from './config';
 
 const originalFetch = globalThis.fetch;
 
@@ -41,5 +42,45 @@ describe('adminLogin', () => {
     globalThis.fetch = mock(() => Promise.reject(networkError));
 
     expect(adminLogin('some-code')).rejects.toThrow('Network failure');
+  });
+});
+
+describe('getImageUrl', () => {
+  it('should return /placeholder.svg for null, undefined, or empty path', () => {
+    expect(getImageUrl(null)).toBe('/placeholder.svg');
+    expect(getImageUrl(undefined)).toBe('/placeholder.svg');
+    expect(getImageUrl('')).toBe('/placeholder.svg');
+  });
+
+  it('should return default poster size URL for valid path without size', () => {
+    expect(getImageUrl('/test.jpg')).toBe(`${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES.poster}/test.jpg`);
+  });
+
+  it('should return valid size URL when size is provided', () => {
+    expect(getImageUrl('/test.jpg', 'backdrop')).toBe(`${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES.backdrop}/test.jpg`);
+    expect(getImageUrl('/test.jpg', 'thumbnail')).toBe(`${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES.thumbnail}/test.jpg`);
+    expect(getImageUrl('/test.jpg', 'logo')).toBe(`${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES.logo}/test.jpg`);
+    expect(getImageUrl('/test.jpg', 'hero')).toBe(`${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES.hero}/test.jpg`);
+  });
+
+  it('should add missing leading slash if path is missing it', () => {
+    expect(getImageUrl('test.jpg')).toBe(`${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES.poster}/test.jpg`);
+  });
+
+  it('should fallback to poster size for invalid size argument', () => {
+    expect(getImageUrl('/test.jpg', 'invalid-size' as any)).toBe(`${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES.poster}/test.jpg`);
+  });
+
+  it('should return absolute URLs as-is', () => {
+    const urls = [
+      'http://example.com/image.jpg',
+      'https://example.com/image.jpg',
+      '//example.com/image.jpg',
+      'data:image/jpeg;base64,/9j/4AAQSkZJRg'
+    ];
+
+    urls.forEach(url => {
+      expect(getImageUrl(url)).toBe(url);
+    });
   });
 });

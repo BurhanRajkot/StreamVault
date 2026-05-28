@@ -405,11 +405,21 @@ export async function fetchTVSeasons(
 ====================================================== */
 
 export function getImageUrl(
-  path: string | null,
-  size: 'poster' | 'backdrop' | 'thumbnail' | 'logo' | 'hero' = 'poster'
+  path: string | null | undefined,
+  size: 'poster' | 'backdrop' | 'thumbnail' | 'logo' | 'hero' | (string & {}) = 'poster'
 ): string {
   if (!path) return '/placeholder.svg'
-  return `${CONFIG.IMG_BASE_URL}${CONFIG.IMG_SIZES[size]}${path}`
+
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('//') || path.startsWith('data:')) {
+    return path
+  }
+
+  // Cast size to keyof typeof CONFIG.IMG_SIZES or fallback to 'poster'
+  const sizeKey = (size in CONFIG.IMG_SIZES ? size : 'poster') as keyof typeof CONFIG.IMG_SIZES;
+  const sizePath = CONFIG.IMG_SIZES[sizeKey];
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  return `${CONFIG.IMG_BASE_URL}${sizePath}${cleanPath}`
 }
 
 /**
