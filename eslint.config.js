@@ -29,5 +29,11 @@ export default tseslint.config(
     rules: {
       "react-refresh/only-export-components": "off",
     },
+  },
+  {
+    files: ["e2e/**/*.{ts,tsx}"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
   }
 );
