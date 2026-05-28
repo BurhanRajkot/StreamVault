@@ -77,7 +77,7 @@ for (const vp of VIEWPORTS) {
         errors.push(msg)
       })
       await page.goto('/', { waitUntil: 'domcontentloaded' })
-      await expect(page.locator('#root > *').first()).toBeVisible({ timeout: 10_000 })
+      await expect(page.locator('#root > *:not(script)').first()).toBeVisible({ timeout: 10_000 })
       expect(errors, `JS errors at ${vp.width}px: ${errors.join('\n')}`).toHaveLength(0)
     })
   })
