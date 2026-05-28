@@ -198,7 +198,7 @@ test.describe('Favorites — Navigation', () => {
     await page.goto('/favorites')
     await page.waitForLoadState('domcontentloaded')
     expect(page.url().includes('login')).toBe(false)
-    await expect(page.locator('#root > *').first()).toBeVisible()
+    await expect(page.locator('header, main, nav').first()).toBeVisible()
   })
 
   test('browser back from /watch returns to /favorites', async ({ mockApiPage: page }) => {
@@ -218,6 +218,6 @@ test.describe('Favorites — Navigation', () => {
     }
 
     // Should be back on home or wherever we came from
-    await expect(page.locator('#root > *').first()).toBeVisible()
+    await expect(page.locator('header, main, nav').first()).toBeVisible()
   })
 })
