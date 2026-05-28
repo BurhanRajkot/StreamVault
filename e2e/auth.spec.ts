@@ -78,7 +78,7 @@ test.describe('Route Protection — Authenticated', () => {
     const isOnLoginPage = page.url().includes('login')
     expect(isOnLoginPage).toBe(false)
     // Page should render something (premium gate or content)
-    await expect(page.locator('#root > *').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('#root > *:not(script)').first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('auth state persists across page reload', async ({ mockApiPage: page }) => {
@@ -88,7 +88,7 @@ test.describe('Route Protection — Authenticated', () => {
     await page.waitForLoadState('domcontentloaded')
     // After reload, should still not be on login page
     expect(page.url().includes('login')).toBe(false)
-    await expect(page.locator('#root > *').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('#root > *:not(script)').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
