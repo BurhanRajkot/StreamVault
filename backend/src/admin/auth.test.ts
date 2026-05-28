@@ -8,7 +8,7 @@ process.env.ADMIN_JWT_SECRET = 'test-jwt-secret'
 const originalEnv = { ...process.env }
 
 // Inline implementation matching auth.ts — avoids mock.module cache conflicts
-// with middleware.test.ts which registers a partial mock for './auth.ts'
+// with middleware.test.ts which registers a partial mock for './auth'
 function generateAdminToken(): string {
   return jwt.sign({ role: 'admin' }, process.env.ADMIN_JWT_SECRET!, { expiresIn: '30m' })
 }
@@ -62,7 +62,7 @@ describe('Admin Auth - isAdminConfigured', () => {
     process.env.ADMIN_JWT_SECRET = 'my_jwt_secret'
 
     // Dynamic import with cache-buster query string
-    const { isAdminConfigured } = await import(`./auth.ts?t=${Date.now()}`)
+    const { isAdminConfigured } = await import(`./auth?t=${Date.now()}`)
     expect(isAdminConfigured()).toBe(true)
   })
 
@@ -72,7 +72,7 @@ describe('Admin Auth - isAdminConfigured', () => {
     process.env.ADMIN_JWT_SECRET = 'my_jwt_secret'
 
     // Expect the import itself to reject/throw
-    await expect(import(`./auth.ts?t=${Date.now() + 1}`)).rejects.toThrow(
+    await expect(import(`./auth?t=${Date.now() + 1}`)).rejects.toThrow(
       'ADMIN_SECRET or ADMIN_SECRET_CODE environment variable is required'
     )
   })
@@ -82,7 +82,7 @@ describe('Admin Auth - isAdminConfigured', () => {
     delete process.env.ADMIN_JWT_SECRET
 
     // Expect the import itself to reject/throw
-    await expect(import(`./auth.ts?t=${Date.now() + 2}`)).rejects.toThrow(
+    await expect(import(`./auth?t=${Date.now() + 2}`)).rejects.toThrow(
       'ADMIN_JWT_SECRET environment variable is required'
     )
   })
