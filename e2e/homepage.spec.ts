@@ -77,9 +77,11 @@ test.describe('Homepage — Navigation Bar', () => {
   })
 
   test('pricing link in nav navigates to /pricing', async ({ unauthMockPage: page }) => {
-    await page.goto('/')
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
     const pricingLink = page.locator('a[href*="pricing"], a[href*="plans"]').first()
-    if (await pricingLink.count() > 0) {
+    // The pricing link may be hidden on mobile (lg:block), check visibility not just count
+    const isVisible = await pricingLink.isVisible().catch(() => false)
+    if (isVisible) {
       await pricingLink.click()
       await page.waitForLoadState('domcontentloaded')
       expect(page.url()).toMatch(/pricing|plans/)
