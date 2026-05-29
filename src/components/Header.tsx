@@ -154,11 +154,11 @@ export function Header({
             <div ref={searchRef} className="relative flex items-center">
               <div
                 className={cn(
-                  'flex items-center overflow-hidden rounded-full border backdrop-blur-md',
+                  'flex items-center overflow-hidden rounded-full border backdrop-blur-md h-12',
                   isSearchOpen
                     ? 'border-slate-400/25 bg-slate-400/10'
                     : 'border-slate-400/12 bg-transparent',
-                  isSearchOpen ? (isMobile ? 'w-40' : 'w-[220px]') : 'w-11'
+                  isSearchOpen ? (isMobile ? 'w-40' : 'w-[220px]') : 'w-12'
                 )}
               >
                 {isSearchOpen && (
@@ -178,7 +178,7 @@ export function Header({
                   type="button"
                   onClick={handleSearchToggle}
                   className={cn(
-                    'inline-flex h-11 w-11 items-center justify-center',
+                    'inline-flex h-12 w-12 items-center justify-center',
                     isSearchOpen ? 'text-foreground' : mutedInteractiveClass
                   )}
                   aria-label={isSearchOpen ? 'Close search' : 'Open search'}
