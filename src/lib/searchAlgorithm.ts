@@ -99,6 +99,7 @@ export function jaroWinkler(s1: string, s2: string): number {
  * C: mean vote across the whole report (e.g. 6.5)
  */
 export function bayesianAverage(v: number, m: number, R: number, C: number): number {
+  if (v + m === 0) return C
   return (v / (v + m)) * R + (m / (v + m)) * C
 }
 
