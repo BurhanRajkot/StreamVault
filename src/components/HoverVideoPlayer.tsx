@@ -19,8 +19,8 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
     media.media_type ||
     (media.first_air_date ? "tv" : "movie")
 
-  const movieProvider = CONFIG.STREAM_PROVIDERS.vidfast_pro_movie;
-  const tvProvider = CONFIG.STREAM_PROVIDERS.vidfast_pro;
+  const movieProvider = CONFIG.STREAM_PROVIDERS.vidlink_pro_movie;
+  const tvProvider = CONFIG.STREAM_PROVIDERS.vidlink_pro;
 
   const url =
     mediaType === "movie"

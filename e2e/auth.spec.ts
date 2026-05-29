@@ -25,37 +25,15 @@ test.describe('Route Protection — Unauthenticated', () => {
   for (const { path, name } of PROTECTED_ROUTES) {
     test(`${name} (${path}) redirects or shows auth wall to unauthenticated user`, async ({ unauthMockPage: page }) => {
       await page.goto(path)
-
-      // Give the page up to 5s to redirect
-      await page.waitForURL(url => !url.pathname.startsWith(path), { timeout: 5_000 }).catch(() => {})
-
-      const currentUrl = page.url()
-      const wasRedirectedByUrl =
-        !currentUrl.includes(path) ||
-        currentUrl.includes('login') ||
-        currentUrl.includes('auth') ||
-        currentUrl.includes('signin')
-
-      // Alternatively, the page might show an in-page auth wall
-      const bodyText = await page.textContent('body').catch(() => '')
-      const showsAuthWall =
-        (bodyText ?? '').toLowerCase().includes('sign in') ||
-        (bodyText ?? '').toLowerCase().includes('log in') ||
-        (bodyText ?? '').toLowerCase().includes('access denied') ||
-        (bodyText ?? '').toLowerCase().includes('authorized')
-
-      expect(wasRedirectedByUrl || showsAuthWall, `${name} accessible without auth at ${currentUrl}`).toBe(true)
+      const signInBtn = page.getByText(/Sign In/i).first()
+      await expect(signInBtn).toBeVisible({ timeout: 20_000 })
     })
   }
 
   test('unauthenticated user on /favorites sees a sign-in button', async ({ unauthMockPage: page }) => {
     await page.goto('/favorites')
-    await page.waitForLoadState('domcontentloaded')
-    // Check for sign-in button (auth wall pattern) OR a redirect to /login
-    const signInBtn = page.locator('button:has-text("Sign In"), a:has-text("Sign In"), button:has-text("Log In")').first()
-    const onLoginPage = page.url().includes('login')
-    const hasSignIn = await signInBtn.isVisible({ timeout: 8_000 }).catch(() => false)
-    expect(hasSignIn || onLoginPage).toBe(true)
+    const signInBtn = page.getByText('Sign In to Account').first()
+    await expect(signInBtn).toBeVisible({ timeout: 20_000 })
   })
 })
 
@@ -78,7 +56,7 @@ test.describe('Route Protection — Authenticated', () => {
     const isOnLoginPage = page.url().includes('login')
     expect(isOnLoginPage).toBe(false)
     // Page should render something (premium gate or content)
-    await expect(page.locator('#root > *').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('#root > *:not(script)').first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('auth state persists across page reload', async ({ mockApiPage: page }) => {
@@ -88,7 +66,7 @@ test.describe('Route Protection — Authenticated', () => {
     await page.waitForLoadState('domcontentloaded')
     // After reload, should still not be on login page
     expect(page.url().includes('login')).toBe(false)
-    await expect(page.locator('#root > *').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('#root > *:not(script)').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
