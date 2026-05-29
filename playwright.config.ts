@@ -10,6 +10,10 @@ import { defineConfig, devices } from '@playwright/test'
  *  - Mobile Chrome emulation for responsive tests
  *
  * Set BASE_URL to point at staging/production for remote audits.
+ *
+ * IMPORTANT: video & screenshot are set to 'on' (not 'only-on-failure')
+ * so that every test run produces visual evidence. This ensures we can
+ * catch "tests pass but the site looks broken" issues in the report.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -32,6 +36,11 @@ export default defineConfig({
     testIdAttribute: 'data-testid',
   },
 
+  /** Global expect timeouts — give content-heavy assertions extra time */
+  expect: {
+    timeout: 10_000,
+  },
+
   reporter: [
     ['list'],
     ['html', { outputFolder: 'e2e/playwright-report', open: 'never' }],
@@ -46,12 +55,12 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         baseURL: process.env.BASE_URL || 'http://localhost:4173',
         /**
-         * Screenshots & video only on failure to keep artifacts lean.
-         * Traces always captured so you can replay failing tests in the
-         * Playwright Trace Viewer without re-running.
+         * Always capture screenshots & video so the Playwright report
+         * shows visual evidence for EVERY test — not just failures.
+         * This is critical for catching "passes but site is blank" issues.
          */
-        screenshot: 'only-on-failure',
-        video: 'retain-on-failure',
+        screenshot: 'on',
+        video: 'on',
         trace: 'retain-on-failure',
         /* Generous timeouts — preview build can be slow to hydrate */
         actionTimeout: 15_000,
@@ -72,8 +81,8 @@ export default defineConfig({
       use: {
         ...devices['Pixel 7'],
         baseURL: process.env.BASE_URL || 'http://localhost:4173',
-        screenshot: 'only-on-failure',
-        video: 'retain-on-failure',
+        screenshot: 'on',
+        video: 'on',
         trace: 'retain-on-failure',
         actionTimeout: 20_000,
         navigationTimeout: 45_000,
@@ -101,7 +110,7 @@ export default defineConfig({
         stderr: 'pipe',
         env: {
           VITE_MOCK_AUTH: 'true',
-          VITE_API_URL: 'http://localhost:4173',
+          VITE_API_URL: 'http://localhost:4000',
         },
       },
 })
