@@ -61,9 +61,19 @@ export function Header({
         setIsSearchOpen(false)
       }
     }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isSearchOpen) {
+        setIsSearchOpen(false)
+        if (searchQuery.trim().length > 0) onClearSearch()
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isSearchOpen, searchQuery, onClearSearch])
 
   useEffect(() => {
     if (searchQuery.trim().length > 0) {
@@ -157,6 +167,7 @@ export function Header({
                     placeholder="Search titles..."
                     value={searchQuery}
                     onChange={(e) => onSearch(e.target.value)}
+                    aria-label="Search movies and TV shows"
                     className="w-full bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                     style={{ paddingLeft: '14px' }}
                     autoFocus
