@@ -34,11 +34,11 @@ export class WatchPage extends BasePage {
   // ─── Favorites ────────────────────────────────────────────────────────────
 
   get addToFavoritesButton(): Locator {
-    return this.page.locator('button[aria-label="Add to favorites"]').last()
+    return this.page.locator('.fixed button[aria-label="Add to favorites"]').first()
   }
 
   get removeFromFavoritesButton(): Locator {
-    return this.page.locator('button[aria-label="Remove from favorites"]').last()
+    return this.page.locator('.fixed button[aria-label="Remove from favorites"]').first()
   }
 
   async addToFavorites() {

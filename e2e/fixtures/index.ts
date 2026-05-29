@@ -13,6 +13,7 @@
  */
 
 import { test as base, expect, type Page, type BrowserContext } from '@playwright/test'
+import crypto from 'crypto'
 import {
   buildDiscoverResponse,
   buildTrendingResponse,
@@ -20,6 +21,7 @@ import {
   buildEmptySearchResponse,
   MOCK_MOVIES,
   MOCK_ADMIN_TOKEN,
+  ADMIN_HMAC_SECRET,
   type MockFavorite,
 } from './mocks'
 
@@ -51,6 +53,29 @@ async function mockAuthenticate(context: BrowserContext, user = {
   }, user)
 }
 
+const getCodeForDate = (date: Date): string => {
+  const day = date.getDate()
+  const month = date.getMonth() + 1
+  const year = date.getFullYear()
+  const dateString = `${year}-${month}-${day}`
+  return crypto.createHmac('sha256', ADMIN_HMAC_SECRET).update(dateString).digest('hex')
+}
+
+function validateAdminCode(code: string): boolean {
+  if (!code || typeof code !== 'string') return false
+  const cleanCode = code.replace(/[\s-]/g, '').toLowerCase()
+  if (!cleanCode) return false
+
+  const now = new Date()
+  const codesToTry = [
+    getCodeForDate(now),
+    getCodeForDate(new Date(now.getTime() - 24 * 60 * 60 * 1000)), // yesterday
+    getCodeForDate(new Date(now.getTime() + 24 * 60 * 60 * 1000)), // tomorrow
+  ]
+
+  return codesToTry.includes(cleanCode)
+}
+
 /**
  * Register all standard API mock routes on a page.
  * Keeps a live `mockFavorites` array so POST/DELETE mutations work.
@@ -62,6 +87,16 @@ export async function registerApiMocks(page: Page, options: {
 } = {}) {
   const mockFavorites: MockFavorite[] = [...(options.initialFavorites ?? [])]
   const adminToken = options.adminToken ?? MOCK_ADMIN_TOKEN
+
+  // — TMDB Fallback Mock (registered first so it is checked last) ─────────────
+  await page.route('**/tmdb/**', async route => {
+    if (route.request().resourceType() === 'document') return route.continue()
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ results: [], total_pages: 0, total_results: 0 })
+    })
+  })
 
   // — TMDB Discovery / Trending ────────────────────────────────────────────
   await page.route('**/tmdb/discover/movie**', async route =>
@@ -143,7 +178,36 @@ export async function registerApiMocks(page: Page, options: {
     return route.continue()
   })
 
+  // — Dislikes CRUD ──────────────────────────────────────────────────────────
+  await page.route('**/dislikes', async route => {
+    if (route.request().resourceType() === 'document') return route.continue()
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+    }
+    return route.continue()
+  })
+
+  await page.route('**/dislikes/**', async route => {
+    if (route.request().method() === 'DELETE') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) })
+    }
+    return route.continue()
+  })
+
   // — Recommendations / Onboarding ───────────────────────────────────────────
+  await page.route('**/recommendations**', async route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        userId: 'mock-user-123',
+        items: [],
+        sections: [],
+        computedAt: new Date().toISOString(),
+        isPersonalized: false
+      })
+    })
+  )
   await page.route('**/recommendations/profile', async route =>
     route.fulfill({
       status: 200,
@@ -154,18 +218,31 @@ export async function registerApiMocks(page: Page, options: {
   await page.route('**/recommendations/onboarding', async route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) })
   )
-  await page.route('**/recommendations**', async route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ recommendations: [] }) })
-  )
 
   // — Admin Login & Downloads ─────────────────────────────────────────────────
-  await page.route('**/admin/login', async route =>
-    route.fulfill({
+  await page.route('**/admin/login', async route => {
+    if (route.request().method() === 'POST') {
+      const payload = JSON.parse(route.request().postData() || '{}')
+      if (validateAdminCode(payload.code)) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, token: adminToken, expiresIn: '30m' })
+        })
+      } else {
+        return route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ message: 'Invalid daily code' })
+        })
+      }
+    }
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ success: true, token: adminToken, expiresIn: '30m' })
     })
-  )
+  })
 
   await page.route('**/downloads', async route => {
     if (route.request().resourceType() === 'document') return route.continue()
