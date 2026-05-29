@@ -609,7 +609,7 @@ export async function fetchDownloads(token?: string): Promise<DownloadItem[]> {
 }
 
 export function downloadFile(id: string) {
-  window.location.href = `${API_BASE}/downloads/${id}/file`
+  window.location.href = `${API_BASE}/downloads/${encodeURIComponent(id)}/file`
 }
 
 /* ======================================================
