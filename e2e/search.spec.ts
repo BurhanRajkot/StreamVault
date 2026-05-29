@@ -121,7 +121,7 @@ test.describe('Search — Results & API Integration', () => {
     await expect(page).toHaveURL(/\/watch\//, { timeout: 10_000 })
   })
 
-  test('clearing the input hides results', async ({ unauthMockPage: page }) => {
+  test('clearing the input restores the default grid', async ({ unauthMockPage: page }) => {
     await page.goto('/')
     const search = new SearchPage(page)
     await search.open()
@@ -130,7 +130,7 @@ test.describe('Search — Results & API Integration', () => {
     await search.clearInput()
     await page.waitForTimeout(400)
     const count = await search.resultCards.count()
-    expect(count).toBe(0)
+    expect(count).toBeGreaterThan(0) // Default grid has multiple items
   })
 })
 
