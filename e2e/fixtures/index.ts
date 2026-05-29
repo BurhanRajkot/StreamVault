@@ -81,9 +81,20 @@ export async function registerApiMocks(page: Page, options: {
   await page.route(`**/tmdb/movie/${MOCK_MOVIES.darkKnight.id}**`, async route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildMovieDetailResponse(MOCK_MOVIES.darkKnight)) })
   )
-  await page.route(`**/tmdb/tv/${MOCK_MOVIES.breakingBad.id}**`, async route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildMovieDetailResponse(MOCK_MOVIES.breakingBad)) })
-  )
+  await page.route(`**/tmdb/tv/${MOCK_MOVIES.breakingBad.id}**`, async route => {
+    // Serve seasons endpoint specifically
+    if (route.request().url().includes('/seasons')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { season_number: 1, episode_count: 7, name: 'Season 1' },
+          { season_number: 2, episode_count: 13, name: 'Season 2' },
+        ])
+      })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildMovieDetailResponse(MOCK_MOVIES.breakingBad)) })
+  })
 
   // — Search ─────────────────────────────────────────────────────────────────
   await page.route('**/tmdb/search/hybrid**', async route => {
@@ -211,6 +222,36 @@ export async function registerApiMocks(page: Page, options: {
   // — User Subscriptions ──────────────────────────────────────────────────────
   await page.route('**/subscriptions/user**', async route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ plan: null, status: 'free' }) })
+  )
+
+  // — Continue Watching ────────────────────────────────────────────────────────
+  await page.route('**/continue-watching', async route => {
+    if (route.request().resourceType() === 'document') return route.continue()
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+    }
+    // POST (update progress) — just accept it
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
+  })
+
+  await page.route('**/continue-watching/**', async route => {
+    if (route.request().method() === 'DELETE') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
+    }
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not found' }) })
+    }
+    return route.continue()
+  })
+
+  // — Aggregated Continue-Watching Details ────────────────────────────────────
+  await page.route('**/tmdb/continue-watching-details', async route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+  )
+
+  // — TMDB Movie Search (used by Downloads page to fetch posters) ─────────────
+  await page.route('**/tmdb/search/movie**', async route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [], total_results: 0, total_pages: 0 }) })
   )
 
   // — Backend Ping ────────────────────────────────────────────────────────────

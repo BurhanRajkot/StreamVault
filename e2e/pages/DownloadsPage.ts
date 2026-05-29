@@ -15,7 +15,7 @@ export class DownloadsPage extends BasePage {
   // ─── Premium Wall ─────────────────────────────────────────────────────────
 
   get premiumWarning(): Locator {
-    return this.page.locator('h2:has-text("Premium Feature"), h2:has-text("Premium"), [data-testid="premium-gate"]').first()
+    return this.page.locator('h2:has-text("Upgrade Required"), h2:has-text("Premium Feature"), h2:has-text("Premium"), [data-testid="premium-gate"]').first()
   }
 
   get adminLoginButton(): Locator {
@@ -80,6 +80,6 @@ export class DownloadsPage extends BasePage {
   }
 
   get downloadItemByTitle() {
-    return (title: string) => this.page.locator(`[aria-label*="${title}"], text=${title}`).first()
+    return (title: string) => this.page.locator(`[aria-label*="${title}"]`).or(this.page.locator(`text="${title}"`)).first()
   }
 }

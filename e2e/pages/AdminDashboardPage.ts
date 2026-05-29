@@ -7,6 +7,9 @@ export class AdminDashboardPage extends BasePage {
   }
 
   async goto() {
+    await this.page.addInitScript(() => {
+      window.localStorage.setItem('adminToken', 'mock-admin-jwt-token-v2')
+    })
     await super.goto('/admin/dashboard')
     await this.waitForAppMount()
   }

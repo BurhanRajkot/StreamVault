@@ -55,7 +55,7 @@ test.describe('Downloads — Admin Login Flow', () => {
     await downloads.loginAsAdmin()
 
     // Downloads list should now be visible
-    const darkKnight = page.locator('[aria-label*="The Dark Knight"], text=The Dark Knight').first()
+    const darkKnight = page.locator('[aria-label*="The Dark Knight"]').or(page.locator('text="The Dark Knight"')).first()
     await expect(darkKnight).toBeVisible({ timeout: 10_000 })
   })
 

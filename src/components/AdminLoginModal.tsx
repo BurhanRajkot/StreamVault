@@ -119,20 +119,20 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
                 type="text"
                 value={code}
                 onChange={(e) => {
-                  // Allow numbers only
-                  const val = e.target.value.replace(/[^0-9]/g, '')
+                  // Allow hex characters (0-9 a-f) — HMAC codes are hex-encoded
+                  const val = e.target.value.replace(/[^0-9a-fA-F]/g, '')
 
                   // If user pastes/types a long number (likely the full calculation),
                   // take the last 6 digits automatically
-                     if (val.length > 20) {
-                     setCode(val.slice(0, 20))
+                     if (val.length > 64) {
+                     setCode(val.slice(0, 64))
                   } else {
                      setCode(val)
                   }
                 }}
                 disabled={loading}
                 placeholder="Enter daily code"
-                maxLength={20}
+                maxLength={64}
                 className={cn(
                   'h-12 w-full rounded-lg border bg-secondary/50 pl-11 pr-4 text-sm text-center tracking-widest text-lg font-mono',
                   'placeholder:text-muted-foreground/50 placeholder:tracking-normal placeholder:font-sans',
