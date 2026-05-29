@@ -22,8 +22,15 @@ import {
   ScoredCandidate,
   RecommendationResult,
   UserProfile,
+  CandidateSource,
 } from '../types'
 import { buildSections } from './sectionBuilder'
+
+/** Check source membership using the multi-source array produced by RRF,
+ *  with a fallback to the legacy single-source field for older cached entries. */
+function hasSource(c: ScoredCandidate, source: CandidateSource): boolean {
+  return c.sources ? c.sources.includes(source) : c.source === source
+}
 
 // L1 in-memory cache — fastest serving layer (5 min TTL)
 const recCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
@@ -242,10 +249,10 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
   const cached = recCache.get<ScoredCandidate[]>(GUEST_CACHE_KEY)
 
   if (cached) {
-    const trendingItems = cached.filter(c => c.source === 'trending').slice(0, 40)
-    const popularItems = cached.filter(c => c.source === 'popular_fallback').slice(0, 40)
-    const topRated = cached.filter(c => c.source === 'tmdb_recommendations').slice(0, 40)
-    const genreItems = cached.filter(c => c.source === 'genre_discovery').slice(0, 40)
+    const trendingItems = cached.filter(c => hasSource(c, 'trending')).slice(0, 40)
+    const popularItems  = cached.filter(c => hasSource(c, 'popular_fallback')).slice(0, 40)
+    const topRated      = cached.filter(c => hasSource(c, 'tmdb_recommendations')).slice(0, 40)
+    const genreItems    = cached.filter(c => hasSource(c, 'genre_discovery')).slice(0, 40)
     return {
       userId: null,
       items: cached,
@@ -283,10 +290,10 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
   recCache.set(GUEST_CACHE_KEY, topK, 1800)  // 30 min global cache
 
   // For guests: build richer sections from available content
-  const trendingItems = topK.filter(c => c.source === 'trending').slice(0, 40)
-  const popularItems = topK.filter(c => c.source === 'popular_fallback').slice(0, 40)
-  const topRatedItems = topK.filter(c => c.source === 'tmdb_recommendations').slice(0, 40)
-  const genreItems = topK.filter(c => c.source === 'genre_discovery').slice(0, 40)
+  const trendingItems  = topK.filter(c => hasSource(c, 'trending')).slice(0, 40)
+  const popularItems   = topK.filter(c => hasSource(c, 'popular_fallback')).slice(0, 40)
+  const topRatedItems  = topK.filter(c => hasSource(c, 'tmdb_recommendations')).slice(0, 40)
+  const genreItems     = topK.filter(c => hasSource(c, 'genre_discovery')).slice(0, 40)
 
   const guestSections = [
     trendingItems.length >= 5 ? { title: 'Trending This Week', items: trendingItems, source: 'trending' as const } : null,

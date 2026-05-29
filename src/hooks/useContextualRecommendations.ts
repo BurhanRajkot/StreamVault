@@ -19,7 +19,7 @@ import { getGuestProgress, getImageUrl, RecoSection, RecoItem } from '../lib/api
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
-export function useContextualRecommendations(): {
+export function useContextualRecommendations(refreshKey = 0): {
   section: RecoSection | null
   isLoading: boolean
 } {
@@ -100,7 +100,7 @@ export function useContextualRecommendations(): {
     })()
 
     return () => { cancelled = true }
-  }, [isAuthenticated, authLoading])
+  }, [isAuthenticated, authLoading, refreshKey])
 
   return { section, isLoading }
 }
