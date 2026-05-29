@@ -12,6 +12,11 @@
           e.preventDefault();
         }
       });
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && e.reason.stack && e.reason.stack.includes('share-modal.js')) {
+          e.preventDefault();
+        }
+      });
     </script>
     <title>StreamVault • Watch Movies, TV Shows &amp; Anime Online Free</title>
     <meta name="description" content="StreamVault is your ultimate destination to watch movies, TV shows, and anime online for free. Enjoy high-quality streaming with no sign-up required." />

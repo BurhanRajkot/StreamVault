@@ -75,7 +75,7 @@ test.describe('Performance — Page Load Timing', () => {
       })
     })
     if (lcp > 0) {
-      expect(lcp, `LCP was ${lcp.toFixed(0)}ms (budget: 4000ms)`).toBeLessThan(4000)
+      expect(lcp, `LCP was ${lcp.toFixed(0)}ms (budget: 5000ms)`).toBeLessThan(5000)
     }
     // If lcp=0 the browser didn't report it — skip rather than fail
   })

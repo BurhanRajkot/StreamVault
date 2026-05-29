@@ -34,6 +34,8 @@ export const CATEGORIES = {
 
 export type CategoryKey = keyof typeof CATEGORIES
 
+const CATEGORY_ENTRIES = Object.entries(CATEGORIES) as [CategoryKey, typeof CATEGORIES[CategoryKey]][]
+
 /**
  * Returns which categories a movie/show belongs to based on its TMDB genre IDs.
  * A movie may belong to multiple categories (e.g. an action sci-fi belongs to
@@ -43,7 +45,7 @@ export function getCategoriesForGenres(genreIds: number[]): CategoryKey[] {
   const genreSet = new Set(genreIds)
   const matched: CategoryKey[] = []
 
-  for (const [key, category] of Object.entries(CATEGORIES) as [CategoryKey, typeof CATEGORIES[CategoryKey]][]) {
+  for (const [key, category] of CATEGORY_ENTRIES) {
     for (const gid of category.genres) {
       if (genreSet.has(gid)) {
         matched.push(key)

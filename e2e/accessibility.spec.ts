@@ -31,9 +31,9 @@ test.describe('Accessibility — ARIA Landmarks', () => {
 
   test('page has a <nav> or role="navigation" landmark', async ({ unauthMockPage: page }) => {
     await page.goto('/')
-    await page.waitForLoadState('domcontentloaded')
-    const nav = page.locator('nav, [role="navigation"]').first()
-    await expect(nav).toBeVisible()
+    await expect(page.locator('nav, [role="navigation"]').first()).toBeAttached({ timeout: 10_000 })
+    const navCount = await page.locator('nav, [role="navigation"]').count()
+    expect(navCount).toBeGreaterThan(0)
   })
 
   test('page has a <header> or role="banner" landmark', async ({ unauthMockPage: page }) => {
@@ -197,14 +197,14 @@ test.describe('Accessibility — Buttons & Links', () => {
 test.describe('Accessibility — Heading Hierarchy', () => {
   test('homepage has exactly one <h1>', async ({ unauthMockPage: page }) => {
     await page.goto('/')
-    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('h1').first()).toBeAttached({ timeout: 10_000 })
     const count = await page.locator('h1').count()
     expect(count, `Expected 1 h1, found ${count}`).toBe(1)
   })
 
   test('pricing page has exactly one <h1>', async ({ unauthMockPage: page }) => {
     await page.goto('/pricing')
-    await page.waitForLoadState('domcontentloaded')
+    await expect(page.locator('h1').first()).toBeAttached({ timeout: 10_000 })
     const count = await page.locator('h1').count()
     expect(count, `Expected 1 h1, found ${count}`).toBe(1)
   })

@@ -61,9 +61,19 @@ export function Header({
         setIsSearchOpen(false)
       }
     }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isSearchOpen) {
+        setIsSearchOpen(false)
+        if (searchQuery.trim().length > 0) onClearSearch()
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isSearchOpen, searchQuery, onClearSearch])
 
   useEffect(() => {
     if (searchQuery.trim().length > 0) {
@@ -144,11 +154,11 @@ export function Header({
             <div ref={searchRef} className="relative flex items-center">
               <div
                 className={cn(
-                  'flex items-center overflow-hidden rounded-full border backdrop-blur-md',
+                  'flex items-center overflow-hidden rounded-full border backdrop-blur-md h-12',
                   isSearchOpen
                     ? 'border-slate-400/25 bg-slate-400/10'
                     : 'border-slate-400/12 bg-transparent',
-                  isSearchOpen ? (isMobile ? 'w-40' : 'w-[220px]') : 'w-11'
+                  isSearchOpen ? (isMobile ? 'w-40' : 'w-[220px]') : 'w-12'
                 )}
               >
                 {isSearchOpen && (
@@ -157,6 +167,7 @@ export function Header({
                     placeholder="Search titles..."
                     value={searchQuery}
                     onChange={(e) => onSearch(e.target.value)}
+                    aria-label="Search movies and TV shows"
                     className="w-full bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                     style={{ paddingLeft: '14px' }}
                     autoFocus
@@ -167,7 +178,7 @@ export function Header({
                   type="button"
                   onClick={handleSearchToggle}
                   className={cn(
-                    'inline-flex h-11 w-11 items-center justify-center',
+                    'inline-flex h-12 w-12 items-center justify-center',
                     isSearchOpen ? 'text-foreground' : mutedInteractiveClass
                   )}
                   aria-label={isSearchOpen ? 'Close search' : 'Open search'}
