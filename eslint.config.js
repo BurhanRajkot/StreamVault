@@ -30,7 +30,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["e2e/**/*.{ts,tsx}"],
+    files: ["e2e/**/*.{ts,tsx}", "src/auth/mock-auth0.tsx"],
     rules: {
       "react-hooks/rules-of-hooks": "off",
       "react-hooks/exhaustive-deps": "off",

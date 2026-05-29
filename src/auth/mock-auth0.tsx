@@ -48,7 +48,13 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       setUser(mockUser)
       
       const searchParams = new URLSearchParams(window.location.search)
-      const returnTo = searchParams.get('returnTo') || '/'
+      let returnTo = searchParams.get('returnTo') || '/'
+
+      // Open Redirect vulnerability fix: Validate returnTo is a safe relative path
+      if (!returnTo.startsWith('/') || returnTo.startsWith('//') || returnTo.startsWith('\\')) {
+        returnTo = '/'
+      }
+
       window.location.href = returnTo
     } else {
       // Redirect to /login page with returnTo path
