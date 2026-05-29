@@ -1,4 +1,4 @@
-import { useState, useCallback, lazy } from 'react'
+import { useState, useCallback, lazy, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { PageMeta } from '@/seo/PageMeta'
 import { Media, MediaMode } from '@/lib/config'
@@ -15,7 +15,6 @@ import { ContinueWatchingSection } from '@/components/ContinueWatchingSection'
 import { PlatformSelector } from '@/components/PlatformSelector'
 import { RecentlyAddedSection } from '@/components/RecentlyAddedSection'
 import { RecommendationRow } from '@/components/RecommendationRow'
-import { MovieDetailModal } from '@/components/MovieDetailModal'
 import { useRecommendations } from '@/hooks/useRecommendations'
 import { logRecommendationInteraction, RecoItem } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -33,11 +32,28 @@ const Index = () => {
     () => sessionStorage.getItem('disclaimerAccepted') !== 'true'
   )
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
-  const [refreshKey] = useState(0)
+  const [refreshKey, setRefreshKey] = useState(0)
 
+  // useLocation MUST be called before prevPathnameRef so the React Router
+  // location object is in scope when the ref is initialised.
   const location = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+
+  // Track previous pathname so we can detect "returned from /watch" navigation
+  const prevPathnameRef = useRef(location.pathname)
+
+  // ─── Bump refreshKey whenever the user returns from a /watch route ─────────
+  // This causes ContinueWatchingSection (and the contextual reco row) to
+  // re-query fresh data showing the item that was just watched.
+  useEffect(() => {
+    const prev = prevPathnameRef.current
+    const curr = location.pathname
+    prevPathnameRef.current = curr
+    if (prev.startsWith('/watch') && !curr.startsWith('/watch')) {
+      setRefreshKey(k => k + 1)
+    }
+  }, [location.pathname])
 
   // ─── CineMatch Onboarding (first-time users only) ────────────────────────
   const { shouldShowOnboarding, markDone } = useOnboarding()
@@ -45,7 +61,9 @@ const Index = () => {
   // ─── Guest contextual "Because you watched X" row ───────────────────────────
   // For authenticated users, the backend pipeline handles this.
   // For guests, we build it client-side from localStorage watch history.
-  const { section: guestContextualSection } = useContextualRecommendations()
+  // Pass refreshKey so the hook re-runs its localStorage read when the user
+  // returns from watching something (otherwise guest progress is stale).
+  const { section: guestContextualSection } = useContextualRecommendations(refreshKey)
 
   // ─── InView gates for below-fold sections ───────────────────────────────
   // Each section only mounts/fetches once it scrolls near the viewport
@@ -176,7 +194,7 @@ const Index = () => {
               )}
 
               {/* Continue Watching — above the fold, render immediately */}
-              {!searchQuery && !selectedProvider && (
+              {!searchQuery && (
                 <ContinueWatchingSection
                   onMediaClick={handleMediaClick}
                   refreshKey={refreshKey}
