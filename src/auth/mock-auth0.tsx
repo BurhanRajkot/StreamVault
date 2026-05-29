@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
 interface Auth0ContextType {
@@ -47,7 +48,13 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       setUser(mockUser)
       
       const searchParams = new URLSearchParams(window.location.search)
-      const returnTo = searchParams.get('returnTo') || '/'
+      let returnTo = searchParams.get('returnTo') || '/'
+
+      // Open Redirect vulnerability fix: Validate returnTo is a safe relative path
+      if (!returnTo.startsWith('/') || returnTo.startsWith('//') || returnTo.startsWith('\\')) {
+        returnTo = '/'
+      }
+
       window.location.href = returnTo
     } else {
       // Redirect to /login page with returnTo path
@@ -86,6 +93,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth0() {
   const context = useContext(Auth0Context)
   if (!context) {

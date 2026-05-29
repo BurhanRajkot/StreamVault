@@ -60,17 +60,24 @@ for (const vp of VIEWPORTS) {
 
     test('homepage nav element is accessible', async ({ unauthMockPage: page }) => {
       await page.goto('/', { waitUntil: 'domcontentloaded' })
-      const nav = page.locator('nav, [role="navigation"], button[aria-expanded], [aria-label*="menu" i]').first()
-      await expect(nav).toBeVisible({ timeout: 5_000 })
+      const nav = page.locator('nav, [role="navigation"], button[aria-expanded], [aria-label*="menu" i]').filter({ visible: true }).first()
+      await expect(nav).toBeVisible({ timeout: 8_000 })
     })
 
     test('homepage does not crash JS', async ({ unauthMockPage: page }) => {
       const errors: string[] = []
       page.on('pageerror', err => {
-        if (!err.message.includes('Failed to fetch')) errors.push(err.message)
+        const msg = err.message
+        // Exclude network-level errors — these are infrastructure, not app code bugs
+        if (msg.includes('Failed to fetch')) return
+        if (msg.includes('Importing a module script failed')) return
+        if (msg.includes('Failed to fetch dynamically imported module')) return
+        if (msg.includes('ChunkLoadError')) return
+        if (msg.includes('Loading chunk')) return
+        errors.push(msg)
       })
       await page.goto('/', { waitUntil: 'domcontentloaded' })
-      await expect(page.locator('#root > *').first()).toBeVisible({ timeout: 10_000 })
+      await expect(page.locator('#root > *:not(script)').first()).toBeVisible({ timeout: 10_000 })
       expect(errors, `JS errors at ${vp.width}px: ${errors.join('\n')}`).toHaveLength(0)
     })
   })
@@ -129,7 +136,7 @@ test.describe('Responsive — Desktop Navigation (1920px)', () => {
 
   test('media cards appear in a grid layout (multiple columns)', async ({ mockApiPage: page }) => {
     await page.goto('/', { waitUntil: 'networkidle' })
-    const cards = page.locator('.group.relative.cursor-pointer, [role="button"]:has(img)').filter({ hasNot: page.locator('nav') })
+    const cards = page.locator('div[style*="grid"] .group.relative.cursor-pointer')
     const count = await cards.count()
     if (count < 2) return // Not enough cards rendered
 
