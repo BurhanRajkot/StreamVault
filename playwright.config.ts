@@ -101,6 +101,7 @@ export default defineConfig({
         stderr: 'pipe',
         env: {
           VITE_MOCK_AUTH: 'true',
+          VITE_API_URL: 'http://localhost:4173',
         },
       },
 })
