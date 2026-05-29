@@ -50,7 +50,7 @@ export default function Pricing() {
       const res = await fetch(`${API_URL}/subscriptions/plans`)
       if (!res.ok) throw new Error('Failed to fetch plans')
       const data = await res.json()
-      setPlans(data.plans)
+      setPlans(Array.isArray(data) ? data : (data.plans ?? []))
     } catch (err) {
       setError('Unable to load subscription plans')
     } finally {

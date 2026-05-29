@@ -6,8 +6,12 @@ export class WatchPage extends BasePage {
     super(page)
   }
 
-  async goto(mediaType: 'movie' | 'tv', idAndSlug: string) {
-    await this.page.goto(`/watch/${mediaType}/${idAndSlug}`, { waitUntil: 'domcontentloaded' })
+  async goto(mediaTypeOrPath?: 'movie' | 'tv' | string, idAndSlug?: string) {
+    if (mediaTypeOrPath && idAndSlug) {
+      await this.page.goto(`/watch/${mediaTypeOrPath}/${idAndSlug}`, { waitUntil: 'domcontentloaded' })
+    } else {
+      await super.goto(mediaTypeOrPath)
+    }
   }
 
   // ─── URL Checks ───────────────────────────────────────────────────────────
@@ -30,11 +34,11 @@ export class WatchPage extends BasePage {
   // ─── Favorites ────────────────────────────────────────────────────────────
 
   get addToFavoritesButton(): Locator {
-    return this.page.locator('button[aria-label="Add to favorites"]').last()
+    return this.page.locator('.fixed button[aria-label="Add to favorites"]').first()
   }
 
   get removeFromFavoritesButton(): Locator {
-    return this.page.locator('button[aria-label="Remove from favorites"]').last()
+    return this.page.locator('.fixed button[aria-label="Remove from favorites"]').first()
   }
 
   async addToFavorites() {
