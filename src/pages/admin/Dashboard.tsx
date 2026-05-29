@@ -236,6 +236,7 @@ export default function AdminDashboard() {
                                 size="sm"
                                 variant="outline"
                                 className="h-8 w-8 p-0"
+                                aria-label="Reject"
                                 onClick={() => handleAction(request.id, 'reject')}
                                 disabled={processingId === request.id}
                               >
@@ -244,6 +245,7 @@ export default function AdminDashboard() {
                               <Button
                                 size="sm"
                                 className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700"
+                                aria-label="Approve"
                                 onClick={() => handleAction(request.id, 'approve')}
                                 disabled={processingId === request.id}
                               >
