@@ -14,6 +14,16 @@ export class WatchPage extends BasePage {
     }
   }
 
+  /**
+   * Navigate and wait for actual movie/tv content to render —
+   * not just the React shell.
+   */
+  async gotoAndWaitForContent(mediaType: 'movie' | 'tv', idAndSlug: string) {
+    await this.goto(mediaType, idAndSlug)
+    await this.waitForAppReady()
+    await this.assertNotBlankScreen()
+  }
+
   // ─── URL Checks ───────────────────────────────────────────────────────────
 
   async expectUrl(pattern: RegExp = /\/watch\//) {
@@ -82,5 +92,27 @@ export class WatchPage extends BasePage {
 
   get ratingBadge(): Locator {
     return this.page.locator('[class*="rating"], [aria-label*="rating"]').first()
+  }
+
+  // ─── Content Verification ──────────────────────────────────────────────────
+
+  /**
+   * Verify that the watch page actually displays movie/show details —
+   * not just an empty shell.
+   */
+  async assertMovieContentVisible(expectedTitle?: string) {
+    // Verify a title heading is visible
+    const titleEl = this.page.locator('h1, h2, [class*="title"]').first()
+    await expect(titleEl).toBeVisible({ timeout: 10_000 })
+    const titleText = await titleEl.innerText()
+    expect(titleText.trim().length, 'Movie title is empty').toBeGreaterThan(0)
+
+    if (expectedTitle) {
+      expect(titleText.toLowerCase()).toContain(expectedTitle.toLowerCase())
+    }
+
+    // Verify overview/description paragraph exists
+    const overview = this.page.locator('p').filter({ hasText: /\w{15,}/ }).first()
+    await expect(overview).toBeVisible({ timeout: 10_000 })
   }
 }
