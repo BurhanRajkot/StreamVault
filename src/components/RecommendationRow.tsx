@@ -154,6 +154,7 @@ export function RecommendationRow({
           <button 
             onClick={() => handleArrowScroll('left')}
             disabled={!showLeftButton}
+            aria-label={`Scroll ${section.title} left`}
             className={`p-1.5 rounded-full bg-white/5 ${!showLeftButton ? 'opacity-30' : 'active:bg-white/10'}`}
           >
             <ChevronLeft className="w-4 h-4 text-white" />
@@ -161,6 +162,7 @@ export function RecommendationRow({
           <button 
             onClick={() => handleArrowScroll('right')}
             disabled={!showRightButton}
+            aria-label={`Scroll ${section.title} right`}
             className={`p-1.5 rounded-full bg-white/5 ${!showRightButton ? 'opacity-30' : 'active:bg-white/10'}`}
           >
             <ChevronRight className="w-4 h-4 text-white" />

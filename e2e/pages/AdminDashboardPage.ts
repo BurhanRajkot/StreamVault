@@ -7,6 +7,9 @@ export class AdminDashboardPage extends BasePage {
   }
 
   async goto() {
+    await this.page.addInitScript(() => {
+      window.localStorage.setItem('adminToken', 'mock-admin-jwt-token-v2')
+    })
     await super.goto('/admin/dashboard')
     await this.waitForAppMount()
   }
@@ -54,11 +57,11 @@ export class AdminDashboardPage extends BasePage {
   // ─── Feedback Toast ───────────────────────────────────────────────────────
 
   get successToast(): Locator {
-    return this.page.locator('text=Request Approved, text=Approved, text=processed, text=success').first()
+    return this.page.getByText(/Approved|processed|success/i).first()
   }
 
   get rejectToast(): Locator {
-    return this.page.locator('text=Request Rejected, text=Rejected, text=declined').first()
+    return this.page.getByText(/Rejected|declined/i).first()
   }
 
   // ─── Dashboard Stats ──────────────────────────────────────────────────────
