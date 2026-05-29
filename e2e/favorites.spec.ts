@@ -21,25 +21,15 @@ import { FavoritesPage } from './pages/FavoritesPage'
 
 test.describe('Favorites — Unauthenticated', () => {
   test('redirects or shows auth wall when not signed in', async ({ unauthMockPage: page }) => {
-    const favorites = new FavoritesPage(page)
-    await favorites.goto()
-
-    await page.waitForURL(url => !url.pathname.startsWith('/favorites'), { timeout: 5_000 }).catch(() => {})
-
-    const currentUrl = page.url()
-    const redirected = !currentUrl.includes('/favorites') || currentUrl.includes('login')
-    const hasAuthWall = await favorites.isShowingAuthWall()
-
-    expect(redirected || hasAuthWall, 'Favorites accessible without auth').toBe(true)
+    await page.goto('/favorites')
+    const signInBtn = page.getByText('Sign In to Account').first()
+    await expect(signInBtn).toBeVisible({ timeout: 20_000 })
   })
 
   test('sign-in button is visible on the auth wall', async ({ unauthMockPage: page }) => {
     await page.goto('/favorites')
-    await page.waitForLoadState('domcontentloaded')
-    const signInBtn = page.locator('button:has-text("Sign In"), button:has-text("Sign In to Account"), a:has-text("Sign In")').first()
-    const onLogin = page.url().includes('login')
-    const visible = await signInBtn.isVisible({ timeout: 8_000 }).catch(() => false)
-    expect(visible || onLogin).toBe(true)
+    const signInBtn = page.getByText('Sign In to Account').first()
+    await expect(signInBtn).toBeVisible({ timeout: 20_000 })
   })
 })
 

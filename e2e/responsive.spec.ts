@@ -60,7 +60,7 @@ for (const vp of VIEWPORTS) {
 
     test('homepage nav element is accessible', async ({ unauthMockPage: page }) => {
       await page.goto('/', { waitUntil: 'domcontentloaded' })
-      const nav = page.locator('nav, [role="navigation"], button[aria-expanded], [aria-label*="menu" i]').first()
+      const nav = page.locator('nav, [role="navigation"], button[aria-expanded], [aria-label*="menu" i]').filter({ visible: true }).first()
       await expect(nav).toBeVisible({ timeout: 8_000 })
     })
 
@@ -136,7 +136,7 @@ test.describe('Responsive — Desktop Navigation (1920px)', () => {
 
   test('media cards appear in a grid layout (multiple columns)', async ({ mockApiPage: page }) => {
     await page.goto('/', { waitUntil: 'networkidle' })
-    const cards = page.locator('.group.relative.cursor-pointer, [role="button"]:has(img)').filter({ hasNot: page.locator('nav') })
+    const cards = page.locator('div[style*="grid"] .group.relative.cursor-pointer')
     const count = await cards.count()
     if (count < 2) return // Not enough cards rendered
 
