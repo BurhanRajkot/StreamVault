@@ -37,7 +37,7 @@ test.describe('Favorites Page — Unauthenticated', () => {
 test.describe('Favorites Page — Authenticated (Empty)', () => {
   test('empty state shows specific messaging and CTA when user has no favorites', async ({ mockApiPage: page }) => {
     // Override the mock to return empty array for favorites
-    await page.route('**/api/users/favorites', async route => {
+    await page.route('**/favorites', async route => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
     })
 

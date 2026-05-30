@@ -168,7 +168,7 @@ test.describe('Watch Page — Interactivity (Authenticated)', () => {
 test.describe('Watch Page — Error States', () => {
   test('invalid ID shows 404 or error page with content', async ({ unauthMockPage: page }) => {
     // Intercept API call to force 404
-    await page.route('**/api/media/movie/99999999', async route => {
+    await page.route('**/tmdb/movie/99999999**', async route => {
       await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Not found' }) })
     })
 
