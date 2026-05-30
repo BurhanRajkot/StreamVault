@@ -18,14 +18,14 @@ import { test, expect } from './fixtures'
 
 test.describe('CineMatch Onboarding', () => {
   // Clear any existing onboarding state before each test
-  test.beforeEach(async ({ unauthMockPage: page }) => {
+  test.beforeEach(async ({ onboardingPage: page }) => {
     await page.addInitScript(() => {
       window.localStorage.removeItem('onboarding_done')
       window.localStorage.removeItem('cinematch_preferences')
     })
   })
 
-  test('onboarding overlay renders and covers the page content', async ({ unauthMockPage: page }) => {
+  test('onboarding overlay renders and covers the page content', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     
     // Look for the onboarding container
@@ -41,7 +41,7 @@ test.describe('CineMatch Onboarding', () => {
     expect(isCovering, 'Onboarding is not presented as an overlay').toBe(true)
   })
 
-  test('onboarding shows movie poster images for selection', async ({ unauthMockPage: page }) => {
+  test('onboarding shows movie poster images for selection', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     
     const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /select|choose|movies you like/i }).first()
@@ -57,7 +57,7 @@ test.describe('CineMatch Onboarding', () => {
     expect(imgSrc, 'Onboarding poster image has no source').toBeTruthy()
   })
 
-  test('selecting movies updates visual state and progress indicator', async ({ unauthMockPage: page }) => {
+  test('selecting movies updates visual state and progress indicator', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     
     const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /select|choose|movies you like/i }).first()
@@ -83,7 +83,7 @@ test.describe('CineMatch Onboarding', () => {
     expect(progressChanged, 'Progress text did not update after selection').toBe(true)
   })
 
-  test('completing onboarding closes the overlay', async ({ unauthMockPage: page }) => {
+  test('completing onboarding closes the overlay', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     
     const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /select|choose|movies you like/i }).first()
