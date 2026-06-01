@@ -61,7 +61,7 @@ export function MovieDetailModal({
   const videoContainerRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
-    return initialServer || 'vidlink_pro'
+    return initialServer || 'vidfast_pro'
   })
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
