@@ -17,7 +17,7 @@ interface QuickViewModalProps {
 
 export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickViewModalProps) {
   const [details, setDetails] = useState<Media | null>(null)
-  const [provider, setProvider] = useState('vidlink_pro')
+  const [provider, setProvider] = useState('vidfast_pro')
   const [isVisible, setIsVisible] = useState(false)
   const [feedback, setFeedback] = useState<'rate' | 'dislike' | null>(null)
   const [modalStyle, setModalStyle] = useState<React.CSSProperties>({})
