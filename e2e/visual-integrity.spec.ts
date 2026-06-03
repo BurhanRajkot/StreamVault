@@ -1,21 +1,22 @@
 /**
- * StreamVault E2E — Visual Integrity
- *
- * This file is the ultimate guardian against "passes but looks broken".
- * It takes screenshots and verifies that pages aren't just solid colors,
- * ensuring CSS loaded and layout is functional.
+ * StreamVault E2E — Visual Integrity (Hardened)
  *
  * Covers:
- *  - Homepage has significant content height
- *  - Homepage is not a solid color (blank screen)
- *  - Dark mode actually changes the background color
- *  - Images successfully load and occupy space
+ *  - Homepage content height (not blank)
+ *  - Screenshot is not a solid color
+ *  - Media card posters actually decoded (naturalWidth > 0)
+ *  - No broken image icons on load
+ *  - CSS applied (elements have expected computed styles)
+ *  - First poster is visible and decoded
+ *  - Hero section image visible and decoded
  */
 
 import { test, expect } from './fixtures'
 import { HomePage } from './pages/HomePage'
+import { MediaRenderingPage } from './pages/MediaRenderingPage'
 
 test.describe('Visual Integrity', () => {
+
   test('homepage has significant content height (not blank)', async ({ unauthMockPage: page }) => {
     await page.goto('/')
     const home = new HomePage(page)
@@ -23,9 +24,11 @@ test.describe('Visual Integrity', () => {
 
     const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight)
     const viewportHeight = await page.evaluate(() => window.innerHeight)
-    
-    // A fully loaded StreamVault homepage should be much taller than one viewport
-    expect(scrollHeight, 'Page is too short, content may not have rendered').toBeGreaterThan(viewportHeight * 1.5)
+
+    expect(
+      scrollHeight,
+      'Page is too short — content may not have rendered'
+    ).toBeGreaterThan(viewportHeight * 1.5)
   })
 
   test('homepage screenshot is not a solid blank color', async ({ unauthMockPage: page }) => {
@@ -33,48 +36,120 @@ test.describe('Visual Integrity', () => {
     const home = new HomePage(page)
     await home.waitForAppReady()
 
-    // Take a screenshot of the viewport
     const screenshot = await page.screenshot()
-
-    // We can't easily analyze pixels in Playwright natively without an external lib,
-    // but we can check the file size. A solid color screenshot (e.g. blank white/black page)
-    // is highly compressible, usually < 20KB. A page with posters is usually > 100KB.
     const sizeKB = screenshot.length / 1024
-    expect(sizeKB, `Screenshot is only ${sizeKB.toFixed(1)}KB, page is likely blank`).toBeGreaterThan(50)
+
+    // A solid white/black page compresses to < 5 KB.
+    // A real StreamVault page with posters is typically > 80 KB.
+    expect(
+      sizeKB,
+      `Screenshot is only ${sizeKB.toFixed(1)} KB — page appears blank`
+    ).toBeGreaterThan(50)
   })
 
-  test('media card images occupy space (no broken image icons)', async ({ mockApiPage: page }) => {
-    await page.goto('/')
+  test('media card poster images are decoded (naturalWidth > 0)', async ({ mockApiPage: page }) => {
     const home = new HomePage(page)
-    await home.assertMediaCardsHaveContent()
+    const media = new MediaRenderingPage(page)
+    await home.gotoAndWaitForContent()
 
-    const firstImage = home.mediaCards.first().locator('img').first()
-    await expect(firstImage).toBeVisible()
+    // Give images time to decode
+    await page.waitForTimeout(2000)
 
-    // Check that the image actually has width/height (didn't fail to load)
-    const box = await firstImage.boundingBox()
-    expect(box).not.toBeNull()
-    if (box) {
-      expect(box.width).toBeGreaterThan(10)
-      expect(box.height).toBeGreaterThan(10)
-    }
+    await media.assertTMDBImagesPresent(1)
+    await media.assertAllVisibleTMDBImagesDecoded(8)
   })
 
-  test('CSS applies correctly (elements have expected styles)', async ({ unauthMockPage: page }) => {
+  test('no broken image icons on page load (naturalWidth=0)', async ({ mockApiPage: page }) => {
+    const home = new HomePage(page)
+    await home.gotoAndWaitForContent()
+    await page.waitForTimeout(2500)
+
+    const media = new MediaRenderingPage(page)
+    await media.assertNoBrokenImages('Homepage initial load')
+  })
+
+  test('CSS applied correctly (root not display:none, flex containers work)', async ({ unauthMockPage: page }) => {
     await page.goto('/')
     const home = new HomePage(page)
-    await home.waitForAppReady()
+    await home.waitForAppMount()
 
-    // Verify nav has background color and isn't transparent (unless at top, depending on design)
-    // We check the root element's display property to ensure CSS loaded
-    const rootDisplay = await page.evaluate(() => window.getComputedStyle(document.getElementById('root')!).display)
+    const rootDisplay = await page.evaluate(
+      () => window.getComputedStyle(document.getElementById('root')!).display
+    )
     expect(rootDisplay).not.toBe('none')
-    
-    // Check that a specific Tailwind class actually applied styling
-    const flexElement = page.locator('.flex').first()
-    if (await flexElement.count() > 0) {
-      const display = await flexElement.evaluate(el => window.getComputedStyle(el).display)
+
+    // At least one flex container exists
+    const flexEl = page.locator('.flex').first()
+    if (await flexEl.count() > 0) {
+      const display = await flexEl.evaluate(el => window.getComputedStyle(el).display)
       expect(display).toBe('flex')
     }
+  })
+
+  test('first media card poster is visible and decoded by browser', async ({ mockApiPage: page }) => {
+    const home = new HomePage(page)
+    await home.gotoAndWaitForContent()
+
+    const firstImg = home.mediaCards.first().locator('img').first()
+    await expect(firstImg).toBeVisible({ timeout: 12_000 })
+
+    const box = await firstImg.boundingBox()
+    expect(box, 'First poster has no bounding box').not.toBeNull()
+    if (box) {
+      expect(box.width, 'Poster width is 0').toBeGreaterThan(10)
+      expect(box.height, 'Poster height is 0').toBeGreaterThan(10)
+    }
+
+    // STRONG CHECK: naturalWidth must be > 0 (browser actually decoded the image)
+    const naturalWidth = await firstImg.evaluate((img: HTMLImageElement) => img.naturalWidth)
+    const src = await firstImg.getAttribute('src')
+    expect(
+      naturalWidth,
+      `First poster has naturalWidth=${naturalWidth} — renders as broken icon or white pixel.\nsrc: ${src}`
+    ).toBeGreaterThan(10)
+  })
+
+  test('hero section image is visible and decoded', async ({ mockApiPage: page }) => {
+    const home = new HomePage(page)
+    await home.gotoAndWaitForContent()
+
+    const topImage = page.locator('img[src*="image.tmdb.org"]').first()
+    const hasImg = await topImage.count() > 0
+
+    if (!hasImg) {
+      // May use CSS background-image — check for styled containers
+      const bgContainer = page.locator(
+        '[style*="background-image"], [class*="backdrop"], [class*="hero"]'
+      ).first()
+      const hasBackground = await bgContainer.count() > 0
+      expect(hasBackground, 'No hero image or backdrop container found').toBe(true)
+      return
+    }
+
+    await expect(topImage).toBeVisible({ timeout: 10_000 })
+
+    const nw = await topImage.evaluate((img: HTMLImageElement) => img.naturalWidth)
+    const src = await topImage.getAttribute('src')
+    expect(
+      nw,
+      `Hero image naturalWidth=${nw} — image is broken/white.\nsrc: ${src}`
+    ).toBeGreaterThan(10)
+  })
+
+  test('all TMDB images use correct base domain (no malformed URLs)', async ({ mockApiPage: page }) => {
+    const home = new HomePage(page)
+    await home.gotoAndWaitForContent()
+
+    const srcs = await page.evaluate((): string[] =>
+      [...document.querySelectorAll('img') as NodeListOf<HTMLImageElement>]
+        .map(img => img.src)
+        .filter(s => s.includes('tmdb'))
+    )
+
+    const malformed = srcs.filter(s => !s.startsWith('https://image.tmdb.org/t/p/'))
+    expect(
+      malformed.length,
+      `Malformed TMDB image URLs:\n${malformed.map(s => `  ${s}`).join('\n')}`
+    ).toBe(0)
   })
 })
