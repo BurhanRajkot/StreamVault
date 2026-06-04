@@ -118,7 +118,7 @@ jobs:
 
       - name: Upload zizmor SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
         with:
           sarif_file: zizmor.sarif
           category: zizmor
@@ -165,7 +165,7 @@ jobs:
 
       - name: Upload SARIF results
         if: always()
-        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
         with:
           sarif_file: results.sarif
           category: gitleaks
@@ -234,7 +234,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Run OSV Scanner
-        uses: google/osv-scanner-action/osv-scanner-action@5a78f70acdc7c70f8b4eb52e45f3c8e702e82174  # v2.0.2
+        uses: google/osv-scanner-action/osv-scanner-action@e69cc6c86b31f1e7e23935bbe7031b50e51082de  # v2.0.2
         with:
           scan-args: |-
             --lockfile=package-lock.json
@@ -245,7 +245,7 @@ jobs:
 
       - name: Upload OSV SARIF results
         if: always()
-        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
         with:
           sarif_file: osv-results.sarif
           category:   osv-scanner
@@ -420,15 +420,15 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        uses: github/codeql-action/init@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
         with:
           languages: javascript-typescript
           queries: security-and-quality
 
-      - uses: github/codeql-action/autobuild@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+      - uses: github/codeql-action/autobuild@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
 
       - name: Analyze
-        uses: github/codeql-action/analyze@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        uses: github/codeql-action/analyze@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
         with:
           category: "/language:javascript-typescript"
 
@@ -713,7 +713,7 @@ jobs:
 
       - name: Upload frontend Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
         with:
           sarif_file: trivy-frontend.sarif
           category:   trivy-frontend
@@ -780,7 +780,7 @@ jobs:
 
       - name: Upload backend Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
         with:
           sarif_file: trivy-backend.sarif
           category:   trivy-backend
