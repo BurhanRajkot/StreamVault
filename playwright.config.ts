@@ -92,6 +92,26 @@ export default defineConfig({
       /* Exclude heavy performance tests that are viewport-agnostic */
       testIgnore: ['**/performance.spec.ts'],
     },
+    // ─── Brave Browser ────────────────────────────────────────────────────────
+    // Runs against the local Brave browser installation for the primary requested environment
+    {
+      name: 'Brave',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chromium',
+        launchOptions: {
+          executablePath: '/usr/bin/brave',
+        },
+        baseURL: process.env.BASE_URL || 'http://localhost:4173',
+        screenshot: 'on',
+        video: 'on',
+        trace: 'retain-on-failure',
+        actionTimeout: 15_000,
+        navigationTimeout: 30_000,
+        locale: 'en-US',
+        timezoneId: 'Asia/Kolkata',
+      },
+    },
   ],
 
   /* ─── Web Server ──────────────────────────────────────────────────────────
