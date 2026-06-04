@@ -1,0 +1,173 @@
+# StreamVault — Code Health Workflow
+# Runs weekly and on pull requests touching source files.
+# Advisory-only: no job in this workflow blocks merging.
+#
+# Jobs:
+#   dead-code   — knip: detects unused exports, files, and dependencies
+#   duplication — jscpd: flags copy-paste code blocks (>5% threshold)
+#   type-coverage — type-coverage: enforces minimum TypeScript coverage %
+
+name: "Code Health"
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "backend/**"
+      - "package.json"
+      - "tsconfig*.json"
+  schedule:
+    - cron: "0 3 * * 1"   # Weekly — Monday 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  BUN_VERSION:  "latest"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  DEAD CODE DETECTION
+#  knip finds unused exports, files, and unlisted/unneeded dependencies.
+#  A public repo with dead code is an expanded attack surface — unused auth
+#  paths or deprecated endpoints are easy vectors if left in place.
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  dead-code:
+    name: "Dead Code — knip"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Run knip (dead code detection)
+        # knip exits non-zero if it finds issues. We use || true to make this
+        # advisory — the report is uploaded as an artifact for review.
+        run: |
+          echo "Running knip dead-code analysis..."
+          npx --yes knip@latest \
+            --reporter compact \
+            2>&1 | tee knip-report.txt || true
+
+          ISSUES=$(wc -l < knip-report.txt | tr -d ' ')
+          echo ""
+          echo "═══════════════════════════════════════"
+          echo "  knip found ${ISSUES} issue(s)"
+          echo "═══════════════════════════════════════"
+
+          if [ "$ISSUES" -gt 0 ]; then
+            echo "::warning title=Dead Code::knip detected ${ISSUES} unused code items. Review knip-report artifact."
+          else
+            echo "✓ No dead code detected."
+          fi
+
+      - name: Upload knip report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: knip-report
+          path: knip-report.txt
+          retention-days: 14
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  COPY-PASTE DETECTION
+#  jscpd finds duplicated blocks of code. For a streaming site, duplicated
+#  auth/payment/DRM logic means a security fix in one place won't reach all
+#  copies — this is a supply-chain integrity concern.
+# ─────────────────────────────────────────────────────────────────────────────
+
+  duplication:
+    name: "Duplication — jscpd"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run jscpd (copy-paste detection)
+        run: |
+          npx --yes jscpd@latest \
+            --path src \
+            --min-lines 10 \
+            --min-tokens 80 \
+            --threshold 5 \
+            --reporters consoleFull \
+            --reporters json \
+            --output jscpd-report \
+            --ignore "**/*.test.ts,**/*.spec.ts,**/node_modules/**" \
+            2>&1 | tee /dev/stderr | tail -5 || true
+          echo "::warning title=Duplication::jscpd scan complete. Review jscpd-report artifact for duplicated blocks."
+        continue-on-error: true
+
+      - name: Upload jscpd report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: jscpd-report
+          path: jscpd-report/
+          retention-days: 14
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  TYPESCRIPT COVERAGE
+#  type-coverage reports what percentage of code has explicit TypeScript types.
+#  Implicit `any` in a streaming app's API layer causes silent runtime errors.
+#  Target: ≥ 85% typed (enforced as warning, not a hard block).
+# ─────────────────────────────────────────────────────────────────────────────
+
+  type-coverage:
+    name: "TypeScript Coverage"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Measure TypeScript coverage
+        run: |
+          RESULT=$(npx --yes type-coverage@latest --at-least 85 --detail 2>&1 || true)
+          echo "$RESULT"
+
+          COVERAGE=$(echo "$RESULT" | grep -oP '\d+\.\d+(?=%)' | tail -1)
+          if [ -n "$COVERAGE" ]; then
+            echo ""
+            echo "═══════════════════════════════════════"
+            echo "  TypeScript type coverage: ${COVERAGE}%"
+            echo "  Target: ≥ 85%"
+            echo "═══════════════════════════════════════"
+
+            # Extract integer part for comparison
+            INT_COV=$(echo "$COVERAGE" | cut -d. -f1)
+            if [ "$INT_COV" -lt 85 ]; then
+              echo "::warning title=TypeScript Coverage::Type coverage is ${COVERAGE}% — below the 85% target. Add explicit types to reduce implicit 'any'."
+            else
+              echo "✓ Type coverage is ${COVERAGE}% — meets the 85% threshold."
+            fi
+          fi
+        continue-on-error: true

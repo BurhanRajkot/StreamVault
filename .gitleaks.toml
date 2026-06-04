@@ -1,0 +1,55 @@
+# StreamVault — Gitleaks Configuration
+# Prevents false-positive secret detections on known-safe test fixtures,
+# mock tokens, and development placeholders in this public repository.
+
+title = "StreamVault Gitleaks Config"
+
+[extend]
+# Use the default ruleset as the base — we only add allowlists on top.
+useDefault = true
+
+# ─── Global Allowlist ────────────────────────────────────────────────────────
+# These regexes match known-safe strings that gitleaks would otherwise flag.
+[allowlist]
+  description = "Known-safe test fixtures, mock tokens and placeholders"
+
+  # Match any file in test/fixture/mock directories
+  paths = [
+    '''e2e/fixtures/.*''',
+    '''e2e/pages/.*''',
+    '''src/auth/mock-auth0\.tsx''',
+    '''\.env\.example''',
+    '''\.env\.local\.example''',
+  ]
+
+  # Specific string patterns that are safe (test tokens, placeholder images)
+  regexes = [
+    # Mock admin token defined in e2e fixtures
+    '''mock-admin-jwt-token-v2''',
+    # HMAC secret used only in e2e test validation (not a real secret)
+    '''ADMIN_HMAC_SECRET\s*=\s*['"]98677['"]''',
+    # Auth0 mock sub values used in tests
+    '''auth0\|mock-(user|admin)-\w+''',
+    # Placeholder image URLs (no real auth)
+    '''via\.placeholder\.com''',
+    # TMDB image CDN paths (public, no auth required)
+    '''/[a-zA-Z0-9]+\.jpg''',
+    # Mock JWT structure used in test fixtures
+    '''mock-.*-jwt-.*-token''',
+  ]
+
+  # Commit SHAs that are known to be safe (e.g., historical false positives)
+  # commits = []
+
+# ─── Rule Overrides ──────────────────────────────────────────────────────────
+# Disable specific rules that produce consistent false positives for SPA projects.
+
+[[rules]]
+  id          = "generic-api-key"
+  description = "Suppress generic-api-key rule for known TMDB/placeholder patterns"
+  # Only apply the override to test and mock files
+  [rules.allowlist]
+    paths = [
+      '''e2e/fixtures/mocks\.ts''',
+      '''src/auth/mock-auth0\.tsx''',
+    ]
