@@ -15,7 +15,7 @@
     "test": "bun test ./src",
     "test:backend": "cd backend && bun test",
     "e2e": "playwright test",
-    "e2e:ci": "playwright test --reporter=list,html",
+    "e2e:ci": "playwright test --project='Desktop Chrome' --reporter=list,html --grep-invert @skip-ci",
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {

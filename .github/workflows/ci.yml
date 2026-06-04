@@ -99,6 +99,7 @@ jobs:
       - name: Scan for leaked credentials
         run: |
           gitleaks detect \
+            --config .gitleaks.toml \
             --redact \
             --exit-code=2 \
             --report-format=sarif \
@@ -111,6 +112,86 @@ jobs:
         with:
           sarif_file: results.sarif
           category: gitleaks
+
+# ──────────────────────────────────────────────────────────────
+#  NPM AUDIT  (always runs — fast vulnerability triage)
+#  Scans both frontend (npm) and backend (bun) dependency trees.
+#  Blocks on CRITICAL vulnerabilities; HIGH is a warning.
+# ──────────────────────────────────────────────────────────────
+
+  npm-audit:
+    name: "npm / bun Audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Frontend — npm audit
+        # Audit only production deps; dev-only vulnerabilities are lower priority.
+        run: |
+          npm ci --legacy-peer-deps --ignore-scripts
+          npm audit --omit=dev --audit-level=critical
+        continue-on-error: false   # BLOCK on CRITICAL
+
+      - name: Frontend — npm audit (HIGH advisory)
+        run: npm audit --omit=dev --audit-level=high || echo "::warning title=npm audit::HIGH severity vulnerabilities found — review before next release."
+        continue-on-error: true    # Warn only for HIGH
+
+      - name: Setup Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Backend — bun audit
+        working-directory: ./backend
+        run: |
+          bun install --frozen-lockfile
+          bun audit --level=critical || echo "::warning title=bun audit::Backend vulnerabilities found — review."
+        continue-on-error: true   # bun audit is advisory-only until stable
+
+# ──────────────────────────────────────────────────────────────
+#  OSV SCANNER  (SBOM-grade open-source vuln scan)
+#  Scans lockfiles against the OSV database (Google).
+#  Uploads results to GitHub Security tab as SARIF.
+#  More accurate than npm audit for transitive dep CVEs.
+# ──────────────────────────────────────────────────────────────
+
+  osv-scan:
+    name: "OSV Vulnerability Scan"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents:        read
+      security-events: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@5a78f70acdc7c70f8b4eb52e45f3c8e702e82174  # v2.0.2
+        with:
+          scan-args: |-
+            --lockfile=package-lock.json
+            --lockfile=backend/bun.lockb
+            --format=sarif
+            --output=osv-results.sarif
+        continue-on-error: true   # Advisory — do not block on first run
+
+      - name: Upload OSV SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        with:
+          sarif_file: osv-results.sarif
+          category:   osv-scanner
+        continue-on-error: true   # sarif upload is non-blocking
 
 # ──────────────────────────────────────────────────────────────
 #  DEPENDENCY REVIEW  (pull requests only)
@@ -379,6 +460,67 @@ jobs:
           path: e2e/test-results/
           retention-days: 14
 
+      # ── Lighthouse CI ──────────────────────────────────────────────────────
+      # Performance, accessibility, SEO, and best-practice budgets.
+      # Run after E2E so the preview server is already warm.
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.14.0 --no-fund --no-audit
+
+      - name: Run Lighthouse CI
+        run: |
+          lhci autorun \
+            --upload.target=temporary-public-storage \
+            --collect.url=http://localhost:4173 \
+            --collect.numberOfRuns=1 \
+            --assert.assertions.categories:performance=warn \
+            --assert.assertions.categories:accessibility=warn \
+            --assert.assertions.categories:best-practices=warn \
+            --assert.assertions.categories:seo=warn \
+            --assert.budgets=[{"path":"/**","timings":[{"metric":"interactive","budget":10000}]}] || true
+        env:
+          BASE_URL: http://localhost:4173
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+        continue-on-error: true   # Advisory — warn but never block deployment
+
+      - name: Upload Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 14
+
+      # ── Security Headers Check ─────────────────────────────────────────────
+      # Verify the built SPA sets critical security response headers.
+      # These headers are typically injected by the CDN/reverse proxy;
+      # failing here means the deploy infra is missing hardening.
+      - name: Check security response headers
+        run: |
+          echo "Checking security headers on http://localhost:4173 ..."
+          HEADERS=$(curl -sI http://localhost:4173)
+          echo "$HEADERS"
+
+          MISSING=""
+
+          echo "$HEADERS" | grep -qi 'x-content-type-options' \
+            || MISSING="$MISSING\n  ✗ X-Content-Type-Options missing (prevents MIME-sniffing)"
+
+          echo "$HEADERS" | grep -qi 'x-frame-options\|content-security-policy' \
+            || MISSING="$MISSING\n  ✗ X-Frame-Options / CSP frame-ancestors missing (clickjacking risk)"
+
+          echo "$HEADERS" | grep -qi 'referrer-policy' \
+            || MISSING="$MISSING\n  ✗ Referrer-Policy missing (leaks URLs to third parties)"
+
+          if [ -n "$MISSING" ]; then
+            echo ""
+            echo "::warning title=Security Headers::The following headers are absent from the production build:"
+            printf "$MISSING\n"
+            echo ""
+            echo "Add these in your CDN/reverse-proxy config (Vercel headers, nginx, CloudFront response policies)."
+          else
+            echo "✓ All critical security headers present."
+          fi
+
 # ──────────────────────────────────────────────────────────────
 #  STATUS GATE
 #  Branch protection requires a single required check.
@@ -388,7 +530,7 @@ jobs:
 
   status-check:
     name: "All Checks Passed"
-    needs: [frontend-ci, backend-ci, codeql, e2e-audit]
+    needs: [frontend-ci, backend-ci, codeql, e2e-audit, npm-audit, osv-scan]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -399,6 +541,8 @@ jobs:
           backend="${{ needs.backend-ci.result }}"
           codeql="${{ needs.codeql.result }}"
           e2e="${{ needs.e2e-audit.result }}"
+          audit="${{ needs.npm-audit.result }}"
+          osv="${{ needs.osv-scan.result }}"
 
           printf "%-20s %s\n" "Job" "Result"
           printf "%-20s %s\n" "---" "------"
@@ -406,9 +550,12 @@ jobs:
           printf "%-20s %s\n" "backend-ci"   "$backend"
           printf "%-20s %s\n" "codeql"       "$codeql"
           printf "%-20s %s\n" "e2e-audit"    "$e2e"
+          printf "%-20s %s\n" "npm-audit"    "$audit"
+          printf "%-20s %s\n" "osv-scan"     "$osv (advisory)"
 
           FAILED=0
-          for result in "$frontend" "$backend" "$codeql"; do
+          # Block on hard failures only (osv-scan and e2e Lighthouse are advisory)
+          for result in "$frontend" "$backend" "$codeql" "$audit"; do
             if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
               FAILED=1
             fi
