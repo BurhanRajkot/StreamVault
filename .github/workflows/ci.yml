@@ -1,6 +1,15 @@
 # StreamVault CI/CD
 # Path-filtered, security-hardened, SLSA L3-attested pipeline.
 # All third-party actions pinned to immutable commit SHAs.
+#
+# CHANGES vs. the previous revision (see PR description / chat for rationale):
+#   - Every job baselines the runner with Harden-Runner (egress audit).
+#   - JS toolchain setup is centralized in ./.github/actions/setup-ci.
+#   - BUN_VERSION pinned to an exact release (was the floating "latest").
+#   - New workflow-lint job runs zizmor (static analysis for GHA workflows).
+#   - status-check now gates secret-scan + e2e-audit (previously could go
+#     green even when the secret scan failed — see "Status gate" note below).
+#   - Playwright browser binaries are cached between runs.
 
 name: StreamVault CI/CD
 
@@ -22,14 +31,14 @@ permissions:
 
 env:
   NODE_VERSION: "24"
-  BUN_VERSION:  "latest"
+  BUN_VERSION:  "1.3.14"   # Pinned (was "latest"). Bump deliberately, not implicitly.
   PLATFORMS:    "linux/amd64,linux/arm64"
-  # Opt in to Node.js 24 for JS-based actions ahead of the June 2026 migration.
+  # Opt JS-based actions onto Node 24 ahead of GitHub's 16-Jun-2026 default switch.
+  # Once that date passes this is a no-op and can be removed.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 # ──────────────────────────────────────────────────────────────
 #  CHANGE DETECTION
-#  Skips downstream jobs when their paths are unmodified.
 # ──────────────────────────────────────────────────────────────
 jobs:
 
@@ -43,6 +52,11 @@ jobs:
       docker:   ${{ steps.filter.outputs.docker }}
       infra:    ${{ steps.filter.outputs.infra }}
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Detect changed paths
@@ -72,6 +86,45 @@ jobs:
               - ".github/workflows/**"
 
 # ──────────────────────────────────────────────────────────────
+#  WORKFLOW LINT (zizmor) — static analysis of the workflows themselves
+#  Catches template-injection sinks, over-broad permissions, unpinned
+#  refs, and dangerous triggers. Advisory; results go to the Security tab.
+# ──────────────────────────────────────────────────────────────
+
+  workflow-lint:
+    name: "Workflow Lint — zizmor"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Run zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}   # enables zizmor's online audits
+        run: |
+          pipx run zizmor \
+            --format sarif \
+            --persona regular \
+            .github/ > zizmor.sarif || true
+        continue-on-error: true
+
+      - name: Upload zizmor SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@f35333b910470a5408cb081b68f0701254a7d27b  # v3.28.18
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
+        continue-on-error: true
+
+# ──────────────────────────────────────────────────────────────
 #  SECRET SCAN  (always runs — fail fast before any build)
 # ──────────────────────────────────────────────────────────────
 
@@ -83,12 +136,16 @@ jobs:
       contents: read
       security-events: write
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
         with:
           fetch-depth: 0   # Full history required by Gitleaks
 
       - name: Install Gitleaks
-        # Install the binary directly to avoid the Node.js wrapper's deprecation noise.
         run: |
           GITLEAKS_VERSION="8.24.3"
           curl -sSfL \
@@ -114,9 +171,7 @@ jobs:
           category: gitleaks
 
 # ──────────────────────────────────────────────────────────────
-#  NPM AUDIT  (always runs — fast vulnerability triage)
-#  Scans both frontend (npm) and backend (bun) dependency trees.
-#  Blocks on CRITICAL vulnerabilities; HIGH is a warning.
+#  NPM / BUN AUDIT  (always runs)
 # ──────────────────────────────────────────────────────────────
 
   npm-audit:
@@ -126,25 +181,26 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      - name: Setup toolchain + install (frontend)
+        uses: ./.github/actions/setup-ci
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          install: npm
+          install-args: "--legacy-peer-deps --ignore-scripts"
 
-      - name: Frontend — npm audit
-        # Audit only production deps; dev-only vulnerabilities are lower priority.
-        run: |
-          npm ci --legacy-peer-deps --ignore-scripts
-          npm audit --omit=dev --audit-level=critical
-        continue-on-error: false   # BLOCK on CRITICAL
+      - name: Frontend — npm audit (BLOCK on CRITICAL)
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: Frontend — npm audit (HIGH advisory)
         run: npm audit --omit=dev --audit-level=high || echo "::warning title=npm audit::HIGH severity vulnerabilities found — review before next release."
-        continue-on-error: true    # Warn only for HIGH
+        continue-on-error: true
 
       - name: Setup Bun ${{ env.BUN_VERSION }}
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
@@ -156,13 +212,10 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bun audit --level=critical || echo "::warning title=bun audit::Backend vulnerabilities found — review."
-        continue-on-error: true   # bun audit is advisory-only until stable
+        continue-on-error: true
 
 # ──────────────────────────────────────────────────────────────
-#  OSV SCANNER  (SBOM-grade open-source vuln scan)
-#  Scans lockfiles against the OSV database (Google).
-#  Uploads results to GitHub Security tab as SARIF.
-#  More accurate than npm audit for transitive dep CVEs.
+#  OSV SCANNER
 # ──────────────────────────────────────────────────────────────
 
   osv-scan:
@@ -173,6 +226,11 @@ jobs:
       contents:        read
       security-events: write
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Run OSV Scanner
@@ -183,7 +241,7 @@ jobs:
             --lockfile=backend/bun.lockb
             --format=sarif
             --output=osv-results.sarif
-        continue-on-error: true   # Advisory — do not block on first run
+        continue-on-error: true   # Advisory
 
       - name: Upload OSV SARIF results
         if: always()
@@ -191,7 +249,7 @@ jobs:
         with:
           sarif_file: osv-results.sarif
           category:   osv-scanner
-        continue-on-error: true   # sarif upload is non-blocking
+        continue-on-error: true
 
 # ──────────────────────────────────────────────────────────────
 #  DEPENDENCY REVIEW  (pull requests only)
@@ -202,14 +260,18 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Requires the Dependency Graph feature to be enabled in repo settings.
-    # Settings → Code security and analysis → Dependency graph.
+    # Requires Dependency Graph: Settings → Code security → Dependency graph.
     # Remove continue-on-error once it's enabled.
     continue-on-error: true
     permissions:
       contents: read
       pull-requests: write
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Review dependency changes
@@ -220,7 +282,6 @@ jobs:
 
 # ──────────────────────────────────────────────────────────────
 #  FRONTEND CI
-#  Runs on: src/**, public/**, package*, tsconfig*, vite.config*
 # ──────────────────────────────────────────────────────────────
 
   frontend-ci:
@@ -233,22 +294,21 @@ jobs:
       VITE_MOCK_AUTH: "true"
       VITE_API_URL: "http://localhost:4173"
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      - name: Setup toolchain + install
+        uses: ./.github/actions/setup-ci
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Setup Bun ${{ env.BUN_VERSION }}
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
-        with:
+          bun: "true"
           bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+          install: npm
+          install-args: "--legacy-peer-deps"
 
       - name: Type-check
         run: npx tsc --noEmit
@@ -263,7 +323,6 @@ jobs:
         run: |
           BUNDLE_KB=$(du -sk dist/ | cut -f1)
           echo "Bundle size: ${BUNDLE_KB} KB"
-          # Warn (but don't fail) if the uncompressed bundle exceeds 25 MB.
           if [ "$BUNDLE_KB" -gt 25600 ]; then
             echo "::warning title=Bundle size::Uncompressed dist/ is ${BUNDLE_KB} KB — consider code splitting."
           fi
@@ -291,7 +350,6 @@ jobs:
 
 # ──────────────────────────────────────────────────────────────
 #  BACKEND CI
-#  Runs on: backend/**, shared/**
 # ──────────────────────────────────────────────────────────────
 
   backend-ci:
@@ -301,27 +359,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
-      # Cache Bun's global package store. Key is tied to the lockfile;
-      # restore-keys allow partial hits when packages are added/removed.
-      - name: Restore Bun cache
-        id: bun-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+      - name: Setup toolchain + install
+        uses: ./.github/actions/setup-ci
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('backend/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Setup Bun ${{ env.BUN_VERSION }}
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
-        with:
+          bun: "true"
           bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ./backend
-        run: bun install --frozen-lockfile
+          install: bun
+          install-args: "--frozen-lockfile"
+          working-directory: ./backend
 
       - name: Type-check
         working-directory: ./backend
@@ -349,7 +401,6 @@ jobs:
 
 # ──────────────────────────────────────────────────────────────
 #  CODEQL ANALYSIS
-#  Uploads results to the Security tab; runs in parallel with CI.
 # ──────────────────────────────────────────────────────────────
 
   codeql:
@@ -361,6 +412,11 @@ jobs:
       contents:        read
       security-events: write
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Initialize CodeQL
@@ -377,15 +433,7 @@ jobs:
           category: "/language:javascript-typescript"
 
 # ──────────────────────────────────────────────────────────────
-#  E2E / AUDIT TESTS  (runs after frontend build succeeds)
-#
-#  Uses Playwright + Chromium to audit:
-#    - Homepage loads, SEO meta tags, H1 presence
-#    - Navigation + keyboard accessibility
-#    - Route protection (unauthenticated redirects)
-#    - Mobile viewport rendering
-#    - Performance budget (no >2MB JS chunks)
-#    - 404 page
+#  E2E / AUDIT TESTS
 # ──────────────────────────────────────────────────────────────
 
   e2e-audit:
@@ -401,27 +449,44 @@ jobs:
       VITE_MOCK_AUTH: "true"
       VITE_API_URL: "http://localhost:4173"
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      - name: Setup toolchain + install
+        uses: ./.github/actions/setup-ci
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          install: npm
+          install-args: "--legacy-peer-deps"
 
-      - name: Install frontend dependencies
-        run: npm ci --legacy-peer-deps
+      # Cache Playwright browser binaries keyed on the resolved Playwright
+      # version. Avoids re-downloading Chromium (~150 MB) every run.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -e "console.log(require('@playwright/test/package.json').version)")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
+        # On a cache hit the browser is present; --with-deps still installs the
+        # apt packages, which aren't cached. Cheap relative to the download.
 
       - name: Download built frontend artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: frontend-dist
           path: dist/
-        continue-on-error: true   # Falls back to building locally if artifact unavailable
+        continue-on-error: true
 
       - name: Build frontend (fallback if artifact missing)
         run: |
@@ -460,9 +525,7 @@ jobs:
           path: e2e/test-results/
           retention-days: 14
 
-      # ── Lighthouse CI ──────────────────────────────────────────────────────
-      # Performance, accessibility, SEO, and best-practice budgets.
-      # Run after E2E so the preview server is already warm.
+      # ── Lighthouse CI (advisory) ──
       - name: Install Lighthouse CI
         run: npm install -g @lhci/cli@0.14.0 --no-fund --no-audit
 
@@ -480,7 +543,7 @@ jobs:
         env:
           BASE_URL: http://localhost:4173
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
-        continue-on-error: true   # Advisory — warn but never block deployment
+        continue-on-error: true
 
       - name: Upload Lighthouse results
         if: always()
@@ -490,94 +553,84 @@ jobs:
           path: .lighthouseci/
           retention-days: 14
 
-      # ── Security Headers Check ─────────────────────────────────────────────
-      # Verify the built SPA sets critical security response headers.
-      # These headers are typically injected by the CDN/reverse proxy;
-      # failing here means the deploy infra is missing hardening.
+      # ── Security Headers Check (advisory) ──
       - name: Check security response headers
         run: |
           echo "Checking security headers on http://localhost:4173 ..."
           HEADERS=$(curl -sI http://localhost:4173)
           echo "$HEADERS"
-
           MISSING=""
-
           echo "$HEADERS" | grep -qi 'x-content-type-options' \
-            || MISSING="$MISSING\n  ✗ X-Content-Type-Options missing (prevents MIME-sniffing)"
-
+            || MISSING="$MISSING\n  X-Content-Type-Options missing (prevents MIME-sniffing)"
           echo "$HEADERS" | grep -qi 'x-frame-options\|content-security-policy' \
-            || MISSING="$MISSING\n  ✗ X-Frame-Options / CSP frame-ancestors missing (clickjacking risk)"
-
+            || MISSING="$MISSING\n  X-Frame-Options / CSP frame-ancestors missing (clickjacking risk)"
           echo "$HEADERS" | grep -qi 'referrer-policy' \
-            || MISSING="$MISSING\n  ✗ Referrer-Policy missing (leaks URLs to third parties)"
-
+            || MISSING="$MISSING\n  Referrer-Policy missing (leaks URLs to third parties)"
           if [ -n "$MISSING" ]; then
-            echo ""
             echo "::warning title=Security Headers::The following headers are absent from the production build:"
             printf "$MISSING\n"
-            echo ""
             echo "Add these in your CDN/reverse-proxy config (Vercel headers, nginx, CloudFront response policies)."
           else
-            echo "✓ All critical security headers present."
+            echo "All critical security headers present."
           fi
 
 # ──────────────────────────────────────────────────────────────
 #  STATUS GATE
-#  Branch protection requires a single required check.
-#  This job is always triggered and evaluates all upstream
-#  outcomes — 'skipped' (path filter) is treated as passing.
+#
+#  The single required check for branch protection. It now depends on the
+#  security jobs directly (notably secret-scan), closing a real gap: in the
+#  previous revision secret-scan was NOT a dependency of this gate, and the
+#  CI jobs that DO depend on it report 'skipped' when it fails — and 'skipped'
+#  was treated as passing. A leaked-secret detection could therefore land a
+#  green required check. Now secret-scan failure blocks the gate explicitly.
 # ──────────────────────────────────────────────────────────────
 
   status-check:
     name: "All Checks Passed"
-    needs: [frontend-ci, backend-ci, codeql, e2e-audit, npm-audit, osv-scan]
+    needs: [change-detection, secret-scan, frontend-ci, backend-ci, codeql, e2e-audit, npm-audit, osv-scan]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Evaluate outcomes
         run: |
-          frontend="${{ needs.frontend-ci.result }}"
-          backend="${{ needs.backend-ci.result }}"
-          codeql="${{ needs.codeql.result }}"
-          e2e="${{ needs.e2e-audit.result }}"
-          audit="${{ needs.npm-audit.result }}"
-          osv="${{ needs.osv-scan.result }}"
+          declare -A R=(
+            [change-detection]="${{ needs.change-detection.result }}"
+            [secret-scan]="${{ needs.secret-scan.result }}"
+            [frontend-ci]="${{ needs.frontend-ci.result }}"
+            [backend-ci]="${{ needs.backend-ci.result }}"
+            [codeql]="${{ needs.codeql.result }}"
+            [e2e-audit]="${{ needs.e2e-audit.result }}"
+            [npm-audit]="${{ needs.npm-audit.result }}"
+            [osv-scan]="${{ needs.osv-scan.result }}"
+          )
 
-          printf "%-20s %s\n" "Job" "Result"
-          printf "%-20s %s\n" "---" "------"
-          printf "%-20s %s\n" "frontend-ci"  "$frontend"
-          printf "%-20s %s\n" "backend-ci"   "$backend"
-          printf "%-20s %s\n" "codeql"       "$codeql"
-          printf "%-20s %s\n" "e2e-audit"    "$e2e"
-          printf "%-20s %s\n" "npm-audit"    "$audit"
-          printf "%-20s %s\n" "osv-scan"     "$osv (advisory)"
+          printf "%-18s %s\n" "Job" "Result"
+          printf "%-18s %s\n" "---" "------"
+          for job in "${!R[@]}"; do
+            printf "%-18s %s\n" "$job" "${R[$job]}"
+          done
+
+          # Advisory jobs: failures are surfaced as warnings, not blockers.
+          ADVISORY="osv-scan"
 
           FAILED=0
-          # Block on hard failures only (osv-scan and e2e Lighthouse are advisory)
-          for result in "$frontend" "$backend" "$codeql" "$audit"; do
-            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+          for job in "${!R[@]}"; do
+            case " $ADVISORY " in *" $job "*) continue;; esac
+            if [[ "${R[$job]}" == "failure" || "${R[$job]}" == "cancelled" ]]; then
+              echo "::error title=$job::$job concluded with '${R[$job]}'."
               FAILED=1
             fi
           done
 
           if [ "$FAILED" -eq 1 ]; then
-            echo ""
             echo "One or more required jobs failed — see above."
             exit 1
           fi
-          echo ""
-          echo "All checks passed or were skipped by path filter."
+          echo "All required checks passed or were skipped by path filter."
 
 # ──────────────────────────────────────────────────────────────
 #  DOCKER BUILD & PUBLISH  (main branch pushes only)
-#
-#  Order of operations per image:
-#    1. Build locally (no push)
-#    2. Trivy scan — BLOCK on fixable CRITICAL/HIGH CVEs
-#    3. Push multi-platform image with provenance + SBOM
-#
-#  Registry: ghcr.io/<owner-lc>/streamvault-{frontend,backend}
 # ──────────────────────────────────────────────────────────────
 
   publish-images:
@@ -594,6 +647,11 @@ jobs:
       security-events: write
 
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit   # build pulls many base layers; audit, not block
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Setup QEMU
@@ -611,7 +669,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # GHCR image names must be lowercase.
       - name: Resolve image namespace
         id: ns
         run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
@@ -651,8 +708,8 @@ jobs:
           format:         sarif
           output:         trivy-frontend.sarif
           severity:       CRITICAL,HIGH
-          exit-code:      "1"   # BLOCK on fixable CRITICAL/HIGH — hardened per supply chain policy
-          ignore-unfixed: true  # Don't block on zero-days with no upstream patch
+          exit-code:      "1"
+          ignore-unfixed: true
 
       - name: Upload frontend Trivy SARIF
         if: always()
@@ -718,8 +775,8 @@ jobs:
           format:         sarif
           output:         trivy-backend.sarif
           severity:       CRITICAL,HIGH
-          exit-code:      "1"   # BLOCK on fixable CRITICAL/HIGH — hardened per supply chain policy
-          ignore-unfixed: true  # Don't block on zero-days with no upstream patch
+          exit-code:      "1"
+          ignore-unfixed: true
 
       - name: Upload backend Trivy SARIF
         if: always()
@@ -752,16 +809,6 @@ jobs:
 
 # ──────────────────────────────────────────────────────────────
 #  DEPLOYMENT  (main branch pushes only)
-#
-#  Uses Workload Identity Federation — no long-lived secrets.
-#  Swap the commented-out auth step for your cloud provider:
-#    GCP   → google-github-actions/auth@v3
-#    AWS   → aws-actions/configure-aws-credentials@v4
-#    Azure → azure/login@v2
-#
-#  Two-stage rollout with independent approval gates:
-#    1. Canary  →  5% traffic
-#    2. Full production promotion
 # ──────────────────────────────────────────────────────────────
 
   deploy-canary:
@@ -771,12 +818,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: production-canary   # Requires manual approval gate in GitHub Environments
+      name: production-canary
     permissions:
       contents: read
       id-token: write
 
     steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       # - name: Authenticate to Google Cloud
@@ -788,15 +840,11 @@ jobs:
       - name: Deploy canary release
         run: |
           # kubectl apply -f k8s/canary/
-          # kubectl set image deployment/streamvault-canary \
-          #   frontend=ghcr.io/${{ github.repository_owner }}/streamvault-frontend:sha-${{ github.sha }} \
-          #   backend=ghcr.io/${{ github.repository_owner }}/streamvault-backend:sha-${{ github.sha }}
           echo "Canary deploy — replace with real commands."
 
       - name: Health-check canary
         run: |
           # kubectl rollout status deployment/streamvault-canary --timeout=5m
-          # curl -sf https://canary.streamvault.example.com/health
           echo "Health check — replace with real commands."
 
   deploy-production:
@@ -805,24 +853,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: production   # Second manual approval gate
+      name: production
     permissions:
       contents: read
       id-token: write
 
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        with:
+          egress-policy: audit
 
-      # - name: Authenticate to Google Cloud
-      #   uses: google-github-actions/auth@v3
-      #   with:
-      #     workload_identity_provider: ...
-      #     service_account: ...
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
 
       - name: Promote canary to production
         run: |
           # kubectl apply -f k8s/production/
-          # kubectl set image deployment/streamvault ...
           echo "Production promotion — replace with real commands."
 
       - name: Verify rollout
