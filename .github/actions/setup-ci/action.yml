@@ -1,0 +1,65 @@
+# .github/actions/setup-ci/action.yml
+#
+# Single source of truth for the JS toolchain setup that was previously
+# copy-pasted across ~6 jobs. Bump Node/Bun versions or action SHAs HERE
+# and every job inherits the change.
+#
+# NOTE: This is a *local* composite action, so the calling job must run
+# actions/checkout BEFORE `uses: ./.github/actions/setup-ci` — GitHub needs
+# the action's files on disk before it can run it. Harden-Runner therefore
+# stays as the job's explicit first step (it's a remote action and must
+# baseline the runner before checkout).
+
+name: "Setup CI environment"
+description: "Set up Node (and optionally Bun) with dependency caching and install."
+
+inputs:
+  node-version:
+    description: "Node.js major version"
+    default: "24"
+  bun:
+    description: "Set up Bun ('true'/'false')"
+    default: "false"
+  bun-version:
+    description: "Bun version — pin to an exact patch for reproducibility"
+    default: "1.3.14"
+  cache-dependency-path:
+    description: "Lockfile used for the npm cache key"
+    default: "package-lock.json"
+  install:
+    description: "Install step to run: 'none' | 'npm' | 'bun'"
+    default: "none"
+  install-args:
+    description: "Extra args appended to the install command"
+    default: ""
+  working-directory:
+    description: "Directory to install in"
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Setup Bun ${{ inputs.bun-version }}
+      if: inputs.bun == 'true'
+      uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Install (npm)
+      if: inputs.install == 'npm'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci ${{ inputs.install-args }}
+
+    - name: Install (bun)
+      if: inputs.install == 'bun'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: bun install ${{ inputs.install-args }}
