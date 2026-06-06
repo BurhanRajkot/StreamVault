@@ -54,7 +54,7 @@ export const CONFIG = {
       vidsrc_cc:
         'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy:
-        'https://player.videasy.net/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+        'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
 
       /* ================= MOVIE ================= */
       vidsrc_pro_movie: 'https://vidsrc.to/embed/movie/{tmdbId}',
@@ -64,7 +64,7 @@ export const CONFIG = {
       vidsrc_cc_movie:
         'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy_movie:
-        'https://player.videasy.net/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+        'https://player.videasy.to/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
     },
 
   PROVIDER_NAMES: {
@@ -91,7 +91,7 @@ export const CONFIG = {
     'vidsrc.icu',
     'vidlink.pro',
     'vidsrc.cc',
-    'player.videasy.net',
+    'player.videasy.to',
   ],
 }
 
