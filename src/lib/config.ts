@@ -45,10 +45,10 @@ export const CONFIG = {
     STREAM_PROVIDERS: {
       /* ================= TV ================= */
       vidsrc_pro:
-        'https://vidsrc.to/embed/tv/{tmdbId}/{season}/{episode}',
+        'https://vidsrc.wtf/embed/tv/{tmdbId}/{season}/{episode}?autoplay=true',
       vidfast_pro:
         'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto&ds_lang=en',
-      vidsrc_icu: 'https://vidsrc.icu/embed/tv/{tmdbId}/{season}/{episode}?autoplay=1&preload=auto&ds_lang=en',
+      vidsrc_icu: 'https://2embed.cc/embed/tv/{tmdbId}/{season}/{episode}',
       vidlink_pro:
         'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true&preload=auto&ds_lang=en',
       vidsrc_cc:
@@ -57,9 +57,9 @@ export const CONFIG = {
         'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
 
       /* ================= MOVIE ================= */
-      vidsrc_pro_movie: 'https://vidsrc.to/embed/movie/{tmdbId}',
+      vidsrc_pro_movie: 'https://vidsrc.wtf/embed/movie/{tmdbId}?autoplay=true',
       vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
-      vidsrc_icu_movie: 'https://vidsrc.icu/embed/movie/{tmdbId}?autoplay=1&preload=auto&ds_lang=en',
+      vidsrc_icu_movie: 'https://2embed.cc/embed/movie/{tmdbId}',
       vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
       vidsrc_cc_movie:
         'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
@@ -70,25 +70,25 @@ export const CONFIG = {
   PROVIDER_NAMES: {
     vidlink_pro: 'Prism HD',
     vidfast_pro: 'Lumina Pro',
-    vidsrc_icu: 'Vortex Streaming',
-    vidsrc_pro: 'Solaris Source',
+    vidsrc_icu: 'Nova Stream',
+    vidsrc_pro: 'Aurora Source',
     vidsrc_cc: 'Pulse Player',
     videasy: 'Horizon Select',
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
-    vidsrc_pro: { quality: '🌟 Elite Quality', seekSupport: 'excellent', description: 'Solaris Premium Source' },
+    vidsrc_pro: { quality: '🌟 Elite Quality', seekSupport: 'excellent', description: 'Aurora Premium Source' },
     vidfast_pro: { quality: '⚡ Ultra Fast', seekSupport: 'excellent', description: 'Lumina High-Speed' },
-    vidsrc_icu: { quality: '✓ Crystal', seekSupport: 'medium', description: 'Vortex Alternative' },
+    vidsrc_icu: { quality: '✓ Crystal', seekSupport: 'good', description: '2Embed Reliable' },
     vidlink_pro: { quality: '⚡ Instant', seekSupport: 'excellent', description: 'Prism HD Stream' },
     vidsrc_cc: { quality: '✓ Vibrant', seekSupport: 'good', description: 'Pulse Stable Player' },
     videasy: { quality: '✓ Smooth', seekSupport: 'medium', description: 'Horizon Versatile' },
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
 
   STREAMING_DOMAINS: [
-    'vidsrc.to',
+    'vidsrc.wtf',
     'vidfast.pro',
-    'vidsrc.icu',
+    '2embed.cc',
     'vidlink.pro',
     'vidsrc.cc',
     'player.videasy.to',
