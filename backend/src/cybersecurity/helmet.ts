@@ -24,6 +24,9 @@ export const helmetMiddleware = helmet({
   // Allow iframe embeds for video player
   crossOriginEmbedderPolicy: false,
 
+  // Configure Referrer-Policy to allow domain verification for embedded players
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+
   // Content Security Policy - prevents XSS attacks
   contentSecurityPolicy: isProduction ? {
     directives: {
@@ -44,6 +47,8 @@ export const helmetMiddleware = helmet({
         "https://vidlink.pro",
         "https://vidsrc.cc",
         "https://player.videasy.net",
+        "https://player.videasy.to",
+        "https://*.videasy.to",
         "https://vidsrc.net",
         "https://v2.vidsrc.me",
       ],

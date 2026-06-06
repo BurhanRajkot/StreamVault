@@ -20,6 +20,7 @@ const TMDB_IMG_DOMAIN = 'image.tmdb.org'
 const STREAMING_DOMAINS = [
   'vidsrc.to', 'vidfast.pro', 'vidsrc.icu',
   'vidlink.pro', 'vidsrc.cc', 'player.videasy.net',
+  'player.videasy.to', 'videasy.to',
 ]
 
 export interface ImageReport {
