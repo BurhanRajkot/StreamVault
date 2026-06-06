@@ -18,7 +18,7 @@ import { BasePage } from './BasePage'
 const TMDB_IMG_DOMAIN = 'image.tmdb.org'
 
 const STREAMING_DOMAINS = [
-  'vidsrc.wtf', 'vidfast.pro', '2embed.cc',
+  'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc',
   'vidlink.pro', 'vidsrc.cc', 'player.videasy.net',
   'player.videasy.to', 'videasy.to',
 ]

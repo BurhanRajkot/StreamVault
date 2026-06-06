@@ -41,8 +41,10 @@ export const helmetMiddleware = helmet({
       // Allow all streaming provider iframes
       frameSrc: [
         "'self'",
-        "https://vidsrc.wtf",
-        "https://*.vidsrc.wtf",
+        "https://peachify.top",
+        "https://*.peachify.top",
+        "https://vidup.to",
+        "https://*.vidup.to",
         "https://2embed.cc",
         "https://*.2embed.cc",
         "https://vidfast.pro",
