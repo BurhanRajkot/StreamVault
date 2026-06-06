@@ -57,6 +57,8 @@ export const CONFIG = {
         'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy:
         'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+      obsidian:
+        'https://vidrock.ru/tv/{tmdbId}/{season}/{episode}',
 
       /* ================= MOVIE ================= */
       peachify_movie: 'https://peachify.top/embed/movie/{tmdbId}',
@@ -68,6 +70,7 @@ export const CONFIG = {
         'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
       videasy_movie:
         'https://player.videasy.to/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+      obsidian_movie: 'https://vidrock.ru/movie/{tmdbId}',
     },
 
   PROVIDER_NAMES: {
@@ -78,6 +81,7 @@ export const CONFIG = {
     vidup: 'Vortex Player',
     vidsrc_cc: 'Pulse Player',
     videasy: 'Horizon Select',
+    obsidian: 'Obsidian Stream',
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
@@ -88,6 +92,7 @@ export const CONFIG = {
     vidlink_pro: { quality: '⚡ Instant', seekSupport: 'excellent', description: 'Prism HD Stream' },
     vidsrc_cc: { quality: '✓ Vibrant', seekSupport: 'good', description: 'Pulse Stable Player' },
     videasy: { quality: '✓ Smooth', seekSupport: 'medium', description: 'Horizon Versatile' },
+    obsidian: { quality: '⚡ Elite Quality', seekSupport: 'excellent', description: 'Obsidian Premium Stream' },
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
 
   STREAMING_DOMAINS: [
@@ -98,6 +103,7 @@ export const CONFIG = {
     'vidlink.pro',
     'vidsrc.cc',
     'player.videasy.to',
+    'vidrock.ru',
   ],
 }
 
