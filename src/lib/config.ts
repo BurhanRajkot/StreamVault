@@ -44,8 +44,10 @@ export const CONFIG = {
 
     STREAM_PROVIDERS: {
       /* ================= TV ================= */
-      vidsrc_pro:
-        'https://vidsrc.wtf/embed/tv/{tmdbId}/{season}/{episode}?autoplay=true',
+      peachify:
+        'https://peachify.top/embed/tv/{tmdbId}/{season}/{episode}',
+      vidup:
+        'https://vidup.to/tv/{tmdbId}/{season}/{episode}',
       vidfast_pro:
         'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto&ds_lang=en',
       vidsrc_icu: 'https://2embed.cc/embed/tv/{tmdbId}/{season}/{episode}',
@@ -57,7 +59,8 @@ export const CONFIG = {
         'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
 
       /* ================= MOVIE ================= */
-      vidsrc_pro_movie: 'https://vidsrc.wtf/embed/movie/{tmdbId}?autoplay=true',
+      peachify_movie: 'https://peachify.top/embed/movie/{tmdbId}',
+      vidup_movie: 'https://vidup.to/movie/{tmdbId}',
       vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
       vidsrc_icu_movie: 'https://2embed.cc/embed/movie/{tmdbId}',
       vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
@@ -71,13 +74,15 @@ export const CONFIG = {
     vidlink_pro: 'Prism HD',
     vidfast_pro: 'Lumina Pro',
     vidsrc_icu: 'Nova Stream',
-    vidsrc_pro: 'Aurora Source',
+    peachify: 'Solaris HD',
+    vidup: 'Vortex Player',
     vidsrc_cc: 'Pulse Player',
     videasy: 'Horizon Select',
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
-    vidsrc_pro: { quality: '🌟 Elite Quality', seekSupport: 'excellent', description: 'Aurora Premium Source' },
+    peachify: { quality: '🌟 Elite Quality', seekSupport: 'excellent', description: 'Solaris Fast Stream' },
+    vidup: { quality: '✓ Smooth', seekSupport: 'good', description: 'Vortex Fast Stream' },
     vidfast_pro: { quality: '⚡ Ultra Fast', seekSupport: 'excellent', description: 'Lumina High-Speed' },
     vidsrc_icu: { quality: '✓ Crystal', seekSupport: 'good', description: '2Embed Reliable' },
     vidlink_pro: { quality: '⚡ Instant', seekSupport: 'excellent', description: 'Prism HD Stream' },
@@ -86,7 +91,8 @@ export const CONFIG = {
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
 
   STREAMING_DOMAINS: [
-    'vidsrc.wtf',
+    'peachify.top',
+    'vidup.to',
     'vidfast.pro',
     '2embed.cc',
     'vidlink.pro',
