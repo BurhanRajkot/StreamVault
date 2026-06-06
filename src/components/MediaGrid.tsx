@@ -136,7 +136,6 @@ export function MediaGrid({
                 left: 0,
                 right: 0,
                 transform: `translateY(${virtualRow.start}px)`,
-                willChange: 'transform',
                 display: 'grid',
                 gridTemplateColumns: `repeat(${cols}, 1fr)`,
                 gap: `${gap}px`,

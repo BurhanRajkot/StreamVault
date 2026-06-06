@@ -76,7 +76,7 @@ function MediaCardComponent({
 
     hoverTimeout.current = setTimeout(() => {
       setShowQuickView(true)
-    }, 1500)
+    }, 2000)
   }
 
   const handleMouseLeave = () => {
@@ -226,6 +226,7 @@ function MediaCardComponent({
           showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',
           disliked && 'grayscale contrast-125 opacity-70 hover:opacity-100'
         )}
+        style={{ contain: 'layout' }}
       >
         <div className="relative aspect-[2/3] overflow-hidden rounded-lg md:rounded-xl">
           <img

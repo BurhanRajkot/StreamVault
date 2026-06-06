@@ -15,7 +15,6 @@ import {
 import { RecoSection, RecoItem, getImageUrl, getImageSrcSet } from '../lib/api'
 import { cn } from '../lib/utils'
 import { useDislikes } from '../context/DislikesContext'
-import { motion, useAnimation, useMotionValue } from 'framer-motion'
 import { QuickViewModal } from './QuickViewModal'
 
 interface RecommendationRowProps {
@@ -54,79 +53,36 @@ export function RecommendationRow({
   onDislike,
   isLoading = false,
 }: RecommendationRowProps) {
-  const [carouselWidth, setCarouselWidth] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
   const innerTrackRef = useRef<HTMLDivElement>(null)
 
-  // Custom physics controller for imperative button scrolling
-  const controls = useAnimation()
-  const x = useMotionValue(0)
-
-  // Is the user actively dragging? Prevent click events if so.
-  const [isDragging, setIsDragging] = useState(false)
   const [showLeftButton, setShowLeftButton] = useState(false)
   const [showRightButton, setShowRightButton] = useState(true)
   const [isHovered, setIsHovered] = useState(false)
 
-  // Measure the true width of the content vs the container to set drag constraints
-  useEffect(() => {
-    if (carouselRef.current && innerTrackRef.current) {
-      const width = innerTrackRef.current.scrollWidth - carouselRef.current.offsetWidth
-      setCarouselWidth(Math.max(0, width))
-      setShowRightButton(width > 0 && Math.abs(x.get()) < width - 10)
-      setShowLeftButton(x.get() < -10)
+  // Measure the true width of the content vs the container to set drag constraints/buttons
+  const checkScroll = useCallback(() => {
+    if (innerTrackRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = innerTrackRef.current
+      setShowLeftButton(scrollLeft > 10)
+      setShowRightButton(scrollLeft < scrollWidth - clientWidth - 10)
     }
-  }, [section.items, isLoading, x])
+  }, [])
 
   useEffect(() => {
-    let unsubscribe: any;
-    // Only update React state when the show/hide boundary actually changes
-    // to avoid triggering re-renders on every animation frame
-    let prevLeft = false
-    let prevRight = true
-
-    const handleXChange = (latest: number) => {
-      const nextLeft = latest < -10
-      const nextRight = latest > -carouselWidth + 10 && carouselWidth > 0
-      if (nextLeft !== prevLeft) { prevLeft = nextLeft; setShowLeftButton(nextLeft) }
-      if (nextRight !== prevRight) { prevRight = nextRight; setShowRightButton(nextRight) }
-    }
-
-    if (x.on) {
-      unsubscribe = x.on('change', handleXChange)
-    } else if ((x as any).onChange) {
-      unsubscribe = (x as any).onChange(handleXChange)
-    }
-    
-    return () => {
-      if (unsubscribe) unsubscribe()
-    }
-  }, [x, carouselWidth])
+    checkScroll()
+    window.addEventListener('resize', checkScroll)
+    return () => window.removeEventListener('resize', checkScroll)
+  }, [checkScroll, section.items, isLoading])
 
   const handleArrowScroll = (direction: 'left' | 'right') => {
-    if (!carouselRef.current) return
+    if (!innerTrackRef.current) return
 
-    // Get the actual mathematical value of the current physical location
-    const currentX = x.get()
-    const shiftAmount = carouselRef.current.offsetWidth * 0.75
-
-    let targetX = direction === 'right' ? currentX - shiftAmount : currentX + shiftAmount
-
-    // Clamp targets so the buttons don't fire physics past the constraints
-    if (targetX > 0) targetX = 0
-    if (targetX < -carouselWidth) targetX = -carouselWidth
-
-    // Apply the heavy physics snap action
-    controls.start({
-        x: targetX,
-        transition: {
-            type: "spring",
-            bounce: 0,
-            duration: 0.6, // Slower, heavier slide
-            mass: 0.8,
-            stiffness: 70,
-            damping: 15
-        }
+    const shiftAmount = innerTrackRef.current.clientWidth * 0.75
+    
+    innerTrackRef.current.scrollBy({
+      left: direction === 'right' ? shiftAmount : -shiftAmount,
+      behavior: 'smooth'
     })
   }
 
@@ -170,8 +126,8 @@ export function RecommendationRow({
         </div>
       </div>
 
-      {/* ── Outer Carousel Bounds (Used for measurement and hiding off-screen stuff) ── */}
-      <div className="relative">
+      {/* ── Outer Carousel Bounds ── */}
+      <div className="relative group/carousel">
         {/* Left Navigation Button (Desktop) */}
         <div 
           className={`absolute left-0 md:-left-4 top-0 bottom-4 z-30 
@@ -194,45 +150,30 @@ export function RecommendationRow({
           className="overflow-hidden pb-4"
           style={{ contain: 'layout' }}
         >
-        {/* ── Inner Physics Track ───────────────────────────────── */}
-        <motion.div
+        {/* ── Inner Track (Native Scroll) ────────────────────────── */}
+        <div
           ref={innerTrackRef}
-          className="flex gap-3 cursor-grab active:cursor-grabbing w-max pr-10" // Allow enough right padding so the last item breathes
-          drag="x"
-          dragDirectionLock
-          dragConstraints={{ right: 0, left: -carouselWidth }}
-          // Here is the requested custom TikTok/Netflix Physics Math:
-          dragElastic={0.15} // How far past the end can you 'rubberband' pull it?
-          dragTransition={{
-              bounceStiffness: 200, // How aggressively it snaps back if pulled out of bounds
-              bounceDamping: 20,    // Friction against the bounce. Lower = wobblier
-              timeConstant: 350,    // Momentum loss over time (higher = glides further)
-              power: 0.5            // Sensitivity of velocity transfer map
-          }}
-          style={{ x }}
-          animate={controls}
-          onDragStart={() => setIsDragging(true)}
-          // Slight delay on turning off dragging to prevent click firing on release
-          onDragEnd={() => setTimeout(() => setIsDragging(false), 50)}
+          onScroll={checkScroll}
+          className="flex gap-3 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory pr-10 pb-2" 
         >
           {isLoading
-            ? Array.from({ length: 8 }).map((_, i) => <RecoCardSkeleton key={i} />)
+            ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="snap-start shrink-0"><RecoCardSkeleton /></div>)
             : section.items.map((item, index) => (
-                <RecoCard
-                  key={`${item.mediaType}:${item.tmdbId}`}
-                  item={item}
-                  index={index}
-                  source={section.source}
-                  isDragging={isDragging}
-                  onClick={onCardClick}
-                  onDislike={() => {
-                    onDislike?.(item)
-                    toggleDislike(item.tmdbId, item.mediaType)
-                  }}
-                  isDisliked={isDisliked(item.tmdbId, item.mediaType)}
-                />
+                <div key={`${item.mediaType}:${item.tmdbId}`} className="snap-start shrink-0">
+                  <RecoCard
+                    item={item}
+                    index={index}
+                    source={section.source}
+                    onClick={onCardClick}
+                    onDislike={() => {
+                      onDislike?.(item)
+                      toggleDislike(item.tmdbId, item.mediaType)
+                    }}
+                    isDisliked={isDisliked(item.tmdbId, item.mediaType)}
+                  />
+                </div>
               ))}
-        </motion.div>
+        </div>
         
         {/* Right Navigation Button (Desktop) */}
         <div 
@@ -269,14 +210,13 @@ interface RecoCardProps {
   isDisliked?: boolean
 }
 
-function RecoCard({ item, index, source, isDragging = false, onClick, onDislike, isDisliked = false }: RecoCardProps) {
+function RecoCard({ item, index, source, onClick, onDislike, isDisliked = false }: RecoCardProps) {
   const handleDislike = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     onDislike?.(item)
   }, [item, onDislike])
 
   const handleClick = () => {
-    if (isDragging) return
     onClick(item, index, source)
   }
 

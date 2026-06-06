@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Play, Clock, Calendar, ChevronLeft, Share2, Heart, ThumbsUp, ThumbsDown, Server, SkipForward, SkipBack, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import Lenis from '@studio-freight/lenis'
 import { CircularRating } from './CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
 import { fetchMediaDetails, getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
@@ -206,36 +205,7 @@ export function MovieDetailModal({
     return () => { document.body.style.overflow = prev }
   }, [])
 
-  // Lenis physics scroll for theater mode container
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  useEffect(() => {
-    if (!isPlaying || !scrollRef.current) return
-
-    const lenis = new Lenis({
-      wrapper: scrollRef.current,
-      content: scrollRef.current.firstElementChild as HTMLElement,
-      duration: 1.4,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1.1,
-      syncTouch: false,
-      touchMultiplier: 2,
-    })
-
-    let rafId: number
-    function raf(time: number) {
-      lenis.raf(time)
-      rafId = requestAnimationFrame(raf)
-    }
-    rafId = requestAnimationFrame(raf)
-
-    return () => {
-      cancelAnimationFrame(rafId)
-      lenis.destroy()
-    }
-  }, [isPlaying])
 
   useEffect(() => {
     if (mode === 'tv') {
@@ -669,16 +639,13 @@ export function MovieDetailModal({
       >
         {/* ── Ambient Background (always fixed, never scrolls) ── */}
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <motion.img
-            animate={{
-              scale: isPlaying ? 1.1 : 1,
-              opacity: isPlaying ? 0.12 : 0.55,
-              filter: isPlaying ? 'blur(40px)' : 'blur(0px)'
-            }}
-            transition={{ duration: 1.5, ease: 'easeInOut' }}
+          <img
             src={heroImage}
             alt={title}
-            className="w-full h-full object-cover"
+            className={cn(
+              "w-full h-full object-cover transition-all duration-[1500ms] ease-in-out",
+              isPlaying ? "scale-110 opacity-15 blur-[40px]" : "scale-100 opacity-55 blur-0"
+            )}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/30" />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent opacity-80" />
