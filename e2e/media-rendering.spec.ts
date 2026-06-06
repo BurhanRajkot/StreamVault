@@ -41,7 +41,7 @@ import { MOCK_MOVIES } from './fixtures/mocks'
 const STREAMING_DOMAINS = [
   'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc',
   'vidlink.pro', 'vidsrc.cc', 'player.videasy.net',
-  'player.videasy.to', 'videasy.to',
+  'player.videasy.to', 'videasy.to', 'vidrock.ru',
 ]
 
 const TMDB_IMG_DOMAIN = 'image.tmdb.org'
@@ -809,7 +809,7 @@ test.describe('§6  Embed iframe in play mode (MovieDetailModal)', () => {
     if (!iframe) return
 
     const src = await iframe.getAttribute('src')
-    const knownProviders = ['vidfast.pro', 'vidlink.pro', 'peachify.top', 'vidup.to', '2embed.cc', 'vidsrc.cc', 'videasy.net', 'player.videasy.to', 'videasy.to']
+    const knownProviders = ['vidfast.pro', 'vidlink.pro', 'peachify.top', 'vidup.to', '2embed.cc', 'vidsrc.cc', 'videasy.net', 'player.videasy.to', 'videasy.to', 'vidrock.ru']
     const matchedProvider = knownProviders.find(p => src!.includes(p))
     expect(
       matchedProvider,

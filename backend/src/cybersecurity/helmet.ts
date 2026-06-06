@@ -55,6 +55,8 @@ export const helmetMiddleware = helmet({
         "https://*.videasy.to",
         "https://vidsrc.net",
         "https://v2.vidsrc.me",
+        "https://vidrock.ru",
+        "https://*.vidrock.ru",
       ],
     },
   } : false, // Disable CSP in development for easier debugging
