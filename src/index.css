@@ -253,8 +253,6 @@
       height: 100%;
       z-index: -1;
       pointer-events: none;
-      /* Promote to its own compositor layer so scroll doesn't trigger repaints */
-      will-change: opacity;
       transition: opacity 0.5s ease-in-out;
 
       /* Creative Mesh Gradient (Light) */
@@ -412,7 +410,6 @@
       transparent 100%
     );
     animation: shimmer 1.8s infinite linear;
-    will-change: transform;
   }
 
   @keyframes shimmer {
@@ -504,15 +501,12 @@
         animation: glow-pulse 4s ease-in-out infinite;
         /* Static blur set on element; only opacity animates (GPU-composited) */
         filter: blur(60px);
+        will-change: opacity; /* Only opacity changes — safe to hint */
       }
 
       @keyframes glow-pulse {
-        0%, 100% {
-          opacity: 0.5;
-        }
-        50% {
-          opacity: 0.8;
-        }
+        0%, 100% { opacity: 0.5; }
+        50% { opacity: 0.8; }
       }
 
       .animate-float {
@@ -611,13 +605,9 @@
   }
 
   /* ── GPU-composited scroll elements ─────────────────────────────────── */
-  /* Promote cards that scale on hover to their own layer ahead of time
-     so the GPU can handle the transform without triggering layout */
-  .group:hover {
-    will-change: transform;
-  }
-
-  /* Prevent hover-scale from triggering layout on siblings */
+  /* Only promote specific card wrappers to GPU layers on actual hover.
+     Do NOT use a global .group:hover rule — that promotes every hovered
+     element site-wide and wastes compositor memory. */
   .media-card-grid {
     isolation: isolate;
   }
