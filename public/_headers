@@ -1,12 +1,12 @@
 /*
   # Allow iframe embeds from streaming providers
-  Content-Security-Policy: frame-src 'self' https: http: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: data: blob:; connect-src 'self' https: http: wss: ws: data: blob: https://api.themoviedb.org https://*.supabase.co https://*.auth0.com https://vidfast.pro https://vidsrc.icu https://vidlink.pro https://vidsrc.cc https://player.videasy.net https://*.vidfast.pro https://*.vidsrc.icu https://*.vidlink.pro https://*.vidsrc.cc https://*.videasy.net https://streamvault-backend-bq9p.onrender.com https://vercel.live https://*.vercel.live wss://*.pusher.com https://*.jwpltx.com https://*.jwplayer.com https://*.cloudflareinsights.com https://entitlements.jwplayer.com https://prd.jwpltx.com https://lightningbolt.site https://*.lightningbolt.site; img-src 'self' data: https: http: blob:; media-src 'self' https: http: blob: data:; style-src 'self' 'unsafe-inline' https: http: data:; font-src 'self' data: https: http:; worker-src 'self' blob:; child-src 'self' https: http: data: blob:;
+  Content-Security-Policy: frame-src 'self' https: http: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: data: blob:; connect-src 'self' https: http: wss: ws: data: blob: https://api.themoviedb.org https://*.supabase.co https://*.auth0.com https://vidfast.pro https://vidsrc.icu https://vidlink.pro https://vidsrc.cc https://player.videasy.net https://player.videasy.to https://*.vidfast.pro https://*.vidsrc.icu https://*.vidlink.pro https://*.vidsrc.cc https://*.videasy.net https://*.videasy.to https://streamvault-backend-bq9p.onrender.com https://vercel.live https://*.vercel.live wss://*.pusher.com https://*.jwpltx.com https://*.jwplayer.com https://*.cloudflareinsights.com https://entitlements.jwplayer.com https://prd.jwpltx.com https://lightningbolt.site https://*.lightningbolt.site; img-src 'self' data: https: http: blob:; media-src 'self' https: http: blob: data:; style-src 'self' 'unsafe-inline' https: http: data:; font-src 'self' data: https: http:; worker-src 'self' blob:; child-src 'self' https: http: data: blob:;
 
   # Allow cross-origin requests
   X-Frame-Options: SAMEORIGIN
 
   # Referrer policy for iframe embeds - relaxed for streaming providers
-  Referrer-Policy: no-referrer-when-downgrade
+  Referrer-Policy: strict-origin-when-cross-origin
 
   # Cross-origin policies - unsafe-none allows streaming providers to work
   Cross-Origin-Embedder-Policy: unsafe-none
