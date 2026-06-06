@@ -1,4 +1,5 @@
 import { logger } from '../../lib/logger'
+import { mapConcurrent } from '../../utils/concurrency'
 import { MediaType } from '../types'
 
 export interface TrieEntity {
@@ -144,40 +145,38 @@ export async function seedTrieBackground() {
     '/tv/top_rated'
   ]
 
-  const fetchPromises: Promise<{ ep: string; items: any[] }>[] = []
-
+  const tasks: { ep: string; page: number }[] = []
   for (const ep of endpoints) {
-    // Fetch top 3 pages for each to get a good base catalog
     for (let page = 1; page <= 3; page++) {
-      const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
-      fetchPromises.push(
-        fetch(url, {
-          headers: {
-            'accept': 'application/json',
-            // Disable gzip: Bun's fetch() does not auto-decompress, so raw bytes
-            // would corrupt the body and cause JSON.parse to throw.
-            'accept-encoding': 'identity',
-          }
-        })
-          .then(async res => {
-            if (!res.ok) return { ep, items: [] }
-            try {
-              const data = await res.json() as { results?: any[] }
-              return { ep, items: data.results || [] }
-            } catch (parseErr) {
-              const preview = await res.text().catch(() => '<unreadable>')
-              throw new Error(`JSON parse error. Body preview: ${preview.substring(0, 150)}`)
-            }
-          })
-          .catch(err => {
-            logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err.message })
-            return { ep, items: [] }
-          })
-      )
+      tasks.push({ ep, page })
     }
   }
 
-  const results = await Promise.all(fetchPromises)
+  const results = await mapConcurrent(tasks, 5, async ({ ep, page }) => {
+    const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'accept': 'application/json',
+          // Disable gzip: Bun's fetch() does not auto-decompress, so raw bytes
+          // would corrupt the body and cause JSON.parse to throw.
+          'accept-encoding': 'identity',
+        }
+      })
+      if (!res.ok) return { ep, items: [] }
+
+      try {
+        const data = await res.json() as { results?: any[] }
+        return { ep, items: data.results || [] }
+      } catch (parseErr) {
+        const preview = await res.text().catch(() => '<unreadable>')
+        throw new Error(`JSON parse error. Body preview: ${preview.substring(0, 150)}`)
+      }
+    } catch (err: any) {
+      logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err.message })
+      return { ep, items: [] }
+    }
+  })
 
   for (const { ep, items } of results) {
     for (const item of items) {
