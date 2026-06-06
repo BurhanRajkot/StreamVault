@@ -24,16 +24,31 @@ export default defineConfig(({ mode }) => ({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
 
         runtimeCaching: [
+          // ── TMDB Images (posters, backdrops, thumbnails): cache-first ────
+          // Images are content-addressed (path = hash) so they never change.
+          // CacheFirst = served from disk instantly, no network roundtrip.
+          {
+            urlPattern: /^https:\/\/image\.tmdb\.org\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'tmdb-images',
+              expiration: {
+                maxEntries: 500,
+                maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           // ── TMDB API (via our backend proxy): network-first ──────────
           {
             urlPattern: /\/tmdb\/(trending|discover)\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'tmdb-api-responses',
-              networkTimeoutSeconds: 5,
+              networkTimeoutSeconds: 4,
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 30 * 60, // 30 min
+                maxAgeSeconds: 15 * 60, // 15 min
               },
               cacheableResponse: { statuses: [0, 200] },
             },
@@ -78,6 +93,7 @@ export default defineConfig(({ mode }) => ({
           'auth-vendor':   ['@auth0/auth0-react'],
           'query-vendor':  ['@tanstack/react-query'],
           'motion-vendor': ['framer-motion'],
+          'scroll-vendor': ['@studio-freight/lenis'],
           'charts-vendor': ['recharts'],
           'form-vendor':   ['react-hook-form', '@hookform/resolvers', 'zod'],
         },
