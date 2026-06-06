@@ -58,7 +58,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
   if (!isLoading && items.length === 0) return null
 
   return (
-    <section 
+    <section
       className="relative mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -81,7 +81,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       </div>
 
       {/* Left Navigation Button */}
-      <div 
+      <div
         className={`absolute left-0 md:-left-4 top-10 bottom-4 z-30 
           flex items-center justify-center
           transition-opacity duration-300 pointer-events-none
@@ -101,7 +101,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       </div>
 
       {/* Right Navigation Button */}
-      <div 
+      <div
         className={`absolute right-0 md:-right-4 top-10 bottom-4 z-30 
           flex items-center justify-center
           transition-opacity duration-300 pointer-events-none
@@ -127,15 +127,15 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       >
         {isLoading
           ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-[clamp(240px,13.5vw,450px)] w-[clamp(160px,9vw,300px)] animate-pulse rounded-lg bg-muted">
-                <MediaCardSkeleton />
-              </div>
-            ))
-          : items.map((media) => (
-              <div key={media.id} className="w-[clamp(160px,9vw,300px)] flex-shrink-0">
-                <MediaCard media={media} onClick={onMediaClick} />
-              </div>
-            ))}
+            <div key={i} className="h-[clamp(240px,13.5vw,450px)] w-[clamp(160px,9vw,300px)] animate-pulse rounded-lg bg-muted">
+              <MediaCardSkeleton />
+            </div>
+          ))
+          : items.map((media, index) => (
+            <div key={`${media.id || index}-${index}`} className="w-[clamp(160px,9vw,300px)] flex-shrink-0">
+              <MediaCard media={media} onClick={onMediaClick} />
+            </div>
+          ))}
       </div>
 
       {!isLoading && items.length > 0 && items.length < 5 && (
