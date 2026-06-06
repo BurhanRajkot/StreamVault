@@ -12,7 +12,7 @@
 
 import { supabaseAdmin } from '../../lib/supabase'
 import { Candidate, MediaType, UserProfile, TMDB_GENRES } from '../types'
-import { getMovieFeatures } from '../features'
+import { getMultipleMovieFeatures } from '../features'
 import { logger } from '../../lib/logger'
 import { generateEmbedding, buildInterestSummary } from './embeddingClient'
 
@@ -100,11 +100,15 @@ export async function mlVectorSource(userId: string, profile?: UserProfile): Pro
     logger.info('[MLVector] pgvector returned candidates', { count: matchedMovies.length, userId })
 
     // Hydrate the matched tmdbIds into full Candidate objects
-    const candidates: Candidate[] = []
-    const hydrationPromises = matchedMovies.map(async (row: { tmdbId: number; similarity: number }) => {
-      const mediaType: MediaType = 'movie' // ML model currently exports movie vectors only
-      const features = await getMovieFeatures(row.tmdbId, mediaType)
+    const itemsToFetch = matchedMovies.map((row: { tmdbId: number; similarity: number }) => ({
+      tmdbId: row.tmdbId,
+      mediaType: 'movie' as MediaType // ML model currently exports movie vectors only
+    }))
 
+    const featuresList = await getMultipleMovieFeatures(itemsToFetch, 5)
+
+    const candidates: Candidate[] = []
+    for (const features of featuresList) {
       if (features) {
         candidates.push({
           tmdbId: features.tmdbId,
@@ -125,9 +129,8 @@ export async function mlVectorSource(userId: string, profile?: UserProfile): Pro
           seedTitle: 'AI Picks For You',
         })
       }
-    })
+    }
 
-    await Promise.allSettled(hydrationPromises)
     return candidates
 
   } catch (err: any) {
