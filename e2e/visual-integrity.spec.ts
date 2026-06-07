@@ -14,6 +14,7 @@
 import { test, expect } from './fixtures'
 import { HomePage } from './pages/HomePage'
 import { MediaRenderingPage } from './pages/MediaRenderingPage'
+import { assertNotBlank, assertImageRendered, assertNotStillLoading } from './fixtures/visual'
 
 test.describe('Visual Integrity', () => {
 
@@ -45,6 +46,11 @@ test.describe('Visual Integrity', () => {
       sizeKB,
       `Screenshot is only ${sizeKB.toFixed(1)} KB — page appears blank`
     ).toBeGreaterThan(50)
+
+    // STRONG CHECK: file size alone is fooled by a text-heavy page sitting on
+    // top of a blank media area. Verify the rendered pixels are actually
+    // diverse (not a solid color block).
+    await assertNotBlank(page, 'Homepage full-page screenshot', 12)
   })
 
   test('media card poster images are decoded (naturalWidth > 0)', async ({ mockApiPage: page }) => {
@@ -107,6 +113,11 @@ test.describe('Visual Integrity', () => {
       naturalWidth,
       `First poster has naturalWidth=${naturalWidth} — renders as broken icon or white pixel.\nsrc: ${src}`
     ).toBeGreaterThan(10)
+
+    // STRONGER CHECK: a decoded-but-blank fallback image (e.g. a grey "no
+    // poster" placeholder) still has naturalWidth > 0. Verify the poster
+    // actually contains varied pixels.
+    await assertNotBlank(firstImg, 'First media card poster')
   })
 
   test('hero section image is visible and decoded', async ({ mockApiPage: page }) => {
@@ -134,6 +145,22 @@ test.describe('Visual Integrity', () => {
       nw,
       `Hero image naturalWidth=${nw} — image is broken/white.\nsrc: ${src}`
     ).toBeGreaterThan(10)
+
+    // STRONGER CHECK: hero/backdrop must not be a solid blank block.
+    await assertNotBlank(topImage, 'Hero/backdrop image')
+  })
+
+  test('homepage finishes loading — no spinner left and posters are decoded', async ({ mockApiPage: page }) => {
+    const home = new HomePage(page)
+    await home.gotoAndWaitForContent()
+    await page.waitForTimeout(1500)
+
+    // Catches the "test passed but screen was still loading" bug.
+    await assertNotStillLoading(page)
+
+    // And confirm at least the first poster is genuinely rendered, not blank.
+    const firstImg = home.mediaCards.first().locator('img').first()
+    await assertImageRendered(firstImg, 'First poster after load settle')
   })
 
   test('all TMDB images use correct base domain (no malformed URLs)', async ({ mockApiPage: page }) => {

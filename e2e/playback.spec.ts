@@ -19,6 +19,8 @@ import { expect } from '@playwright/test'
 import { MOCK_MOVIES } from './fixtures/mocks'
 import { WatchPage } from './pages/WatchPage'
 import { test as baseTest } from './fixtures'
+import { assertNotBlank } from './fixtures/visual'
+import { enableAdBlock } from './fixtures/adblock'
 
 // ─── Minimal synthetic HLS manifest ───────────────────────────────────────
 // A valid 2-segment HLS playlist that any hls.js build will accept.
@@ -88,6 +90,17 @@ baseTest.describe('Media Playback — CI (mocked HLS)', () => {
 
     const iframeSrc = await iframeElement.getAttribute('src')
     expect(iframeSrc, 'iframe src should be a non-empty URL').toBeTruthy()
+    expect(iframeSrc!, 'iframe src is not an absolute http(s) URL').toMatch(/^https?:\/\//)
+
+    // ── 4b. Verify the player isn't a collapsed 0×0 box ──────────────────────
+    // A common "looks broken / black box" cause is an iframe that mounts but
+    // has no layout size. This is deterministic and safe to assert in CI.
+    const box = await iframeElement.boundingBox()
+    expect(box, 'Player iframe has no layout box (collapsed)').not.toBeNull()
+    if (box) {
+      expect(box.width, `Player iframe width is ${box.width}px (collapsed)`).toBeGreaterThan(200)
+      expect(box.height, `Player iframe height is ${box.height}px (collapsed)`).toBeGreaterThan(100)
+    }
 
     // ── 5. Verify provider did not return an error page ──────────────────────
     // We only check the outer page here — cross-origin iframe content is
@@ -109,6 +122,9 @@ baseTest.describe('Media Playback — CI (mocked HLS)', () => {
 //
 baseTest.describe('Media Playback — Real CDN @skip-ci', () => {
   baseTest('Movie playback iframe initiates real video stream', async ({ unauthMockPage: page }) => {
+    // Block the provider's ads/trackers for this real-server run (E2E_ADBLOCK=1).
+    await enableAdBlock(page.context())
+
     // Set up media request interception BEFORE clicking play
     const mediaRequestPromise = page.waitForRequest(
       (request) => {
@@ -150,5 +166,12 @@ baseTest.describe('Media Playback — Real CDN @skip-ci', () => {
         expect(response.status()).toBeLessThan(400)
       }
     }
+
+    // ── Verify the player actually PAINTED video, not a black error box ──────
+    // The DOM can't read cross-origin iframe content, but a compositor
+    // screenshot captures its rendered pixels. Give it a moment to paint a
+    // frame, then assert the iframe region isn't a solid block.
+    await page.waitForTimeout(3000)
+    await assertNotBlank(iframeElement, 'Real provider video frame', 10)
   })
 })
