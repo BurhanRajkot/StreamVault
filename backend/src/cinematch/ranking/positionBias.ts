@@ -192,32 +192,47 @@ export async function estimateIPSAdjustedWeights(
       const clicked = sessionLogs.filter(r => r.clicked)
       const unclicked = sessionLogs.filter(r => !r.clicked)
 
-      for (const c of clicked) {
-        for (const u of unclicked) {
-          // Has to have been ranked lower to constitute an error
-          if (c.displayPosition > u.displayPosition) {
-            // Delta NDCG from swapping positions
-            const dcgI = 1 / Math.log2(u.displayPosition + 2)
-            const dcgJ = 1 / Math.log2(c.displayPosition + 2)
-            const deltaNDCG = Math.abs(dcgI - dcgJ)
-            
-            // IPS weight for this observation pair
-            const ipsI = ipsCorrectWeight(1.0, c.displayPosition, propensityTable)
-            const ipsJ = ipsCorrectWeight(1.0, u.displayPosition, propensityTable)
-            const pairWeight = ((ipsI + ipsJ) / 2) * deltaNDCG
+      // Pre-sort unclicked items by display position to allow early exit
+      unclicked.sort((a, b) => a.displayPosition - b.displayPosition)
 
-            // Heuristic feature extraction: if source = 'genre_discovery', it means
-            // genreAffinity was the primary signal for this item.
-            // We increase weights for signals of clicked items, decrease for unclicked.
-            if (c.source === 'genre_discovery') dGenre += pairWeight * LEARNING_RATE
-            if (u.source === 'genre_discovery') dGenre -= pairWeight * LEARNING_RATE
-            
-            if (c.source === 'keyword_discovery') dKw += pairWeight * LEARNING_RATE
-            if (u.source === 'keyword_discovery') dKw -= pairWeight * LEARNING_RATE
-            
-            if (c.source === 'cast_discovery') dCast += pairWeight * LEARNING_RATE
-            if (u.source === 'cast_discovery') dCast -= pairWeight * LEARNING_RATE
+      // Pre-compute properties for unclicked items to avoid redundant work in inner loop
+      const unclickedData = unclicked.map(u => ({
+        source: u.source,
+        displayPosition: u.displayPosition,
+        dcg: 1 / Math.log2(u.displayPosition + 2),
+        ips: ipsCorrectWeight(1.0, u.displayPosition, propensityTable),
+      }))
+
+      for (const c of clicked) {
+        const ipsI = ipsCorrectWeight(1.0, c.displayPosition, propensityTable)
+        const dcgJ = 1 / Math.log2(c.displayPosition + 2)
+        const cSource = c.source
+
+        for (const u of unclickedData) {
+          // Has to have been ranked lower to constitute an error
+          if (c.displayPosition <= u.displayPosition) {
+            break // Since unclicked is sorted, all subsequent will also be >=
           }
+
+          // Delta NDCG from swapping positions
+          const dcgI = u.dcg
+          const deltaNDCG = Math.abs(dcgI - dcgJ)
+
+          // IPS weight for this observation pair
+          const ipsJ = u.ips
+          const pairWeight = ((ipsI + ipsJ) / 2) * deltaNDCG
+
+          // Heuristic feature extraction: if source = 'genre_discovery', it means
+          // genreAffinity was the primary signal for this item.
+          // We increase weights for signals of clicked items, decrease for unclicked.
+          if (cSource === 'genre_discovery') dGenre += pairWeight * LEARNING_RATE
+          if (u.source === 'genre_discovery') dGenre -= pairWeight * LEARNING_RATE
+
+          if (cSource === 'keyword_discovery') dKw += pairWeight * LEARNING_RATE
+          if (u.source === 'keyword_discovery') dKw -= pairWeight * LEARNING_RATE
+
+          if (cSource === 'cast_discovery') dCast += pairWeight * LEARNING_RATE
+          if (u.source === 'cast_discovery') dCast -= pairWeight * LEARNING_RATE
         }
       }
     }
