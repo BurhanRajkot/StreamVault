@@ -10,9 +10,9 @@ resources:
 # ArgoCD detects the commit and syncs the cluster.
 images:
   - name: ghcr.io/burhanrajkot/streamvault-frontend
-    newTag: sha-17056bb  # Replaced by GitOps workflow with sha-<commit>
+    newTag: sha-3f21bb2  # Replaced by GitOps workflow with sha-<commit>
   - name: ghcr.io/burhanrajkot/streamvault-backend
-    newTag: sha-17056bb  # Replaced by GitOps workflow with sha-<commit>
+    newTag: sha-3f21bb2  # Replaced by GitOps workflow with sha-<commit>
 
 patches:
   - path: patches/replicas.yaml
