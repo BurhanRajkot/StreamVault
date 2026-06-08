@@ -58,6 +58,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Detect changed paths
         id: filter
@@ -105,6 +107,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Run zizmor
         env:
@@ -187,6 +191,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Setup toolchain + install (frontend)
         uses: ./.github/actions/setup-ci
@@ -232,6 +238,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Run OSV Scanner
         uses: google/osv-scanner-action/osv-scanner-action@e69cc6c86b31f1e7e23935bbe7031b50e51082de  # v2.0.2
@@ -273,6 +281,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Review dependency changes
         uses: actions/dependency-review-action@38ecb5b593bf0eb19e335c03f97670f792489a8b  # v4.7.0
@@ -300,6 +310,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Setup toolchain + install
         uses: ./.github/actions/setup-ci
@@ -365,6 +377,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Setup toolchain + install
         uses: ./.github/actions/setup-ci
@@ -418,6 +432,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
@@ -455,6 +471,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Setup toolchain + install
         uses: ./.github/actions/setup-ci
@@ -653,6 +671,8 @@ jobs:
           egress-policy: audit   # build pulls many base layers; audit, not block
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392  # v3.6.0
@@ -830,6 +850,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       # - name: Authenticate to Google Cloud
       #   uses: google-github-actions/auth@v3
@@ -865,6 +887,8 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      with:
+        persist-credentials: false  # zizmor hardening
 
       - name: Promote canary to production
         run: |

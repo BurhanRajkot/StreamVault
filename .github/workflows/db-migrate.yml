@@ -45,6 +45,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false  # read-only checkout (zizmor #436)
 
       - name: Validate migration file exists
         run: |
@@ -68,14 +70,16 @@ jobs:
           fi
 
       - name: Check migration phase compatibility
+        # Fix: use env vars for inputs to prevent template injection (zizmor #439)
+        env:
+          PHASE: ${{ inputs.migration_phase }}
+          MIGRATION_FILE: ${{ inputs.migration_file }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          PHASE="${{ inputs.migration_phase }}"
-          FILE="${{ inputs.migration_file }}"
-
           echo "Phase: ${PHASE}"
-          echo "Environment: ${{ inputs.environment }}"
+          echo "Environment: ${ENVIRONMENT}"
 
-          if [ "$PHASE" = "contract" ] && [ "${{ inputs.environment }}" = "production" ]; then
+          if [ "$PHASE" = "contract" ] && [ "$ENVIRONMENT" = "production" ]; then
             echo "::warning::CONTRACT phase on PRODUCTION — this will DROP schema elements!"
             echo "::warning::Ensure the expand phase has been applied and all data migrated."
           fi
@@ -89,6 +93,8 @@ jobs:
       name: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false  # read-only checkout (zizmor #437)
 
       - name: Setup Supabase CLI
         run: |
@@ -98,9 +104,12 @@ jobs:
 
       - name: Determine migration file
         id: migration
+        # Fix: use env var for inputs to prevent template injection (zizmor #440)
+        env:
+          MIGRATION_FILE_INPUT: ${{ inputs.migration_file }}
         run: |
           MIGRATION_DIR="backend/supabase/migrations"
-          FILE="${{ inputs.migration_file }}"
+          FILE="$MIGRATION_FILE_INPUT"
 
           if [ -n "$FILE" ]; then
             echo "file=${MIGRATION_DIR}/${FILE}" >> "$GITHUB_OUTPUT"
