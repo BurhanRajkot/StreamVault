@@ -113,8 +113,8 @@ const REFLECTION_BLACKLIST = [
   /javascript:/i,
   // Fixed: replaced polynomial /on\w+\s*=/ with bounded character class (CodeQL #4, #5)
   /on[a-zA-Z]{1,30}\s{0,5}=/i,
-  // Fixed: replaced greedy /{{.*}}/ with negated char class to prevent catastrophic backtracking
-  /\{\{[^}]*\}\}/,
+  // Fixed: replaced greedy /{{.*}}/ with non-greedy bounded matching to prevent catastrophic backtracking
+  /\{\{.*?(?:\}\}|$)/,
   /\$\{/,
 ]
 
