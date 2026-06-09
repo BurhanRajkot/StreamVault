@@ -76,9 +76,10 @@ const INJECTION_PATTERNS = [
   /;\s*(drop|delete|insert|update|truncate)\s/i,
   /--\s*$/i,
   /\/\*.*\*\//,
-  /[;&|`$]\s*(ls|cat|wget|curl|bash|sh|python|node|rm|chmod|grep)/i,
+  // Fixed: added \b word boundary (CodeQL #7) and non-capturing group to prevent backtracking
+  /[;&|`$]\s*(?:ls|cat|wget|curl|bash|sh|python|node|rm|chmod|grep)\b/i,
   /\$\([^)]+\)/,
-  /https?:\/\/(localhost|127\.|0\.0\.0|169\.254|10\.|192\.168\.|::1)/i,
+  /https?:\/\/(?:localhost|127\.|0\.0\.0|169\.254|10\.|192\.168\.|::1)/i,
   /https?:\/\/[a-z0-9-]+\.evil\.com/i,
   // BUG FIX: removed overly-broad /http:\/\// — it caused false positives on
   // any request that mentioned a legitimate URL (e.g. docs, news articles).
@@ -108,8 +109,12 @@ function detectAdversarial(raw) {
 // ─── Reflection sanitiser ─────────────────────────────────────────────────────
 
 const REFLECTION_BLACKLIST = [
-  /<script/i, /javascript:/i, /on\w+\s*=/i,
-  /\{\{.*\}\}/,
+  /<script/i,
+  /javascript:/i,
+  // Fixed: replaced polynomial /on\w+\s*=/ with bounded character class (CodeQL #4, #5)
+  /on[a-zA-Z]{1,30}\s{0,5}=/i,
+  // Fixed: replaced greedy /{{.*}}/ with negated char class to prevent catastrophic backtracking
+  /\{\{[^}]*\}\}/,
   /\$\{/,
 ]
 

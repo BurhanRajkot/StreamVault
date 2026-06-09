@@ -1,7 +1,7 @@
 import { useEffect, useState, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { Media, CONFIG, MediaMode } from '@/lib/config'
+import { Media, CONFIG } from '@/lib/config'
 import { getImageUrl, fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { HoverVideoPlayer } from './HoverVideoPlayer'
