@@ -456,7 +456,7 @@ jobs:
     name: "E2E / Audit Tests"
     needs: [change-detection, frontend-ci]
     if: |
-      always() &&
+      !cancelled() &&
       (needs.frontend-ci.result == 'success' || needs.frontend-ci.result == 'skipped') &&
       (needs.change-detection.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
@@ -606,7 +606,7 @@ jobs:
   status-check:
     name: "All Checks Passed"
     needs: [change-detection, secret-scan, frontend-ci, backend-ci, codeql, e2e-audit, npm-audit, osv-scan]
-    if: always()
+    if: !cancelled()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
