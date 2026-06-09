@@ -26,7 +26,26 @@ const TMDB_GENRES: Record<number, string> = {
   37: 'Western',
 }
 
+const EVAL_API_KEY = process.env.EVAL_API_KEY
+
 app.post('/api/recommendations/eval', (req, res) => {
+  const apiKeyHeader = req.headers['x-api-key']
+  const authHeader = req.headers['authorization']
+  let providedKey = apiKeyHeader
+
+  if (!providedKey && authHeader && authHeader.startsWith('Bearer ')) {
+    providedKey = authHeader.substring(7).trim()
+  }
+
+  if (!EVAL_API_KEY) {
+    console.warn('[Eval] WARNING: EVAL_API_KEY is not set. Rejecting all requests.')
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  if (!providedKey || providedKey !== EVAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
   const { recentTitles, topGenreNames } = req.body
 
   if (!recentTitles || !topGenreNames) {
