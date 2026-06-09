@@ -1,6 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react'
-
 interface Auth0ContextType {
   isAuthenticated: boolean
   isLoading: boolean
@@ -9,14 +8,11 @@ interface Auth0ContextType {
   logout: (options?: any) => void
   getAccessTokenSilently: (options?: any) => Promise<string>
 }
-
 const Auth0Context = createContext<Auth0ContextType | undefined>(undefined)
-
 export function Auth0Provider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
-
   useEffect(() => {
     // Read mock state from localStorage
     const mockAuth = localStorage.getItem('e2e_mock_authenticated') === 'true'
@@ -27,12 +23,10 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       email: 'tester@streamvault.test',
       picture: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&h=100&q=80',
     }
-
     setIsAuthenticated(mockAuth)
     setUser(mockAuth ? mockUser : null)
     setIsLoading(false)
   }, [])
-
   const loginWithRedirect = async (options?: any) => {
     // If we are already on the login or signup page, mock the login and redirect back
     if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
@@ -46,18 +40,20 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       }
       localStorage.setItem('e2e_mock_user', JSON.stringify(mockUser))
       setUser(mockUser)
-
       const searchParams = new URLSearchParams(window.location.search)
       let returnTo = searchParams.get('returnTo') || '/'
-
-      // Open Redirect + XSS fix (CodeQL #220, #221):
-      // Use a positive allowlist — only accept safe relative paths.
-      // Blocks: javascript:, //evil.com, \\ UNC paths, encoded variants, etc.
-      const SAFE_RETURN_TO_RE = /^\/[a-zA-Z0-9/_\-?=&#%.]*$/
-      if (!SAFE_RETURN_TO_RE.test(returnTo)) {
+      // Open Redirect + XSS fix (CodeQL #220, #221): only accept same-origin
+      // relative paths. URL-parsing against our origin catches protocol-relative
+      // (//evil.com) and backslash (/\evil.com) tricks that a regex allowlist misses,
+      // and the startsWith('/') guard rejects javascript: and other schemes.
+      try {
+        const parsedUrl = new URL(returnTo, window.location.origin)
+        if (parsedUrl.origin !== window.location.origin || !returnTo.startsWith('/')) {
+          returnTo = '/'
+        }
+      } catch (e) {
         returnTo = '/'
       }
-
       window.location.href = returnTo
     } else {
       // Redirect to /login page with returnTo path
@@ -65,7 +61,6 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
     }
   }
-
   const logout = (options?: any) => {
     localStorage.removeItem('e2e_mock_authenticated')
     localStorage.removeItem('e2e_mock_user')
@@ -75,11 +70,9 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
     setUser(null)
     window.location.reload()
   }
-
   const getAccessTokenSilently = async (options?: any) => {
     return 'mock-access-token'
   }
-
   return (
     <Auth0Context.Provider
       value={{
@@ -95,7 +88,6 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
     </Auth0Context.Provider>
   )
 }
-
 // eslint-disable-next-line react-refresh/only-export-components
 export function useAuth0() {
   const context = useContext(Auth0Context)
