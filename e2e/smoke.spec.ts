@@ -212,14 +212,22 @@ test.describe('Smoke — HTML Document', () => {
 // ─── Navigation & Footer ─────────────────────────────────────────────────
 
 test.describe('Smoke — Navigation & Footer', () => {
-  test('navigation bar is visible on homepage', async ({ unauthMockPage: page }) => {
+  test('navigation bar is visible on homepage', async ({ unauthMockPage: page, isMobile }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    const nav = page.locator('nav, [role="navigation"]').first()
-    await expect(nav).toBeVisible({ timeout: 8_000 })
 
-    // Verify nav has actual content (links, buttons)
-    const navText = await nav.innerText().catch(() => '')
-    expect(navText.trim().length, 'Navigation bar has no text content').toBeGreaterThan(0)
+    if (isMobile) {
+      // On mobile, the main nav is hidden and a hamburger menu or mobile-specific nav is shown.
+      // We look for the header instead to verify it's present.
+      const header = page.locator('header').first()
+      await expect(header).toBeVisible({ timeout: 8_000 })
+    } else {
+      const nav = page.locator('nav, [role="navigation"]').first()
+      await expect(nav).toBeVisible({ timeout: 8_000 })
+
+      // Verify nav has actual content (links, buttons)
+      const navText = await nav.innerText().catch(() => '')
+      expect(navText.trim().length, 'Navigation bar has no text content').toBeGreaterThan(0)
+    }
   })
 
   test('footer is present and has content', async ({ unauthMockPage: page }) => {
