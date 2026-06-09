@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import { QuickViewModal } from './QuickViewModal'
 import { cn } from '@/lib/utils'
 import { getImageUrl, getImageSrcSet } from '@/lib/api'

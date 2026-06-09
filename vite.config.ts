@@ -82,20 +82,33 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor':  ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-select',
-            '@radix-ui/react-toast',
-          ],
-          'auth-vendor':   ['@auth0/auth0-react'],
-          'query-vendor':  ['@tanstack/react-query'],
-          'motion-vendor': ['framer-motion'],
-          'scroll-vendor': ['@studio-freight/lenis'],
-          'charts-vendor': ['recharts'],
-          'form-vendor':   ['react-hook-form', '@hookform/resolvers', 'zod'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (['react', 'react-dom', 'react-router-dom'].some(pkg => id.includes(`node_modules/${pkg}`))) {
+              return 'react-vendor';
+            }
+            if (id.includes('node_modules/@radix-ui/')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('node_modules/@auth0/auth0-react')) {
+              return 'auth-vendor';
+            }
+            if (id.includes('node_modules/@tanstack/react-query')) {
+              return 'query-vendor';
+            }
+            if (id.includes('node_modules/framer-motion')) {
+              return 'motion-vendor';
+            }
+            if (id.includes('node_modules/@studio-freight/lenis')) {
+              return 'scroll-vendor';
+            }
+            if (id.includes('node_modules/recharts')) {
+              return 'charts-vendor';
+            }
+            if (['react-hook-form', '@hookform/resolvers', 'zod'].some(pkg => id.includes(`node_modules/${pkg}`))) {
+              return 'form-vendor';
+            }
+          }
         },
       },
     },
