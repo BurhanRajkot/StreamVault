@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # ── Stage 1: Base Runtime & Environment Setup ─────────────────────
-FROM oven/bun:latest AS base
+FROM oven/bun:1.2-slim AS base
 
 ENV WORKDIR=/opt/app
 WORKDIR $WORKDIR
