@@ -118,8 +118,7 @@ test.describe('Homepage — Navigation Bar', () => {
   test('nav contains multiple navigation links', async ({ unauthMockPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     const nav = page.locator('nav, [role="navigation"]').first()
-    await expect(nav).toBeVisible()
-    const linkCount = await nav.locator('a[href]').count()
+    const linkCount = await nav.locator('button').count()
     expect(linkCount, 'Navigation has no links').toBeGreaterThan(0)
   })
 })

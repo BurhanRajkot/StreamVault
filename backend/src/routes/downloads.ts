@@ -1,4 +1,4 @@
-import { Router, Request } from 'express'
+import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabase'
 import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'

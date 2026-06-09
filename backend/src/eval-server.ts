@@ -1,9 +1,7 @@
 import express from 'express'
 import bodyParser from 'body-parser'
-
 const app = express()
 app.use(bodyParser.json())
-
 const TMDB_GENRES: Record<number, string> = {
   28: 'Action',
   12: 'Adventure',
@@ -25,53 +23,44 @@ const TMDB_GENRES: Record<number, string> = {
   10752: 'War',
   37: 'Western',
 }
-
 const EVAL_API_KEY = process.env.EVAL_API_KEY
-
 app.post('/api/recommendations/eval', (req, res) => {
   const apiKeyHeader = req.headers['x-api-key']
   const authHeader = req.headers['authorization']
   let providedKey = apiKeyHeader
-
   if (!providedKey && authHeader && authHeader.startsWith('Bearer ')) {
     providedKey = authHeader.substring(7).trim()
   }
-
   if (!EVAL_API_KEY) {
     console.warn('[Eval] WARNING: EVAL_API_KEY is not set. Rejecting all requests.')
     return res.status(401).json({ error: 'Unauthorized' })
   }
-
   if (!providedKey || providedKey !== EVAL_API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
-
   const { recentTitles, topGenreNames } = req.body
-
   if (!recentTitles || !topGenreNames) {
     return res.status(400).json({ error: 'Missing recentTitles or topGenreNames in request body' })
   }
-
+  const validateInput = (input: any): boolean => {
+    if (typeof input === 'string') {
+      return input.length <= 50
+    }
+    if (Array.isArray(input)) {
+      return input.length <= 100 && input.every(item => typeof item === 'string' && item.length <= 50)
+    }
+    return false
+  }
+  if (!validateInput(recentTitles) || !validateInput(topGenreNames)) {
+    return res.status(400).json({ error: 'Invalid input format or length exceeded' })
+  }
   console.log('[Eval] Received request:', { recentTitles, topGenreNames })
-
   // Simulate recommendation logic
   const recommendations = [
     { title: 'The Dark Knight', score: 0.95, source: 'tmdb_similar' },
     { title: 'Inception', score: 0.92, source: 'tmdb_recommendations' },
     { title: 'Interstellar', score: 0.88, source: 'genre_discovery' },
   ]
-
-  // Add some "malicious" detection logic just for Promptfoo testing
-  // Only inspect expected fields to avoid arbitrary payload injection vulnerabilities
-  const input = JSON.stringify({ recentTitles, topGenreNames }).toLowerCase()
-  if (input.includes('ignore previous instructions') || input.includes('jailbreak')) {
-    return res.json({
-      items: recommendations,
-      warning: 'Potential adversarial input detected in eval simulator.',
-      vulnerable: true
-    })
-  }
-
   res.json({
     items: recommendations,
     sections: [
@@ -79,7 +68,6 @@ app.post('/api/recommendations/eval', (req, res) => {
     ]
   })
 })
-
 const PORT = 4001
 app.listen(PORT, () => {
   console.log(`[Eval] Mock server running on http://localhost:${PORT}`)

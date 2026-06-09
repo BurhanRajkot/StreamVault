@@ -29,7 +29,7 @@ test.describe('CineMatch Onboarding', () => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     
     // Look for the onboarding container
-    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /select|choose|movies you like/i }).first()
+    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /What do you love watching\?|select at least/i }).first()
     await expect(onboardingOverlay).toBeVisible({ timeout: 10_000 })
 
     // Verify it covers the page (fixed positioning and high z-index)
@@ -44,7 +44,7 @@ test.describe('CineMatch Onboarding', () => {
   test('onboarding shows movie poster images for selection', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     
-    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /select|choose|movies you like/i }).first()
+    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /What do you love watching\?|select at least/i }).first()
     await expect(onboardingOverlay).toBeVisible({ timeout: 10_000 })
 
     // Find movie cards inside the onboarding
@@ -60,7 +60,7 @@ test.describe('CineMatch Onboarding', () => {
   test('selecting movies updates visual state and progress indicator', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     
-    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /select|choose|movies you like/i }).first()
+    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /What do you love watching\?|select at least/i }).first()
     await expect(onboardingOverlay).toBeVisible({ timeout: 10_000 })
 
     const cards = onboardingOverlay.locator('button:has(img), [role="button"]:has(img), .cursor-pointer:has(img)')
@@ -99,7 +99,7 @@ test.describe('CineMatch Onboarding', () => {
     }
 
     // Find and click the Continue/Submit button
-    const submitBtn = onboardingOverlay.locator('button:has-text("Continue"), button:has-text("Done"), button:has-text("Finish")').first()
+    const submitBtn = onboardingOverlay.locator('button:has-text("Continue"), button:has-text("Done"), button:has-text("Finish"), button:has-text("Let\'s go")').first()
     await expect(submitBtn).toBeVisible()
     
     // It should be enabled now

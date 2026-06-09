@@ -348,7 +348,11 @@ export async function fetchMediaDetails(
   const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar,images,release_dates,content_ratings&include_image_language=en,null`
   const res = await fetch(url)
   if (!res.ok) {
-    console.error(`fetchMediaDetails failed for ${mode}/${id}:`, res.status)
+    // Sanitize before logging — mode and id are trusted internal values but
+    // we assert here to satisfy static analysis (CodeQL alert #1)
+    const safeMode = ['movie', 'tv'].includes(mode) ? mode : 'unknown'
+    const safeId = Number.isInteger(id) ? id : 0
+    console.error(`fetchMediaDetails failed for ${safeMode}/${safeId}:`, res.status)
     return null
   }
   return res.json()
