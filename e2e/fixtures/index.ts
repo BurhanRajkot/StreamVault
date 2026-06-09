@@ -25,6 +25,7 @@ import {
   ADMIN_HMAC_SECRET,
   type MockFavorite,
 } from './mocks'
+import { enableAdBlock } from './adblock'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -359,28 +360,33 @@ type Fixtures = {
 
 export const test = base.extend<Fixtures>({
   disclaimerPage: async ({ context, page }, use) => {
+    await enableAdBlock(context) // no-op unless E2E_ADBLOCK=1
     await dismissDisclaimer(context)
     await use(page)
   },
 
   authenticatedPage: async ({ context, page }, use) => {
+    await enableAdBlock(context)
     await mockAuthenticate(context)
     await use(page)
   },
 
   mockApiPage: async ({ context, page }, use) => {
+    await enableAdBlock(context)
     await mockAuthenticate(context)
     await registerApiMocks(page)
     await use(page)
   },
 
   unauthMockPage: async ({ context, page }, use) => {
+    await enableAdBlock(context)
     await dismissDisclaimer(context)
     await registerApiMocks(page)
     await use(page)
   },
 
   onboardingPage: async ({ context, page }, use) => {
+    await enableAdBlock(context)
     await context.addInitScript(() => {
       try {
         window.sessionStorage.setItem('disclaimerAccepted', 'true')

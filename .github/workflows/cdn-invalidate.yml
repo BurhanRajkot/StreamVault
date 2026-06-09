@@ -38,6 +38,8 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false  # read-only (zizmor #405)
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
@@ -83,7 +85,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Invalidate CDN paths
+        # Fix: use env vars for inputs/outputs to prevent template injection (zizmor #407)
         env:
+          FORCE_ALL: ${{ inputs.invalidate_all || 'false' }}
+          MANIFEST_PATHS: ${{ steps.manifest.outputs.paths }}
           # ── CloudFront ────────────────────────────────────
           # AWS_DISTRIBUTION_ID: ${{ secrets.AWS_DISTRIBUTION_ID }}
           # AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -98,13 +103,11 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          FORCE_ALL="${{ inputs.invalidate_all || 'false' }}"
-
           if [ "$FORCE_ALL" = "true" ]; then
             echo "::warning::Full cache invalidation requested — this will cause origin load spikes."
             INVALIDATION_PATHS="/*"
           else
-            INVALIDATION_PATHS="${{ steps.manifest.outputs.paths }}"
+            INVALIDATION_PATHS="$MANIFEST_PATHS"
           fi
 
           echo "══════════════════════════════════════════════"
