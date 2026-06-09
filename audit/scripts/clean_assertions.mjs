@@ -77,10 +77,23 @@ function main() {
   const graderAbs = path.resolve(graderPath)
   const yamlAbs   = path.resolve(yamlPath)
 
-  if (!fs.existsSync(yamlAbs))   { console.error(`Error: YAML not found: ${yamlAbs}`);   process.exit(1) }
-  if (!fs.existsSync(graderAbs)) { console.error(`Error: Grader not found: ${graderAbs}`); process.exit(1) }
+  let raw
+  try {
+    raw = fs.readFileSync(yamlAbs, 'utf8')
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      console.error(`Error: YAML not found: ${yamlAbs}`)
+      process.exit(1)
+    }
+    throw err
+  }
 
-  const raw  = fs.readFileSync(yamlAbs, 'utf8')
+  try {
+    fs.accessSync(graderAbs, fs.constants.R_OK)
+  } catch {
+    console.error(`Error: Grader not found or not readable: ${graderAbs}`)
+    process.exit(1)
+  }
   const doc  = parseDocument(raw)
   const data = doc.toJSON()
 

@@ -9,7 +9,7 @@ import { logger } from '../../lib/logger'
 export function logMLInteraction(event: InteractionEvent): void {
   // Convert the semantic weight into an ML label [0.0, 1.0].
   // Dislikes (-0.6 -> 0.0), Neutral -> 0.5, strong positive -> 1.0
-  let mlLabel = 0.5; // default
+  let mlLabel: number;
   if (event.weight >= 0.8) mlLabel = 1.0;
   else if (event.weight >= 0.3) mlLabel = 0.8;
   else if (event.weight >= 0) mlLabel = 0.5;

@@ -21,7 +21,9 @@ import helmet from 'helmet'
 const isProduction = process.env.NODE_ENV === 'production'
 
 export const helmetMiddleware = helmet({
-  // Allow iframe embeds for video player
+  // COEP disabled intentionally — required for cross-origin video player embeds
+  // (peachify, vidup, 2embed, vidfast, vidlink, vidsrc, videasy, etc.)
+  // lgtm[js/helmet-disable-security]
   crossOriginEmbedderPolicy: false,
 
   // Configure Referrer-Policy to allow domain verification for embedded players
@@ -31,7 +33,9 @@ export const helmetMiddleware = helmet({
   contentSecurityPolicy: isProduction ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for React
+      // Compiled React bundles do not need 'unsafe-inline'; inline scripts are
+      // used only in dev (Vite HMR). Removing it closes the XSS attack surface.
+      scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles
       imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow images from TMDB, etc.
       connectSrc: ["'self'", "https://api.themoviedb.org", "https://image.tmdb.org", process.env.FRONTEND_URL || ""].filter(src => src !== ""),
