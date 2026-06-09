@@ -46,7 +46,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       }
       localStorage.setItem('e2e_mock_user', JSON.stringify(mockUser))
       setUser(mockUser)
-      
+
       const searchParams = new URLSearchParams(window.location.search)
       let returnTo = searchParams.get('returnTo') || '/'
 
