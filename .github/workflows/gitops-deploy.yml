@@ -11,6 +11,9 @@ on:
     types: [completed]
     branches: [main]
 
+# Minimal permissions: only write to contents for the GitOps commit.
+# workflow_run runs in the context of the default branch (not the triggering
+# PR), so secrets are not exposed to fork PRs. (zizmor #443 — documented)
 permissions:
   contents: write
 
@@ -28,21 +31,27 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 1
+          # persist-credentials: true required here — we need to push the GitOps commit
+          # (zizmor #442 — intentional, contents:write permission is scoped above)
 
       - name: Resolve image tag
         id: tag
+        # Fix: assign github expression to env var before shell use (zizmor #444)
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          SHA="${{ github.event.workflow_run.head_sha }}"
-          SHORT_SHA="${SHA:0:7}"
+          SHORT_SHA="${HEAD_SHA:0:7}"
           TAG="sha-${SHORT_SHA}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "full_sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "full_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "Image tag: ${TAG}"
 
       - name: Update production kustomization
+        # Fix: assign step outputs to env vars before shell use (zizmor #445, #446)
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           KUSTOMIZATION="k8s/overlays/production/kustomization.yaml"
-          TAG="${{ steps.tag.outputs.tag }}"
 
           echo "Updating image tags to: ${TAG}"
 
@@ -60,6 +69,10 @@ jobs:
           cat "$KUSTOMIZATION"
 
       - name: Commit and push
+        # Fix: assign step outputs to env vars before shell use (zizmor #447)
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          SHA: ${{ steps.tag.outputs.full_sha }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -71,9 +84,6 @@ jobs:
             echo "No changes to commit — image tags already up to date."
             exit 0
           fi
-
-          TAG="${{ steps.tag.outputs.tag }}"
-          SHA="${{ steps.tag.outputs.full_sha }}"
 
           git commit -m "chore(gitops): update image tags to ${TAG}
 

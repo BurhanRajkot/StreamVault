@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
 import { HelmetProvider } from 'react-helmet-async'
 import { Routes, Route, useLocation } from 'react-router-dom'
-import { AlertTriangle } from 'lucide-react'
 
 import Index from './pages/Index'
 import ErrorBoundary from './components/ErrorBoundary'

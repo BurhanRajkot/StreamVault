@@ -247,7 +247,7 @@ const Index = () => {
                 {!searchQuery && selectedProvider && recentlyVisible && (
                   <RecentlyAddedSection
                     mode={mode}
-                    providerId={selectedProvider || null}
+                    providerId={selectedProvider}
                     onMediaClick={handleMediaClick}
                   />
                 )}
