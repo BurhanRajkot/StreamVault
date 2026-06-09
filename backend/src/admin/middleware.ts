@@ -71,8 +71,12 @@ export function requireAdminAuth(
 
 /**
  * Optional admin auth middleware
- * Attaches admin payload if token is present and valid
- * Does not block request if token is missing
+ * Attaches admin payload if token is present and valid.
+ * Does not block request if token is missing — this is intentional.
+ *
+ * @security This middleware MUST NOT be used on routes requiring authentication.
+ *           Use requireAdminAuth for protected routes. This middleware is for
+ *           routes that serve different content to admins vs. regular users.
  */
 export function optionalAdminAuth(
   req: Request,
@@ -88,5 +92,6 @@ export function optionalAdminAuth(
     }
   }
 
+  // Intentional: always call next() regardless of auth status
   next()
 }

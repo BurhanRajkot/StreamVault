@@ -14,12 +14,28 @@ const tmdbResponseCache = new NodeCache({ stdTTL: 600, checkperiod: 120 })
 // the second waits for the first rather than firing a duplicate fetch
 const tmdbInFlight = new Map<string, Promise<any>>()
 
+// Allowlist: only valid TMDB API path characters to prevent SSRF
+// Permits: /letters, digits, hyphens, underscores, dots, ?, &, =, +, %, comma
+const SAFE_TMDB_PATH_RE = /^\/[a-zA-Z0-9/_\-.?&=+%,]*$/
+
 export async function fetchTMDB(path: string, options: { timeoutMs?: number } = {}): Promise<any> {
   if (!TMDB_API_KEY) return { results: [] }
+
+  // Validate path to prevent Server-Side Request Forgery (SSRF)
+  if (!SAFE_TMDB_PATH_RE.test(path)) {
+    throw new Error(`fetchTMDB: rejected unsafe path: ${JSON.stringify(path)}`)
+  }
 
   const sep = path.includes("?") ? "&" : "?"
   // Strip the api_key from the cache key so it's not stored in the key string
   const cacheKey = `${TMDB_BASE}${path}`
+
+  // Defence-in-depth: ensure the constructed URL stays on the TMDB domain
+  const constructed = new URL(cacheKey)
+  if (constructed.hostname !== 'api.themoviedb.org') {
+    throw new Error(`fetchTMDB: SSRF blocked — unexpected host: ${constructed.hostname}`)
+  }
+
   const url = `${cacheKey}${sep}api_key=${TMDB_API_KEY}`
   const timeoutMs = options.timeoutMs ?? TMDB_FETCH_TIMEOUT_MS
 
