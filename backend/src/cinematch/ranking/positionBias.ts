@@ -27,7 +27,7 @@
 import { supabaseAdmin } from '../../lib/supabase'
 import { logger } from '../../lib/logger'
 import { RankingWeights } from '../ranking/dynamicWeights'
-import NodeCache from 'node-cache'
+import { getLocalValue, setLocalValue } from '../../services/cache/localStore'
 
 // ── Config ────────────────────────────────────────────────
 const MAX_IPS_WEIGHT = 10.0    // Clipped-IPS cap — prevents extreme corrections
@@ -36,7 +36,8 @@ const FALLBACK_PROPENSITY = 0.1 // For slots with too few observations
 
 // ── Cache ─────────────────────────────────────────────────
 // Propensity estimates are recalculated infrequently (hourly)
-const propensityCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 })
+const CACHE_KEY = 'propensity_table'
+const CACHE_TTL = 3600
 
 // ── Propensity Table ──────────────────────────────────────
 // Maps display position → estimated propensity score [0, 1]
@@ -50,7 +51,7 @@ export type PropensityTable = Map<number, number>
 //
 // Returns a map: position → propensity ∈ (0, 1]
 export async function computePropensityTable(): Promise<PropensityTable> {
-  const cached = propensityCache.get<PropensityTable>('propensity_table')
+  const cached = getLocalValue<PropensityTable>(CACHE_KEY)
   if (cached) return cached
 
   try {
@@ -101,7 +102,7 @@ export async function computePropensityTable(): Promise<PropensityTable> {
       topCTR: topCTR.toFixed(4),
     })
 
-    propensityCache.set('propensity_table', propensityTable)
+    setLocalValue(CACHE_KEY, propensityTable, CACHE_TTL)
     return propensityTable
 
   } catch (err: any) {

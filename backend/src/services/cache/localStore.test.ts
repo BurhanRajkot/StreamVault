@@ -16,7 +16,7 @@ describe('localStore', () => {
   describe('getLocalValue and setLocalValue', () => {
     it('should set and get a value', () => {
       setLocalValue('test-key', 'test-value', 100)
-      expect(getLocalValue('test-key')).toBe('test-value')
+      expect(getLocalValue<string>('test-key')).toBe('test-value')
     })
 
     it('should return undefined for non-existent key', () => {
@@ -54,7 +54,7 @@ describe('localStore', () => {
   describe('delLocalValue', () => {
     it('should delete a specific key', () => {
       setLocalValue('key-to-delete', 'value', 100)
-      expect(getLocalValue('key-to-delete')).toBe('value')
+      expect(getLocalValue<string>('key-to-delete')).toBe('value')
 
       const deletedCount = delLocalValue('key-to-delete')
       expect(deletedCount).toBe(1)
@@ -79,8 +79,8 @@ describe('localStore', () => {
 
       const deletedCount = delLocalByPattern(/^test/)
       expect(deletedCount).toBe(0)
-      expect(getLocalValue('other-key-1')).toBe('value1')
-      expect(getLocalValue('other-key-2')).toBe('value2')
+      expect(getLocalValue<string>('other-key-1')).toBe('value1')
+      expect(getLocalValue<string>('other-key-2')).toBe('value2')
       expect(getLocalStoreKeyCount()).toBe(2)
     })
 
@@ -96,7 +96,7 @@ describe('localStore', () => {
       expect(deletedCount).toBe(2)
       expect(getLocalValue('test-key-1')).toBeUndefined()
       expect(getLocalValue('test-key-2')).toBeUndefined()
-      expect(getLocalValue('other-key')).toBe('value3')
+      expect(getLocalValue<string>('other-key')).toBe('value3')
       expect(getLocalStoreKeyCount()).toBe(1)
     })
   })
