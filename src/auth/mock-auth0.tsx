@@ -50,8 +50,11 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       const searchParams = new URLSearchParams(window.location.search)
       let returnTo = searchParams.get('returnTo') || '/'
 
-      // Open Redirect vulnerability fix: Validate returnTo is a safe relative path
-      if (!returnTo.startsWith('/') || returnTo.startsWith('//') || returnTo.startsWith('\\')) {
+      // Open Redirect + XSS fix (CodeQL #220, #221):
+      // Use a positive allowlist — only accept safe relative paths.
+      // Blocks: javascript:, //evil.com, \\ UNC paths, encoded variants, etc.
+      const SAFE_RETURN_TO_RE = /^\/[a-zA-Z0-9/_\-?=&#%.]*$/
+      if (!SAFE_RETURN_TO_RE.test(returnTo)) {
         returnTo = '/'
       }
 

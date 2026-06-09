@@ -111,5 +111,18 @@
     "vite": "^6.4.1",
     "vite-plugin-pwa": "^1.2.0",
     "wait-on": "^9.0.10"
+  },
+  "overrides": {
+    "picomatch": ">=4.0.2",
+    "path-to-regexp": ">=8.0.0",
+    "minimatch": ">=9.0.5",
+    "brace-expansion": ">=2.0.1",
+    "ws": ">=8.17.1",
+    "qs": ">=6.11.0",
+    "flatted": ">=3.3.3",
+    "express-rate-limit": ">=7.5.0",
+    "ip-address": ">=9.0.5",
+    "uuid": ">=10.0.0",
+    "diff": ">=5.2.0"
   }
 }
