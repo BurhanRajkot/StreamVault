@@ -12,7 +12,7 @@ import {
   Tag,
   UserCircle,
 } from 'lucide-react'
-import { RecoSection, RecoItem, getImageUrl, getImageSrcSet } from '../lib/api'
+import { RecoSection, RecoItem, getImageSrcSet } from '../lib/api'
 import { cn } from '../lib/utils'
 import { useDislikes } from '../context/DislikesContext'
 import { QuickViewModal } from './QuickViewModal'
