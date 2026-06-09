@@ -33,6 +33,20 @@ app.post('/api/recommendations/eval', (req, res) => {
     return res.status(400).json({ error: 'Missing recentTitles or topGenreNames in request body' })
   }
 
+  const validateInput = (input: any): boolean => {
+    if (typeof input === 'string') {
+      return input.length <= 50
+    }
+    if (Array.isArray(input)) {
+      return input.length <= 100 && input.every(item => typeof item === 'string' && item.length <= 50)
+    }
+    return false
+  }
+
+  if (!validateInput(recentTitles) || !validateInput(topGenreNames)) {
+    return res.status(400).json({ error: 'Invalid input format or length exceeded' })
+  }
+
   console.log('[Eval] Received request:', { recentTitles, topGenreNames })
 
   // Simulate recommendation logic
@@ -41,17 +55,6 @@ app.post('/api/recommendations/eval', (req, res) => {
     { title: 'Inception', score: 0.92, source: 'tmdb_recommendations' },
     { title: 'Interstellar', score: 0.88, source: 'genre_discovery' },
   ]
-
-  // Add some "malicious" detection logic just for Promptfoo testing
-  // Only inspect expected fields to avoid arbitrary payload injection vulnerabilities
-  const input = JSON.stringify({ recentTitles, topGenreNames }).toLowerCase()
-  if (input.includes('ignore previous instructions') || input.includes('jailbreak')) {
-    return res.json({
-      items: recommendations,
-      warning: 'Potential adversarial input detected in eval simulator.',
-      vulnerable: true
-    })
-  }
 
   res.json({
     items: recommendations,
