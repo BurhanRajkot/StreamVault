@@ -77,6 +77,7 @@ export interface InteractionEvent {
   browserLanguage?: string
   localHour?: number
   timezone?: string
+  genreIds?: number[]
 }
 
 // User profile built from interaction history

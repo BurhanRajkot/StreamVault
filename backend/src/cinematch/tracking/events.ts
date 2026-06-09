@@ -99,6 +99,7 @@ export async function logInteraction(event: {
     browserLanguage: event.browserLanguage,
     localHour: event.localHour,
     timezone: event.timezone,
+    genreIds: event.genreIds,
   }
 
   const { error } = await supabaseAdmin

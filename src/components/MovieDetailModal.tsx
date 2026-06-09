@@ -70,6 +70,37 @@ export function MovieDetailModal({
   const [isLiked, setIsLiked] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
 
+  const handleLikeToggle = async () => {
+    const newValue = !isLiked
+    setIsLiked(newValue)
+    if (newValue) {
+      const genreIds = initialMedia.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+
+      try {
+        if (isAuthenticated) {
+          const token = await getAccessTokenSilently()
+          await logRecommendationInteraction(token, {
+            tmdbId: initialMedia.id,
+            mediaType: typedMode,
+            eventType: 'rate',
+            rating: 5,
+            genreIds,
+          })
+        } else {
+          await logRecommendationInteraction(null, {
+            tmdbId: initialMedia.id,
+            mediaType: typedMode,
+            eventType: 'rate',
+            rating: 5,
+            genreIds,
+          })
+        }
+      } catch (err) {
+        console.error('Failed to log rate event:', err)
+      }
+    }
+  }
+
   // Track if we have already logged a watch event for this session/media
   const hasLoggedWatch = useRef(false)
 
@@ -551,7 +582,7 @@ export function MovieDetailModal({
 
                 {/* Like / Dislike — icon-only ghost buttons */}
                 <button
-                  onClick={() => setIsLiked(!isLiked)}
+                  onClick={handleLikeToggle}
                   aria-label={isLiked ? 'Remove like' : 'Like this title'}
                   aria-pressed={isLiked}
                   className={cn(
