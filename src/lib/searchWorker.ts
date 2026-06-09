@@ -3,6 +3,13 @@ import { Media } from './config'
 
 // Web Worker for asynchronous search scoring
 self.onmessage = (e: MessageEvent) => {
+  // Verify origin for security (CodeQL postMessage origin check)
+  // Web Workers don't always have `e.origin` set to a useful value if loaded from blob or same-origin directly,
+  // but if it is present and doesn't match our origin, we should reject.
+  if (e.origin && e.origin !== self.location.origin && e.origin !== 'null') {
+    return
+  }
+
   // Validate message payload before use (CodeQL #6 — postMessage input safety)
   if (!e.data || typeof e.data !== 'object') return
   const { query, fuzzyResults, newMedia } = e.data as {
