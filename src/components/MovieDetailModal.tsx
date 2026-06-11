@@ -801,6 +801,7 @@ export function MovieDetailModal({
                         ref={iframeRef}
                         src={embedUrl}
                         className="w-full h-full"
+                        referrerPolicy="origin"
                         allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
                         allowFullScreen
                       />
