@@ -247,6 +247,33 @@ router.get('/search/:mediaType', async (req: Request, res: Response) => {
 })
 
 /**
+ * GET /tmdb/:mediaType/:id/similar
+ * Get similar titles for a specific media item (used by guest "Because you watched" row)
+ */
+router.get('/:mediaType/:id/similar', async (req: Request, res: Response) => {
+  const { mediaType, id } = req.params
+
+  if (mediaType !== 'movie' && mediaType !== 'tv') {
+    return res.status(400).json({ error: 'Invalid media type' })
+  }
+
+  const parsedId = Number(id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || parsedId > 100_000_000) {
+    return res.status(400).json({ error: 'Invalid media id: must be a positive integer' })
+  }
+
+  try {
+    const data = await fetchTMDB(`/${mediaType}/${parsedId}/similar`)
+    // Similar titles: 15min cache, 1hr stale — changes slowly
+    res.setHeader('Cache-Control', 'public, max-age=900, stale-while-revalidate=3600')
+    res.setHeader('Vary', 'Accept-Encoding')
+    res.json(data)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch similar titles' })
+  }
+})
+
+/**
  * GET /tmdb/:mediaType/:id/videos
  * Get videos (trailers, teasers, etc.) for a specific media item
  */

@@ -42,36 +42,39 @@ export const CONFIG = {
     ],
   },
 
-    STREAM_PROVIDERS: {
-      /* ================= TV ================= */
-      peachify:
-        'https://peachify.top/embed/tv/{tmdbId}/{season}/{episode}',
-      vidup:
-        'https://vidup.to/tv/{tmdbId}/{season}/{episode}',
-      vidfast_pro:
-        'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto&ds_lang=en',
-      vidsrc_icu: 'https://2embed.cc/embed/tv/{tmdbId}/{season}/{episode}',
-      vidlink_pro:
-        'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true&preload=auto&ds_lang=en',
-      vidsrc_cc:
-        'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
-      videasy:
-        'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
-      obsidian:
-        'https://vidrock.ru/tv/{tmdbId}/{season}/{episode}',
+  STREAM_PROVIDERS: {
+    /* ================= TV ================= */
+    peachify:
+      'https://peachify.top/embed/tv/{tmdbId}/{season}/{episode}',
+    vidup:
+      'https://vidup.to/embed/tv/{tmdbId}/{season}/{episode}',
+    vidfast_pro:
+      'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true&preload=auto&ds_lang=en',
+    vidsrc_icu: 'https://2embed.cc/embed/tv/{tmdbId}/{season}/{episode}',
+    vidlink_pro:
+      'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true&preload=auto&ds_lang=en',
+    vidsrc_cc:
+      'https://vidsrc.cc/v2/embed/tv/{tmdbId}/{season}/{episode}?autoPlay=true&poster=false',
+    videasy:
+      'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+    obsidian:
+      'https://vidrock.ru/tv/{tmdbId}/{season}/{episode}',
+    vidzee:
+      'https://player.vidzee.wtf/embed/tv/{tmdbId}/{season}/{episode}',
 
-      /* ================= MOVIE ================= */
-      peachify_movie: 'https://peachify.top/embed/movie/{tmdbId}',
-      vidup_movie: 'https://vidup.to/movie/{tmdbId}',
-      vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
-      vidsrc_icu_movie: 'https://2embed.cc/embed/movie/{tmdbId}',
-      vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
-      vidsrc_cc_movie:
-        'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false&preload=auto&ds_lang=en',
-      videasy_movie:
-        'https://player.videasy.to/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
-      obsidian_movie: 'https://vidrock.ru/movie/{tmdbId}',
-    },
+    /* ================= MOVIE ================= */
+    peachify_movie: 'https://peachify.top/embed/movie/{tmdbId}',
+    vidup_movie: 'https://vidup.to/embed/movie/{tmdbId}',
+    vidfast_pro_movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
+    vidsrc_icu_movie: 'https://2embed.cc/embed/movie/{tmdbId}',
+    vidlink_pro_movie: 'https://vidlink.pro/movie/{tmdbId}?autoPlay=true&preload=auto&ds_lang=en',
+    vidsrc_cc_movie:
+      'https://vidsrc.cc/v2/embed/movie/{tmdbId}?autoPlay=true&poster=false',
+    videasy_movie:
+      'https://player.videasy.to/movie/{tmdbId}?color=0278fd&overlay=false&autoplay=1&preload=auto&ds_lang=en',
+    obsidian_movie: 'https://vidrock.ru/movie/{tmdbId}',
+    vidzee_movie: 'https://player.vidzee.wtf/embed/movie/{tmdbId}',
+  },
 
   PROVIDER_NAMES: {
     vidlink_pro: 'Prism HD',
@@ -82,6 +85,7 @@ export const CONFIG = {
     vidsrc_cc: 'Pulse Player',
     videasy: 'Horizon Select',
     obsidian: 'Obsidian Stream',
+    vidzee: 'VidZee',
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
@@ -93,6 +97,7 @@ export const CONFIG = {
     vidsrc_cc: { quality: '✓ Vibrant', seekSupport: 'good', description: 'Pulse Stable Player' },
     videasy: { quality: '✓ Smooth', seekSupport: 'medium', description: 'Horizon Versatile' },
     obsidian: { quality: '⚡ Elite Quality', seekSupport: 'excellent', description: 'Obsidian Premium Stream' },
+    vidzee: { quality: '⚡ Ultra Fast', seekSupport: 'excellent', description: 'VidZee Lightning Stream' },
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
 
   STREAMING_DOMAINS: [
@@ -104,6 +109,7 @@ export const CONFIG = {
     'vidsrc.cc',
     'player.videasy.to',
     'vidrock.ru',
+    'player.vidzee.wtf',
   ],
 }
 
