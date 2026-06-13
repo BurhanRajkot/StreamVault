@@ -85,3 +85,13 @@ Thumbs.db
 # =========================
 e2e/test-results/
 e2e/playwright-report/
+
+# =========================
+# Kubernetes — NEVER commit real secrets
+# =========================
+# If you create local secret override files, add them here:
+k8s/**/secret.override.yaml
+k8s/**/secrets-real.yaml
+# kubeconfig files with cluster credentials
+kubeconfig
+*.kubeconfig

@@ -1,0 +1,13 @@
+# Production ConfigMap overrides
+# Patches the base configmap.yaml to set production-specific values.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: streamvault-config
+data:
+  NODE_ENV: "production"
+  # Your Vercel-hosted frontend URL — used for backend CORS allow-origin
+  FRONTEND_URL: "https://stream-vault-7u6q.vercel.app"
+  # Production backend API URL (set to your cluster's external IP or domain)
+  # Once you have a domain pointing to your cluster, change this:
+  VITE_API_URL: "https://api.streamvault.yourdomain.com"
