@@ -1,0 +1,24 @@
+# StreamVault ConfigMap — Non-secret runtime configuration
+# Secrets (API keys, JWT secrets, etc.) are stored in the Secret manifest.
+# Sensitive values must NEVER go here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: streamvault-config
+  labels:
+    app.kubernetes.io/part-of: streamvault
+data:
+  # ── Backend ────────────────────────────────────────────────
+  NODE_ENV: "production"
+  PORT: "4000"
+
+  # In-cluster Redis URL (matches redis-service.yaml)
+  REDIS_URL: "redis://redis:6379"
+
+  # URL of the frontend — used for CORS allow-origin on the backend.
+  # Override per-overlay (production sets https://stream-vault-7u6q.vercel.app).
+  FRONTEND_URL: "http://localhost:8080"
+
+  # ── Istio / Service Mesh ───────────────────────────────────
+  # Internal backend API URL used by the frontend service mesh sidecar.
+  VITE_API_URL: "http://streamvault-backend-stable:4000"

@@ -4,13 +4,28 @@ kind: Kustomization
 namespace: streamvault
 
 resources:
+  # ── Cluster Infrastructure ──────────────────────────────────
   - namespace.yaml
+  - serviceaccounts.yaml
+  - configmap.yaml
+
+  # ── Application Workloads ───────────────────────────────────
   - frontend-rollout.yaml
   - frontend-service.yaml
   - backend-rollout.yaml
   - backend-service.yaml
   - redis-deployment.yaml
   - redis-service.yaml
+
+  # ── Networking ──────────────────────────────────────────────
+  - istio-gateway.yaml
+  - network-policy.yaml
+
+  # ── Autoscaling & Availability ──────────────────────────────
+  - hpa.yaml
+  - pdb.yaml
+
+  # ── Argo Rollouts Analysis Templates ───────────────────────
   - analysis-templates/success-rate.yaml
   - analysis-templates/p95-latency.yaml
 

@@ -1,0 +1,152 @@
+# StreamVault NetworkPolicies
+# Implements a default-deny policy with explicit allow rules:
+#   - Istio ingress gateway → frontend
+#   - Frontend → backend
+#   - Backend → redis
+#   - All pods → kube-dns (for service discovery)
+#
+# NOTE: Requires a CNI plugin that enforces NetworkPolicy
+# (e.g., Calico, Cilium, or Weave).
+# If using Istio mTLS alone for security, NetworkPolicy is additive defense-in-depth.
+
+# ── Default Deny All ──────────────────────────────────────────
+# Deny all ingress/egress unless explicitly allowed below.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}  # Applies to ALL pods in the namespace
+  policyTypes:
+    - Ingress
+    - Egress
+
+# ── Allow DNS Resolution (all pods) ──────────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+# ── Frontend: allow ingress from Istio gateway ────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: streamvault-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+  egress:
+    # Frontend → Backend
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: streamvault-backend
+      ports:
+        - port: 4000
+          protocol: TCP
+    # Istio sidecar communication
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+
+# ── Backend: allow ingress from frontend ──────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: streamvault-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: streamvault-frontend
+    # Allow ingress from Istio gateway (direct API access)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+    # Allow Argo Rollouts analysis (Prometheus scraping)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+  egress:
+    # Backend → Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    # Backend → external APIs (TMDB, Auth0, Supabase)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+    # Istio sidecar communication
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+
+# ── Redis: allow ingress only from backend ────────────────────
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: streamvault-backend
+      ports:
+        - port: 6379
+          protocol: TCP
+  egress: []  # Redis has no outbound needs

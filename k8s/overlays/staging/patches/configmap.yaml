@@ -1,0 +1,9 @@
+# Staging ConfigMap overrides
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: streamvault-config
+data:
+  NODE_ENV: "staging"
+  FRONTEND_URL: "https://stream-vault-7u6q.vercel.app"  # Same Vercel preview URL
+  VITE_API_URL: "http://staging-streamvault-backend-stable:4000"  # In-cluster staging

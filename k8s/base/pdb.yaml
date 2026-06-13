@@ -1,0 +1,45 @@
+# StreamVault PodDisruptionBudgets
+# Guarantees minimum availability during voluntary disruptions
+# (node drain, cluster upgrades, rolling updates).
+#
+# minAvailable: 1 ensures at least 1 pod stays Running even
+# if the cluster operator drains a node.
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: streamvault-frontend-pdb
+  labels:
+    app.kubernetes.io/name: streamvault-frontend
+    app.kubernetes.io/component: frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: streamvault-frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: streamvault-backend-pdb
+  labels:
+    app.kubernetes.io/name: streamvault-backend
+    app.kubernetes.io/component: backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: streamvault-backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: streamvault-redis-pdb
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
