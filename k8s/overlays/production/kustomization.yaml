@@ -13,9 +13,9 @@ resources:
 # Org: burhanrajkot (your GitHub username)
 images:
   - name: ghcr.io/burhanrajkot/streamvault-frontend
-    newTag: sha-9703a9e  # Replaced by GitOps workflow with sha-<commit>
+    newTag: sha-cda602a  # Replaced by GitOps workflow with sha-<commit>
   - name: ghcr.io/burhanrajkot/streamvault-backend
-    newTag: sha-9703a9e  # Replaced by GitOps workflow with sha-<commit>
+    newTag: sha-cda602a  # Replaced by GitOps workflow with sha-<commit>
 
 # ── Patches ─────────────────────────────────────────────────────
 patches:
