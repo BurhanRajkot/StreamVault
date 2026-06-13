@@ -20,6 +20,31 @@ images:
 # ── Patches ─────────────────────────────────────────────────────
 patches:
   - path: patches/replicas.yaml
-  - path: patches/resources.yaml
+  - target:
+      kind: Rollout
+      name: streamvault-frontend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+  - target:
+      kind: Rollout
+      name: streamvault-backend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: "2"
+            memory: "1Gi"
   - path: patches/configmap.yaml
 
