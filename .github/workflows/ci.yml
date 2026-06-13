@@ -2,14 +2,24 @@
 # Path-filtered, security-hardened, SLSA L3-attested pipeline.
 # All third-party actions pinned to immutable commit SHAs.
 #
-# CHANGES vs. the previous revision (see PR description / chat for rationale):
-#   - Every job baselines the runner with Harden-Runner (egress audit).
-#   - JS toolchain setup is centralized in ./.github/actions/setup-ci.
-#   - BUN_VERSION pinned to an exact release (was the floating "latest").
-#   - New workflow-lint job runs zizmor (static analysis for GHA workflows).
-#   - status-check now gates secret-scan + e2e-audit (previously could go
-#     green even when the secret scan failed — see "Status gate" note below).
-#   - Playwright browser binaries are cached between runs.
+# CHANGES vs. the previous revision (targeted hardening, not a rewrite):
+#   - Secret scan now scopes git history correctly per trigger: PRs scan the
+#     PR commit range, pushes scan the pushed range, and scheduled sweeps /
+#     first pushes scan FULL history. The previous "--log-opts=-1" only ever
+#     looked at the single latest commit, so a secret introduced earlier in a
+#     multi-commit push would slip past. (Range vars passed via env: to stay
+#     zizmor-clean — no ${{ github.event.* }} interpolated into run blocks.)
+#   - Harden-Runner now sets disable-sudo on every job that doesn't need root
+#     (everything except the Playwright apt install, Docker build, and deploys).
+#   - Deploy jobs get their own concurrency group with cancel-in-progress:false
+#     so a newer push can't cancel an in-flight production rollout mid-apply.
+#   - deploy-production carries an explicit push+main guard (defence in depth;
+#     it already inherits the gate transitively via deploy-canary).
+#
+# Unchanged and deliberately kept: Harden-Runner everywhere, SHA pins, the
+# secret-scan status-gate fix, Trivy pre-push image scans, provenance + SBOM.
+# OpenSSF Scorecard stays in its own scheduled workflow (scorecard.yml), which
+# is the correct convention — don't fold it in here.
 
 name: StreamVault CI/CD
 
@@ -20,7 +30,7 @@ on:
     branches: ["main"]
   workflow_dispatch:
   schedule:
-    - cron: "31 2 * * 1"   # Weekly security sweep — Monday 02:31 UTC
+    - cron: "31 2 * * 1" # Weekly security sweep — Monday 02:31 UTC
 
 concurrency:
   group: streamvault-${{ github.workflow }}-${{ github.ref }}
@@ -31,8 +41,8 @@ permissions:
 
 env:
   NODE_VERSION: "24"
-  BUN_VERSION:  "1.3.14"   # Pinned (was "latest"). Bump deliberately, not implicitly.
-  PLATFORMS:    "linux/amd64,linux/arm64"
+  BUN_VERSION: "1.3.14" # Pinned (was "latest"). Bump deliberately, not implicitly.
+  PLATFORMS: "linux/amd64,linux/arm64"
   # Opt JS-based actions onto Node 24 ahead of GitHub's 16-Jun-2026 default switch.
   # Once that date passes this is a no-op and can be removed.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -41,29 +51,29 @@ env:
 #  CHANGE DETECTION
 # ──────────────────────────────────────────────────────────────
 jobs:
-
   change-detection:
     name: "Detect Changes"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
-      backend:  ${{ steps.filter.outputs.backend }}
-      docker:   ${{ steps.filter.outputs.docker }}
-      infra:    ${{ steps.filter.outputs.infra }}
+      backend: ${{ steps.filter.outputs.backend }}
+      docker: ${{ steps.filter.outputs.docker }}
+      infra: ${{ steps.filter.outputs.infra }}
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Detect changed paths
         id: filter
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         with:
           filters: |
             frontend:
@@ -87,11 +97,11 @@ jobs:
               - "k8s/**"
               - ".github/workflows/**"
 
-# ──────────────────────────────────────────────────────────────
-#  WORKFLOW LINT (zizmor) — static analysis of the workflows themselves
-#  Catches template-injection sinks, over-broad permissions, unpinned
-#  refs, and dangerous triggers. Advisory; results go to the Security tab.
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  WORKFLOW LINT (zizmor) — static analysis of the workflows themselves
+  #  Catches template-injection sinks, over-broad permissions, unpinned
+  #  refs, and dangerous triggers. Advisory; results go to the Security tab.
+  # ──────────────────────────────────────────────────────────────
 
   workflow-lint:
     name: "Workflow Lint — zizmor"
@@ -102,17 +112,18 @@ jobs:
       security-events: write
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Run zizmor
         env:
-          GH_TOKEN: ${{ github.token }}   # enables zizmor's online audits
+          GH_TOKEN: ${{ github.token }} # enables zizmor's online audits
         run: |
           pipx run zizmor \
             --format sarif \
@@ -122,15 +133,15 @@ jobs:
 
       - name: Upload zizmor SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           sarif_file: zizmor.sarif
           category: zizmor
         continue-on-error: true
 
-# ──────────────────────────────────────────────────────────────
-#  SECRET SCAN  (always runs — fail fast before any build)
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  SECRET SCAN  (always runs — fail fast before any build)
+  # ──────────────────────────────────────────────────────────────
 
   secret-scan:
     name: "Secret Scan"
@@ -141,13 +152,14 @@ jobs:
       security-events: write
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          fetch-depth: 0   # Full history required by Gitleaks
+          fetch-depth: 0 # Full history required by Gitleaks
 
       - name: Install Gitleaks
         run: |
@@ -158,25 +170,53 @@ jobs:
           gitleaks version
 
       - name: Scan for leaked credentials
+        # Scope the scan to the right history window per trigger. Event SHAs are
+        # passed through env (never interpolated into the script body) so this
+        # stays free of the template-injection pattern zizmor flags.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
+          ZERO="0000000000000000000000000000000000000000"
+          LOGOPTS=""
+          case "$EVENT_NAME" in
+            pull_request)
+              # Everything the PR adds on top of its base.
+              LOGOPTS="--log-opts=${PR_BASE}..${HEAD_SHA}"
+              ;;
+            push)
+              # Only the commits this push introduced (full history on a brand
+              # new branch, where 'before' is the all-zero sentinel).
+              if [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "$ZERO" ]; then
+                LOGOPTS="--log-opts=${PUSH_BEFORE}..${HEAD_SHA}"
+              fi
+              ;;
+            *)
+              # schedule / workflow_dispatch → full repository history sweep.
+              LOGOPTS=""
+              ;;
+          esac
+          echo "Scan scope: ${LOGOPTS:-<full history>}"
           gitleaks detect \
             --config .gitleaks.toml \
             --redact \
             --exit-code=2 \
             --report-format=sarif \
             --report-path=results.sarif \
-            --log-opts=-1
+            $LOGOPTS
 
       - name: Upload SARIF results
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           sarif_file: results.sarif
           category: gitleaks
 
-# ──────────────────────────────────────────────────────────────
-#  NPM / BUN AUDIT  (always runs)
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  NPM / BUN AUDIT  (always runs)
+  # ──────────────────────────────────────────────────────────────
 
   npm-audit:
     name: "npm / bun Audit"
@@ -186,13 +226,14 @@ jobs:
       contents: read
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Setup toolchain + install (frontend)
         uses: ./.github/actions/setup-ci
@@ -209,7 +250,7 @@ jobs:
         continue-on-error: true
 
       - name: Setup Bun ${{ env.BUN_VERSION }}
-        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -220,48 +261,49 @@ jobs:
           bun audit --level=critical || echo "::warning title=bun audit::Backend vulnerabilities found — review."
         continue-on-error: true
 
-# ──────────────────────────────────────────────────────────────
-#  OSV SCANNER
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  OSV SCANNER
+  # ──────────────────────────────────────────────────────────────
 
   osv-scan:
     name: "OSV Vulnerability Scan"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents:        read
+      contents: read
       security-events: write
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Run OSV Scanner
-        uses: google/osv-scanner-action/osv-scanner-action@e69cc6c86b31f1e7e23935bbe7031b50e51082de  # v2.0.2
+        uses: google/osv-scanner-action/osv-scanner-action@e69cc6c86b31f1e7e23935bbe7031b50e51082de # v2.0.2
         with:
           scan-args: |-
             --lockfile=package-lock.json
             --lockfile=backend/bun.lockb
             --format=sarif
             --output=osv-results.sarif
-        continue-on-error: true   # Advisory
+        continue-on-error: true # Advisory
 
       - name: Upload OSV SARIF results
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           sarif_file: osv-results.sarif
-          category:   osv-scanner
+          category: osv-scanner
         continue-on-error: true
 
-# ──────────────────────────────────────────────────────────────
-#  DEPENDENCY REVIEW  (pull requests only)
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  DEPENDENCY REVIEW  (pull requests only)
+  # ──────────────────────────────────────────────────────────────
 
   dependency-review:
     name: "Dependency Review"
@@ -276,23 +318,24 @@ jobs:
       pull-requests: write
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Review dependency changes
-        uses: actions/dependency-review-action@38ecb5b593bf0eb19e335c03f97670f792489a8b  # v4.7.0
+        uses: actions/dependency-review-action@38ecb5b593bf0eb19e335c03f97670f792489a8b # v4.7.0
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
 
-# ──────────────────────────────────────────────────────────────
-#  FRONTEND CI
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  FRONTEND CI
+  # ──────────────────────────────────────────────────────────────
 
   frontend-ci:
     name: "Frontend — Type-check, Lint, Build & Test"
@@ -305,13 +348,14 @@ jobs:
       VITE_API_URL: "http://localhost:4173"
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Setup toolchain + install
         uses: ./.github/actions/setup-ci
@@ -354,15 +398,15 @@ jobs:
           fi
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: frontend-dist
           path: dist/
           retention-days: 1
 
-# ──────────────────────────────────────────────────────────────
-#  BACKEND CI
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  BACKEND CI
+  # ──────────────────────────────────────────────────────────────
 
   backend-ci:
     name: "Backend — Lint, Build & Test"
@@ -372,13 +416,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Setup toolchain + install
         uses: ./.github/actions/setup-ci
@@ -407,50 +452,52 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: backend-test-results
           path: backend/test-results.xml
           retention-days: 7
 
-# ──────────────────────────────────────────────────────────────
-#  CODEQL ANALYSIS
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  CODEQL ANALYSIS
+  # ──────────────────────────────────────────────────────────────
 
   codeql:
     name: "CodeQL Analysis"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      actions:         read
-      contents:        read
+      actions: read
+      contents: read
       security-events: write
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
+          disable-sudo: true
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+        uses: github/codeql-action/init@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           languages: javascript-typescript
           queries: security-and-quality
 
-      - uses: github/codeql-action/autobuild@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+      - uses: github/codeql-action/autobuild@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
 
       - name: Analyze
-        uses: github/codeql-action/analyze@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+        uses: github/codeql-action/analyze@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           category: "/language:javascript-typescript"
 
-# ──────────────────────────────────────────────────────────────
-#  E2E / AUDIT TESTS
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  E2E / AUDIT TESTS
+  #  (no disable-sudo here — `playwright install --with-deps` needs apt/root)
+  # ──────────────────────────────────────────────────────────────
 
   e2e-audit:
     name: "E2E / Audit Tests"
@@ -468,13 +515,13 @@ jobs:
       VITE_API_URL: "http://localhost:4173"
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Setup toolchain + install
         uses: ./.github/actions/setup-ci
@@ -491,7 +538,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}
@@ -502,7 +549,7 @@ jobs:
         # apt packages, which aren't cached. Cheap relative to the download.
 
       - name: Download built frontend artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: frontend-dist
           path: dist/
@@ -531,7 +578,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
           path: e2e/playwright-report/
@@ -539,7 +586,7 @@ jobs:
 
       - name: Upload Playwright test results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-results
           path: e2e/test-results/
@@ -567,7 +614,7 @@ jobs:
 
       - name: Upload Lighthouse results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: lighthouse-report
           path: .lighthouseci/
@@ -594,20 +641,29 @@ jobs:
             echo "All critical security headers present."
           fi
 
-# ──────────────────────────────────────────────────────────────
-#  STATUS GATE
-#
-#  The single required check for branch protection. It now depends on the
-#  security jobs directly (notably secret-scan), closing a real gap: in the
-#  previous revision secret-scan was NOT a dependency of this gate, and the
-#  CI jobs that DO depend on it report 'skipped' when it fails — and 'skipped'
-#  was treated as passing. A leaked-secret detection could therefore land a
-#  green required check. Now secret-scan failure blocks the gate explicitly.
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  STATUS GATE
+  #
+  #  The single required check for branch protection. It depends on the security
+  #  jobs directly (notably secret-scan), closing a real gap: the CI jobs that
+  #  depend on secret-scan report 'skipped' when it fails, and 'skipped' was
+  #  treated as passing — so a leaked-secret detection could otherwise land a
+  #  green required check. secret-scan failure now blocks the gate explicitly.
+  # ──────────────────────────────────────────────────────────────
 
   status-check:
     name: "All Checks Passed"
-    needs: [change-detection, secret-scan, frontend-ci, backend-ci, codeql, e2e-audit, npm-audit, osv-scan]
+    needs:
+      [
+        change-detection,
+        secret-scan,
+        frontend-ci,
+        backend-ci,
+        codeql,
+        e2e-audit,
+        npm-audit,
+        osv-scan,
+      ]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -649,9 +705,9 @@ jobs:
           fi
           echo "All required checks passed or were skipped by path filter."
 
-# ──────────────────────────────────────────────────────────────
-#  DOCKER BUILD & PUBLISH  (main branch pushes only)
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  DOCKER BUILD & PUBLISH  (main branch pushes only)
+  # ──────────────────────────────────────────────────────────────
 
   publish-images:
     name: "Build, Scan & Publish Docker Images"
@@ -660,32 +716,32 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 60
     permissions:
-      contents:        read
-      packages:        write
-      attestations:    write
-      id-token:        write
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
       security-events: write
 
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
-          egress-policy: audit   # build pulls many base layers; audit, not block
+          egress-policy: audit # build pulls many base layers; audit, not block
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392  # v3.6.0
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2  # v3.10.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
         with:
           driver: docker-container
 
       - name: Login to GHCR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772  # v3.4.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -699,7 +755,7 @@ jobs:
 
       - name: Docker metadata — frontend
         id: meta_frontend
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
           images: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
           tags: |
@@ -712,7 +768,7 @@ jobs:
             org.opencontainers.image.vendor=${{ github.repository_owner }}
 
       - name: Build frontend image (local, pre-scan)
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           file: ./Dockerfile
@@ -720,29 +776,29 @@ jobs:
           load: true
           tags: streamvault-frontend:scan
           cache-from: type=gha,scope=frontend
-          cache-to:   type=gha,scope=frontend,mode=max
+          cache-to: type=gha,scope=frontend,mode=max
 
       - name: Scan frontend image with Trivy
         id: trivy_frontend
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref:      streamvault-frontend:scan
-          format:         sarif
-          output:         trivy-frontend.sarif
-          severity:       CRITICAL,HIGH
-          exit-code:      "1"
+          image-ref: streamvault-frontend:scan
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
           ignore-unfixed: true
 
       - name: Upload frontend Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           sarif_file: trivy-frontend.sarif
-          category:   trivy-frontend
+          category: trivy-frontend
 
       - name: Build and push frontend image (multi-platform)
         id: build_frontend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           file: ./Dockerfile
@@ -750,23 +806,23 @@ jobs:
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
-          tags:   ${{ steps.meta_frontend.outputs.tags }}
+          tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
           cache-from: type=gha,scope=frontend
-          cache-to:   type=gha,scope=frontend,mode=max
+          cache-to: type=gha,scope=frontend,mode=max
 
       - name: Attest frontend build provenance
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd  # v2.3.0
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
         with:
-          subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
-          subject-digest:   ${{ steps.build_frontend.outputs.digest }}
+          subject-name: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
+          subject-digest: ${{ steps.build_frontend.outputs.digest }}
           push-to-registry: true
 
       # ── Backend ─────────────────────────────────────────────
 
       - name: Docker metadata — backend
         id: meta_backend
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804  # v5.7.0
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
         with:
           images: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
           tags: |
@@ -779,7 +835,7 @@ jobs:
             org.opencontainers.image.vendor=${{ github.repository_owner }}
 
       - name: Build backend image (local, pre-scan)
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -787,29 +843,29 @@ jobs:
           load: true
           tags: streamvault-backend:scan
           cache-from: type=gha,scope=backend
-          cache-to:   type=gha,scope=backend,mode=max
+          cache-to: type=gha,scope=backend,mode=max
 
       - name: Scan backend image with Trivy
         id: trivy_backend
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.36.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
-          image-ref:      streamvault-backend:scan
-          format:         sarif
-          output:         trivy-backend.sarif
-          severity:       CRITICAL,HIGH
-          exit-code:      "1"
+          image-ref: streamvault-backend:scan
+          format: sarif
+          output: trivy-backend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
           ignore-unfixed: true
 
       - name: Upload backend Trivy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a  # v3.36.1
+        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           sarif_file: trivy-backend.sarif
-          category:   trivy-backend
+          category: trivy-backend
 
       - name: Build and push backend image (multi-platform)
         id: build_backend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -817,21 +873,25 @@ jobs:
           platforms: ${{ env.PLATFORMS }}
           provenance: true
           sbom: true
-          tags:   ${{ steps.meta_backend.outputs.tags }}
+          tags: ${{ steps.meta_backend.outputs.tags }}
           labels: ${{ steps.meta_backend.outputs.labels }}
           cache-from: type=gha,scope=backend
-          cache-to:   type=gha,scope=backend,mode=max
+          cache-to: type=gha,scope=backend,mode=max
 
       - name: Attest backend build provenance
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd  # v2.3.0
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
         with:
-          subject-name:     ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
-          subject-digest:   ${{ steps.build_backend.outputs.digest }}
+          subject-name: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
+          subject-digest: ${{ steps.build_backend.outputs.digest }}
           push-to-registry: true
 
-# ──────────────────────────────────────────────────────────────
-#  DEPLOYMENT  (main branch pushes only)
-# ──────────────────────────────────────────────────────────────
+  # ──────────────────────────────────────────────────────────────
+  #  DEPLOYMENT  (main branch pushes only)
+  #
+  #  Deploy jobs use their OWN concurrency group with cancel-in-progress:false,
+  #  so the workflow-level cancel-in-progress:true (good for CI) can never abort
+  #  an in-flight rollout part-way through a kubectl apply.
+  # ──────────────────────────────────────────────────────────────
 
   deploy-canary:
     name: "Deploy — Canary (5%)"
@@ -839,6 +899,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: streamvault-deploy
+      cancel-in-progress: false
     environment:
       name: production-canary
     permissions:
@@ -847,13 +910,13 @@ jobs:
 
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       # - name: Authenticate to Google Cloud
       #   uses: google-github-actions/auth@v3
@@ -874,8 +937,13 @@ jobs:
   deploy-production:
     name: "Deploy — Production (100%)"
     needs: [deploy-canary]
+    # Explicit guard (defence in depth — already inherited via deploy-canary).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: streamvault-deploy
+      cancel-in-progress: false
     environment:
       name: production
     permissions:
@@ -884,13 +952,13 @@ jobs:
 
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5  # v2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          persist-credentials: false  # zizmor hardening
+          persist-credentials: false # zizmor hardening
 
       - name: Promote canary to production
         run: |
