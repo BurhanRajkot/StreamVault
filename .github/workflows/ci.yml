@@ -713,7 +713,12 @@ jobs:
     name: "Build, Scan & Publish Docker Images"
     runs-on: ubuntu-latest
     needs: [status-check, secret-scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      always() &&
+      needs.status-check.result == 'success' &&
+      needs.secret-scan.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
     timeout-minutes: 60
     permissions:
       contents: read
