@@ -6,7 +6,18 @@ namespace: streamvault-staging
 resources:
   - ../../base
 
+# Staging prefix on all resource names (e.g. staging-streamvault-frontend)
 namePrefix: staging-
 
+# ── Image Tags ──────────────────────────────────────────────────
+# Staging uses the latest tag — can be overridden per-deploy by CI.
+images:
+  - name: ghcr.io/burhanrajkot/streamvault-frontend
+    newTag: latest  # Override with sha-<commit> in CI for traceability
+  - name: ghcr.io/burhanrajkot/streamvault-backend
+    newTag: latest
+
+# ── Patches ─────────────────────────────────────────────────────
 patches:
   - path: patches/replicas.yaml
+  - path: patches/configmap.yaml
