@@ -29,6 +29,8 @@ resources:
   - analysis-templates/success-rate.yaml
   - analysis-templates/p95-latency.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: streamvault
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: streamvault
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
