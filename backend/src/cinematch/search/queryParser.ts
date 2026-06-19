@@ -1,7 +1,15 @@
-import { logger } from '../../lib/logger'
-import { TMDB_GENRES } from '../types'
-
-const MODEL_NAME = 'gemini-flash-latest'
+// ============================================================
+// CineMatch — Local Rule-Based NLU Query Parser
+//
+// Parses natural language search queries like:
+//   "2000 action movie"  → genres=[28], year_range=2000-2009, mediaType=movie
+//   "scary 90s sci-fi"   → genres=[27,878], year_range=1990-1999
+//   "crime tv shows"     → genres=[80], mediaType=tv
+//   "inception"          → isConversational=false (falls through to title search)
+//
+// Zero external API calls — pure TypeScript regex + static lookup tables.
+// Works offline, instant latency, no API key required.
+// ============================================================
 
 export interface ParsedQuery {
   isConversational: boolean
@@ -14,119 +22,211 @@ export interface ParsedQuery {
     'first_air_date.gte'?: string
     'first_air_date.lte'?: string
     with_text_query?: string
+    sort_by?: string
+    'vote_average.gte'?: string
   }
 }
 
+// ── Genre keyword → TMDB genre ID map ─────────────────────────────────────
+// Each entry is [pattern, genreId]. Patterns are checked case-insensitively.
+// Order matters: more specific patterns first.
+const GENRE_MAP: Array<[RegExp, number]> = [
+  [/\bsci[- ]?fi\b|\bscience.?fiction\b/i,  878],
+  [/\baction\b/i,                             28],
+  [/\badventure\b/i,                          12],
+  [/\banimation\b|\banimated\b|\bcartoon\b/i, 16],
+  [/\bcomedy\b|\bfunny\b|\bhilarious\b/i,    35],
+  [/\bcrime\b|\bheist\b/i,                   80],
+  [/\bdocumentar/i,                           99],
+  [/\bdrama\b/i,                              18],
+  [/\bfamilies\b|\bfamily\b|\bkids\b|\bchildren\b/i, 10751],
+  [/\bfantas/i,                              14],
+  [/\bhistor/i,                              36],
+  [/\bhorror\b|\bscary\b|\bterror\b/i,       27],
+  [/\bmusical?\b/i,                          10402],
+  [/\bmystery\b|\bmysterio/i,                9648],
+  [/\bromance\b|\bromantic\b|\blove.stor/i,  10749],
+  [/\bthriller\b/i,                          53],
+  [/\bwar\b/i,                               10752],
+  [/\bwestern\b/i,                           37],
+  [/\bsuperher/i,                             28],  // map to action
+  [/\banime\b/i,                             16],   // animation
+  [/\bsitcom\b/i,                            35],   // comedy
+  [/\bspy\b|\bagent\b/i,                     28],   // action
+  [/\bsupernatural\b|\bghost\b|\bzombie\b/i, 27],   // horror
+  [/\bdetective\b|\binvestigat/i,            80],   // crime
+  [/\btalk.?show\b/i,                       10767],
+  [/\breality/i,                            10764],
+]
+
+// ── Decade word → start year ───────────────────────────────────────────────
+const DECADE_WORDS: Array<[RegExp, number]> = [
+  [/\b(twenties|20s)\b/i,           1920],
+  [/\b(thirties|30s)\b/i,           1930],
+  [/\b(forties|40s)\b/i,            1940],
+  [/\b(fifties|50s)\b/i,            1950],
+  [/\b(sixties|60s)\b/i,            1960],
+  [/\b(seventies|70s)\b/i,          1970],
+  [/\b(eighties|80s)\b/i,           1980],
+  [/\b(nineties|90s)\b/i,           1990],
+  [/\b(two.?thousands?|2000s)\b/i,  2000],
+  [/\b(twenty.?tens?|2010s)\b/i,    2010],
+  [/\b(twenty.?twenties?|2020s)\b/i, 2020],
+]
+
+// ── Media type keywords ────────────────────────────────────────────────────
+const MOVIE_PATTERNS = /\b(movies?|films?|cinema|feature)\b/i
+const TV_PATTERNS    = /\b(tv|television|shows?|series|episodes?|seasons?|sitcoms?|miniseries)\b/i
+const ANIME_PATTERN  = /\banime\b/i // anime is TV
+
+// ── Quality / sort hints ───────────────────────────────────────────────────
+const TOP_RATED_PATTERN = /\b(top.?rated|best|highest.?rated|acclaimed|award.?winning)\b/i
+const RECENT_PATTERN    = /\b(recent|latest|new|newest)\b/i
+
+// ── Structural words to strip from remaining query ─────────────────────────
+// After extracting decade/genre/type, anything left is the "title hint".
+const STRUCTURAL_PATTERNS: RegExp[] = [
+  MOVIE_PATTERNS,
+  TV_PATTERNS,
+  ANIME_PATTERN,
+  TOP_RATED_PATTERN,
+  RECENT_PATTERN,
+  /\b(from|in|the|of|and|with|like|about|starring|featuring|directed|by)\b/i,
+  /\b\d{4}s?\b/,          // 4-digit years / decades
+  /\b[12][90]\d{2}\b/,    // year numbers
+  ...GENRE_MAP.map(([re]) => re),
+  ...DECADE_WORDS.map(([re]) => re),
+]
+
 /**
- * Determine if a query is likely a conversational/complex query rather than
- * just a direct title search (e.g. "scary 90s sci fi movies" vs "inception").
- * We use a fast heuristic to save LLM calls on simple searches.
+ * Determine if a query is a conversational/descriptive query rather than
+ * a direct title search (e.g. "scary 90s sci-fi" vs "inception").
+ * Fast heuristic — no API call needed.
  */
 export function isComplexQuery(query: string): boolean {
-  const words = query.split(/\s+/)
-  // If it's 4 or more words, or contains descriptive keywords
+  const words = query.trim().split(/\s+/)
+  // 4+ words is almost always descriptive
   if (words.length >= 4) return true
-  
-  const descriptiveWords = ['movies', 'shows', 'from', 'about', 'like', 'with', 'directed', 'years', 'scary', 'funny']
-  const queryLower = query.toLowerCase()
-  return descriptiveWords.some(w => queryLower.includes(w))
+
+  const q = query.toLowerCase()
+
+  // Contains genre / decade / media-type structural words?
+  const hasGenre    = GENRE_MAP.some(([re]) => re.test(q))
+  const hasDecade   = DECADE_WORDS.some(([re]) => re.test(q)) || /\b[12][90]\d{2}s?\b/.test(q)
+  const hasType     = MOVIE_PATTERNS.test(q) || TV_PATTERNS.test(q) || ANIME_PATTERN.test(q)
+  const hasQuality  = TOP_RATED_PATTERN.test(q) || RECENT_PATTERN.test(q)
+
+  return hasGenre || hasDecade || (hasType && words.length >= 2) || hasQuality
 }
 
 /**
- * Parses a natural language search query into structured TMDB discover filters using RAG/LLM.
- * Returns null if the parse fails or if it's not conversational.
+ * Parse a natural language query into structured TMDB Discover API filters.
+ * Returns null if the query doesn't appear to be conversational / descriptive.
+ *
+ * This is a pure local implementation — no Gemini API, no network calls.
  */
-export async function parseQueryNLU(query: string): Promise<ParsedQuery | null> {
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-  if (!GEMINI_API_KEY || !isComplexQuery(query)) {
-    return null
+export function parseQueryNLU(query: string): ParsedQuery | null {
+  if (!isComplexQuery(query)) return null
+
+  const filters: ParsedQuery['filters'] = {}
+  let workingQuery = query
+
+  // 1. Extract media type
+  let detectedMediaType: 'movie' | 'tv' | undefined
+  if (ANIME_PATTERN.test(workingQuery)) {
+    detectedMediaType = 'tv'
+  } else if (TV_PATTERNS.test(workingQuery)) {
+    detectedMediaType = 'tv'
+  } else if (MOVIE_PATTERNS.test(workingQuery)) {
+    detectedMediaType = 'movie'
   }
 
-  const genreMapString = Object.entries(TMDB_GENRES)
-    .map(([id, name]) => `${name} (${id})`)
-    .join(', ')
-
-  const prompt = `
-You are a media search query parser equivalent to Netflix's DSL RAG layer.
-The user's query may contain descriptive language, genres, decades, or media types.
-Available TMDB Genres (ID format): ${genreMapString}
-
-Return a strictly valid JSON object with the following schema:
-{
-  "isConversational": boolean, // true if this is descriptive (e.g. "90s action movies"), false if it looks like a specific title (e.g. "The Dark Knight")
-  "remainingQuery": string, // The core subject matter if applicable. Can be empty.
-  "mediaType": "movie" | "tv", // Omit if unspecified
-  "genres": number[], // Array of matched genre IDs
-  "decade": number // e.g. 1990. Omit if unspecified
-}
-
-Query: "${query}"
-`
-  try {
-    const startTime = Date.now()
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.0,
-        }
-      })
-    })
-
-    if (!response.ok) {
-        logger.warn('[NLU] Gemini API failed for query parsing')
-        return null
+  // 2. Extract decade from word patterns (e.g. "nineties", "80s")
+  let decade: number | undefined
+  for (const [pattern, startYear] of DECADE_WORDS) {
+    if (pattern.test(workingQuery)) {
+      decade = startYear
+      break
     }
+  }
 
-    const data = await response.json()
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-    const parsed = JSON.parse(textContent)
-
-    const hasStructuredFilters = 
-      (parsed.genres && Array.isArray(parsed.genres) && parsed.genres.length > 0) ||
-      !!parsed.decade
-
-    if (!parsed.isConversational && !hasStructuredFilters) {
-      return null
+  // 3. Extract 4-digit year / decade number (e.g. "2000", "1990s", "90s ambiguous")
+  if (!decade) {
+    // Full 4-digit year or decade like "2000s", "1990s"
+    const yearMatch = workingQuery.match(/\b(1[89]\d{2}|20[012]\d)(s)?\b/)
+    if (yearMatch) {
+      const yr = parseInt(yearMatch[1], 10)
+      // Round down to decade
+      decade = Math.floor(yr / 10) * 10
     }
-
-    const filters: ParsedQuery['filters'] = {}
-    
-    if (parsed.genres && Array.isArray(parsed.genres) && parsed.genres.length > 0) {
-      filters.with_genres = parsed.genres.join(',')
-    }
-
-    if (parsed.decade) {
-      const startYear = parsed.decade
-      const endYear = startYear + 9
-      if (parsed.mediaType === 'tv') {
-        filters['first_air_date.gte'] = `${startYear}-01-01`
-        filters['first_air_date.lte'] = `${endYear}-12-31`
-      } else {
-        filters['primary_release_date.gte'] = `${startYear}-01-01`
-        filters['primary_release_date.lte'] = `${endYear}-12-31`
+    // "90s" / "80s" short form without century prefix
+    if (!decade) {
+      const shortMatch = workingQuery.match(/\b([2-9]0)s\b/i)
+      if (shortMatch) {
+        const tens = parseInt(shortMatch[1], 10)
+        // Disambiguate century: 20s-90s → most likely 1920-1990
+        // 20s is ambiguous but default 1920 (very old films) less useful → treat 20s as 2020
+        decade = tens === 20 ? 2020 : 1900 + tens
       }
     }
+  }
 
-    logger.info('[NLU] Query parsed via LLM', { 
-      query, 
-      parsed, 
-      latencyMs: Date.now() - startTime 
-    })
+  // 4. Apply date filters based on decade
+  if (decade !== undefined) {
+    const startYear = decade
+    const endYear   = decade + 9
 
-    return {
-      isConversational: true,
-      remainingQuery: parsed.remainingQuery,
-      mediaType: parsed.mediaType,
-      filters
+    if (detectedMediaType === 'tv') {
+      filters['first_air_date.gte'] = `${startYear}-01-01`
+      filters['first_air_date.lte'] = `${endYear}-12-31`
+    } else {
+      // Default to movie date filters; if both types are searched the hybridSearch
+      // will run Discover for both using these same filters.
+      filters['primary_release_date.gte'] = `${startYear}-01-01`
+      filters['primary_release_date.lte'] = `${endYear}-12-31`
+      // Also set TV dates so a combined discover works
+      filters['first_air_date.gte'] = `${startYear}-01-01`
+      filters['first_air_date.lte'] = `${endYear}-12-31`
     }
-  } catch (err: any) {
-    logger.error('[NLU] Query parsing error', { error: err.message })
-    return null
+  }
+
+  // 5. Extract genres — allow multiple
+  const matchedGenreIds: number[] = []
+  for (const [pattern, id] of GENRE_MAP) {
+    if (pattern.test(workingQuery) && !matchedGenreIds.includes(id)) {
+      matchedGenreIds.push(id)
+    }
+  }
+  if (matchedGenreIds.length > 0) {
+    // TMDB Discover `with_genres` is comma-separated AND logic
+    // Use only the first two to avoid over-constraining
+    filters.with_genres = matchedGenreIds.slice(0, 2).join(',')
+  }
+
+  // 6. Sort hint
+  if (TOP_RATED_PATTERN.test(workingQuery)) {
+    filters.sort_by = 'vote_average.desc'
+    filters['vote_average.gte'] = '7'
+  } else if (RECENT_PATTERN.test(workingQuery)) {
+    filters.sort_by = 'primary_release_date.desc'
+  } else {
+    filters.sort_by = 'popularity.desc'
+  }
+
+  // 7. Extract remaining title query (non-structural text left over)
+  let remaining = workingQuery
+  for (const pattern of STRUCTURAL_PATTERNS) {
+    remaining = remaining.replace(new RegExp(pattern.source, 'gi'), ' ')
+  }
+  remaining = remaining.replace(/\s{2,}/g, ' ').trim()
+
+  // Only use as a text query if it looks like a meaningful title fragment
+  const remainingQuery = remaining.length >= 3 ? remaining : undefined
+
+  return {
+    isConversational: true,
+    remainingQuery,
+    mediaType: detectedMediaType,
+    filters,
   }
 }

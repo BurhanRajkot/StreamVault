@@ -12,7 +12,6 @@
 import { rankWithBM25, BM25Document } from './bm25'
 import { logger } from '../../lib/logger'
 import { parseQueryNLU } from './queryParser'
-import { crossEncoderReRank } from './crossEncoder'
 import { fetchTMDB } from '../utils/tmdb'
 
 // ── TMDB Result shape (simplified) ───────────────────────
@@ -71,8 +70,13 @@ async function fetchDiscover(
     }
     for (const k in filters) {
       const v = filters[k]
-      // Exclude api_key if it's there, as fetchTMDB handles it
-      if (v && k !== 'api_key') cleanFilters[k] = v
+      if (!v || k === 'api_key') continue
+
+      // Drop date filters that belong to the opposite media type
+      if (mediaType === 'movie' && (k === 'first_air_date.gte' || k === 'first_air_date.lte')) continue
+      if (mediaType === 'tv' && (k === 'primary_release_date.gte' || k === 'primary_release_date.lte')) continue
+
+      cleanFilters[k] = v
     }
     // Sort by popularity for general discover queries
     if (!cleanFilters.sort_by) {
@@ -177,8 +181,8 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
   const { query, page = 1, mediaOnly = false, mediaType } = opts
   let results: TMDBMultiResult[] = []
   
-  // 1. Attempt LLM/NLU parsing of the query
-  const parsed = await parseQueryNLU(query)
+  // 1. Attempt local NLU parsing of the query (synchronous — no API call)
+  const parsed = parseQueryNLU(query)
   
   if (parsed && parsed.isConversational) {
     logger.info('[HybridSearch] Using NLU parsed filters via Discover', { query })
@@ -229,8 +233,6 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
     count: results.length,
     topResult: `${bm25Ranked[0]?.doc.title || bm25Ranked[0]?.doc.name} (${bm25Ranked[0]?.bm25Score.toFixed(3)})`,
   })
-  const scoredHybrid = computeHybridScores(bm25Ranked)
-  
-  // 3. Stage 2 Precision Re-Ranking via Cross-Encoder proxy
-  return await crossEncoderReRank(query, scoredHybrid, 10)
+
+  return computeHybridScores(bm25Ranked)
 }
