@@ -113,7 +113,7 @@ export function CineMatchOnboarding({ onComplete }: Props) {
 
   return createPortal(
     <div data-testid="onboarding" className="fixed inset-0 z-[9999] bg-[#0a0a0a] overflow-hidden">
-      <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+      <div data-lenis-prevent className="h-full overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
         {content}
       </div>
     </div>,
