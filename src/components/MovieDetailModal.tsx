@@ -755,6 +755,7 @@ export function MovieDetailModal({
         {isPlaying && (
           <div
             ref={scrollRef}
+            data-lenis-prevent
             className={cn(
               "absolute inset-0 z-10 overflow-x-hidden custom-scrollbar",
               isMobileDevice ? "max-md:bg-black md:overflow-y-auto max-md:overflow-hidden" : "overflow-y-auto"
