@@ -112,9 +112,14 @@ export function DynamicSearchBar({
     return () => workerRef.current?.terminate()
   }, [])
 
-  // Sync input value with external explicit searches or clears
+  // Sync input value with external explicit searches or clears.
+  // Also re-open the dropdown if the parent pushes a non-empty query
+  // (e.g. user pastes into the header input which calls onSearch directly).
   useEffect(() => {
     setInputValue(searchQuery || '')
+    if (searchQuery && searchQuery.trim().length > 0) {
+      setIsOpen(true)
+    }
   }, [searchQuery])
 
   // Handle clicking outside the dropdown to close it
@@ -260,6 +265,18 @@ export function DynamicSearchBar({
             setIsOpen(true)
             setSelectedIndex(-1)
           }}
+          onPaste={(e) => {
+            // When pasting, the onChange fires after this event.
+            // We schedule a microtask so isOpen is set after the
+            // pasted value has been committed to the input state.
+            const pasted = e.clipboardData.getData('text')
+            if (pasted.trim().length > 0) {
+              setTimeout(() => {
+                setIsOpen(true)
+                setSelectedIndex(-1)
+              }, 0)
+            }
+          }}
           onFocus={() => {
             if (inputValue.trim()) setIsOpen(true)
           }}
@@ -342,10 +359,20 @@ export function DynamicSearchBar({
                           src={getImageUrl(media.poster_path, 'thumbnail')}
                           alt={title}
                           className="w-full h-full object-cover"
-                          loading="lazy"
-                          decoding="async"
+                          loading="eager"
                           width={342}
                           height={513}
+                          onError={(e) => {
+                            const target = e.currentTarget
+                            target.style.display = 'none'
+                            const parent = target.parentElement
+                            if (parent && !parent.querySelector('.img-fallback')) {
+                              const fallback = document.createElement('div')
+                              fallback.className = 'img-fallback w-full h-full flex items-center justify-center text-muted-foreground/30'
+                              fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 9 5 12L16 3l2 4h4"/></svg>'
+                              parent.appendChild(fallback)
+                            }
+                          }}
                        />
                      </div>
 

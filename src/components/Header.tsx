@@ -167,6 +167,13 @@ export function Header({
                     placeholder="Search titles..."
                     value={searchQuery}
                     onChange={(e) => onSearch(e.target.value)}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text')
+                      if (pasted.trim().length > 0) {
+                        // Let the default paste happen first, then sync
+                        setTimeout(() => onSearch((e.target as HTMLInputElement).value), 0)
+                      }
+                    }}
                     aria-label="Search movies and TV shows"
                     className="w-full bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                     style={{ paddingLeft: '14px' }}
