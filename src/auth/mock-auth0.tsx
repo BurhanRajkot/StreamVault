@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react'
 interface Auth0ContextType {
   isAuthenticated: boolean
@@ -88,7 +87,6 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
     </Auth0Context.Provider>
   )
 }
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth0() {
   const context = useContext(Auth0Context)
   if (!context) {

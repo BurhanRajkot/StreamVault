@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 /**
  * StreamVault E2E — Shared Test Fixtures
  *
