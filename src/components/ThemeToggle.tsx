@@ -1,7 +1,7 @@
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Sun, Moon, Cloud } from "lucide-react";
+import { Sun, Cloud } from "lucide-react";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
