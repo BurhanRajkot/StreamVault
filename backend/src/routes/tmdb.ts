@@ -142,7 +142,7 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
 })
 
 /**
- * GET /tmdb/trending/:mediaType using this for the pupose of getting files and other things
+ * GET /tmdb/trending/:mediaType
  * Fetch trending media
  */
 router.get('/trending/:mediaType', async (req: Request, res: Response) => {

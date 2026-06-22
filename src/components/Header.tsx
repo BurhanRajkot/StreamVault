@@ -22,7 +22,6 @@ interface HeaderProps {
   onSearch: (query: string) => void
   searchQuery: string
   onClearSearch: () => void
-  onMediaSelect?: (media: Media) => void
   onLogoClick?: () => void
 }
 
