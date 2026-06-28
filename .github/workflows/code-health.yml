@@ -54,7 +54,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps --ignore-scripts
+        run: npm install --legacy-peer-deps --ignore-scripts
 
       - name: Run knip (dead code detection)
         # knip exits non-zero if it finds issues. We use || true to make this
@@ -153,7 +153,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps --ignore-scripts
+        run: npm install --legacy-peer-deps --ignore-scripts
 
       - name: Measure TypeScript coverage
         run: |
