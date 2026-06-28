@@ -33,7 +33,7 @@ COPY postcss.config.js ./
 COPY components.json ./
 
 # Install dependencies for building
-RUN npm ci --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
 # Copy the rest of the frontend source code
 COPY . .
