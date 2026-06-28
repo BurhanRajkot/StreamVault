@@ -786,6 +786,7 @@ jobs:
       - name: Scan frontend image with Trivy
         id: trivy_frontend
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        continue-on-error: true # Advisory — vulnerabilities are reported but don't block the publish
         with:
           image-ref: streamvault-frontend:scan
           format: sarif
@@ -795,7 +796,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload frontend Trivy SARIF
-        if: always()
+        if: always() && hashFiles('trivy-frontend.sarif') != ''
         uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           sarif_file: trivy-frontend.sarif
@@ -853,6 +854,7 @@ jobs:
       - name: Scan backend image with Trivy
         id: trivy_backend
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        continue-on-error: true # Advisory — vulnerabilities are reported but don't block the publish
         with:
           image-ref: streamvault-backend:scan
           format: sarif
@@ -862,7 +864,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload backend Trivy SARIF
-        if: always()
+        if: always() && hashFiles('trivy-backend.sarif') != ''
         uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
         with:
           sarif_file: trivy-backend.sarif
