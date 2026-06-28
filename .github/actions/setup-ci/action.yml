@@ -59,7 +59,7 @@ runs:
       # Fix: use env var instead of direct template injection (zizmor #403, #404)
       env:
         INSTALL_ARGS: ${{ inputs.install-args }}
-      run: npm ci $INSTALL_ARGS
+      run: npm install $INSTALL_ARGS
 
     - name: Install (bun)
       if: inputs.install == 'bun'
