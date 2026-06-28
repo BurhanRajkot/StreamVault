@@ -1,0 +1,393 @@
+# StreamVault — Automated Dependency Update Workflow
+#
+# Runs npm-check-updates (ncu) against the frontend and backend package.json
+# files on a weekly schedule, commits any version bumps, and opens a single
+# consolidated PR. This complements Dependabot (which handles lockfiles and
+# Docker images) by aggressively bumping semver ranges in package.json itself.
+#
+# Schedule: Every Tuesday at 03:00 UTC (one day after Dependabot's Monday sweep,
+#           so both sets of PRs don't pile up on the same day).
+#
+# Manual trigger: workflow_dispatch (run it any time from the Actions tab).
+#
+# Required secret / permission:
+#   - GITHUB_TOKEN (built-in) — used to create the PR via gh CLI.
+#   - The workflow needs `contents: write` + `pull-requests: write`.
+
+name: Dependency Update
+
+on:
+  schedule:
+    - cron: "0 3 * * 2" # Every Tuesday 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which packages to upgrade"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - frontend
+          - backend
+          - major   # major bumps only (use with caution!)
+
+concurrency:
+  group: dependency-update
+  cancel-in-progress: false # Never cancel an in-flight update job
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: "24"
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  # ──────────────────────────────────────────────────────────────
+  #  UPDATE FRONTEND DEPS (root package.json)
+  # ──────────────────────────────────────────────────────────────
+  update-frontend:
+    name: "Bump Frontend Dependencies"
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' && (
+        inputs.target == 'all' ||
+        inputs.target == 'frontend' ||
+        inputs.target == 'major'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.ncu.outputs.changed }}
+      summary: ${{ steps.ncu.outputs.summary }}
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # Use a PAT or GITHUB_TOKEN — PAT preferred so the resulting PR
+          # triggers CI. With GITHUB_TOKEN, GitHub blocks re-triggering to
+          # prevent recursive workflows. If you have a bot PAT, set it here:
+          #   token: ${{ secrets.DEPS_BOT_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install npm-check-updates
+        run: npm install -g npm-check-updates@latest --no-fund --no-audit
+
+      - name: Run ncu — frontend (minor + patch by default)
+        id: ncu
+        run: |
+          # Determine upgrade target
+          UPGRADE_TYPE="minor"
+          if [ "${{ inputs.target }}" = "major" ]; then
+            UPGRADE_TYPE="latest"
+          fi
+
+          echo "Running ncu with target=${UPGRADE_TYPE} on root package.json"
+
+          # Run ncu and capture output; --jsonUpgraded prints a JSON diff
+          UPGRADED=$(ncu \
+            --upgrade \
+            --target "${UPGRADE_TYPE}" \
+            --jsonUpgraded \
+            --reject "caniuse-lite" \
+            2>/dev/null || echo "{}")
+
+          echo "ncu output: ${UPGRADED}"
+
+          # Check if anything actually changed
+          if [ "$UPGRADED" = "{}" ] || [ -z "$UPGRADED" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "summary=No frontend packages need upgrading." >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(echo "$UPGRADED" | node -e \
+              "const d=require('fs').readFileSync('/dev/stdin','utf8'); \
+               console.log(Object.keys(JSON.parse(d)).length)")
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "summary=Frontend: ${COUNT} package(s) upgraded." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reinstall with updated versions
+        if: steps.ncu.outputs.changed == 'true'
+        run: npm install --legacy-peer-deps --no-audit
+
+      - name: Upload updated frontend manifests
+        if: steps.ncu.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: frontend-updated-manifests
+          path: |
+            package.json
+            package-lock.json
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────
+  #  UPDATE BACKEND DEPS (backend/package.json)
+  # ──────────────────────────────────────────────────────────────
+  update-backend:
+    name: "Bump Backend Dependencies"
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' && (
+        inputs.target == 'all' ||
+        inputs.target == 'backend' ||
+        inputs.target == 'major'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.ncu.outputs.changed }}
+      summary: ${{ steps.ncu.outputs.summary }}
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install npm-check-updates
+        run: npm install -g npm-check-updates@latest --no-fund --no-audit
+
+      - name: Run ncu — backend (minor + patch by default)
+        id: ncu
+        working-directory: ./backend
+        run: |
+          UPGRADE_TYPE="minor"
+          if [ "${{ inputs.target }}" = "major" ]; then
+            UPGRADE_TYPE="latest"
+          fi
+
+          echo "Running ncu with target=${UPGRADE_TYPE} on backend/package.json"
+
+          UPGRADED=$(ncu \
+            --upgrade \
+            --target "${UPGRADE_TYPE}" \
+            --jsonUpgraded \
+            2>/dev/null || echo "{}")
+
+          echo "ncu output: ${UPGRADED}"
+
+          if [ "$UPGRADED" = "{}" ] || [ -z "$UPGRADED" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "summary=No backend packages need upgrading." >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(echo "$UPGRADED" | node -e \
+              "const d=require('fs').readFileSync('/dev/stdin','utf8'); \
+               console.log(Object.keys(JSON.parse(d)).length)")
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "summary=Backend: ${COUNT} package(s) upgraded." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reinstall with updated versions (bun)
+        if: steps.ncu.outputs.changed == 'true'
+        working-directory: ./backend
+        run: bun install
+
+      - name: Upload updated backend manifests
+        if: steps.ncu.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: backend-updated-manifests
+          path: |
+            backend/package.json
+            backend/bun.lock
+            backend/package-lock.json
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────
+  #  OPEN CONSOLIDATED PR  (only if something actually changed)
+  # ──────────────────────────────────────────────────────────────
+  open-pr:
+    name: "Open Dependency Update PR"
+    needs: [update-frontend, update-backend]
+    # Run only if at least one of the jobs produced changes
+    if: >-
+      !cancelled() && (
+        needs.update-frontend.outputs.changed == 'true' ||
+        needs.update-backend.outputs.changed == 'true'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download updated frontend manifests
+        if: needs.update-frontend.outputs.changed == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: frontend-updated-manifests
+          path: ./ # Restore to root
+        continue-on-error: true
+
+      - name: Download updated backend manifests
+        if: needs.update-backend.outputs.changed == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: backend-updated-manifests
+          path: backend/
+        continue-on-error: true
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create branch and commit changes
+        id: branch
+        env:
+          FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
+          BACKEND_CHANGED:  ${{ needs.update-backend.outputs.changed }}
+        run: |
+          BRANCH="chore/dep-update-$(date +'%Y-%m-%d')"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+
+          git checkout -b "${BRANCH}"
+
+          # Stage changed manifests only
+          if [ "$FRONTEND_CHANGED" = "true" ]; then
+            git add package.json package-lock.json || true
+          fi
+          if [ "$BACKEND_CHANGED" = "true" ]; then
+            git add backend/package.json backend/bun.lock backend/package-lock.json || true
+          fi
+
+          # Only commit if there's something staged
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(deps): automated weekly dependency update $(date +'%Y-%m-%d')
+
+          $([ '$FRONTEND_CHANGED' = 'true' ] && echo '${{ needs.update-frontend.outputs.summary }}')
+          $([ '$BACKEND_CHANGED'  = 'true' ] && echo '${{ needs.update-backend.outputs.summary }}')
+
+          Automated by: .github/workflows/dependency-update.yml"
+            git push origin "${BRANCH}"
+            echo "committed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing to commit — manifests unchanged after restore."
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open Pull Request
+        if: steps.branch.outputs.committed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          FRONTEND_SUMMARY: ${{ needs.update-frontend.outputs.summary }}
+          BACKEND_SUMMARY:  ${{ needs.update-backend.outputs.summary }}
+          FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
+          BACKEND_CHANGED:  ${{ needs.update-backend.outputs.changed }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+
+          # Build a readable body
+          BODY="## Automated Dependency Update — ${DATE}
+
+          This PR was opened automatically by the \`dependency-update\` workflow.
+          All version bumps are **minor or patch** by default (no breaking major changes).
+          CI must pass before merging.
+
+          ### Changes
+          "
+
+          if [ "$FRONTEND_CHANGED" = "true" ]; then
+            BODY="${BODY}
+          - 🎨 **Frontend**: ${FRONTEND_SUMMARY}"
+          fi
+
+          if [ "$BACKEND_CHANGED" = "true" ]; then
+            BODY="${BODY}
+          - ⚙️ **Backend**: ${BACKEND_SUMMARY}"
+          fi
+
+          BODY="${BODY}
+
+          ### Checklist
+          - [ ] CI passes (type-check, lint, build, tests, E2E)
+          - [ ] Bundle size not significantly increased
+          - [ ] No breaking API changes in upgraded packages
+          - [ ] Security scan clean
+
+          > _Merge when CI is green. If something breaks, close this PR and investigate._"
+
+          gh pr create \
+            --title "chore(deps): automated dependency update ${DATE}" \
+            --body  "${BODY}" \
+            --base  main \
+            --head  "${BRANCH}" \
+            --label "dependencies,automated" \
+            || echo "PR may already exist for this branch — skipping."
+
+  # ──────────────────────────────────────────────────────────────
+  #  REPORT — summary even when nothing changed
+  # ──────────────────────────────────────────────────────────────
+  report:
+    name: "Update Summary"
+    needs: [update-frontend, update-backend, open-pr]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Print summary
+        env:
+          FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
+          FRONTEND_SUMMARY: ${{ needs.update-frontend.outputs.summary }}
+          BACKEND_CHANGED:  ${{ needs.update-backend.outputs.changed }}
+          BACKEND_SUMMARY:  ${{ needs.update-backend.outputs.summary }}
+          PR_RESULT:        ${{ needs.open-pr.result }}
+        run: |
+          echo "## StreamVault Dependency Update Report"
+          echo ""
+          echo "| Area     | Changed | Summary |"
+          echo "|----------|---------|---------|"
+          echo "| Frontend | ${FRONTEND_CHANGED:-false} | ${FRONTEND_SUMMARY:-no changes} |"
+          echo "| Backend  | ${BACKEND_CHANGED:-false}  | ${BACKEND_SUMMARY:-no changes}  |"
+          echo ""
+          if [ "$PR_RESULT" = "success" ]; then
+            echo "✅ PR opened — check the Pull Requests tab."
+          elif [ "$PR_RESULT" = "skipped" ]; then
+            echo "✅ No packages to upgrade this week — all up to date."
+          else
+            echo "⚠️  PR job result: ${PR_RESULT}"
+          fi

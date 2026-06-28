@@ -1,0 +1,281 @@
+# Dependabot — StreamVault automatic dependency update configuration.
+#
+# Covers all four ecosystems present in this repo:
+#   1. npm  — frontend (root package.json)
+#   2. npm  — backend  (backend/package.json + bun.lock)
+#   3. docker — Dockerfile base images (node:24-slim, nginx:1.30-alpine)
+#   4. github-actions — SHA-pinned action refs in .github/workflows/
+#
+# PRs are opened on Monday mornings so the team can review them alongside
+# the weekly secret-scan sweep that already runs at 02:31 UTC on Mondays.
+#
+# Groups reduce noise: related packages (all Radix UI, all types, all Vite
+# toolchain, etc.) land in a single PR instead of one PR per package.
+
+version: 2
+
+updates:
+  # ──────────────────────────────────────────────────────────────
+  # 1. FRONTEND — root package.json / package-lock.json
+  # ──────────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    # Target the main branch (where CI runs)
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+      include: "scope"
+    # Ignore patch bumps for very stable packages to reduce noise
+    ignore:
+      - dependency-name: "caniuse-lite"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Radix UI — all primitives move together
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Tailwind ecosystem (tailwindcss, @tailwindcss/*, tailwind-merge)
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "tailwind-merge"
+        update-types:
+          - "minor"
+          - "patch"
+      # React core + DOM
+      react-core:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "react-is"
+          - "@types/react"
+          - "@types/react-dom"
+        update-types:
+          - "minor"
+          - "patch"
+      # React ecosystem (router, query, hook-form, etc.)
+      react-ecosystem:
+        patterns:
+          - "react-router-dom"
+          - "@tanstack/*"
+          - "react-hook-form"
+          - "@hookform/*"
+          - "react-helmet-async"
+          - "react-resizable-panels"
+          - "react-day-picker"
+          - "next-themes"
+          - "framer-motion"
+        update-types:
+          - "minor"
+          - "patch"
+      # Vite build toolchain
+      vite-toolchain:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "vite-plugin-pwa"
+          - "terser"
+          - "postcss"
+        update-types:
+          - "minor"
+          - "patch"
+      # TypeScript + ESLint dev tooling
+      ts-eslint:
+        patterns:
+          - "typescript"
+          - "typescript-eslint"
+          - "eslint"
+          - "eslint-plugin-*"
+          - "@eslint/*"
+          - "globals"
+        update-types:
+          - "minor"
+          - "patch"
+      # Type definitions (@types/*)
+      types:
+        patterns:
+          - "@types/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Playwright + E2E testing
+      playwright:
+        patterns:
+          - "@playwright/test"
+          - "@ghostery/adblocker-playwright"
+          - "wait-on"
+        update-types:
+          - "minor"
+          - "patch"
+      # Supabase
+      supabase:
+        patterns:
+          - "@supabase/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Lucide icons
+      lucide:
+        patterns:
+          - "lucide-react"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ──────────────────────────────────────────────────────────────
+  # 2. BACKEND — backend/package.json
+  # ──────────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "backend"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps/backend)"
+      prefix-development: "chore(dev-deps/backend)"
+      include: "scope"
+    groups:
+      # Express framework + middleware
+      express-ecosystem:
+        patterns:
+          - "express"
+          - "express-*"
+          - "cors"
+          - "helmet"
+          - "compression"
+          - "body-parser"
+        update-types:
+          - "minor"
+          - "patch"
+      # Backend type definitions
+      backend-types:
+        patterns:
+          - "@types/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # TypeScript + ESLint tooling
+      backend-ts-eslint:
+        patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "eslint"
+          - "ts-node"
+          - "nodemon"
+        update-types:
+          - "minor"
+          - "patch"
+      # Supabase backend client
+      backend-supabase:
+        patterns:
+          - "@supabase/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ──────────────────────────────────────────────────────────────
+  # 3. DOCKER — Dockerfile base images
+  #    Covers both root Dockerfile (node:24-slim, nginx:1.30-alpine)
+  #    and backend/Dockerfile
+  # ──────────────────────────────────────────────────────────────
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "backend"
+      - "automated"
+    commit-message:
+      prefix: "chore(docker/backend)"
+      include: "scope"
+
+  # ──────────────────────────────────────────────────────────────
+  # 4. GITHUB ACTIONS — SHA-pinned action refs in all workflows
+  #    This is critical: your ci.yml uses SHA pins (correct!) and
+  #    Dependabot will keep those SHAs current automatically.
+  # ──────────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    commit-message:
+      prefix: "chore(actions)"
+      include: "scope"
+    groups:
+      # Core GitHub actions
+      github-core-actions:
+        patterns:
+          - "actions/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # CodeQL analysis actions
+      codeql-actions:
+        patterns:
+          - "github/codeql-action/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Docker build actions
+      docker-actions:
+        patterns:
+          - "docker/*"
+        update-types:
+          - "minor"
+          - "patch"
