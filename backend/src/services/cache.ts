@@ -48,8 +48,8 @@ const createNamespace = (namespace: string, defaultTtl: number) => ({
         // Keep a hot local copy so fallback can still serve the latest values.
         setLocalValue(namespacedKey, parsed, defaultTtl)
         return parsed
-      } catch (err: any) {
-        logger.error(`Cache parse error [${namespace}]`, { error: err?.message || err })
+      } catch (err: unknown) {
+        logger.error(`Cache parse error [${namespace}]`, { error: err instanceof Error ? err.message : String(err) })
         return undefined
       }
     }

@@ -19,7 +19,7 @@ export function delLocalValue(key: string): number {
 }
 
 export function delLocalByPattern(pattern: RegExp): number {
-  const keys = localCache.keys().filter((key) => pattern.test(key))
+  const keys = localCache.keys().filter((key: string) => pattern.test(key))
   return keys.length > 0 ? localCache.del(keys) : 0
 }
 

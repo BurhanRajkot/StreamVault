@@ -23,7 +23,7 @@ import cors from 'cors'
  * Development: Allows all origins for easier testing
  */
 export const corsMiddleware = cors({
-  origin: (origin, callback) => {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const isDevelopment = process.env.NODE_ENV !== 'production'
 
     // In development, allow all origins
