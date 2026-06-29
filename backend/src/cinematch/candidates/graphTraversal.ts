@@ -21,6 +21,31 @@ import { Candidate, UserProfile } from '../types'
 import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
 import { logger } from '../../lib/logger'
 
+/** Shape of a single item in TMDB's combined_credits cast/crew arrays */
+interface TMDBCredit {
+  id: number
+  vote_count?: number
+  vote_average?: number
+  popularity?: number
+  media_type?: string
+  job?: string
+  title?: string
+  name?: string
+  overview?: string
+  poster_path?: string | null
+  backdrop_path?: string | null
+  release_date?: string
+  first_air_date?: string
+  genre_ids?: number[]
+}
+
+/** Shape of /person/:id/combined_credits response */
+interface TMDBPersonCredits {
+  name?: string
+  cast?: TMDBCredit[]
+  crew?: TMDBCredit[]
+}
+
 const MAX_DIRECTORS = 3   // Walk filmography for top-3 directors
 const MAX_ACTORS = 3      // Walk filmography for top-3 lead actors
 const MIN_VOTE_COUNT = 50 // Filter out little-known works
@@ -46,52 +71,6 @@ function getTopActorIds(profile: UserProfile, limit: number): number[] {
     .map(([id]) => Number(id))
 }
 
-// ── Fetch filmography for a person from TMDB ─────────────
-
-async function fetchPersonFilmography(
-  personId: number,
-  personName: string,
-  role: 'director' | 'actor',
-  profile: UserProfile,
-): Promise<Candidate[]> {
-  try {
-    const data = await fetchTMDB(`/person/${personId}/combined_credits`)
-
-    const credits = role === 'director'
-      ? (data.crew || []).filter((c: any) => c.job === 'Director')
-      : data.cast || []
-
-    const candidates: Candidate[] = credits
-      .filter((item: any) =>
-        item.vote_count >= MIN_VOTE_COUNT &&
-        item.vote_average >= MIN_VOTE_AVERAGE &&
-        !profile.watchedIds.has(item.id) &&
-        !profile.dislikedIds.has(item.id) &&
-        (item.media_type === 'movie' || item.media_type === 'tv')
-      )
-      .sort((a: any, b: any) => b.vote_average - a.vote_average)
-      .slice(0, 8) // Top 8 works per person
-      .map((item: any) => {
-        const mediaType = item.media_type as 'movie' | 'tv'
-        const candidate = mapTMDBItem(
-          { ...item, genre_ids: item.genre_ids || [] },
-          mediaType,
-          role === 'director' ? 'tmdb_recommendations' : 'tmdb_similar',
-        )
-        if (!candidate) return null
-        return {
-          ...candidate,
-          seedTitle: personName,  // "Because you watched X" → "Directed by PersonName"
-        } as Candidate
-      })
-      .filter(Boolean) as Candidate[]
-
-    return candidates
-  } catch (err: any) {
-    logger.warn('[GraphTraversal] Failed to fetch filmography', { personId, error: err.message })
-    return []
-  }
-}
 
 // ── Main Export ───────────────────────────────────────────
 
@@ -111,20 +90,21 @@ export async function graphTraversalSource(profile: UserProfile): Promise<Candid
   // Fetch director filmographies in parallel (combined_credits includes name, so single API call per person)
   const directorPromises = topDirectorIds.map(async personId => {
     try {
-      const data = await fetchTMDB(`/person/${personId}/combined_credits`)
+      const raw = await fetchTMDB(`/person/${personId}/combined_credits`)
+      const data = raw as TMDBPersonCredits
       const name = data.name || `Director ${personId}`
-      const credits = (data.crew || []).filter((c: any) => c.job === 'Director')
+      const credits = (data.crew || []).filter((c) => c.job === 'Director')
       const candidates: Candidate[] = credits
-        .filter((item: any) =>
-          item.vote_count >= MIN_VOTE_COUNT &&
-          item.vote_average >= MIN_VOTE_AVERAGE &&
+        .filter((item) =>
+          (item.vote_count ?? 0) >= MIN_VOTE_COUNT &&
+          (item.vote_average ?? 0) >= MIN_VOTE_AVERAGE &&
           !profile.watchedIds.has(item.id) &&
           !profile.dislikedIds.has(item.id) &&
           (item.media_type === 'movie' || item.media_type === 'tv')
         )
-        .sort((a: any, b: any) => b.vote_average - a.vote_average)
+        .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
         .slice(0, 8)
-        .map((item: any) => {
+        .map((item) => {
           const mediaType = item.media_type as 'movie' | 'tv'
           const candidate = mapTMDBItem(
             { ...item, genre_ids: item.genre_ids || [] },
@@ -144,20 +124,21 @@ export async function graphTraversalSource(profile: UserProfile): Promise<Candid
   // Fetch actor filmographies in parallel (same single-call approach)
   const actorPromises = topActorIds.map(async personId => {
     try {
-      const data = await fetchTMDB(`/person/${personId}/combined_credits`)
+      const raw = await fetchTMDB(`/person/${personId}/combined_credits`)
+      const data = raw as TMDBPersonCredits
       const name = data.name || `Actor ${personId}`
       const credits = data.cast || []
       const candidates: Candidate[] = credits
-        .filter((item: any) =>
-          item.vote_count >= MIN_VOTE_COUNT &&
-          item.vote_average >= MIN_VOTE_AVERAGE &&
+        .filter((item) =>
+          (item.vote_count ?? 0) >= MIN_VOTE_COUNT &&
+          (item.vote_average ?? 0) >= MIN_VOTE_AVERAGE &&
           !profile.watchedIds.has(item.id) &&
           !profile.dislikedIds.has(item.id) &&
           (item.media_type === 'movie' || item.media_type === 'tv')
         )
-        .sort((a: any, b: any) => b.vote_average - a.vote_average)
+        .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
         .slice(0, 8)
-        .map((item: any) => {
+        .map((item) => {
           const mediaType = item.media_type as 'movie' | 'tv'
           const candidate = mapTMDBItem(
             { ...item, genre_ids: item.genre_ids || [] },

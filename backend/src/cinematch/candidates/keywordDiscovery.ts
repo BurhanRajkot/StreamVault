@@ -1,5 +1,5 @@
 import { Candidate, UserProfile } from '../types'
-import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
+import { fetchTMDB, mapTMDBItem, toPagedResults } from '../utils/tmdb'
 
 // ──────────────────────────────────────────────────────────────
 // Keyword Discovery — Highly Niche Personalization
@@ -32,7 +32,7 @@ export async function keywordDiscoverySource(profile: UserProfile): Promise<Cand
     topKeywords.flatMap(async (keyword) => {
       try {
         // 1. Fetch human-readable keyword name from TMDB
-        const kwData = await fetchTMDB(`/keyword/${keyword.id}`)
+        const kwData = await fetchTMDB(`/keyword/${keyword.id}`) as { name?: string }
         const keywordName = kwData.name
         if (!keywordName) return []
 
@@ -46,7 +46,7 @@ export async function keywordDiscoverySource(profile: UserProfile): Promise<Cand
         const movieData = await fetchTMDB(
           `/discover/movie?sort_by=vote_average.desc&with_keywords=${keyword.id}&vote_count.gte=100&page=1`
         )
-        const movieCandidates = ((movieData.results || []) as any[]).map((r: any) => {
+        const movieCandidates = toPagedResults(movieData).map((r) => {
           const c = mapTMDBItem(r, 'movie', 'keyword_discovery')
           if (!c) return null
           return { ...c, seedTitle: formattedName } as Candidate
@@ -56,7 +56,7 @@ export async function keywordDiscoverySource(profile: UserProfile): Promise<Cand
         const tvData = await fetchTMDB(
           `/discover/tv?sort_by=vote_average.desc&with_keywords=${keyword.id}&vote_count.gte=50&page=1`
         )
-        const tvCandidates = ((tvData.results || []) as any[]).map((r: any) => {
+        const tvCandidates = toPagedResults(tvData).map((r) => {
           const c = mapTMDBItem(r, 'tv', 'keyword_discovery')
           if (!c) return null
           return { ...c, seedTitle: formattedName } as Candidate

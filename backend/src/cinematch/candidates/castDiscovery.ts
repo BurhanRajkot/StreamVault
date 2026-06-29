@@ -1,5 +1,6 @@
 import { Candidate, UserProfile } from '../types'
-import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
+import { fetchTMDB, mapTMDBItem, toPagedResults } from '../utils/tmdb'
+import { toErrorMessage } from '../../types/tmdb'
 
 // ──────────────────────────────────────────────────────────────
 // Cast Discovery — Actor/Director Personalization
@@ -29,7 +30,7 @@ export async function castDiscoverySource(profile: UserProfile): Promise<Candida
     topCast.map(async (castMem) => {
       try {
         // 1. Fetch human-readable person name from TMDB
-        const personData = await fetchTMDB(`/person/${castMem.id}`)
+        const personData = await fetchTMDB(`/person/${castMem.id}`) as { name?: string }
         const personName = personData.name
         if (!personName) return []
 
@@ -37,7 +38,7 @@ export async function castDiscoverySource(profile: UserProfile): Promise<Candida
         const movieData = await fetchTMDB(
           `/discover/movie?sort_by=vote_average.desc&with_cast=${castMem.id}&vote_count.gte=200&page=1`
         )
-        const movieCandidates = ((movieData.results || []) as any[]).map((r: any) => {
+        const movieCandidates = toPagedResults(movieData).map((r) => {
           const c = mapTMDBItem(r, 'movie', 'cast_discovery')
           if (!c) return null
           return { ...c, seedTitle: `Starring ${personName}` } as Candidate
@@ -45,7 +46,7 @@ export async function castDiscoverySource(profile: UserProfile): Promise<Candida
 
         return movieCandidates
       } catch (err) {
-        console.error(`[CastDiscovery] Failed to fetch cast ${castMem.id}:`, err)
+        console.error(`[CastDiscovery] Failed to fetch cast ${castMem.id}:`, toErrorMessage(err))
         return []
       }
     })

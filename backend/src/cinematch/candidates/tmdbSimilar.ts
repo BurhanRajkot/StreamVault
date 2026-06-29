@@ -1,5 +1,5 @@
 import { Candidate, UserProfile } from '../types'
-import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
+import { fetchTMDB, mapTMDBItem, toPagedResults } from '../utils/tmdb'
 
 // Fetches TMDB Similar titles for each recently watched item
 // Seeds top 4 items and fetches 12 per seed for faster cold pipelines
@@ -10,9 +10,9 @@ export async function tmdbSimilarSource(profile: UserProfile): Promise<Candidate
   const results = await Promise.allSettled(
     profile.recentlyWatched.slice(0, 4).map(async (item) => {
       const data = await fetchTMDB(`/${item.mediaType}/${item.tmdbId}/similar`)
-      return ((data.results || []) as any[])
+      return toPagedResults(data)
         .slice(0, 12)
-        .map((r: any) => {
+        .map((r) => {
           const candidate = mapTMDBItem(r, item.mediaType, 'tmdb_similar')
           if (!candidate) return null
           // Attach the seed title for section builder attribution
