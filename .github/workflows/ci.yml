@@ -818,7 +818,7 @@ jobs:
           cache-to: type=gha,scope=frontend,mode=max
 
       - name: Attest frontend build provenance
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-frontend
           subject-digest: ${{ steps.build_frontend.outputs.digest }}
@@ -886,7 +886,7 @@ jobs:
           cache-to: type=gha,scope=backend,mode=max
 
       - name: Attest backend build provenance
-        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-backend
           subject-digest: ${{ steps.build_backend.outputs.digest }}
