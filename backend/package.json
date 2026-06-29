@@ -9,7 +9,7 @@
     "start": "bun dist/index.js",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src --ext .ts",
     "test": "bun test",
-    "test:ci": "bun test --reporter=junit --reporter-output=test-results.xml"
+    "test:ci": "bun test --reporter=junit --reporter-outfile=test-results.xml"
   },
   "keywords": [],
   "author": "",
