@@ -44,7 +44,7 @@ ENV VITE_MOCK_AUTH=${VITE_MOCK_AUTH}
 RUN npm run build
 
 # ── Stage 4: Serve with nginx (Production) ──────────────────────────
-FROM nginx:1.30-alpine AS production
+FROM nginx:1.31-alpine AS production
 
 # Create non-root user
 RUN addgroup -g 1001 -S app && \
