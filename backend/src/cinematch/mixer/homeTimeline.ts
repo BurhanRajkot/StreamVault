@@ -249,10 +249,10 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
   const cached = recCache.get<ScoredCandidate[]>(GUEST_CACHE_KEY)
 
   if (cached) {
-    const trendingItems = cached.filter(c => hasSource(c, 'trending')).slice(0, 40)
-    const popularItems  = cached.filter(c => hasSource(c, 'popular_fallback')).slice(0, 40)
-    const topRated      = cached.filter(c => hasSource(c, 'tmdb_recommendations')).slice(0, 40)
-    const genreItems    = cached.filter(c => hasSource(c, 'genre_discovery')).slice(0, 40)
+    const trendingItems = cached.filter((c: ScoredCandidate) => hasSource(c, 'trending')).slice(0, 40)
+    const popularItems  = cached.filter((c: ScoredCandidate) => hasSource(c, 'popular_fallback')).slice(0, 40)
+    const topRated      = cached.filter((c: ScoredCandidate) => hasSource(c, 'tmdb_recommendations')).slice(0, 40)
+    const genreItems    = cached.filter((c: ScoredCandidate) => hasSource(c, 'genre_discovery')).slice(0, 40)
     return {
       userId: null,
       items: cached,

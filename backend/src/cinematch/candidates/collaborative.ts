@@ -3,6 +3,21 @@ import { Candidate, UserProfile, MediaType } from '../types'
 import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
 import NodeCache from 'node-cache'
 
+// ── Peer profile shape from Supabase ─────────────────────────
+interface PeerProfile {
+  userId: string
+  genreMap: Record<string, number>
+  keywordMap?: Record<string, number> | null
+  castMap?: Record<string, number> | null
+}
+
+/** Shape of a TMDB detail response (subset used for genres) */
+interface TMDBDetail {
+  id?: number
+  genres?: { id: number }[]
+  [key: string]: unknown
+}
+
 // Global cache for peer profiles to prevent repeated DB scans (5 min TTL)
 const peerCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 const MAX_COLLAB_DETAIL_FETCH = 12
@@ -59,7 +74,7 @@ async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[
   try {
     // Step 1: Fetch peer profiles — now includes genreMap, keywordMap, castMap
     // Check global peer cache first
-    let peers = peerCache.get<any[]>('global_peers')
+    let peers = peerCache.get<PeerProfile[]>('global_peers')
 
     if (!peers) {
       const { data, error } = await supabaseAdmin
@@ -68,13 +83,13 @@ async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[
         .limit(500)
 
       if (error || !data || data.length === 0) return []
-      peers = data
+      peers = data as PeerProfile[]
       peerCache.set('global_peers', peers)
     }
 
     // Step 2: Compute multi-signal cosine similarity for each peer
     const peerSimilarities: Array<{ userId: string; similarity: number }> = peers
-      .filter(p => p.userId !== profile.userId && p.genreMap && typeof p.genreMap === 'object')
+      .filter((p: PeerProfile) => p.userId !== profile.userId && p.genreMap && typeof p.genreMap === 'object')
       .map(peer => {
         const genreMap = peer.genreMap as Record<string, number>
         const keywordMap = (peer.keywordMap as Record<string, number> | null) ?? {}
@@ -98,14 +113,14 @@ async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[
 
         return { userId: peer.userId as string, similarity: combinedSim }
       })
-      .filter((p: any) => p.similarity > 0.35) // Slightly lower threshold due to richer vector
-      .sort((a: any, b: any) => b.similarity - a.similarity)
+      .filter((p: { userId: string; similarity: number }) => p.similarity > 0.35) // Slightly lower threshold due to richer vector
+      .sort((a: { userId: string; similarity: number }, b: { userId: string; similarity: number }) => b.similarity - a.similarity)
       .slice(0, 10) // Top-10 peers
 
     if (peerSimilarities.length === 0) return []
 
     // Step 3: Fetch top-watched tmdbIds from peer interactions (last 90 days)
-    const peerUserIds = peerSimilarities.map((p: any) => p.userId)
+    const peerUserIds = peerSimilarities.map(p => p.userId)
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString()
 
     const { data: peerInteractions, error: intError } = await supabaseAdmin
@@ -152,9 +167,10 @@ async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[
     const candidateResults = await Promise.allSettled(
       topCandidates.map(async (c) => {
         try {
-          const data = await fetchTMDB(`/${c.mediaType}/${c.tmdbId}`)
+          const data = await fetchTMDB(`/${c.mediaType}/${c.tmdbId}`) as TMDBDetail
+          const genreIds = (data.genres || []).map(g => g.id)
           const candidate = mapTMDBItem(
-            { ...data, genre_ids: (data.genres || []).map((g: any) => g.id) },
+            { ...data, genre_ids: genreIds, id: data.id ?? 0 },
             c.mediaType,
             'collaborative'
           )
@@ -166,10 +182,11 @@ async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[
     )
 
     return candidateResults
-      .filter((r: any) => r.status === 'fulfilled' && r.value !== null)
-      .map((r: any) => (r as PromiseFulfilledResult<Candidate>).value)
+      .filter((r): r is PromiseFulfilledResult<Candidate | null> => r.status === 'fulfilled' && r.value !== null)
+      .map(r => r.value as Candidate)
   } catch (err) {
     console.error('[CineMatch] Collaborative source error:', err)
     return []
   }
 }
+

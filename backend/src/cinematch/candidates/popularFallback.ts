@@ -1,5 +1,5 @@
 import { Candidate, UserProfile } from '../types'
-import { fetchTMDB, mapTMDBItem } from '../utils/tmdb'
+import { fetchTMDB, mapTMDBItem, toPagedResults } from '../utils/tmdb'
 
 // Fetches popular content by user's top genres - now both MOVIES and TV
 // Previously was movies-only, which ignored half the catalog
@@ -16,12 +16,12 @@ export async function popularFallbackSource(profile: UserProfile): Promise<Candi
       fetchTMDB('/discover/tv?sort_by=popularity.desc&vote_count.gte=100'),
     ])
     const movies = movieData.status === 'fulfilled'
-      ? ((movieData.value.results || []) as any[])
-          .map((r: any) => mapTMDBItem(r, 'movie', 'popular_fallback')).filter(Boolean) as Candidate[]
+      ? toPagedResults(movieData.value)
+          .map((r) => mapTMDBItem(r, 'movie', 'popular_fallback')).filter(Boolean) as Candidate[]
       : []
     const tv = tvData.status === 'fulfilled'
-      ? ((tvData.value.results || []) as any[])
-          .map((r: any) => mapTMDBItem(r, 'tv', 'popular_fallback')).filter(Boolean) as Candidate[]
+      ? toPagedResults(tvData.value)
+          .map((r) => mapTMDBItem(r, 'tv', 'popular_fallback')).filter(Boolean) as Candidate[]
       : []
     return [...movies, ...tv]
   }
@@ -39,8 +39,7 @@ export async function popularFallbackSource(profile: UserProfile): Promise<Candi
     const r = results[i]
     if (r.status !== 'fulfilled') continue
     const mediaType = i % 2 === 0 ? 'movie' : 'tv'
-    const items = ((r.value.results || []) as any[])
-    for (const item of items) {
+    for (const item of toPagedResults(r.value)) {
       const c = mapTMDBItem(item, mediaType, 'popular_fallback')
       if (c) candidates.push(c)
     }

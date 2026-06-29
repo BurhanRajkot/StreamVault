@@ -12,13 +12,13 @@ const tmdbResponseCache = new NodeCache({ stdTTL: 600, checkperiod: 120 })
 
 // Deduplication map: if two concurrent callers request the same URL,
 // the second waits for the first rather than firing a duplicate fetch
-const tmdbInFlight = new Map<string, Promise<any>>()
+const tmdbInFlight = new Map<string, Promise<unknown>>()
 
 // Allowlist: only valid TMDB API path characters to prevent SSRF
 // Permits: /letters, digits, hyphens, underscores, dots, ?, &, =, +, %, comma
 const SAFE_TMDB_PATH_RE = /^\/[a-zA-Z0-9/_\-.?&=+%,]*$/
 
-export async function fetchTMDB(path: string, options: { timeoutMs?: number } = {}): Promise<any> {
+export async function fetchTMDB(path: string, options: { timeoutMs?: number } = {}): Promise<unknown> {
   if (!TMDB_API_KEY) return { results: [] }
 
   // Validate path to prevent Server-Side Request Forgery (SSRF)
@@ -40,7 +40,7 @@ export async function fetchTMDB(path: string, options: { timeoutMs?: number } = 
   const timeoutMs = options.timeoutMs ?? TMDB_FETCH_TIMEOUT_MS
 
   // L1: in-memory cache hit (< 1ms)
-  const cached = tmdbResponseCache.get<any>(cacheKey)
+  const cached = tmdbResponseCache.get<unknown>(cacheKey)
   if (cached !== undefined) return cached
 
   // Deduplicate in-flight requests for the same URL
@@ -54,7 +54,7 @@ export async function fetchTMDB(path: string, options: { timeoutMs?: number } = 
     try {
       const res = await fetch(url, { signal: controller.signal })
       if (!res.ok) return { results: [] }
-      const data = await res.json()
+      const data = await res.json() as unknown
       tmdbResponseCache.set(cacheKey, data)
       return data
     } catch {
@@ -69,8 +69,25 @@ export async function fetchTMDB(path: string, options: { timeoutMs?: number } = 
   return fetchPromise
 }
 
+/** Shape of a raw TMDB result item (subset we care about for candidate mapping) */
+interface RawItem {
+  id?: number
+  title?: string
+  name?: string
+  poster_path?: string | null
+  backdrop_path?: string | null
+  overview?: string
+  release_date?: string
+  first_air_date?: string
+  vote_average?: number
+  vote_count?: number
+  popularity?: number
+  genre_ids?: number[]
+  genres?: { id: number }[]
+}
+
 export function mapTMDBItem(
-  item: any,
+  item: RawItem,
   mediaType: MediaType,
   source: Candidate["source"]
 ): Candidate | null {
@@ -79,7 +96,7 @@ export function mapTMDBItem(
   const genreIds = Array.isArray(item.genre_ids)
     ? item.genre_ids
     : Array.isArray(item.genres)
-      ? item.genres.map((g: any) => g.id).filter((id: any) => Number.isInteger(id))
+      ? item.genres.map((g) => g.id).filter((id) => Number.isInteger(id))
       : []
 
   return {
@@ -96,4 +113,12 @@ export function mapTMDBItem(
     genreIds,
     source,
   }
+}
+
+/** Safely cast an unknown fetchTMDB response to a paged result */
+export function toPagedResults(data: unknown): RawItem[] {
+  if (data && typeof data === 'object' && 'results' in data && Array.isArray((data as { results: unknown }).results)) {
+    return (data as { results: RawItem[] }).results
+  }
+  return []
 }
