@@ -113,7 +113,7 @@ router.post('/login', adminLoginRateLimiter, async (req: Request, res: Response)
       token,
       expiresIn: '30m',
     })
-  } catch (error) {
+  } catch (_error) {
     return res.status(500).json({
       error: 'Server error',
       message: 'An error occurred during authentication',

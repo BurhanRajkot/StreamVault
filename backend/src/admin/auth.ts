@@ -60,7 +60,7 @@ export function validateAdminCode(code: string): boolean {
     }
 
     return false
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }
@@ -84,7 +84,7 @@ export function verifyAdminToken(token: string): AdminTokenPayload | null {
     }
 
     return decoded
-  } catch (error) {
+  } catch (_error) {
     return null
   }
 }
