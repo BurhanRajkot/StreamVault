@@ -9,7 +9,6 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { useIsMobile } from '@/mobile-ui/use-mobile'
 
 import { QuickViewModal } from './QuickViewModal'
-import { slugify } from '@/lib/utils'
 
 interface MediaCardProps {
   media: Media
