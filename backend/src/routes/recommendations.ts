@@ -24,7 +24,7 @@ import { rankCandidates } from '../cinematch/ranking'
 import { buildSections } from '../cinematch/mixer/sectionBuilder'
 import { logInteraction } from '../cinematch/tracking/events'
 import { getUserProfile } from '../cinematch/features'
-import { EventType, MediaType, TMDB_GENRES, UserTasteProfile, UserProfile } from '../cinematch/types'
+import { EventType, MediaType, TMDB_GENRES, UserTasteProfile, UserProfile, Candidate, InteractionEvent } from '../cinematch/types'
 import { supabaseAdmin } from '../lib/supabase'
 import * as cache from '../services/cache'
 import { logger } from '../lib/logger'
@@ -38,15 +38,14 @@ function getTopVectorItems<T extends string>(
   vec: Record<number | string, number> | undefined,
   k: number,
   idKey: T,
-  transform?: (id: number, weight: number, obj: any) => void
+  transform?: (id: number, weight: number, obj: Record<string, unknown>) => void
 ) {
   if (!vec) return []
 
-  const items: any[] = []
+  const items: Array<{ weight: number } & Record<string, unknown>> = []
   for (const key in vec) {
-    const obj: any = {}
-    obj[idKey] = Number(key)
-    obj.weight = vec[key]
+    const obj: { weight: number } & Record<string, unknown> = { weight: vec[key] }
+    obj[idKey as string] = Number(key)
     items.push(obj)
   }
 
@@ -58,7 +57,7 @@ function getTopVectorItems<T extends string>(
   for (let i = 0; i < limit; i++) {
     const item = items[i]
     if (transform) {
-      transform(item[idKey], item.weight, item)
+      transform(item[idKey as string] as number, item.weight, item)
     }
     item.weight = Math.round(item.weight * 100) / 100
   }
@@ -124,8 +123,8 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     if (tryMlVector) res.setHeader('X-CineMatch-Engine', 'two-tower-ann')
     res.setHeader('Cache-Control', 'private, max-age=300')
     return res.json(result)
-  } catch (err: any) {
-    logger.error('CineMatch recommendation error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch recommendation error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Recommendation service error' })
   }
 })
@@ -147,8 +146,8 @@ router.get('/guest', async (_req: Request, res: Response) => {
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('Cache-Control', 'public, max-age=1800, stale-while-revalidate=3600')
     return res.json(result)
-  } catch (err: any) {
-    logger.error('CineMatch guest recommendation error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch guest recommendation error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Recommendation service error' })
   }
 })
@@ -202,8 +201,8 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
 
     res.setHeader('Cache-Control', 'private, max-age=60')
     return res.json(tasteProfile)
-  } catch (err: any) {
-    logger.error('CineMatch profile error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch profile error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Failed to build taste profile' })
   }
 })
@@ -276,14 +275,14 @@ router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Reques
       displayPosition,
       recommendationSource,
       genreIds: Array.isArray(genreIds) ? genreIds.map(Number).filter(Boolean) : undefined,
-    }).catch((err: any) => logger.error('CineMatch interaction log failed', { error: err?.message }))
+    }).catch((err: unknown) => logger.error('CineMatch interaction log failed', { error: err instanceof Error ? err.message : String(err) }))
 
     // Invalidate ALL route-level cache entries for this user
     await cache.userData.invalidateUser(userId)
 
     return res.status(202).json({ accepted: true })
-  } catch (err: any) {
-    logger.error('CineMatch interaction error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch interaction error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Failed to log interaction' })
   }
 })
@@ -331,7 +330,7 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
     // vectors on their very first homepage load.
     const { getMovieFeatures: fetchFeatures } = await import('../cinematch/features/movieFeatures')
 
-    const featureResults: PromiseSettledResult<any>[] = []
+    const featureResults: PromiseSettledResult<unknown>[] = []
     const CHUNK_SIZE = 10
     for (let i = 0; i < selections.length; i += CHUNK_SIZE) {
       const chunk = selections.slice(i, i + CHUNK_SIZE)
@@ -355,7 +354,7 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
 
     for (const result of featureResults) {
       if (result.status !== 'fulfilled' || !result.value) continue
-      const f = result.value
+      const f = result.value as { genreIds: number[]; keywords: number[]; castIds: number[]; directorId: number | null; releaseDate: string }
       enriched++
 
       for (const gId of f.genreIds) {
@@ -427,8 +426,8 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
               mediaType: item.mediaType,
               eventType: 'favorite',
               recommendationSource: 'onboarding',
-            }).catch((err: any) =>
-              logger.warn('CineMatch onboarding seed failed for item', { tmdbId: item.tmdbId, error: err?.message })
+            }).catch((err: unknown) =>
+              logger.warn('CineMatch onboarding seed failed for item', { tmdbId: item.tmdbId, error: err instanceof Error ? err.message : String(err) })
             )
           )
         )
@@ -441,8 +440,8 @@ router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request,
 
     logger.info('CineMatch onboarding seeded', { userId, selections: selections.length, enriched })
     return res.status(201).json({ seeded: selections.length, enriched })
-  } catch (err: any) {
-    logger.error('CineMatch onboarding error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch onboarding error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Failed to seed onboarding selections' })
   }
 })
@@ -496,7 +495,7 @@ router.post('/guest/interaction', interactionRateLimiter, async (req: Request, r
   try {
     // For guests, we skip `logInteraction` (which updates profile/UserInteractions)
     // and ONLY send telemetry to `ml_interactions`.
-    const guestEvent: any = {
+    const guestEvent: Record<string, unknown> = {
       userId: null,
       sessionId,
       tmdbId: parsedTmdbId,
@@ -517,11 +516,11 @@ router.post('/guest/interaction', interactionRateLimiter, async (req: Request, r
     }
 
     // Fire and forget
-    logMLInteraction(guestEvent)
+    logMLInteraction(guestEvent as unknown as InteractionEvent)
 
     return res.status(202).json({ accepted: true })
-  } catch (err: any) {
-    logger.error('CineMatch guest interaction error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch guest interaction error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Failed to log guest interaction' })
   }
 })
@@ -554,8 +553,8 @@ router.delete('/history', checkJwt, async (req: Request, res: Response) => {
 
     logger.info('CineMatch history reset', { userId })
     return res.status(200).json({ message: 'Recommendation history cleared.' })
-  } catch (err: any) {
-    logger.error('CineMatch history delete error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch history delete error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Failed to clear history' })
   }
 })
@@ -570,9 +569,10 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
 
   try {
     // Force a fresh pipeline run (bypass all caches)
-    const result = await getRecommendations(userId, { forceRefresh: true, limit: 20 })
+    const userIdStr = userId as string
+    const result = await getRecommendations(userIdStr, { forceRefresh: true, limit: 20 })
 
-    const profile = await getUserProfile(userId)
+    const profile = await getUserProfile(userIdStr)
 
     return res.json({
       userId,
@@ -586,8 +586,8 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
       keywordVectorSize: Object.keys(profile.keywordVector).length,
       castVectorSize: Object.keys(profile.castVector).length,
       recentlyWatched: profile.recentlyWatched,
-      sectionTitles: result.sections.map((s: any) => `${s.title} (${s.items.length} items)`),
-      topRanked: result.items.slice(0, 20).map((item: any) => ({
+      sectionTitles: result.sections.map((s: { title: string; items: unknown[] }) => `${s.title} (${s.items.length} items)`),
+      topRanked: result.items.slice(0, 20).map((item: Candidate & { score: number; genreAffinityScore: number; keywordAffinityScore: number; castAffinityScore: number; popularityScore: number; freshnessScore: number; qualityScore: number; sourceReason?: string }) => ({
         title: item.title,
         source: item.source,
         score: Math.round(item.score * 1000) / 1000,
@@ -600,8 +600,8 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
         sourceReason: item.sourceReason,
       })),
     })
-  } catch (err: any) {
-    logger.error('CineMatch debug error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch debug error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Pipeline debug failed' })
   }
 })
@@ -610,19 +610,19 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
 // Dedicated evaluation endpoint for Promptfoo / Red Teaming.
 // Allows testing the pipeline with arbitrary user profiles without JWT.
 router.post('/eval', async (req: Request, res: Response) => {
-  const { recentTitles, topGenreNames, topKeywordNames, topCastNames } = req.body
+  const { recentTitles, topGenreNames } = req.body
 
   try {
     // Construct a mock profile from input
     // In a real scenario, we'd map genre names to IDs using TMDB_GENRES
     const genreVector: Record<number, number> = {}
     if (Array.isArray(topGenreNames)) {
-      topGenreNames.forEach(name => {
-        const id = Object.entries(TMDB_GENRES).find(([_, gName]) => gName === name)?.[0]
+      topGenreNames.forEach((name: string) => {
+        const id = Object.entries(TMDB_GENRES).find(([, gName]) => gName === name)?.[0]
         if (id) genreVector[Number(id)] = 1.0
       })
     } else if (typeof topGenreNames === 'string') {
-      const id = Object.entries(TMDB_GENRES).find(([_, gName]) => gName === topGenreNames)?.[0]
+      const id = Object.entries(TMDB_GENRES).find(([, gName]) => gName === topGenreNames)?.[0]
       if (id) genreVector[Number(id)] = 1.0
     }
 
@@ -655,8 +655,8 @@ router.post('/eval', async (req: Request, res: Response) => {
       })),
       sections: buildSections(topK, mockProfile),
     })
-  } catch (err: any) {
-    logger.error('CineMatch eval error', { error: err?.message })
+  } catch (err: unknown) {
+    logger.error('CineMatch eval error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Evaluation failed' })
   }
 })

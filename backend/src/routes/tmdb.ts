@@ -17,7 +17,7 @@ if (!TMDB_API_KEY) {
 /**
  * Fetch from TMDB with caching, retry logic, and rate limit handling
  */
-async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
+async function fetchTMDB(endpoint: string, retries = 3): Promise<unknown> {
   const cacheKey = cache.generateCacheKey('tmdb', endpoint)
   const cached = await cache.tmdb.get(cacheKey)
 
@@ -63,9 +63,10 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
       // Extended cache TTL to 2 hours to reduce API calls
       await cache.tmdb.set(cacheKey, data, 7200)
       return data
-    } catch (error: any) {
+    } catch (error: unknown) {
       const isLastAttempt = attempt === retries
-      const isConnectionError = error?.code === 'ECONNRESET' || error?.errno === 0 || (error?.message && error.message.includes('socket connection was closed unexpectedly'))
+      const errObj = error as Record<string, unknown>
+      const isConnectionError = errObj?.code === 'ECONNRESET' || errObj?.errno === 0 || (errObj?.message && typeof errObj.message === 'string' && errObj.message.includes('socket connection was closed unexpectedly'))
 
       if (isConnectionError && !isLastAttempt) {
         // Wait before retrying (exponential backoff, max 3s)
@@ -75,7 +76,7 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<any> {
         continue
       }
 
-      logger.error('TMDB fetch error', { endpoint, error: error.message || error })
+      logger.error('TMDB fetch error', { endpoint, error: error instanceof Error ? error.message : String(error) })
 
       // Last attempt failed - return empty data gracefully
       if (isLastAttempt) {
@@ -136,7 +137,7 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=21600')
     res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch popular media' })
   }
 })
@@ -158,7 +159,7 @@ router.get('/trending/:mediaType', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=43200') // 1hr cache, 12hr stale
     res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch trending media' })
   }
 })
@@ -214,8 +215,8 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
     const results = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType })
     res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=900')
     res.json({ results, total_results: results.length, query })
-  } catch (error: any) {
-    logger.error('Hybrid search error', { error: error.message, query })
+  } catch (error: unknown) {
+    logger.error('Hybrid search error', { error: error instanceof Error ? error.message : String(error), query })
     res.status(500).json({ error: 'Hybrid search failed' })
   }
 })
@@ -241,7 +242,7 @@ router.get('/search/:mediaType', async (req: Request, res: Response) => {
     const data = await fetchTMDB(`/search/${mediaType}?query=${encodeURIComponent(query)}&page=${page}`)
     res.setHeader('Cache-Control', 'public, max-age=900, stale-while-revalidate=1800') // 15min cache, 30min stale
     res.json(data)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to search media' })
   }
 })
@@ -268,7 +269,7 @@ router.get('/:mediaType/:id/similar', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'public, max-age=900, stale-while-revalidate=3600')
     res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch similar titles' })
   }
 })
@@ -295,7 +296,7 @@ router.get('/:mediaType/:id/videos', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'public, max-age=7200, stale-while-revalidate=86400')
     res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch videos' })
   }
 })
@@ -337,7 +338,7 @@ router.get('/:mediaType/:id', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'public, max-age=7200, stale-while-revalidate=43200')
     res.setHeader('Vary', 'Accept-Encoding')
     res.json(data)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch media details' })
   }
 })
@@ -363,7 +364,7 @@ router.get('/:mediaType/:id/watch/providers', async (req: Request, res: Response
     const data = await fetchTMDB(`/${mediaType}/${parsedId}/watch/providers`)
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200') // 1hr cache, 2hr stale
     res.json(data)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch watch providers' })
   }
 })
@@ -391,13 +392,14 @@ router.get('/tv/:id/seasons', async (req: Request, res: Response) => {
     }
 
     const data = await fetchTMDB(`/tv/${parsedId}`)
-    const seasons = data.seasons?.filter((s: any) => s.season_number > 0) || []
+    const typedData = data as { seasons?: Array<{ season_number: number }> }
+    const seasons = typedData.seasons?.filter((s) => s.season_number > 0) || []
 
     await cache.seasons.set(cacheKey, seasons, 7200) // 2 hours TTL
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200') // 1hr cache, 2hr stale
     res.json(seasons)
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ error: 'Failed to fetch seasons' })
   }
 })
@@ -438,8 +440,8 @@ router.post('/continue-watching-details', async (req: Request, res: Response) =>
             media: tmdbData,
             item,
           }
-        } catch (err: any) {
-          logger.warn(`Failed to fetch tmdb details for ${mediaType} ${tmdbId}:`, { error: err.message || err })
+        } catch (err: unknown) {
+          logger.warn(`Failed to fetch tmdb details for ${mediaType} ${tmdbId}:`, { error: err instanceof Error ? err.message : String(err) })
           return null
         }
       })
@@ -447,8 +449,8 @@ router.post('/continue-watching-details', async (req: Request, res: Response) =>
 
     // Filter out any failed fetches and return
     res.json(resolvedItems.filter(Boolean))
-  } catch (error: any) {
-    logger.error('Failed to batch fetch continue watching details', { error: error.message || error })
+  } catch (error: unknown) {
+    logger.error('Failed to batch fetch continue watching details', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Server error fetching aggregated media' })
   }
 })

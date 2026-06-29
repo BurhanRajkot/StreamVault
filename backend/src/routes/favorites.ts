@@ -101,7 +101,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
     await cache.userData.del(cacheKey)
 
     res.status(201).json(data)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Favorite create error:', error)
     res.status(500).json({ error: 'Server error' })
   }

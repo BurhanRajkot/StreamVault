@@ -1,10 +1,20 @@
-import { Router } from 'express'
+import { Router, Response } from 'express'
 import { supabaseAdmin } from '../lib/supabase'
 import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
 import { getUserId } from '../utils/auth'
 import path from 'path'
+
+/** A single download record (from DB or hardcoded) */
+interface DownloadItem {
+  id: string
+  title?: string
+  quality?: string
+  filename: string
+  createdAt: string
+  [key: string]: unknown
+}
 
 const router = Router()
 
@@ -31,8 +41,8 @@ async function isPaidUser(userId: string): Promise<boolean> {
 // HARDCODED INJECTION FOR TORRENTS (User Request)
 // Since we can't seed the DB directly from here easily.
 // ---------------------------------------------------------
-function injectHardcodedDownloads(results: any[]): any[] {
-  const hardcodedItems = [
+function injectHardcodedDownloads(results: DownloadItem[]): DownloadItem[] {
+  const hardcodedItems: DownloadItem[] = [
     {
       id: 'hardcoded-mumbai-mafia',
       title: 'Mumbai Mafia: Police vs The Underworld',
@@ -44,7 +54,7 @@ function injectHardcodedDownloads(results: any[]): any[] {
 
   // Add hardcoded items if they don't exist
   for (const item of hardcodedItems) {
-    const exists = results.some((i: any) => i.filename === item.filename)
+    const exists = results.some((i) => i.filename === item.filename)
     if (!exists) {
       results.push(item)
     }
@@ -101,7 +111,7 @@ router.get('/', checkAuth, async (req, res) => {
 })
 
 // Helper to stream file from Supabase Storage
-async function streamDownloadFromStorage(res: any, filename: string) {
+async function streamDownloadFromStorage(res: Response, filename: string) {
   try {
     // Security: Sanitize filename to prevent path traversal
     const sanitizedFilename = sanitizeFilename(filename)
@@ -130,8 +140,8 @@ async function streamDownloadFromStorage(res: any, filename: string) {
     const buffer = Buffer.from(arrayBuffer)
 
     return res.send(buffer)
-  } catch (err: any) {
-    logger.error('Stream download error', { error: err.message })
+  } catch (err: unknown) {
+    logger.error('Stream download error', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Server error' })
   }
 }
