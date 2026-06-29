@@ -41,7 +41,7 @@ permissions:
 
 env:
   NODE_VERSION: "24"
-  BUN_VERSION: "1.3.14" # Pinned (was "latest"). Bump deliberately, not implicitly.
+  BUN_VERSION: "1.4.0" # Pinned. Matches the text-format bun.lock (requires Bun ≥1.2).
   PLATFORMS: "linux/amd64,linux/arm64"
   # Opt JS-based actions onto Node 24 ahead of GitHub's 16-Jun-2026 default switch.
   # Once that date passes this is a no-op and can be removed.
@@ -258,7 +258,7 @@ jobs:
         working-directory: ./backend
         run: |
           bun install --frozen-lockfile
-          bun audit --level=critical || echo "::warning title=bun audit::Backend vulnerabilities found — review."
+          bun audit --audit-level=critical || echo "::warning title=bun audit::Backend vulnerabilities found — review."
         continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ jobs:
         with:
           scan-args: |-
             --lockfile=package-lock.json
-            --lockfile=backend/bun.lockb
+            --lockfile=backend/bun.lock
             --format=sarif
             --output=osv-results.sarif
         continue-on-error: true # Advisory

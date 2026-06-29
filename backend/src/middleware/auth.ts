@@ -1,9 +1,11 @@
 import '../lib/loadEnv'
 
 import { auth } from 'express-oauth2-jwt-bearer'
-import { Request, Response, NextFunction } from 'express'
+import type { AuthResult } from 'express-oauth2-jwt-bearer'
+import { Request, Response, NextFunction, RequestHandler } from 'express'
 
-let checkJwt: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let checkJwt: RequestHandler | ((...args: unknown[]) => Promise<void>)
 
 /**
  * Dev fallback when Auth0 issuer/audience are not configured.
@@ -36,7 +38,12 @@ async function attachAuthFromBearerWithoutVerification(req: Request) {
 
     const info = (await res.json()) as { sub?: string }
     if (info?.sub) {
-      ;(req as any).auth = { payload: { sub: info.sub } }
+      // Dev-only: we only need `sub`; cast to satisfy the full VerifyJwtResult shape.
+      ;(req as Request & { auth?: AuthResult }).auth = {
+        payload: { sub: info.sub },
+        header: {},
+        token: '',
+      } as AuthResult
     }
   } catch {
     // ignore
