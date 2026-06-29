@@ -38,8 +38,8 @@ router.get('/plans', async (_req, res) => {
         upiId: UPI_CONFIG.upiId
       }
     })
-  } catch (error: any) {
-    logger.error('Error fetching plans', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Error fetching plans', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to fetch plans' })
   }
 })
@@ -110,8 +110,8 @@ router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => 
       message: 'Request submitted successfully',
       requestId: data.id
     })
-  } catch (error: any) {
-    logger.error('Manual request error', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Manual request error', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to submit request' })
   }
 })
@@ -130,8 +130,8 @@ router.get('/request/:requestId', async (req, res) => {
     if (error) throw error
 
     res.json(data)
-  } catch (error: any) {
-    logger.error('Request fetch error', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Request fetch error', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to fetch request' })
   }
 })

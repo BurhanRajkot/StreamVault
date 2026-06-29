@@ -19,8 +19,8 @@ router.get('/requests', async (req, res) => {
     if (error) throw error
 
     res.json(data)
-  } catch (error: any) {
-    logger.error('Failed to fetch requests', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Failed to fetch requests', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to fetch requests' })
   }
 })
@@ -68,8 +68,8 @@ router.post('/approve', async (req, res) => {
 
     logger.info('Approved subscription request', { requestId })
     res.json({ success: true })
-  } catch (error: any) {
-    logger.error('Failed to approve request', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Failed to approve request', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to approve request' })
   }
 })
@@ -88,8 +88,8 @@ router.post('/reject', async (req, res) => {
 
     logger.info('Rejected subscription request', { requestId })
     res.json({ success: true })
-  } catch (error: any) {
-    logger.error('Failed to reject request', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Failed to reject request', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to reject request' })
   }
 })

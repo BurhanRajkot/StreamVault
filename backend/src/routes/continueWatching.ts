@@ -7,7 +7,7 @@ import { ensureUser } from '../lib/ensureUser'
 const router = Router()
 
 router.get('/', checkJwt, async (req, res) => {
-  const userId = req.auth?.payload.sub
+  const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
@@ -21,7 +21,7 @@ router.get('/', checkJwt, async (req, res) => {
 
   if (cached && typeof cached === 'object' && !Array.isArray(cached) && 'data' in cached && 'fetchedAt' in cached) {
     res.setHeader('X-Cache', 'HIT')
-    const cachedItem = cached as { data: any, fetchedAt: number }
+    const cachedItem = cached as { data: unknown[], fetchedAt: number }
     const isStale = Date.now() - cachedItem.fetchedAt > 60000 // 1 minute stale threshold
 
     if (isStale) {
@@ -62,7 +62,7 @@ router.get('/', checkJwt, async (req, res) => {
 })
 
 router.post('/', checkJwt, async (req, res) => {
-  const userId = req.auth?.payload.sub
+  const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
@@ -164,7 +164,7 @@ router.post('/', checkJwt, async (req, res) => {
 })
 
 router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
-  const userId = req.auth?.payload.sub
+  const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   const tmdbId = Number(req.params.tmdbId)
   const mediaType = req.params.mediaType
 
@@ -192,7 +192,7 @@ router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
 })
 
 router.get('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
-  const userId = req.auth?.payload.sub
+  const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   const tmdbId = Number(req.params.tmdbId)
   const mediaType = req.params.mediaType
 
