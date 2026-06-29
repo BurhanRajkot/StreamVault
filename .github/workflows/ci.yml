@@ -487,7 +487,7 @@ jobs:
           languages: javascript-typescript
           queries: security-and-quality
 
-      - uses: github/codeql-action/autobuild@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
+      - uses: github/codeql-action/autobuild@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
 
       - name: Analyze
         uses: github/codeql-action/analyze@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
