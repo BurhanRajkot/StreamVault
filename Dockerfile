@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # ── Stage 1: Base Node Environment ──────────────────────────────────
-FROM node:24-slim AS base
+FROM node:26-slim AS base
 
 ENV WORKDIR=/opt/app
 WORKDIR $WORKDIR
