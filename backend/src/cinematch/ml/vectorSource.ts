@@ -133,8 +133,8 @@ export async function mlVectorSource(userId: string, profile?: UserProfile): Pro
 
     return candidates
 
-  } catch (err: any) {
-    logger.error('[MLVector] Unexpected error', { error: err.message })
+  } catch (err: unknown) {
+    logger.error('[MLVector] Unexpected error', { error: err instanceof Error ? err.message : String(err) })
     return []
   }
 }

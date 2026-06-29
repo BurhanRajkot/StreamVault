@@ -62,8 +62,8 @@ export async function generateEmbedding(
     embeddingCache.set(cacheKey, embedding)
     logger.info('[Embedding] Generated real embedding', { cacheKey, dim: embedding.length })
     return embedding
-  } catch (err: any) {
-    logger.error('[Embedding] Fetch failed', { error: err.message })
+  } catch (err: unknown) {
+    logger.error('[Embedding] Fetch failed', { error: err instanceof Error ? err.message : String(err) })
     return null
   }
 }

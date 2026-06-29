@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../lib/supabase'
-import { EventType, InteractionEvent } from '../types'
+import { InteractionEvent } from '../types'
 import { logger } from '../../lib/logger'
 
 // ── ML Telemetry Tracking ────────────────────────────────
@@ -33,7 +33,7 @@ export function logMLInteraction(event: InteractionEvent): void {
     browserLanguage: event.browserLanguage,
     localHour: event.localHour,
     timezone: event.timezone
-  }).then(({error: mlError}: { error: any }) => {
-    if (mlError) logger.error('CineMatch ML Failed to log interaction', { error: mlError.message })
+  }).then(({error: mlError}: { error: unknown }) => {
+    if (mlError) logger.error('CineMatch ML Failed to log interaction', { error: mlError instanceof Error ? mlError.message : String(mlError) })
   });
 }
