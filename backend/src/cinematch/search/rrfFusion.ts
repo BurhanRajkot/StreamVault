@@ -68,7 +68,7 @@ export function rrfFuse<T extends RankedItem>(
     // For items NOT in this list, add worst-rank penalty
     // (rank = n + 1, i.e. one past the end)
     const worstContribution = 1 / (k + n + 1)
-    for (const [id, entry] of rrfMap.entries()) {
+    for (const [_id, entry] of rrfMap.entries()) {
       if (!(list.label in entry.contributions)) {
         entry.score += worstContribution
         entry.contributions[list.label] = worstContribution
@@ -78,8 +78,8 @@ export function rrfFuse<T extends RankedItem>(
 
   // Assemble final results sorted descending by RRF score
   const results: RRFResult<T>[] = []
-  for (const [id, { score, contributions }] of rrfMap.entries()) {
-    const item = itemRegistry.get(id)!
+  for (const [_id, { score, contributions }] of rrfMap.entries()) {
+    const item = itemRegistry.get(_id)!
     results.push({ item, rrfScore: score, contributions })
   }
 

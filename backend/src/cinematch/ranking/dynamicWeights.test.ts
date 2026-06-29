@@ -39,7 +39,7 @@ describe('Dynamic Weights', () => {
   it('should return base weights for users with few interactions', () => {
     const profile = createMockProfile(false, 10, 10)
     // Make sure we pass the cold-start threshold of 5
-    ;(profile as any).recentlyWatched = [1, 2, 3, 4, 5, 6]
+    profile.recentlyWatched = [1, 2, 3, 4, 5, 6] as unknown as UserProfile['recentlyWatched']
     const weights = computeDynamicWeights(profile)
     
     expect(weights.castAffinity).toBeCloseTo(0.08)
@@ -49,7 +49,7 @@ describe('Dynamic Weights', () => {
   it('should return segmentation weights for early cold start interactions', () => {
     const profile = createMockProfile(false, 10, 10)
     // 1-5 interactions triggers the segmentation branch
-    ;(profile as any).recentlyWatched = [1, 2, 3]
+    profile.recentlyWatched = [1, 2, 3] as unknown as UserProfile['recentlyWatched']
     const weights = computeDynamicWeights(profile)
 
     expect(weights.genreAffinity).toBeCloseTo(0.50)
@@ -59,7 +59,7 @@ describe('Dynamic Weights', () => {
 
   it('should boost cast affinity for users with moderate cast interactions', () => {
     const profile = createMockProfile(false, 30, 0)
-    ;(profile as any).recentlyWatched = [1, 2, 3, 4, 5, 6]
+    profile.recentlyWatched = [1, 2, 3, 4, 5, 6] as unknown as UserProfile['recentlyWatched']
     const weights = computeDynamicWeights(profile)
     
     // castBoost = 0.02
@@ -71,7 +71,7 @@ describe('Dynamic Weights', () => {
 
   it('should significantly boost cast and keyword affinity for heavy users', () => {
     const profile = createMockProfile(false, 60, 150)
-    ;(profile as any).recentlyWatched = [1, 2, 3, 4, 5, 6]
+    profile.recentlyWatched = [1, 2, 3, 4, 5, 6] as unknown as UserProfile['recentlyWatched']
     const weights = computeDynamicWeights(profile)
     
     // castBoost = 0.05, keywordBoost = 0.05

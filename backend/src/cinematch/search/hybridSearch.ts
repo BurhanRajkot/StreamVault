@@ -49,13 +49,14 @@ async function fetchMultiSearch(
     const data = await fetchTMDB(url)
     // fetchTMDB swallows HTTP errors and returns { results: [] }
     // but a successful multi-search response should have a page field.
-    if (!data || !data.page) {
+    const paged = data as { page?: number; results?: TMDBMultiResult[] }
+    if (!paged || !paged.page) {
       logger.error('[HybridSearch] TMDB fetch failed or returned unexpected data')
       return []
     }
-    return (data.results || []) as TMDBMultiResult[]
-  } catch (err: any) {
-    logger.error('[HybridSearch] TMDB MultiSearch error', { error: err.message })
+    return paged.results || []
+  } catch (err: unknown) {
+    logger.error('[HybridSearch] TMDB MultiSearch error', { error: err instanceof Error ? err.message : String(err) })
     return []
   }
 }
@@ -85,11 +86,11 @@ async function fetchDiscover(
     const params = new URLSearchParams(cleanFilters)
     
     const url = `/discover/${mediaType}?${params.toString()}`
-    const data = await fetchTMDB(url)
+    const data = await fetchTMDB(url) as { results?: TMDBMultiResult[] } | null
     // Inject missing media_type since /discover doesn't return it
-    return (data?.results || []).map((r: any) => ({ ...r, media_type: mediaType }))
-  } catch (err: any) {
-    logger.error('[HybridSearch] TMDB Discover error', { error: err.message })
+    return (data?.results || []).map((r) => ({ ...r, media_type: mediaType }))
+  } catch (err: unknown) {
+    logger.error('[HybridSearch] TMDB Discover error', { error: err instanceof Error ? err.message : String(err) })
     return []
   }
 }

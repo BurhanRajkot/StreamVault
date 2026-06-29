@@ -129,7 +129,7 @@ export function parseQueryNLU(query: string): ParsedQuery | null {
   if (!isComplexQuery(query)) return null
 
   const filters: ParsedQuery['filters'] = {}
-  let workingQuery = query
+  const workingQuery = query
 
   // 1. Extract media type
   let detectedMediaType: 'movie' | 'tv' | undefined
