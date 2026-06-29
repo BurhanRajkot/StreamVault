@@ -107,7 +107,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
     // Return a mock object so the frontend knows it succeeded and has an ID to track
     res.status(201).json({ id: uuidv4(), tmdbId: parsedTmdbId, mediaType })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Dislike create error:', err)
     return res.status(500).json({ error: 'Server error' })
   }
@@ -153,7 +153,7 @@ router.delete('/:mediaType/:tmdbId', checkJwt, async (req: Request, res: Respons
     await cache.userData.del(cacheKey)
 
     res.status(204).send()
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Dislike delete error:', err)
     return res.status(500).json({ error: 'Server error' })
   }
