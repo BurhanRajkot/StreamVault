@@ -258,7 +258,7 @@ export function scoreCandidate(
   candidate: Candidate,
   profile: UserProfile,
   weights: RankingWeights,
-  session: SessionContext = { sessionGenreIds: [], sessionCastIds: [], sessionKeywordIds: [] },
+  _session: SessionContext = { sessionGenreIds: [], sessionCastIds: [], sessionKeywordIds: [] },
 ): ScoredCandidate {
   // Allow genre, keyword, cast, director, decade to be negative for disliked items
   // Amplify affinities so likes/dislikes have a stronger pull on the final score
