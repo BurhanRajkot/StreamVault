@@ -165,15 +165,25 @@ export async function seedTrieBackground() {
       })
       if (!res.ok) return { ep, items: [] }
 
+      interface RawTrieItem {
+        id: number
+        title?: string
+        name?: string
+        popularity?: number
+        poster_path?: string
+        release_date?: string
+        first_air_date?: string
+        media_type?: string
+      }
       try {
-        const data = await res.json() as { results?: any[] }
+        const data = await res.json() as { results?: RawTrieItem[] }
         return { ep, items: data.results || [] }
-      } catch (parseErr) {
+      } catch (_parseErr) {
         const preview = await res.text().catch(() => '<unreadable>')
         throw new Error(`JSON parse error. Body preview: ${preview.substring(0, 150)}`)
       }
-    } catch (err: any) {
-      logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err.message })
+    } catch (err: unknown) {
+      logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err instanceof Error ? err.message : String(err) })
       return { ep, items: [] }
     }
   })
@@ -187,24 +197,26 @@ export async function seedTrieBackground() {
       const entity: TrieEntity = {
         id: item.id,
         mediaType: mediaType as MediaType,
-        title,
+        title: title || '',
         popularity: item.popularity || 0,
         poster_path: item.poster_path,
         release_year: item.release_date ? parseInt(item.release_date.substring(0, 4)) :
                      (item.first_air_date ? parseInt(item.first_air_date.substring(0, 4)) : undefined)
       }
+      const titleString = title || 'Unknown'
+      globalTrie.insert(entity, titleString)
 
-      globalTrie.insert(entity, title)
+      // Add partial matching for long titles
+      if (titleString.length > 5) {
+        const titleLower = titleString.toLowerCase()
+        if (titleLower.startsWith('the ')) {
+         globalTrie.insert(entity, titleString.substring(4))
+        }
+        if (titleLower.startsWith('a ')) {
+         globalTrie.insert(entity, titleString.substring(2))
+        }
+      }
       count++
-
-      // If the title has meaningful alternative prefixes (like dropping "The "), insert those too
-      const titleLower = title.toLowerCase()
-      if (titleLower.startsWith('the ')) {
-         globalTrie.insert(entity, title.substring(4))
-      }
-      if (titleLower.startsWith('a ')) {
-         globalTrie.insert(entity, title.substring(2))
-      }
     }
   }
 

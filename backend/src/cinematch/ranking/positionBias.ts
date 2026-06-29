@@ -104,8 +104,8 @@ export async function computePropensityTable(): Promise<PropensityTable> {
     propensityCache.set('propensity_table', propensityTable)
     return propensityTable
 
-  } catch (err: any) {
-    logger.error('[IPS] Propensity computation failed', { error: err.message })
+  } catch (err: unknown) {
+    logger.error('[IPS] Propensity computation failed', { error: err instanceof Error ? err.message : String(err) })
     return new Map()
   }
 }
@@ -144,9 +144,9 @@ export async function logPositionImpression(event: {
         source: event.source ?? null,
         loggedAt: new Date().toISOString(),
       })
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Non-critical — we never want position logging to block the main request
-    logger.warn('[IPS] Position log failed (non-critical)', { error: err.message })
+    logger.warn('[IPS] Position log failed (non-critical)', { error: err instanceof Error ? err.message : String(err) })
   }
 }
 
@@ -254,8 +254,8 @@ export async function estimateIPSAdjustedWeights(
     
     return adjusted
 
-  } catch (err: any) {
-    logger.error('[IPS] Weight estimation failed', { error: err.message })
+  } catch (err: unknown) {
+    logger.error('[IPS] Weight estimation failed', { error: err instanceof Error ? err.message : String(err) })
     return baseWeights
   }
 }
