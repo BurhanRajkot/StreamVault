@@ -56,14 +56,14 @@ describe('Admin Middleware', () => {
     }
 
     mockRes = {
-      status: statusMock as any,
-      json: jsonMock as any,
+      status: statusMock as unknown as Response['status'],
+      json: jsonMock as unknown as Response['json'],
     }
 
     mockNext = mock()
 
     // Reset the mock counts correctly
-    ;(verifyAdminToken as Mock<any>).mockClear()
+    ;(verifyAdminToken as Mock<(...args: unknown[]) => unknown>).mockClear()
   })
 
   describe('requireAdminAuth', () => {

@@ -30,7 +30,7 @@ describe('Admin Auth - generateAdminToken', () => {
 
     expect(typeof token).toBe('string')
 
-    const decoded = jwt.verify(token, 'test-jwt-secret') as any
+    const decoded = jwt.verify(token, 'test-jwt-secret') as { role: string; iat: number; exp: number }
 
     expect(decoded.role).toBe('admin')
     expect(decoded.iat).toBeDefined()
