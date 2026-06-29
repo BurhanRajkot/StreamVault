@@ -28,15 +28,6 @@ function timeDecay(createdAt: string): number {
   return Math.exp(-ageDays * Math.LN2 / DECAY_HALF_LIFE_DAYS)
 }
 
-// ── Normalize a vector to [0, 1] ───────────────────────────
-function normalizeVector(vec: Record<number, number>): Record<number, number> {
-  const max = Math.max(...Object.values(vec), 1)
-  const normalized: Record<number, number> = {}
-  for (const [k, v] of Object.entries(vec)) {
-    normalized[Number(k)] = v / max
-  }
-  return normalized
-}
 
 // ── Normalize genre vector preserving sign ─────────────────
 // Dislikes produce negative weights — dividing by absMax keeps
@@ -71,13 +62,19 @@ async function seedFromPersistedProfile(
 
     if (!data?.genreMap || typeof data.genreMap !== 'object') return false
 
-    const raw = data.genreMap as Record<string, any>
-    const meta = raw._meta as {
+    interface PersistedGenreMap {
+      [genreId: string]: number | MetaBlock | undefined
+      _meta?: MetaBlock
+    }
+    interface MetaBlock {
       keywordMap?: Record<string, number>
       castMap?: Record<string, number>
       directorMap?: Record<string, number>
       decadeMap?: Record<string, number>
-    } | undefined
+    }
+
+    const raw = data.genreMap as PersistedGenreMap
+    const meta = raw._meta as MetaBlock | undefined
 
     // Seed each vector at 50% weight so live interactions can override over time.
     const seedMap = (

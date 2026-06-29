@@ -41,19 +41,44 @@ export async function getMovieFeatures(
 
   const fetchPromise = (async (): Promise<MovieFeatures | null> => {
     try {
-      const data = await fetchTMDB(
+      /** Inline interface for the TMDB detail+append_to_response response */
+      interface TMDBDetail {
+        id?: number
+        title?: string
+        name?: string
+        overview?: string
+        poster_path?: string | null
+        backdrop_path?: string | null
+        release_date?: string
+        first_air_date?: string
+        popularity?: number
+        vote_average?: number
+        vote_count?: number
+        genres?: { id: number }[]
+        keywords?: {
+          keywords?: { id: number }[]
+          results?: { id: number }[]
+        }
+        credits?: {
+          cast?: { id: number }[]
+          crew?: { id: number; job?: string }[]
+        }
+      }
+
+      const raw = await fetchTMDB(
         `/${mediaType}/${tmdbId}?append_to_response=keywords,credits`,
         { timeoutMs: FEATURE_FETCH_TIMEOUT_MS }
       )
-      if (!data || typeof data !== 'object' || !data.id) return null
+      const data = raw as TMDBDetail
+      if (!data || !data.id) return null
 
-      const genreIds: number[] = (data.genres || []).map((g: any) => g.id)
+      const genreIds: number[] = (data.genres || []).map((g) => g.id)
       const rawKw = data.keywords?.keywords || data.keywords?.results || []
-      const keywords: number[] = rawKw.slice(0, 20).map((k: any) => k.id)
+      const keywords: number[] = rawKw.slice(0, 20).map((k) => k.id)
       const cast = (data.credits?.cast || []).slice(0, 5)
-      const castIds: number[] = cast.map((c: any) => c.id)
+      const castIds: number[] = cast.map((c) => c.id)
       const crew = data.credits?.crew || []
-      const director = crew.find((c: any) => c.job === 'Director' || c.job === 'Series Director')
+      const director = crew.find((c) => c.job === 'Director' || c.job === 'Series Director')
       const directorId: number | null = director?.id ?? null
 
       const features: MovieFeatures = {
