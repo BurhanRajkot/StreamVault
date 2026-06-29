@@ -22,7 +22,7 @@ inputs:
     default: "false"
   bun-version:
     description: "Bun version — pin to an exact patch for reproducibility"
-    default: "1.3.14"
+    default: "1.4.0"
   cache-dependency-path:
     description: "Lockfile used for the npm cache key"
     default: "package-lock.json"
