@@ -33,14 +33,17 @@ FROM base AS builder
 
 COPY package.json bun.lock* tsconfig.json ./
 
-# Install production dependencies only
-RUN bun install --production
+# Install all dependencies (including devDependencies) to build the app
+RUN bun install
 
 # Copy source code
 COPY . .
 
 # Build/Transpile code (TypeScript to JavaScript)
 RUN bun run build
+
+# Prune devDependencies to keep the production image small
+RUN bun install --production
 
 # ── Stage 4: Production Runtime ─────────────────────────────────
 FROM base AS production
