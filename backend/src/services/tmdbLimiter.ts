@@ -11,7 +11,7 @@ export const tmdbLimiter = new Bottleneck({
 });
 
 // Listener for debugging limit hits (optional, good for prod monitoring)
-tmdbLimiter.on('depleted', function (empty) {
+tmdbLimiter.on('depleted', function (_empty: unknown) {
   console.warn('[Bottleneck] TMDB Rate Limit Reservoir Depleted. Requests will be queued.');
 });
 
@@ -19,6 +19,6 @@ tmdbLimiter.on('depleted', function (empty) {
  * Wraps any promise-returning function with the TMDB rate limiter.
  * @param fn The fetch function to limit
  */
-export function withTmdbRateLimit<T extends (...args: any[]) => Promise<any>>(fn: T): T {
-  return ((...args: Parameters<T>) => tmdbLimiter.schedule(() => fn(...args))) as T;
+export function withTmdbRateLimit<A extends unknown[], R>(fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  return (...args: A) => tmdbLimiter.schedule(() => fn(...args));
 }

@@ -16,7 +16,7 @@ export const redisClient = createClient({
   url: REDIS_URL,
   socket: {
     connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
-    reconnectStrategy: (retries) => Math.min(retries * 250, 5000),
+    reconnectStrategy: (retries: number) => Math.min(retries * 250, 5000),
   },
 })
 
@@ -133,7 +133,7 @@ export async function ensureRedisConnection(reason: string): Promise<void> {
   }
 }
 
-redisClient.on('error', (err) => {
+redisClient.on('error', (err: unknown) => {
   if (redisClient.isReady) {
     logger.error('Redis Client Error', normalizeRedisError(err))
     return

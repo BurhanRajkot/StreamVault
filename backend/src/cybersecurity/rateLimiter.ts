@@ -50,7 +50,7 @@ export const apiRateLimiter = rateLimit({
 
   // Skip rate limiting for health checks, cache stats, and static assets
   // These endpoints should not be throttled
-  skip: (req) => {
+  skip: (req: import('express').Request) => {
     const path = req.path
     return (
       path === '/' ||
