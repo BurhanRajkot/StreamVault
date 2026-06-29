@@ -42,7 +42,7 @@ permissions:
 
 env:
   NODE_VERSION: "24"
-  BUN_VERSION: "1.4.0"
+  BUN_VERSION: "1.3.14" # Latest stable. 1.4.0 does not exist and caused 404 errors.
 
 jobs:
   # ──────────────────────────────────────────────────────────────
