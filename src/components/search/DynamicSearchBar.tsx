@@ -4,7 +4,6 @@ import { MediaMode, Media } from '@/lib/config'
 import { getImageUrl, searchMedia } from '@/lib/api'
 import { useDebounce } from 'use-debounce'
 import Fuse from 'fuse.js'
-import { calculateRelevance } from '@/lib/searchAlgorithm'
 
 interface DynamicSearchBarProps {
   mode: MediaMode
