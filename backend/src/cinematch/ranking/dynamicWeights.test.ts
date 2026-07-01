@@ -6,7 +6,7 @@ describe('Dynamic Weights', () => {
   const createMockProfile = (isNewUser: boolean, castCount: number, keywordCount: number): UserProfile => {
     const castVector: Record<number, number> = {}
     const keywordVector: Record<number, number> = {}
-    
+
     for (let i = 0; i < castCount; i++) castVector[i] = 1.0
     for (let i = 0; i < keywordCount; i++) keywordVector[i] = 1.0
 
@@ -29,7 +29,7 @@ describe('Dynamic Weights', () => {
   it('should return base weights for new users', () => {
     const profile = createMockProfile(true, 100, 100) // even with high vectors, isNewUser overrides
     const weights = computeDynamicWeights(profile)
-    
+
     expect(weights.castAffinity).toBeCloseTo(0.05)
     expect(weights.keywordAffinity).toBeCloseTo(0.05)
     expect(weights.popularity).toBeCloseTo(0.40)
@@ -41,7 +41,7 @@ describe('Dynamic Weights', () => {
     // Make sure we pass the cold-start threshold of 5
     profile.recentlyWatched = [1, 2, 3, 4, 5, 6] as unknown as UserProfile['recentlyWatched']
     const weights = computeDynamicWeights(profile)
-    
+
     expect(weights.castAffinity).toBeCloseTo(0.08)
     expect(weights.keywordAffinity).toBeCloseTo(0.10)
   })
@@ -61,7 +61,7 @@ describe('Dynamic Weights', () => {
     const profile = createMockProfile(false, 30, 0)
     profile.recentlyWatched = [1, 2, 3, 4, 5, 6] as unknown as UserProfile['recentlyWatched']
     const weights = computeDynamicWeights(profile)
-    
+
     // castBoost = 0.02
     expect(weights.castAffinity).toBeCloseTo(0.10)
     // popularity and freshness reduced by 0.01
@@ -73,11 +73,11 @@ describe('Dynamic Weights', () => {
     const profile = createMockProfile(false, 60, 150)
     profile.recentlyWatched = [1, 2, 3, 4, 5, 6] as unknown as UserProfile['recentlyWatched']
     const weights = computeDynamicWeights(profile)
-    
+
     // castBoost = 0.05, keywordBoost = 0.05
     expect(weights.castAffinity).toBeCloseTo(0.13)
     expect(weights.keywordAffinity).toBeCloseTo(0.15)
-    
+
     // popularity and freshness reduced by 0.05
     expect(weights.popularity).toBeCloseTo(0.13)
     expect(weights.freshness).toBeCloseTo(0.11)

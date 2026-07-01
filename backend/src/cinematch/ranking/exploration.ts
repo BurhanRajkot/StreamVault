@@ -45,12 +45,18 @@ export function applyWildcardInjection(
 
     if (isDifferent) {
       // Artificially boost the score slightly so it visually fits in,
-      // but flag the source reason as a discovery item
+      // but flag the source reason as a discovery item.
+      //
+      // IMPORTANT: tag as 'wildcard' (NOT 'genre_discovery'). These are
+      // deliberately out-of-profile picks; if they were logged as genre-driven,
+      // their (predictably low) CTR would train the IPS learner to distrust the
+      // genre signal. positionBias.ts excludes 'wildcard' impressions from
+      // weight learning for exactly this reason.
       const boostCandidate = {
         ...candidate,
         score: topSlice[topSlice.length - 1].score + 0.01, // Just enough to make it into top K
         sourceReason: 'Surprise me! Discovery pick',
-        source: 'genre_discovery' as const
+        source: 'wildcard' as const
       }
       wildcardCandidates.push(boostCandidate)
     }

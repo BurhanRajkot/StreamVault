@@ -176,6 +176,10 @@ export async function estimateIPSAdjustedWeights(
     // Group logs by user session (simplification: group by userId for recent logs)
     const sessions = new Map<string, typeof logData>()
     for (const row of logData) {
+      // Exploration noise must NEVER train the ranker. Wildcards are deliberately
+      // out-of-profile; their (predictably low) CTR would otherwise be attributed
+      // to whatever signal they were tagged with and corrupt the learned weights.
+      if (row.source === 'wildcard') continue
       if (!sessions.has(row.userId)) sessions.set(row.userId, [])
       sessions.get(row.userId)!.push(row)
     }
@@ -248,11 +252,11 @@ export async function estimateIPSAdjustedWeights(
       castAffinity: Math.max(0.05, Math.min(baseWeights.castAffinity + clip(dCast), 0.30)),
     }
 
-    logger.info('[IPS] Computed NDCG/LambdaRank adjusted weights', { 
+    logger.info('[IPS] Computed NDCG/LambdaRank adjusted weights', {
       deltas: { dGenre: clip(dGenre), dKw: clip(dKw), dCast: clip(dCast) },
-      adjusted 
+      adjusted
     })
-    
+
     return adjusted
 
   } catch (err: unknown) {

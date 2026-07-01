@@ -37,7 +37,7 @@ describe('Position Bias / IPS', () => {
     expect(weight1).toBeCloseTo(0.25)
     // weight / 0.1 = 2.0
     expect(weight9).toBeCloseTo(2.0)
-    
+
     // Lower propensity means HIGHER corrected weight, because it was harder to find
     expect(weight9).toBeGreaterThan(weight1)
     expect(weight1).toBeGreaterThan(weight0)
@@ -48,7 +48,7 @@ describe('Position Bias / IPS', () => {
     const rawWeight = 0.2
 
     const weight = ipsCorrectWeight(rawWeight, 99, propensityTable)
-    
+
     // Fallback propensity is 0.1, so weight / 0.1 = 2.0
     expect(weight).toBeCloseTo(2.0)
   })
@@ -58,11 +58,11 @@ describe('Position Bias / IPS', () => {
     const propensityTable: PropensityTable = new Map([
       [50, 0.001],
     ])
-    
+
     const rawWeight = 1.0
     // Uncapped would be 1000.0, but MAX_IPS_WEIGHT is 10.0
     const weight = ipsCorrectWeight(rawWeight, 50, propensityTable)
-    
+
     expect(weight).toBe(10.0)
   })
 })

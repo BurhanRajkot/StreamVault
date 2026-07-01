@@ -101,13 +101,16 @@ function decadeAffinityScore(
 // ── Source Priority Boost ────────────────────────────────
 function sourceBoost(source: Candidate['source']): number {
   switch (source) {
-    case 'tmdb_similar':         return 1.12  // Highest — direct similarity
+    case 'tmdb_similar': return 1.12  // Highest — direct similarity
     case 'tmdb_recommendations': return 1.10  // High — TMDB editorial signal
-    case 'collaborative':        return 1.08  // Social proof
-    case 'genre_discovery':      return 1.02  // Genre-level discovery
-    case 'trending':             return 0.95  // Global, less personalized
-    case 'popular_fallback':     return 0.85  // Weakest signal
-    default:                     return 1.0
+    case 'collaborative': return 1.08  // Social proof
+    case 'cast_discovery': return 1.04  // Actor-driven discovery
+    case 'genre_discovery': return 1.02  // Genre-level discovery
+    case 'keyword_discovery': return 1.02  // Theme-level discovery
+    case 'wildcard': return 1.00  // Exploration — NOT a quality signal
+    case 'trending': return 0.95  // Global, less personalized
+    case 'popular_fallback': return 0.85  // Weakest signal
+    default: return 1.0
   }
 }
 
@@ -122,6 +125,12 @@ function buildSourceReason(source: Candidate['source'], seedTitle?: string): str
       return seedTitle ? `Because you watched ${seedTitle}` : 'Curated for you'
     case 'genre_discovery':
       return seedTitle ? `More ${seedTitle} content you might enjoy` : 'Based on your top genres'
+    case 'keyword_discovery':
+      return seedTitle ? `Because you liked ${seedTitle}` : 'Matches themes you enjoy'
+    case 'cast_discovery':
+      return seedTitle ? `Featuring the cast of ${seedTitle}` : 'Actors you follow'
+    case 'wildcard':
+      return 'Surprise pick to broaden your taste'
     case 'collaborative':
       return 'Fans with your taste also loved this'
     case 'trending':
@@ -213,45 +222,70 @@ function sessionMomentumScore(
   return score
 }
 
+// Minimal structural view of a recently-watched item. Your RecentlyWatched /
+// WatchHistory item type should expose these feature arrays, populated when the
+// interaction was recorded. If it already does, you can drop the cast in
+// buildSessionContext below.
+interface RecentItemFeatures {
+  genreIds?: number[]
+  castIds?: number[]
+  keywords?: number[]
+}
+
 // ── Build Session Context from recently watched ───────────
-// Derives the session fingerprint from the user's profile vectors —
-// we already have genreVector/castVector/keywordVector built from
-// the same interactions, so we don't need to call getMovieFeatures again.
-// This eliminates 3 cold-start TMDB calls that used to run in parallel
-// with ranking and compete for the same network slots.
-export async function buildSessionContext(profile: UserProfile, localHour?: number): Promise<SessionContext> {
-  const recentItems = profile.recentlyWatched.slice(0, 3)
+// Derives the session fingerprint from the ACTUAL last-3 watched items —
+// NOT the long-term profile vectors. This is what makes momentum react to
+// what the user is doing right now instead of re-confirming their all-time
+// taste. If the recent items carry no feature data, we fall back to the
+// previous top-vector behaviour so this is never *worse* than before.
+export async function buildSessionContext(
+  profile: UserProfile,
+  localHour?: number,
+): Promise<SessionContext> {
+  const recentItems = profile.recentlyWatched.slice(0, 3) as RecentItemFeatures[]
   if (recentItems.length === 0) {
     return { sessionGenreIds: [], sessionCastIds: [], sessionKeywordIds: [], localHour }
   }
 
-  // Top genres from the user's genre vector (already computed, zero cost)
-  const topGenreIds = Object.entries(profile.genreVector)
-    .filter(([, w]) => w > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([id]) => Number(id))
+  // ── Session-scoped fingerprint ────────────────────────────
+  const sessionGenreIds = new Set<number>()
+  const sessionCastIds = new Set<number>()
+  const sessionKeywordIds = new Set<number>()
 
-  // Top cast from the cast vector
-  const topCastIds = Object.entries(profile.castVector)
-    .filter(([, w]) => w > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([id]) => Number(id))
+  for (const item of recentItems) {
+    for (const g of item.genreIds ?? []) sessionGenreIds.add(g)
+    // Cap cast per item so one star-studded film can't dominate the fingerprint
+    for (const c of (item.castIds ?? []).slice(0, 5)) sessionCastIds.add(c)
+    for (const k of item.keywords ?? []) sessionKeywordIds.add(k)
+  }
 
-  // Top keywords from keyword vector
-  const topKeywordIds = Object.entries(profile.keywordVector)
-    .filter(([, w]) => w > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 15)
-    .map(([id]) => Number(id))
+  // Fallback: recent items have no persisted features (e.g. stored as bare
+  // tmdbIds). Fall back to the long-term top-vector behaviour. The real fix is
+  // to persist item features on the write path so this branch never runs.
+  if (sessionGenreIds.size === 0 && sessionCastIds.size === 0 && sessionKeywordIds.size === 0) {
+    return {
+      sessionGenreIds: topFromVector(profile.genreVector, 10),
+      sessionCastIds: topFromVector(profile.castVector, 10),
+      sessionKeywordIds: topFromVector(profile.keywordVector, 15),
+      localHour,
+    }
+  }
 
   return {
-    sessionGenreIds: topGenreIds,
-    sessionCastIds: topCastIds,
-    sessionKeywordIds: topKeywordIds,
+    sessionGenreIds: [...sessionGenreIds],
+    sessionCastIds: [...sessionCastIds],
+    sessionKeywordIds: [...sessionKeywordIds],
     localHour,
   }
+}
+
+// Top-N positive-weight ids from a profile vector, descending.
+function topFromVector(vec: Record<number, number>, n: number): number[] {
+  return Object.entries(vec)
+    .filter(([, w]) => w > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([id]) => Number(id))
 }
 
 export function scoreCandidate(
@@ -276,14 +310,14 @@ export function scoreCandidate(
   const qualScore = qualityScore(candidate.voteAverage, candidate.voteCount)
 
   const rawScore =
-    weights.genreAffinity   * gAffinity  +
+    weights.genreAffinity * gAffinity +
     weights.keywordAffinity * kwAffinity +
-    weights.castAffinity    * castAff    +
-    0.15                    * dirAff     + // Fixed weight for director
-    0.10                    * decAff     + // Fixed weight for decade
-    weights.popularity      * popScore   +
-    weights.freshness       * freshScore +
-    weights.quality         * qualScore
+    weights.castAffinity * castAff +
+    0.15 * dirAff + // Fixed weight for director
+    0.10 * decAff + // Fixed weight for decade
+    weights.popularity * popScore +
+    weights.freshness * freshScore +
+    weights.quality * qualScore
 
   const boostedScore = rawScore * sourceBoost(candidate.source)
 
