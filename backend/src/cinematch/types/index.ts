@@ -56,6 +56,7 @@ export type CandidateSource =
   | 'keyword_discovery'
   | 'cast_discovery'
   | 'graph_traversal'
+  | 'wildcard'
 
 // Interaction event to be logged
 export interface InteractionEvent {
@@ -101,6 +102,9 @@ export interface RecentItem {
   mediaType: MediaType
   title: string
   weight: number  // recency-decayed weight
+  genreIds?: number[]
+  castIds?: number[]
+  keywords?: number[]
 }
 
 // What the API returns to the frontend

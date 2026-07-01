@@ -9,18 +9,42 @@ export interface RankingWeights {
   quality: number
 }
 
-// Default baseline weights
-const BASE_WEIGHTS: RankingWeights = {
-  genreAffinity:   0.34,
+// Stable anchor — never mutated. The refresh job always adjusts FROM this, not
+// from the already-adjusted current value, to avoid hourly compounding drift.
+const DEFAULT_BASE_WEIGHTS: RankingWeights = {
+  genreAffinity: 0.34,
   keywordAffinity: 0.10,
-  castAffinity:    0.08,
-  popularity:      0.18,
-  freshness:       0.16,
-  quality:         0.14,
+  castAffinity: 0.08,
+  popularity: 0.18,
+  freshness: 0.16,
+  quality: 0.14,
+}
+
+// Live base weights. Starts at the default and is replaced by the IPS/LambdaRank
+// refresh job (see weightsRefreshJob.ts). computeDynamicWeights reads this so the
+// learned corrections actually reach live ranking.
+let currentBaseWeights: RankingWeights = { ...DEFAULT_BASE_WEIGHTS }
+
+/** The weights currently in effect (default until the refresh job runs). */
+export function getBaseWeights(): RankingWeights {
+  return currentBaseWeights
+}
+
+/** The stable anchor. Feed THIS into estimateIPSAdjustedWeights each cycle. */
+export function getDefaultBaseWeights(): RankingWeights {
+  return { ...DEFAULT_BASE_WEIGHTS }
+}
+
+/** Called by the weights refresh job with IPS/LambdaRank-adjusted weights. */
+export function setBaseWeights(weights: RankingWeights): void {
+  currentBaseWeights = { ...weights }
 }
 
 // Analyzes user profile to compute dynamic weights that "grow with the user"
 export function computeDynamicWeights(profile: UserProfile): RankingWeights {
+  // Read the live base once — now reflects the latest IPS-learned weights.
+  const BASE_WEIGHTS = getBaseWeights()
+
   // If user is brand new with zero data, rely heavily on popularity and freshness
   // because personalization vectors are empty.
   if (profile.isNewUser && profile.recentlyWatched.length === 0) {
