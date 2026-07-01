@@ -47,7 +47,7 @@ describe('Phoenix Scorer', () => {
   it('should calculate base score using weights', () => {
     const candidate = createCandidate()
     const result = scoreCandidate(candidate, mockProfile, mockWeights)
-    
+
     expect(result.score).toBeGreaterThan(0)
     expect(result.genreAffinityScore).toBeGreaterThan(0)
     expect(result.sourceReason).toBe('Trending this week')
@@ -56,20 +56,20 @@ describe('Phoenix Scorer', () => {
   it('should boost score for matching genres', () => {
     const candidateMatch = createCandidate({ genreIds: [28] }) // Match
     const candidateNoMatch = createCandidate({ genreIds: [35] }) // No Match (Comedy)
-    
+
     const res1 = scoreCandidate(candidateMatch, mockProfile, mockWeights)
     const res2 = scoreCandidate(candidateNoMatch, mockProfile, mockWeights)
-    
+
     expect(res1.score).toBeGreaterThan(res2.score)
   })
 
   it('should handle source boosting', () => {
     const candidateTrending = createCandidate({ source: 'trending' })
     const candidateSimilar = createCandidate({ source: 'tmdb_similar' })
-    
+
     const res1 = scoreCandidate(candidateTrending, mockProfile, mockWeights)
     const res2 = scoreCandidate(candidateSimilar, mockProfile, mockWeights)
-    
+
     // tmdb_similar has higher source boost than trending
     expect(res2.score).toBeGreaterThan(res1.score)
   })
@@ -82,7 +82,7 @@ describe('Phoenix Scorer', () => {
           { tmdbId: 1, mediaType: 'movie', title: 'Recent Movie', weight: 1.0 }
         ]
       }
-      
+
       const session = await buildSessionContext(profileWithRecent)
       expect(session.sessionGenreIds).toContain(28)
       expect(session.sessionCastIds).toContain(101)
@@ -101,15 +101,15 @@ describe('Phoenix Scorer', () => {
         createCandidate({ tmdbId: 1, genreIds: [28] }), // matches session genre
         createCandidate({ tmdbId: 2, genreIds: [35] })  // no match
       ]
-      
+
       const session = {
         sessionGenreIds: [28],
         sessionCastIds: [],
         sessionKeywordIds: []
       }
-      
+
       const results = scoreCandidates(candidates, mockProfile, mockWeights, session)
-      
+
       expect(results.length).toBe(2)
       // The session momentum boost should push candidate 1 higher
       expect(results[0].score).toBeGreaterThan(results[1].score)
