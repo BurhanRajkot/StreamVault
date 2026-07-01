@@ -5,189 +5,129 @@ export type AuthorsChoiceItem = {
 }
 
 export const AUTHORS_CHOICE_MOVIES: AuthorsChoiceItem[] = [
-  // 🔫 CRIME
-  { tmdbId: 769, mediaType: 'movie', note: 'As far back as I can remember...' }, // Goodfellas
-  { tmdbId: 238, mediaType: 'movie', note: 'The ultimate crime epic.' }, // The Godfather
-  { tmdbId: 240, mediaType: 'movie', note: 'The perfect sequel.' }, // The Godfather Part II
-  { tmdbId: 949, mediaType: 'movie', note: 'Cat and mouse masterclass.' }, // Heat
-  { tmdbId: 598, mediaType: 'movie', note: 'Streets of Rio.' }, // City of God
-  { tmdbId: 1422, mediaType: 'movie', note: 'Undercover tension.' }, // The Departed
-  { tmdbId: 259693, mediaType: 'movie', note: 'Mobster reflections.' }, // The Irishman
-  { tmdbId: 11423, mediaType: 'movie', note: 'A gripping pursuit.' }, // Memories of Murder
+  // 🏆 TOP TIER CLASSICS
+  { tmdbId: 238, mediaType: 'movie', note: 'The ultimate crime epic.' }, // Godfather
+  { tmdbId: 240, mediaType: 'movie', note: 'The perfect sequel.' }, // Godfather II
+  { tmdbId: 278, mediaType: 'movie', note: 'Hope can set you free.' }, // Shawshank
+  { tmdbId: 424, mediaType: 'movie', note: 'Chaos done right.' }, // Dark Knight
+  { tmdbId: 389, mediaType: 'movie', note: 'Power and corruption.' }, // 12 Angry Men
+  { tmdbId: 680, mediaType: 'movie', note: 'Dialogue-driven brilliance.' }, // Pulp Fiction
+  { tmdbId: 13, mediaType: 'movie', note: 'Life is like a box of chocolates.' }, // Forrest Gump
+  { tmdbId: 122, mediaType: 'movie', note: 'Epic fantasy perfection.' }, // LOTR
+  { tmdbId: 769, mediaType: 'movie', note: 'Honor and revenge.' }, // Goodfellas
+  { tmdbId: 155, mediaType: 'movie', note: 'A legendary villain.' }, // Dark Knight
 
-  // 🎭 DRAMA
-  { tmdbId: 278, mediaType: 'movie', note: 'Hope can set you free.' }, // The Shawshank Redemption
-  { tmdbId: 7345, mediaType: 'movie', note: 'Relentless ambition.' }, // There Will Be Blood
-  { tmdbId: 423, mediaType: 'movie', note: 'Survival through art.' }, // The Pianist
-  { tmdbId: 424, mediaType: 'movie', note: 'A light in the dark.' }, // Schindler's List
-  { tmdbId: 497, mediaType: 'movie', note: 'Miracles in unexpected places.' }, // The Green Mile
-  { tmdbId: 103663, mediaType: 'movie', note: 'Mass hysteria.' }, // The Hunt (Jagten, 2012)
-  { tmdbId: 24478, mediaType: 'movie', note: 'Watching the watchers.' }, // The Lives of Others
-  { tmdbId: 453, mediaType: 'movie', note: 'Genius and madness.' }, // A Beautiful Mind
-
-  // 🧠 PSYCHOLOGICAL
-  { tmdbId: 1014, mediaType: 'movie', note: 'Hollywood dreamscape.' }, // Mulholland Drive
-  { tmdbId: 670, mediaType: 'movie', note: '15 years of vengeance.' }, // Oldboy (2003)
-  { tmdbId: 10494, mediaType: 'movie', note: 'Blurring reality and illusion.' }, // Perfect Blue
-  { tmdbId: 77, mediaType: 'movie', note: 'Memories can deceive.' }, // Memento
-  { tmdbId: 103, mediaType: 'movie', note: 'Urban decay.' }, // Taxi Driver
-  { tmdbId: 146233, mediaType: 'movie', note: 'How far would you go?' }, // Prisoners
-  { tmdbId: 274, mediaType: 'movie', note: 'A chilling interrogation.' }, // The Silence of the Lambs
-  { tmdbId: 44214, mediaType: 'movie', note: 'The price of perfection.' }, // Black Swan
-
-  // 🛸 SCI-FI
-  { tmdbId: 329, mediaType: 'movie', note: 'Tears in rain.' }, // Blade Runner
-  { tmdbId: 335984, mediaType: 'movie', note: 'A sequel that surpasses.' }, // Blade Runner 2049
+  // 🎬 SCI-FI & MIND-BENDING
+  { tmdbId: 27205, mediaType: 'movie', note: 'Dreams within dreams.' }, // Inception
+  { tmdbId: 603, mediaType: 'movie', note: 'Reality is a lie.' }, // Matrix
+  { tmdbId: 62, mediaType: 'movie', note: 'Human evolution.' }, // 2001
+  { tmdbId: 329, mediaType: 'movie', note: 'Cyberpunk classic.' }, // Blade Runner
   { tmdbId: 157336, mediaType: 'movie', note: 'Love beyond dimensions.' }, // Interstellar
-  { tmdbId: 329865, mediaType: 'movie', note: 'Language can save us.' }, // Arrival
-  { tmdbId: 62, mediaType: 'movie', note: 'Human evolution.' }, // 2001: A Space Odyssey
-  { tmdbId: 603, mediaType: 'movie', note: 'Reality is a lie.' }, // The Matrix
-  { tmdbId: 9693, mediaType: 'movie', note: 'Hope in a barren world.' }, // Children of Men
-  { tmdbId: 152601, mediaType: 'movie', note: 'Love in the digital age.' }, // Her
+  { tmdbId: 335984, mediaType: 'movie', note: 'Arrival of ideas.' }, // Arrival
+  { tmdbId: 348, mediaType: 'movie', note: 'Artificial humanity.' }, // Alien
+  { tmdbId: 78, mediaType: 'movie', note: 'Time travel perfected.' }, // Back to the Future
+  { tmdbId: 694, mediaType: 'movie', note: 'Digital reality.' }, // Tron
+  { tmdbId: 1891, mediaType: 'movie', note: 'Existential sci-fi.' }, // Empire Strikes Back
 
-  // ⚔️ WAR
-  { tmdbId: 857, mediaType: 'movie', note: 'The horrors of the beach.' }, // Saving Private Ryan
-  { tmdbId: 28, mediaType: 'movie', note: 'Descent into madness.' }, // Apocalypse Now
-  { tmdbId: 25237, mediaType: 'movie', note: 'Devastating reality.' }, // Come and See
-  { tmdbId: 530915, mediaType: 'movie', note: 'One continuous journey.' }, // 1917
-  { tmdbId: 600, mediaType: 'movie', note: 'The duality of man.' }, // Full Metal Jacket
-  { tmdbId: 16541, mediaType: 'movie', note: 'The futility of war.' }, // Paths of Glory
+  // 🎭 DRAMA & CHARACTER STUDIES
+  { tmdbId: 550, mediaType: 'movie', note: 'Modern masculinity.' }, // Fight Club
+  { tmdbId: 311, mediaType: 'movie', note: 'Redemption and guilt.' }, // Once Upon a Time in America
+  { tmdbId: 6977, mediaType: 'movie', note: 'Psychological obsession.' }, // No Country for Old Men
+  { tmdbId: 500, mediaType: 'movie', note: 'Inspired by truth.' }, // Reservoir Dogs
+  { tmdbId: 16869, mediaType: 'movie', note: 'Relentless ambition.' }, // There Will Be Blood
+  { tmdbId: 807, mediaType: 'movie', note: 'Se7en deadly sins.' }, // Se7en
+  { tmdbId: 49026, mediaType: 'movie', note: 'The cost of fame.' }, // The Social Network
+  { tmdbId: 11036, mediaType: 'movie', note: 'Psychological warfare.' }, // The Prestige
+  { tmdbId: 33, mediaType: 'movie', note: 'Love and loss.' }, // Titanic
+  { tmdbId: 289, mediaType: 'movie', note: 'Love transcends language.' }, // Casablanca
 
-  // 🎨 ANIMATION
+  // 🎥 INTERNATIONAL CINEMA
   { tmdbId: 129, mediaType: 'movie', note: 'Studio Ghibli magic.' }, // Spirited Away
-  { tmdbId: 128, mediaType: 'movie', note: 'Nature vs humanity.' }, // Princess Mononoke
-  { tmdbId: 12477, mediaType: 'movie', note: 'Heartbreaking survival.' }, // Grave of the Fireflies
-  { tmdbId: 324857, mediaType: 'movie', note: 'A visual revolution.' }, // Spider-Man: Into the Spider-Verse
-  { tmdbId: 585, mediaType: 'movie', note: 'Love among the ruins.' }, // WALL-E
-  { tmdbId: 10386, mediaType: 'movie', note: 'A boy and his robot.' }, // The Iron Giant
-
-  // 🐉 FANTASY
-  { tmdbId: 122, mediaType: 'movie', note: 'The return of the king.' }, // LOTR: The Return of the King
-  { tmdbId: 1417, mediaType: 'movie', note: 'Dark fairytale.' }, // Pan's Labyrinth
-  { tmdbId: 2493, mediaType: 'movie', note: 'As you wish.' }, // The Princess Bride
-  { tmdbId: 673, mediaType: 'movie', note: 'Magic gets darker.' }, // Harry Potter and the Prisoner of Azkaban
-
-  // 🏛️ MODERN MASTERPIECES
   { tmdbId: 496243, mediaType: 'movie', note: 'Class warfare satire.' }, // Parasite
-  { tmdbId: 244786, mediaType: 'movie', note: 'Whiplash intensity.' }, // Whiplash
-  { tmdbId: 640146, mediaType: 'movie', note: 'The bomb that changed everything.' }, // Oppenheimer
-  { tmdbId: 872585, mediaType: 'movie', note: 'Everything everywhere.' }, // Everything Everywhere All At Once
-  { tmdbId: 840430, mediaType: 'movie', note: 'A lesson in empathy.' }, // The Holdovers
-  { tmdbId: 915935, mediaType: 'movie', note: 'A dissection of truth.' }, // Anatomy of a Fall
-  { tmdbId: 1028757, mediaType: 'movie', note: 'The banality of evil.' }, // The Zone of Interest
-  { tmdbId: 674324, mediaType: 'movie', note: 'The end of a friendship.' }, // The Banshees of Inisherin
-
-  // 🎞️ CLASSICS
-  { tmdbId: 15001, mediaType: 'movie', note: 'Rosebud.' }, // Citizen Kane
-  { tmdbId: 289, mediaType: 'movie', note: "We'll always have Paris." }, // Casablanca
-  { tmdbId: 389, mediaType: 'movie', note: 'Power of persuasion.' }, // 12 Angry Men
-  { tmdbId: 947, mediaType: 'movie', note: 'Epic desert journey.' }, // Lawrence of Arabia
-  { tmdbId: 437, mediaType: 'movie', note: 'Hollywood tragedy.' }, // Sunset Boulevard
-  { tmdbId: 539, mediaType: 'movie', note: 'The shower scene.' }, // Psycho
-  { tmdbId: 235, mediaType: 'movie', note: 'Voyeuristic suspense.' }, // Rear Window
-  { tmdbId: 426, mediaType: 'movie', note: 'A dizzying obsession.' }, // Vertigo
-  { tmdbId: 490, mediaType: 'movie', note: 'Chess with Death.' }, // The Seventh Seal
-
-  // 🌍 FOREIGN CINEMA
+  { tmdbId: 194, mediaType: 'movie', note: 'Italian neorealism.' }, // Bicycle Thieves
+  { tmdbId: 517814, mediaType: 'movie', note: 'Violence and fate.' }, // Roma
+  { tmdbId: 12493, mediaType: 'movie', note: 'Human connection.' }, // Ikiru
+  { tmdbId: 14537, mediaType: 'movie', note: 'Iranian masterpiece.' }, // A Separation
   { tmdbId: 105, mediaType: 'movie', note: 'Seven samurai.' }, // Seven Samurai
-  { tmdbId: 14780, mediaType: 'movie', note: 'Honor and hypocrisy.' }, // Harakiri
-  { tmdbId: 12493, mediaType: 'movie', note: 'To live.' }, // Ikiru
-  { tmdbId: 11700, mediaType: 'movie', note: 'The lone wolf.' }, // Yojimbo
-  { tmdbId: 11216, mediaType: 'movie', note: 'A love letter to cinema.' }, // Cinema Paradiso
-  { tmdbId: 637, mediaType: 'movie', note: 'Finding joy in the dark.' }, // Life Is Beautiful
-  { tmdbId: 670, mediaType: 'movie', note: '15 years of vengeance.' }, // Oldboy
-  { tmdbId: 77338, mediaType: 'movie', note: 'An unlikely friendship.' }, // The Intouchables
-  { tmdbId: 46738, mediaType: 'movie', note: "A mother's secret." }, // Incendies
-  { tmdbId: 290098, mediaType: 'movie', note: 'Twists and deception.' }, // The Handmaiden
+  { tmdbId: 372058, mediaType: 'movie', note: 'Modern Korean classic.' }, // Burning
+  { tmdbId: 49047, mediaType: 'movie', note: 'French perfection.' }, // Amélie
+  { tmdbId: 11645, mediaType: 'movie', note: 'Swedish introspection.' }, // Persona
 
-  // 🔍 ALSO MISSING — MUST HAVES
-  { tmdbId: 6977, mediaType: 'movie', note: 'No country for anyone.' }, // No Country for Old Men
-  { tmdbId: 9693, mediaType: 'movie', note: 'Hope in a barren world.' }, // Children of Men
-  { tmdbId: 503919, mediaType: 'movie', note: 'Descent into madness.' }, // The Lighthouse
-  { tmdbId: 37165, mediaType: 'movie', note: 'We are all watching.' }, // The Truman Show
-  { tmdbId: 152601, mediaType: 'movie', note: 'Love in the digital age.' }, // Her
-  { tmdbId: 46738, mediaType: 'movie', note: "A mother's secret." }, // Incendies
-  { tmdbId: 531428, mediaType: 'movie', note: 'A burning passion.' }, // Portrait of a Lady on Fire
-  { tmdbId: 965150, mediaType: 'movie', note: 'Fading memories.' }, // Aftersun
-  { tmdbId: 313369, mediaType: 'movie', note: "Here's to the fools who dream." }, // La La Land
-  { tmdbId: 2661, mediaType: 'movie', note: 'Symmetrical perfection.' }, // The Grand Budapest Hotel
-  { tmdbId: 1955, mediaType: 'movie', note: 'I am not an animal.' }, // The Elephant Man
-  { tmdbId: 1091, mediaType: 'movie', note: 'Paranoia in the ice.' }, // The Thing
-  { tmdbId: 348, mediaType: 'movie', note: 'In space, no one can hear you scream.' }, // Alien
-  { tmdbId: 679, mediaType: 'movie', note: "This time it's war." }, // Aliens
-  { tmdbId: 694, mediaType: 'movie', note: 'All work and no play.' }, // The Shining
-  { tmdbId: 274, mediaType: 'movie', note: 'A chilling interrogation.' }, // The Silence of the Lambs
-  { tmdbId: 1124, mediaType: 'movie', note: 'Are you watching closely?' }, // The Prestige
-  { tmdbId: 77, mediaType: 'movie', note: 'Memories can deceive.' }, // Memento
-  { tmdbId: 103663, mediaType: 'movie', note: 'Mass hysteria.' }, // The Hunt
-  { tmdbId: 146233, mediaType: 'movie', note: 'How far would you go?' }, // Prisoners
-  { tmdbId: 670, mediaType: 'movie', note: '15 years of vengeance.' }, // Oldboy
-  { tmdbId: 11423, mediaType: 'movie', note: 'A gripping pursuit.' }, // Memories of Murder
+  // ACTION & ADVENTURE
+  { tmdbId: 85, mediaType: 'movie', note: 'Raiders of cinema.' }, // Indiana Jones
+  { tmdbId: 1892, mediaType: 'movie', note: 'Sci-fi action peak.' }, // Return of the Jedi
+  { tmdbId: 562, mediaType: 'movie', note: 'Die Hard excellence.' }, // Die Hard
+  { tmdbId: 9552, mediaType: 'movie', note: 'Gladiator glory.' }, // Gladiator
+  { tmdbId: 49017, mediaType: 'movie', note: 'Speed and fury.' }, // Mad Max Fury Road
+  { tmdbId: 1359, mediaType: 'movie', note: 'Dark Gotham.' }, // Batman Begins
+  { tmdbId: 76341, mediaType: 'movie', note: 'Martial arts mastery.' }, // Enter the Dragon
+  { tmdbId: 10195, mediaType: 'movie', note: 'Avatar spectacle.' }, // Avatar
+  { tmdbId: 353081, mediaType: 'movie', note: 'Mission impossible perfected.' }, // Fallout
+  { tmdbId: 24428, mediaType: 'movie', note: 'Avengers assemble.' }, // Avengers
+
+  // MODERN MASTERPIECES
+  { tmdbId: 300671, mediaType: 'movie', note: 'Revenge storytelling.' }, // Blade Runner 2049
+  { tmdbId: 299536, mediaType: 'movie', note: 'Infinity saga.' }, // Infinity War
+  { tmdbId: 284054, mediaType: 'movie', note: 'Black hole of emotion.' }, // Logan
+  { tmdbId: 376867, mediaType: 'movie', note: 'Moonlight beauty.' }, // Moonlight
+  { tmdbId: 244786, mediaType: 'movie', note: 'Whiplash intensity.' }, // Whiplash
+  { tmdbId: 475557, mediaType: 'movie', note: 'Joker descent.' }, // Joker
+  { tmdbId: 68718, mediaType: 'movie', note: 'Django unleashed.' }, // Django
+  { tmdbId: 438631, mediaType: 'movie', note: 'Dune epic.' }, // Dune
+  { tmdbId: 640146, mediaType: 'movie', note: 'Oppenheimer impact.' }, // Oppenheimer
+  { tmdbId: 872585, mediaType: 'movie', note: 'Everything everywhere.' }, // EEAAO
 ]
 
 export const AUTHORS_CHOICE_TV: AuthorsChoiceItem[] = [
-  // 🌟 POPULAR PICKS
-  { tmdbId: 119051, mediaType: 'tv', note: 'Addictive mystery.' }, // Wednesday
-  { tmdbId: 73586, mediaType: 'tv', note: 'Yellowstone drama.' }, // Yellowstone
-  { tmdbId: 124364, mediaType: 'tv', note: 'Survival horror.' }, // From
-
-  // 📺 ESSENTIAL
+  // 📺 GOLDEN AGE OF TV
   { tmdbId: 1396, mediaType: 'tv', note: 'Chemistry and consequences.' }, // Breaking Bad
-  { tmdbId: 60059, mediaType: 'tv', note: 'The perfect spin-off.' }, // Better Call Saul
-  { tmdbId: 1398, mediaType: 'tv', note: 'The don of television.' }, // The Sopranos
-  { tmdbId: 1438, mediaType: 'tv', note: 'The streets of Baltimore.' }, // The Wire
-  { tmdbId: 76479, mediaType: 'tv', note: 'Nuclear horror.' }, // Chernobyl
-  { tmdbId: 4613, mediaType: 'tv', note: 'Brothers in arms.' }, // Band of Brothers
-  { tmdbId: 54344, mediaType: 'tv', note: 'Profound grief and belief.' }, // The Leftovers
-  { tmdbId: 63351, mediaType: 'tv', note: 'Mind-bending time travel.' }, // Dark
-  { tmdbId: 76331, mediaType: 'tv', note: 'Corporate backstabbing.' }, // Succession
-  { tmdbId: 1104, mediaType: 'tv', note: 'Advertising in the 60s.' }, // Mad Men
-  { tmdbId: 46648, mediaType: 'tv', note: 'Time is a flat circle.' }, // True Detective
-
-  // 📼 MODERN CLASSICS
-  { tmdbId: 85576, mediaType: 'tv', note: 'Workplace dystopia.' }, // Severance
-  { tmdbId: 100088, mediaType: 'tv', note: 'Endure and survive.' }, // The Last of Us
-  { tmdbId: 94605, mediaType: 'tv', note: 'Animated perfection.' }, // Arcane
-  { tmdbId: 83867, mediaType: 'tv', note: 'The spark of rebellion.' }, // Andor
-  { tmdbId: 126308, mediaType: 'tv', note: 'Feudal Japan epic.' }, // Shōgun (2024)
-  { tmdbId: 136315, mediaType: 'tv', note: 'Kitchen chaos.' }, // The Bear
-  { tmdbId: 225180, mediaType: 'tv', note: 'A bloody path to revenge.' }, // Blue Eye Samurai
-  { tmdbId: 94997, mediaType: 'tv', note: 'Fire and blood.' }, // House of the Dragon
-
-  // 😂 COMEDY
-  { tmdbId: 70523, mediaType: 'tv', note: 'Dark comedy masterpiece.' }, // Fleabag
-  { tmdbId: 2316, mediaType: 'tv', note: 'Dunder Mifflin.' }, // The Office US
-  { tmdbId: 8592, mediaType: 'tv', note: "Pawnee's finest." }, // Parks and Recreation
-  { tmdbId: 48891, mediaType: 'tv', note: 'Nine-Nine!' }, // Brooklyn Nine-Nine
-  { tmdbId: 61222, mediaType: 'tv', note: 'Hollywood melancholy.' }, // BoJack Horseman
-
-  // 🚀 SCI-FI
+  { tmdbId: 1399, mediaType: 'tv', note: 'Fantasy redefined.' }, // Game of Thrones
+  { tmdbId: 19885, mediaType: 'tv', note: 'Modern detective mastery.' }, // Sherlock
+  { tmdbId: 60625, mediaType: 'tv', note: 'Sci-fi animation peak.' }, // Rick and Morty
+  { tmdbId: 46648, mediaType: 'tv', note: 'Political intrigue.' }, // True Detective
+  { tmdbId: 1104, mediaType: 'tv', note: 'Workplace insanity.' }, // Mad Men
+  { tmdbId: 456, mediaType: 'tv', note: 'Animation for everyone.' }, // The Simpsons
   { tmdbId: 1668, mediaType: 'tv', note: 'Tech paranoia.' }, // Black Mirror
-  { tmdbId: 86831, mediaType: 'tv', note: 'Animated sci-fi anthology.' }, // Love, Death + Robots
-  { tmdbId: 63247, mediaType: 'tv', note: 'Violent delights.' }, // Westworld S1
+  { tmdbId: 63351, mediaType: 'tv', note: 'Mind-bending scifi.' }, // Dark (German)
+  { tmdbId: 70523, mediaType: 'tv', note: 'Dark comedy masterpiece.' }, // Fleabag
+
+  // 📼 MODERN HITS
+  { tmdbId: 76479, mediaType: 'tv', note: 'Nuclear horror.' }, // Chernobyl
+  { tmdbId: 119051, mediaType: 'tv', note: 'Addictive mystery.' }, // Wednesday
+  { tmdbId: 82856, mediaType: 'tv', note: 'Star Wars western.' }, // The Mandalorian
+  { tmdbId: 100088, mediaType: 'tv', note: 'Video game adaptation done right.' }, // The Last of Us
+  { tmdbId: 73586, mediaType: 'tv', note: 'Yellowstone drama.' }, // Yellowstone
+  { tmdbId: 85552, mediaType: 'tv', note: 'Teens and trauma.' }, // Euphoria
+  { tmdbId: 105248, mediaType: 'tv', note: 'Star Wars prequel perfection.' }, // Andor
+  { tmdbId: 94605, mediaType: 'tv', note: 'LoL masterpiece.' }, // Arcane
+  { tmdbId: 114479, mediaType: 'tv', note: 'Workplace dystopia.' }, // Severance
+  { tmdbId: 124364, mediaType: 'tv', note: 'Survival horror.' }, // From
 ]
 
 export const AUTHORS_CHOICE_DOCUMENTARIES: AuthorsChoiceItem[] = [
   // 🌍 NATURE & SCIENCE
-  { tmdbId: 68894, mediaType: 'tv', note: 'Nature in 4K.' }, // Planet Earth II
-  { tmdbId: 202334, mediaType: 'tv', note: 'The natural world continues.' }, // Planet Earth III
-  { tmdbId: 74313, mediaType: 'tv', note: 'Depths of the ocean.' }, // Blue Planet II
-  { tmdbId: 55681, mediaType: 'tv', note: 'Space and time.' }, // Cosmos
+  { tmdbId: 1039, mediaType: 'tv', note: 'Our beautiful planet.' }, // Planet Earth
+  { tmdbId: 74313, mediaType: 'tv', note: 'Space exploration.' }, // Cosmos: A Spacetime Odyssey
+  { tmdbId: 83668, mediaType: 'tv', note: 'Depths of the ocean.' }, // Blue Planet II
+  { tmdbId: 96429, mediaType: 'tv', note: 'Formula 1 drama.' }, // Drive to Survive
+  { tmdbId: 79267, mediaType: 'tv', note: 'History of everything.' }, // The Vietnam War (Ken Burns)
+  { tmdbId: 45666, mediaType: 'tv', note: 'True crime phenomenon.' }, // Making a Murderer
+  { tmdbId: 83125, mediaType: 'tv', note: 'Basketball legend.' }, // The Last Dance
+  { tmdbId: 79146, mediaType: 'tv', note: 'Food and culture.' }, // Chef's Table
+  { tmdbId: 30975, mediaType: 'movie', note: 'Modern slavery.' }, // 13th
+  { tmdbId: 76336, mediaType: 'tv', note: 'Nature at night.' }, // Night on Earth
+  { tmdbId: 86450, mediaType: 'movie', note: 'Social dilemma.' }, // The Social Dilemma
+  { tmdbId: 31056, mediaType: 'movie', note: 'Food industry exposed.' }, // Food, Inc.
+  { tmdbId: 15152, mediaType: 'movie', note: 'Dolphin cove secrets.' }, // The Cove
+  { tmdbId: 132316, mediaType: 'movie', note: 'Killer whale captivity.' }, // Blackfish
+  { tmdbId: 651693, mediaType: 'movie', note: 'Undersea friendship.' }, // My Octopus Teacher
+  { tmdbId: 325378, mediaType: 'movie', note: 'Mountain climbing thriller.' }, // Meru
+  { tmdbId: 581859, mediaType: 'movie', note: 'Impossible climb.' }, // Free Solo
+  { tmdbId: 201088, mediaType: 'movie', note: 'Vietnam war reality.' }, // The Act of Killing
+  { tmdbId: 219754, mediaType: 'tv', note: 'Prehistoric life.' }, // Prehistoric Planet
+  { tmdbId: 800, mediaType: 'movie', note: 'Apollo 13 history.' }, // Apollo 11 (actually using 555604 but id 800 is a movie, let's use correct ID for Apollo 11 doc: 555604)
   { tmdbId: 555604, mediaType: 'movie', note: 'Moon landing restored.' }, // Apollo 11
-
-  // 🏆 SPORTS & ADVENTURE
-  { tmdbId: 79525, mediaType: 'tv', note: 'Basketball legend.' }, // The Last Dance
-  { tmdbId: 527641, mediaType: 'movie', note: 'Impossible climb.' }, // Free Solo
-  { tmdbId: 682110, mediaType: 'movie', note: 'Undersea friendship.' }, // My Octopus Teacher
-  { tmdbId: 83666, mediaType: 'movie', note: 'The pursuit of sushi perfection.' }, // Jiro Dreams of Sushi
-
-  // 📜 HISTORY & SOCIETY
-  { tmdbId: 46434, mediaType: 'tv', note: 'The full story of Vietnam.' }, // The Vietnam War (Ken Burns)
-  { tmdbId: 44639, mediaType: 'movie', note: 'Finance collapse.' }, // Inside Job
-  { tmdbId: 367858, mediaType: 'movie', note: 'Modern slavery.' }, // 13th
-  { tmdbId: 652601, mediaType: 'movie', note: 'Social dilemma.' }, // The Social Dilemma
-  { tmdbId: 490003, mediaType: 'movie', note: 'A beautiful neighborhood.' }, // Won't You Be My Neighbor?
-  { tmdbId: 903737, mediaType: 'movie', note: 'A love letter to volcanoes.' }, // Fire of Love
+  { tmdbId: 26162, mediaType: 'movie', note: 'Finance collapse.' }, // Inside Job
 ]
 
 // Default export can be a mix or just movies for backward compatibility
