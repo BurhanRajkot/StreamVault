@@ -1,4 +1,6 @@
 import { CONFIG, Media, MediaMode } from './config'
+import { getProviderById, WATCH_REGION } from './ottProviders'
+import { getDeviceContext } from './telemetry'
 
 /* ======================================================
    API BASE
@@ -7,10 +9,50 @@ import { CONFIG, Media, MediaMode } from './config'
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 /* ======================================================
-   TMDB FETCHING (via Backend Proxy)
+   INTERNAL HELPERS (TMDB discover)
 ====================================================== */
 
-import { getProviderById, WATCH_REGION } from './ottProviders'
+/** Resolve the watch_region for a provider, falling back to the default region. */
+function regionForProvider(providerId?: string | null): string {
+  if (!providerId) return WATCH_REGION
+  return getProviderById(providerId)?.region || WATCH_REGION
+}
+
+/**
+ * Build the provider filter query fragment
+ * (`&with_watch_providers=...&watch_region=...&with_watch_monetization_types=...`).
+ * Returns '' when no provider is given, so callers can append it unconditionally
+ * without ever emitting a literal `with_watch_providers=undefined`.
+ */
+function providerFilterParams(
+  providerId?: string | null,
+  monetization: string = 'flatrate'
+): string {
+  if (!providerId) return ''
+  const region = regionForProvider(providerId)
+  return `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=${monetization}`
+}
+
+/**
+ * Fetch a movie discover URL and a tv discover URL in parallel.
+ * A failed sub-request degrades to an empty result set instead of throwing,
+ * so one broken half can't wipe out the whole combined feed.
+ */
+async function discoverMovieAndTv(
+  movieUrl: string,
+  tvUrl: string
+): Promise<{ movieData: any; tvData: any }> {
+  const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
+  const [movieData, tvData] = await Promise.all([
+    movieRes.ok ? movieRes.json() : Promise.resolve({ results: [], total_pages: 0 }),
+    tvRes.ok ? tvRes.json() : Promise.resolve({ results: [], total_pages: 0 }),
+  ])
+  return { movieData, tvData }
+}
+
+/* ======================================================
+   TMDB FETCHING (via Backend Proxy)
+====================================================== */
 
 export async function fetchPopular(
   mode: MediaMode,
@@ -22,91 +64,40 @@ export async function fetchPopular(
     return { results: [], total_pages: 0 }
   }
 
-  // HOME MODE: Fetch Mix of Movies and TV
-  if (mode === 'home') {
-    let movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=popularity.desc&page=${page}`
-    let tvUrl = `${API_BASE}/tmdb/discover/tv?sort_by=popularity.desc&page=${page}`
+  // HOME + DOCUMENTARY: blended movie/tv feed sorted by popularity.
+  // Documentary is identical to home apart from the genre filter (99 = Documentary).
+  if (mode === 'home' || mode === 'documentary') {
+    const genre = mode === 'documentary' ? '&with_genres=99' : ''
+    const provider = providerFilterParams(providerId, 'flatrate')
 
-    if (providerId) {
-      const provider = getProviderById(providerId)
-      const region = provider?.region || WATCH_REGION
-      const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
-
-      movieUrl += providerParams
-      tvUrl += providerParams
-    }
+    const movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=popularity.desc&page=${page}${genre}${provider}`
+    const tvUrl = `${API_BASE}/tmdb/discover/tv?sort_by=popularity.desc&page=${page}${genre}${provider}`
 
     try {
-      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
-      const movieData = await movieRes.json()
-      const tvData = await tvRes.json()
+      const { movieData, tvData } = await discoverMovieAndTv(movieUrl, tvUrl)
 
       const movies = (movieData.results || []).map((m: any) => ({ ...m, media_type: 'movie' }))
       const tv = (tvData.results || []).map((t: any) => ({ ...t, media_type: 'tv' }))
 
-      const combined = [...movies, ...tv]
-      combined.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+      const combined = [...movies, ...tv].sort(
+        (a, b) => (b.popularity || 0) - (a.popularity || 0)
+      )
 
       return {
         results: combined,
         total_pages: Math.max(movieData.total_pages || 0, tvData.total_pages || 0),
       }
     } catch (e) {
-      console.error('Home fetch failed', e)
+      console.error(`fetchPopular (${mode}) failed`, e)
       return { results: [], total_pages: 0 }
     }
   }
 
-  // DOCUMENTARY MODE: Fetch Mix of Movies (99) and TV (99)
-  if (mode === 'documentary') {
-    let movieUrl = `${API_BASE}/tmdb/discover/movie?with_genres=99&sort_by=popularity.desc&page=${page}`
-    let tvUrl = `${API_BASE}/tmdb/discover/tv?with_genres=99&sort_by=popularity.desc&page=${page}`
-
-    if (providerId) {
-      const provider = getProviderById(providerId)
-      const region = provider?.region || WATCH_REGION
-      const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
-
-      movieUrl += providerParams
-      tvUrl += providerParams
-    }
-
-    try {
-      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
-      const movieData = await movieRes.json()
-      const tvData = await tvRes.json()
-
-      // Merge and shuffle/sort results
-      const movies = (movieData.results || []).map((m: any) => ({ ...m, media_type: 'movie' }))
-      const tv = (tvData.results || []).map((t: any) => ({ ...t, media_type: 'tv' }))
-
-      // Combine
-      const combined = [...movies, ...tv]
-
-      // Sort by popularity (descending)
-      combined.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-
-      return {
-        results: combined,
-        total_pages: Math.max(movieData.total_pages || 0, tvData.total_pages || 0),
-      }
-
-    } catch (e) {
-      console.error('Documentary fetch failed', e)
-      return { results: [], total_pages: 0 }
-    }
-  }
-
+  // MOVIE / TV
   let url = `${API_BASE}/tmdb/discover/${mode}?page=${page}`
   if (providerId) {
-    // Get the provider config to find the correct region (e.g. US for HBO Max, IN for others)
-    const provider = getProviderById(providerId)
-    const region = provider?.region || WATCH_REGION
-
-    url += `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate%7Cbuy%7Crent&sort_by=popularity.desc`
-
-    // Fallback/Hack: HBO Max (384) sometimes returns empty for 'US' if not strictly correct.
-    // Ensuring basic discover params are robust.
+    // flatrate|buy|rent for the single-mode grid, plus an explicit popularity sort.
+    url += providerFilterParams(providerId, 'flatrate%7Cbuy%7Crent') + '&sort_by=popularity.desc'
   }
 
   const res = await fetch(url)
@@ -128,133 +119,66 @@ export async function fetchRecentlyAdded(
 ): Promise<Media[]> {
   if (mode === 'downloads') return []
 
-  // Sort by release date to get "Recently Added"
-  const sortBy =
-    mode === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc'
-
-  // Get provider config to ensure correct region
-  let region = WATCH_REGION
-  if (providerId) {
-     const provider = getProviderById(providerId)
-     region = provider?.region || WATCH_REGION
-  }
-
-  // Calculate date range: last 24 months to today (expanded for providers with smaller catalogs)
+  // Date window: last 24 months to today (wide enough for smaller provider catalogs).
   const today = new Date()
   const monthsAgo = new Date(today)
-  monthsAgo.setMonth(today.getMonth() - 24)  // Expanded from 12 to 24 months
+  monthsAgo.setMonth(today.getMonth() - 24)
 
   const todayStr = today.toISOString().split('T')[0]
   const monthsAgoStr = monthsAgo.toISOString().split('T')[0]
 
-  // HOME MODE: Fetch Recent Movies and TV
-  if (mode === 'home') {
-    let movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=primary_release_date.desc&page=1`
-    movieUrl += `&primary_release_date.gte=${monthsAgoStr}&primary_release_date.lte=${todayStr}`
-    movieUrl += `&vote_count.gte=20`
+  // HOME + DOCUMENTARY: blended movie/tv feed sorted by newest release.
+  if (mode === 'home' || mode === 'documentary') {
+    const isDoc = mode === 'documentary'
+    const genre = isDoc ? '&with_genres=99' : ''
+    const voteCount = isDoc ? 5 : 20 // documentaries have far fewer ratings
+    const provider = providerFilterParams(providerId, 'flatrate')
 
-    let tvUrl = `${API_BASE}/tmdb/discover/tv?sort_by=first_air_date.desc&page=1`
-    tvUrl += `&first_air_date.gte=${monthsAgoStr}&first_air_date.lte=${todayStr}`
-    tvUrl += `&vote_count.gte=20`
+    const movieUrl =
+      `${API_BASE}/tmdb/discover/movie?sort_by=primary_release_date.desc&page=1${genre}` +
+      `&primary_release_date.gte=${monthsAgoStr}&primary_release_date.lte=${todayStr}` +
+      `&vote_count.gte=${voteCount}${provider}`
 
-    if (providerId) {
-        const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
-        movieUrl += providerParams
-        tvUrl += providerParams
-    }
+    const tvUrl =
+      `${API_BASE}/tmdb/discover/tv?sort_by=first_air_date.desc&page=1${genre}` +
+      `&first_air_date.gte=${monthsAgoStr}&first_air_date.lte=${todayStr}` +
+      `&vote_count.gte=${voteCount}${provider}`
 
     try {
-      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
-
-      const movieData = await movieRes.json()
-      const tvData = await tvRes.json()
+      const { movieData, tvData } = await discoverMovieAndTv(movieUrl, tvUrl)
 
       const movies = (movieData.results || []).map((m: any) => ({
         ...m,
         media_type: 'movie',
-        date: new Date(m.release_date || m.primary_release_date || 0)
+        date: new Date(m.release_date || m.primary_release_date || 0),
       }))
-
       const tv = (tvData.results || []).map((t: any) => ({
         ...t,
         media_type: 'tv',
-        date: new Date(t.first_air_date || 0)
+        date: new Date(t.first_air_date || 0),
       }))
 
-      const combined = [...movies, ...tv]
-      combined.sort((a, b) => b.date.getTime() - a.date.getTime())
-
-      return combined
-
+      return [...movies, ...tv].sort((a, b) => b.date.getTime() - a.date.getTime())
     } catch (e) {
-      console.error('Home recently added fetch failed', e)
+      console.error(`fetchRecentlyAdded (${mode}) failed`, e)
       return []
     }
   }
 
-  // DOCUMENTARY MODE: Fetch Recent Movies (99) and TV (99)
-  if (mode === 'documentary') {
-    let movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=primary_release_date.desc&page=1`
-    movieUrl += `&with_genres=99`
-    movieUrl += `&primary_release_date.gte=${monthsAgoStr}&primary_release_date.lte=${todayStr}`
+  // MOVIE / TV
+  const sortBy = mode === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc'
 
-    // Lower vote count for documentaries as they have fewer ratings
-    movieUrl += `&vote_count.gte=5`
+  let url = `${API_BASE}/tmdb/discover/${mode}?sort_by=${sortBy}&page=1&vote_count.gte=20`
 
-    let tvUrl = `${API_BASE}/tmdb/discover/tv?sort_by=first_air_date.desc&page=1`
-    tvUrl += `&with_genres=99`
-    tvUrl += `&first_air_date.gte=${monthsAgoStr}&first_air_date.lte=${todayStr}`
-    tvUrl += `&vote_count.gte=5`
+  // Only attach the provider filter when one is actually selected.
+  // (Previously this always appended `with_watch_providers=undefined` when no
+  //  provider was passed, which silently broke the movie/tv recent feed.)
+  url += providerFilterParams(providerId, 'flatrate')
 
-    // Add provider filter if selected
-    if (providerId) {
-        const providerParams = `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=flatrate`
-        movieUrl += providerParams
-        tvUrl += providerParams
-    }
-
-    try {
-      const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
-
-      const movieData = await movieRes.json()
-      const tvData = await tvRes.json()
-
-      const movies = (movieData.results || []).map((m: any) => ({
-        ...m,
-        media_type: 'movie',
-        date: new Date(m.release_date || m.primary_release_date || 0)
-      }))
-
-      const tv = (tvData.results || []).map((t: any) => ({
-        ...t,
-        media_type: 'tv',
-        date: new Date(t.first_air_date || 0)
-      }))
-
-      // Combine and Sort by Date (Newest First)
-      const combined = [...movies, ...tv]
-      combined.sort((a, b) => b.date.getTime() - a.date.getTime())
-
-      return combined
-
-    } catch (e) {
-      console.error('Documentary recently added fetch failed', e)
-      return []
-    }
-  }
-
-  let url = `${API_BASE}/tmdb/discover/${mode}?sort_by=${sortBy}&page=1`
-  url += `&with_watch_providers=${providerId}&watch_region=${region}`
-  url += `&with_watch_monetization_types=flatrate`  // Only streaming (not buy/rent)
-  url += `&vote_count.gte=20`  // Lowered from 50 to get more results
-
-  // Restrict to last 24 months for "recent" content
   if (mode === 'movie') {
-      url += `&primary_release_date.gte=${monthsAgoStr}`
-      url += `&primary_release_date.lte=${todayStr}`
+    url += `&primary_release_date.gte=${monthsAgoStr}&primary_release_date.lte=${todayStr}`
   } else {
-      url += `&first_air_date.gte=${monthsAgoStr}`
-      url += `&first_air_date.lte=${todayStr}`
+    url += `&first_air_date.gte=${monthsAgoStr}&first_air_date.lte=${todayStr}`
   }
 
   const res = await fetch(url)
@@ -264,15 +188,15 @@ export async function fetchRecentlyAdded(
   }
   const data = await res.json()
 
-  // Trust TMDB's discover API - it already filters by provider
-  // This eliminates 3 additional API calls for validation, improving load time by ~75%
+  // Trust TMDB's discover API — it already filters by provider, so we skip the
+  // extra per-item validation calls (≈75% fewer requests on this path).
   return data.results || []
 }
 
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   if (mode === 'downloads') return []
 
-  // Documentaries and Home: Use Popular as Trending
+  // Documentaries and Home: reuse Popular as Trending.
   if (mode === 'documentary' || mode === 'home') {
     const data = await fetchPopular(mode, 1)
     return data.results.slice(0, 10) // Top 10 for carousel
@@ -309,7 +233,7 @@ export async function searchMedia(
     params.append('autocomplete', 'true')
   }
 
-  // Filter media type specifically if requested. 
+  // Filter media type specifically if requested.
   // For 'home' and 'documentary', we omit this to search BOTH TV and Movies.
   if (mode === 'movie' || mode === 'tv') {
     params.append('mediaType', mode)
@@ -328,7 +252,10 @@ export async function searchMedia(
     return {
       results: data.results || [],
       // The hybrid route returns total_results, we approximate pages or default to 1
-      total_pages: data.total_pages || Math.ceil((data.total_results || (data.results || []).length) / 20) || 1,
+      total_pages:
+        data.total_pages ||
+        Math.ceil((data.total_results || (data.results || []).length) / 20) ||
+        1,
     }
   } catch (err: any) {
     // AbortError is expected when the caller cancels a stale request — not a real error
@@ -338,18 +265,14 @@ export async function searchMedia(
   }
 }
 
-
-export async function fetchMediaDetails(
-  mode: MediaMode,
-  id: number
-): Promise<Media | null> {
+export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Media | null> {
   if (mode === 'downloads' || !id) return null
 
   const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar,images,release_dates,content_ratings&include_image_language=en,null`
   const res = await fetch(url)
   if (!res.ok) {
-    // Sanitize before logging — mode and id are trusted internal values but
-    // we assert here to satisfy static analysis (CodeQL alert #1)
+    // Sanitize before logging — mode and id are trusted internal values, but we
+    // assert here to satisfy static analysis (CodeQL alert #1).
     const safeMode = ['movie', 'tv'].includes(mode) ? mode : 'unknown'
     const safeId = Number.isInteger(id) ? id : 0
     console.error(`fetchMediaDetails failed for ${safeMode}/${safeId}:`, res.status)
@@ -358,13 +281,10 @@ export async function fetchMediaDetails(
   return res.json()
 }
 
-export async function fetchMediaBasicDetails(
-  mode: MediaMode,
-  id: number
-): Promise<Media | null> {
+export async function fetchMediaBasicDetails(mode: MediaMode, id: number): Promise<Media | null> {
   if (mode === 'downloads' || !id) return null
 
-  // Omitting appended relationships reduces TMDB response from ~120KB to ~2KB each!
+  // Omitting appended relationships reduces the TMDB response from ~120KB to ~2KB each.
   const url = `${API_BASE}/tmdb/${mode}/${id}?include_image_language=en,null`
   const res = await fetch(url)
   if (!res.ok) {
@@ -420,7 +340,7 @@ export function getImageUrl(
  * Builds a multi-width srcSet string for TMDB images.
  * Example output: "https://image.tmdb.org/t/p/w185/abc.jpg 185w, https://.../w342/abc.jpg 342w"
  * Pair with a `sizes` attribute on the image tag to let the browser pick the right resolution.
- * Returns null if path is falsy (use getImageUrl fallback instead).
+ * Returns undefined if path is falsy (use getImageUrl fallback instead).
  */
 export function getImageSrcSet(
   path: string | null,
@@ -446,9 +366,7 @@ export type ContinueWatchingItem = {
   server?: string
 }
 
-export async function fetchContinueWatching(
-  token: string
-): Promise<ContinueWatchingItem[]> {
+export async function fetchContinueWatching(token: string): Promise<ContinueWatchingItem[]> {
   const res = await fetch(`${API_BASE}/continue-watching`, {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -459,7 +377,7 @@ export async function fetchContinueWatching(
 
 /**
  * Fetch aggregated TMDB details for a list of progress items.
- * This completely eliminates the frontend N+1 fetch bottleneck!
+ * Eliminates the frontend N+1 fetch bottleneck by batching on the backend.
  */
 export async function fetchAggregatedContinueWatching(
   items: ContinueWatchingItem[]
@@ -468,9 +386,7 @@ export async function fetchAggregatedContinueWatching(
 
   const res = await fetch(`${API_BASE}/tmdb/continue-watching-details`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(items),
   })
 
@@ -481,10 +397,7 @@ export async function fetchAggregatedContinueWatching(
   return res.json()
 }
 
-export async function updateContinueWatching(
-  token: string,
-  data: ContinueWatchingItem
-) {
+export async function updateContinueWatching(token: string, data: ContinueWatchingItem) {
   const res = await fetch(`${API_BASE}/continue-watching`, {
     method: 'POST',
     headers: {
@@ -503,20 +416,17 @@ export async function removeContinueWatching(
   tmdbId: number,
   mediaType: 'movie' | 'tv'
 ) {
-  const res = await fetch(
-    `${API_BASE}/continue-watching/${tmdbId}/${mediaType}`,
-    {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    }
-  )
+  const res = await fetch(`${API_BASE}/continue-watching/${tmdbId}/${mediaType}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
 
   if (!res.ok) throw new Error('Failed to remove continue watching')
 }
 
 /**
- * Helper to fetch existing progress for a specific media item
- * Used for movie heuristic logic (0.1 → 0.5 → 0.9)
+ * Fetch existing progress for a specific media item.
+ * Used for movie heuristic logic (0.1 → 0.5 → 0.9).
  */
 export async function fetchExistingProgress(
   token: string,
@@ -524,9 +434,7 @@ export async function fetchExistingProgress(
   mediaType: 'movie' | 'tv'
 ): Promise<ContinueWatchingItem | null> {
   const res = await fetch(`${API_BASE}/continue-watching/${tmdbId}/${mediaType}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) return null
   return res.json()
@@ -535,6 +443,22 @@ export async function fetchExistingProgress(
 /* ======================================================
    EMBED URL BUILDER
 ====================================================== */
+
+function fillTvTemplate(
+  template: string,
+  tmdbId: number,
+  season: number,
+  episode: number
+): string {
+  return template
+    .replace('{tmdbId}', String(tmdbId))
+    .replace('{season}', String(season))
+    .replace('{episode}', String(episode))
+}
+
+function fillMovieTemplate(template: string, tmdbId: number): string {
+  return template.replace('{tmdbId}', String(tmdbId))
+}
 
 export function buildEmbedUrl(
   mode: MediaMode,
@@ -545,44 +469,29 @@ export function buildEmbedUrl(
     episode?: number
     malId?: string
     subOrDub?: string
-    media?: Media // Add media object to access media_type for documentaries
+    media?: Media // used to read media_type for documentaries
   }
 ): string {
   const { season = 1, episode = 1, media } = options
   const providers = CONFIG.STREAM_PROVIDERS as Record<string, string>
 
-  // Handle documentary mode by checking media_type
-  if (mode === 'documentary' && media) {
-    const actualMode = (media as any).media_type || 'movie' // Default to movie if not specified
-
-    if (actualMode === 'tv') {
-      const template = providers[provider]
-      if (!template) return ''
-      return template
-        .replace('{tmdbId}', String(mediaId))
-        .replace('{season}', String(season))
-        .replace('{episode}', String(episode))
-    } else {
-      const template = providers[`${provider}_movie`]
-      if (!template) return ''
-      return template.replace('{tmdbId}', String(mediaId))
-    }
-  }
-
-  if (mode === 'tv') {
+  const tvUrl = (): string => {
     const template = providers[provider]
-    if (!template) return ''
-    return template
-      .replace('{tmdbId}', String(mediaId))
-      .replace('{season}', String(season))
-      .replace('{episode}', String(episode))
+    return template ? fillTvTemplate(template, mediaId, season, episode) : ''
+  }
+  const movieUrl = (): string => {
+    const template = providers[`${provider}_movie`]
+    return template ? fillMovieTemplate(template, mediaId) : ''
   }
 
-  if (mode === 'movie') {
-    const template = providers[`${provider}_movie`]
-    if (!template) return ''
-    return template.replace('{tmdbId}', String(mediaId))
+  // Documentaries can be either a movie or a TV series — resolve by media_type.
+  if (mode === 'documentary' && media) {
+    const actualMode = (media as any).media_type || 'movie'
+    return actualMode === 'tv' ? tvUrl() : movieUrl()
   }
+
+  if (mode === 'tv') return tvUrl()
+  if (mode === 'movie') return movieUrl()
 
   return ''
 }
@@ -634,18 +543,11 @@ export type AdminVerifyResponse = {
   }
 }
 
-/**
- * Admin login with daily code
- * Returns JWT token on success
- */
-export async function adminLogin(
-  code: string
-): Promise<AdminLoginResponse> {
+/** Admin login with daily code. Returns a JWT token on success. */
+export async function adminLogin(code: string): Promise<AdminLoginResponse> {
   const res = await fetch(`${API_BASE}/admin/login`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code }),
   })
 
@@ -657,17 +559,11 @@ export async function adminLogin(
   return res.json()
 }
 
-/**
- * Verify admin token validity
- */
-export async function verifyAdminToken(
-  token: string
-): Promise<AdminVerifyResponse> {
+/** Verify admin token validity. */
+export async function verifyAdminToken(token: string): Promise<AdminVerifyResponse> {
   const res = await fetch(`${API_BASE}/admin/verify`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   })
 
   if (!res.ok) {
@@ -677,9 +573,7 @@ export async function verifyAdminToken(
   return res.json()
 }
 
-/**
- * Admin logout (client-side token removal)
- */
+/** Admin logout (best-effort backend call + local token removal). */
 export async function adminLogout(): Promise<void> {
   const token = localStorage.getItem('adminToken')
 
@@ -688,62 +582,52 @@ export async function adminLogout(): Promise<void> {
     try {
       await fetch(`${API_BASE}/admin/logout`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       })
     } catch (error) {
-      // Ignore errors but still proceed to clear local token
+      // Ignore errors but still proceed to clear the local token
       console.error('Admin logout error:', error)
     }
   }
 
-  // Remove token from localStorage
   localStorage.removeItem('adminToken')
 }
 
-/**
- * Get admin token from localStorage
- */
 export function getAdminToken(): string | null {
   return localStorage.getItem('adminToken')
 }
 
-/**
- * Set admin token in localStorage
- */
 export function setAdminToken(token: string): void {
   localStorage.setItem('adminToken', token)
 }
 
-/**
- * Check if user is currently authenticated as admin
- */
 export function isAdminAuthenticated(): boolean {
   return !!getAdminToken()
 }
-
 
 /* ======================================================
    GUEST CONTINUE WATCHING (LocalStorage)
 ====================================================== */
 
 const GUEST_PROGRESS_KEY = 'streamvault_guest_progress'
+const GUEST_PROGRESS_TTL_MS = 30 * 86400 * 1000 // 30 days
+const GUEST_PROGRESS_CAP = 20 // max stored items
+
+/** Guest progress carries a client-side timestamp for TTL cleanup. */
+type GuestProgressItem = ContinueWatchingItem & { savedAt?: number }
 
 export function getGuestProgress(): ContinueWatchingItem[] {
   try {
     const data = localStorage.getItem(GUEST_PROGRESS_KEY)
     if (!data) return []
-    const parsed = JSON.parse(data) as ContinueWatchingItem[]
+    const parsed = JSON.parse(data) as GuestProgressItem[]
 
-    // Filter out items older than 30 days
+    // Drop items older than the TTL (legacy items without savedAt are kept).
     const now = Date.now()
-    const validItems = parsed.filter((item: any) => {
-      if (!item.savedAt) return true // Legacy items
-      return now - item.savedAt <= 30 * 86400 * 1000
+    return parsed.filter((item) => {
+      if (!item.savedAt) return true
+      return now - item.savedAt <= GUEST_PROGRESS_TTL_MS
     })
-
-    return validItems
   } catch (e) {
     console.error('Failed to parse guest progress:', e)
     return []
@@ -752,8 +636,9 @@ export function getGuestProgress(): ContinueWatchingItem[] {
 
 export function saveGuestProgress(item: ContinueWatchingItem) {
   try {
-    const items = getGuestProgress()
-    const itemWithTimestamp = { ...item, savedAt: Date.now() }
+    const items = getGuestProgress() as GuestProgressItem[]
+    const itemWithTimestamp: GuestProgressItem = { ...item, savedAt: Date.now() }
+
     const index = items.findIndex(
       (i) => i.tmdbId === item.tmdbId && i.mediaType === item.mediaType
     )
@@ -764,8 +649,8 @@ export function saveGuestProgress(item: ContinueWatchingItem) {
       items.push(itemWithTimestamp)
     }
 
-    // Cap at 20 items to prevent unbounded localStorage growth (remove oldest)
-    const capped = items.slice(-20)
+    // Keep the most recent N items to bound localStorage growth.
+    const capped = items.slice(-GUEST_PROGRESS_CAP)
 
     localStorage.setItem(GUEST_PROGRESS_KEY, JSON.stringify(capped))
   } catch (e) {
@@ -830,7 +715,7 @@ export interface RecommendationResult {
   isPersonalized: boolean
 }
 
-/** Fetch personalized recommendations for an authenticated user */
+/** Fetch personalized recommendations for an authenticated user. */
 export async function fetchRecommendations(
   accessToken: string,
   options: { limit?: number; forceRefresh?: boolean } = {}
@@ -846,16 +731,14 @@ export async function fetchRecommendations(
   return res.json()
 }
 
-/** Fetch cold-start recommendations for unauthenticated/guest users */
+/** Fetch cold-start recommendations for unauthenticated/guest users. */
 export async function fetchGuestRecommendations(): Promise<RecommendationResult> {
   const res = await fetch(`${API_BASE}/recommendations/guest`)
   if (!res.ok) throw new Error(`Guest recommendation fetch failed: ${res.status}`)
   return res.json()
 }
 
-import { getDeviceContext } from './telemetry'
-
-// Module-level guest session ID singleton — initialized once, reused across all interactions
+// Module-level guest session ID singleton — initialized once, reused across all interactions.
 const getGuestSessionId = (() => {
   let id: string | null = null
   return () => {
@@ -870,7 +753,7 @@ const getGuestSessionId = (() => {
   }
 })()
 
-/** Log a user interaction event for real-time recommendation updates */
+/** Log a user interaction event for real-time recommendation updates. */
 export async function logRecommendationInteraction(
   accessToken: string | null | undefined,
   event: {
@@ -882,15 +765,15 @@ export async function logRecommendationInteraction(
     selectedServer?: string
     displayPosition?: number
     recommendationSource?: string
-    genreIds?: number[]           // ← NEW: pass genre context to skip extra DB lookup
+    genreIds?: number[] // pass genre context to skip an extra DB lookup
   }
 ): Promise<void> {
   try {
-    const context = getDeviceContext();
-    const payload = { ...event, ...context };
+    const context = getDeviceContext()
+    const payload = { ...event, ...context }
 
     if (accessToken) {
-      // Authenticated User Tracking
+      // Authenticated user tracking
       await fetch(`${API_BASE}/recommendations/interaction`, {
         method: 'POST',
         headers: {
@@ -900,15 +783,13 @@ export async function logRecommendationInteraction(
         body: JSON.stringify(payload),
       })
     } else {
-      // Guest Tracking for ML Model Telemetry
+      // Guest tracking for ML model telemetry
       const sessionId = getGuestSessionId()
-      const guestPayload = { ...payload, sessionId };
+      const guestPayload = { ...payload, sessionId }
 
       await fetch(`${API_BASE}/recommendations/guest/interaction`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(guestPayload),
       })
     }
