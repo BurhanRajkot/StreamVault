@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, FormEvent } from 'react'
 import { Search, X, Clapperboard, Tv, Loader2 } from 'lucide-react'
 import { MediaMode, Media } from '@/lib/config'
 import { getImageUrl, searchMedia } from '@/lib/api'
@@ -13,115 +13,163 @@ interface DynamicSearchBarProps {
   onMediaSelect?: (media: Media) => void
 }
 
-const enhanceMovies = (movies: Media[]) => {
-  return movies.map(movie => {
-    const altTitles: string[] = []
-    const title = movie.title || movie.name || ''
+type SearchMode = 'movie' | 'tv'
+type EnhancedMedia = Media & { altTitles?: string[]; normalizedTitle?: string }
+
+const MAX_RESULTS = 8
+const CACHE_LIMIT = 300 // per-mode ceiling so a long session can't grow unbounded
+
+// ---------------------------------------------------------------------------
+// Aliases
+// ---------------------------------------------------------------------------
+// Canonical title (as it appears in a real title, lowercased) -> nicknames.
+// Used to attach altTitles to fetched items so local fuzzy search can match
+// "got" -> Game of Thrones, etc.
+const TITLE_ALIASES: Record<string, string[]> = {
+  'game of thrones': ['got'],
+  'breaking bad': ['bb'],
+  'stranger things': ['st'],
+  'the lord of the rings': ['lotr'],
+  'attack on titan': ['aot'],
+  'star wars': ['sw'],
+  'spider-man': ['spiderman'],
+  'doctor who': ['dr who'],
+}
+
+// Used ONLY to give TMDB a better query when the *entire* input is a bare
+// acronym it would otherwise choke on. Anything longer is passed through
+// untouched, so we never silently drop the user's extra words
+// (e.g. "avengers endgame" stays intact instead of collapsing to "Avengers").
+const SERVER_QUERY_EXPANSIONS: Record<string, string> = {
+  got: 'Game of Thrones',
+  lotr: 'The Lord of the Rings',
+  st: 'Stranger Things',
+  bb: 'Breaking Bad',
+  aot: 'Attack on Titan',
+  sw: 'Star Wars',
+}
+
+function expandQueryForServer(raw: string): string {
+  const key = raw.toLowerCase().trim()
+  return SERVER_QUERY_EXPANSIONS[key] ?? raw
+}
+
+function enhanceMedia(items: Media[]): EnhancedMedia[] {
+  return items.map((item) => {
+    const title = item.title || item.name || ''
     const lower = title.toLowerCase()
+    const altTitles: string[] = []
 
-    // Add common aliases for robust fuzzy searching
-    if (lower === "game of thrones") altTitles.push("got")
-    if (lower === "breaking bad") altTitles.push("bb")
-    if (lower === "stranger things") altTitles.push("st")
-    if (lower === "the lord of the rings") altTitles.push("lotr")
-    if (lower === "avengers") altTitles.push("marvel")
-    if (lower === "attack on titan") altTitles.push("aot")
-    if (lower.includes('spider-man')) altTitles.push("spiderman")
-    if (lower.includes('star wars')) altTitles.push("sw")
-    if (lower.includes('doctor who')) altTitles.push("dr who")
-
-    // Normalize text (remove special characters for fuzzy matching)
-    const normalizedTitle = title.replace(/[^\w\s]/gi, '')
-    if (normalizedTitle !== title) {
-        altTitles.push(normalizedTitle)
+    for (const [canonical, aliases] of Object.entries(TITLE_ALIASES)) {
+      if (lower === canonical || lower.includes(canonical)) altTitles.push(...aliases)
     }
 
-    return { ...movie, altTitles, normalizedTitle }
+    // Strip punctuation so "spider-man" also matches "spiderman".
+    const normalizedTitle = title.replace(/[^\w\s]/gi, '')
+    if (normalizedTitle && normalizedTitle !== title) altTitles.push(normalizedTitle)
+
+    return { ...item, altTitles, normalizedTitle }
   })
 }
 
-const normalizeSearchQuery = (q: string): string => {
-  const lower = q.toLowerCase().trim()
-
-  // Exact acronym mappings
-  const exactMap: Record<string, string> = {
-    'got': 'Game of Thrones',
-    'lotr': 'The Lord of the Rings',
-    'st': 'Stranger Things',
-    'bb': 'Breaking Bad',
-    'aot': 'Attack on Titan',
-    'sw': 'Star Wars'
-  }
-
-  if (exactMap[lower]) return exactMap[lower]
-
-  // Predictive substring / phonetic mappings
-  if (/night.*seven/i.test(lower) || /knight.*seven/i.test(lower)) return 'A Knight of the Seven Kingdoms'
-  if (/hum[au]n.*cent/i.test(lower)) return 'The Human Centipede'
-  if (/(spider[\s-]?man|spiderman)/i.test(lower)) return 'Spider-Man'
-  if (/(dr\.?\s*who|doctor\swho)/i.test(lower)) return 'Doctor Who'
-  if (/avenger/i.test(lower)) return 'Avengers'
-  if (/batman/i.test(lower)) return 'The Batman'
-  if (/harry\s*potter/i.test(lower) || /hp/i.test(lower)) return 'Harry Potter'
-  if (/witcher/i.test(lower)) return 'The Witcher'
-  if (/mandalorian/i.test(lower) || /mando/i.test(lower)) return 'The Mandalorian'
-
-  return q // Fallback to original case-preserved query to avoid lowercasing if unnecessary
-}
-
-// Global cached Fuse instance configuration
+// ---------------------------------------------------------------------------
+// Fuse config + ranking
+// ---------------------------------------------------------------------------
 const FUSE_OPTIONS = {
   keys: [
-    { name: 'title', weight: 0.7 }, // slightly lowered title weight
+    { name: 'title', weight: 0.7 },
     { name: 'name', weight: 0.7 },
-    { name: 'altTitles', weight: 0.8 }, // boosted altTitles (where normalized text lives)
+    { name: 'altTitles', weight: 0.8 },
     { name: 'normalizedTitle', weight: 0.6 },
     { name: 'overview', weight: 0.1 },
   ],
-  threshold: 0.5, // Aggressive fuzzy search mode
-  distance: 100, // Determines how close the match must be to the fuzzy location
+  threshold: 0.4, // results are already query-scoped by the server, so we can be a touch tighter
+  distance: 100,
   includeScore: true,
-  ignoreLocation: true, // Don't care where the match is in the string
-  minMatchCharLength: 2, // 'g' can match, but 'go' is better for fuzzy
-  ignoreFieldNorm: true, // IMPORTANT: Don't penalize longer titles
+  ignoreLocation: true,
+  minMatchCharLength: 2,
+  ignoreFieldNorm: true, // don't penalise longer titles
 }
 
+function popularityOf(item: Media): number {
+  const p = (item as { popularity?: number }).popularity
+  return typeof p === 'number' ? Math.min(p / 100, 1) : 0
+}
+
+// Blend Fuse's textual relevance with a gentle rating/popularity signal.
+// Relevance dominates on purpose: we never want a "more popular" title to
+// bury the exact thing someone typed.
+function rankResults(fuseResults: { item: EnhancedMedia; score?: number }[]): EnhancedMedia[] {
+  return [...fuseResults]
+    .map(({ item, score = 1 }) => {
+      const relevance = 1 - score // 1 = perfect textual match
+      const rating = typeof item.vote_average === 'number' ? item.vote_average / 10 : 0
+      const blended = relevance * 0.85 + rating * 0.1 + popularityOf(item) * 0.05
+      return { item, blended }
+    })
+    .sort((a, b) => b.blended - a.blended)
+    .map((r) => r.item)
+}
+
+function resolveSearchMode(mode: MediaMode): SearchMode {
+  return mode === 'tv' ? 'tv' : 'movie'
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export function DynamicSearchBar({
   mode,
   onSearch,
   searchQuery,
   onClearSearch,
-  onMediaSelect
+  onMediaSelect,
 }: DynamicSearchBarProps) {
   const [inputValue, setInputValue] = useState(searchQuery || '')
   const [debouncedQuery] = useDebounce(inputValue, 250)
-  const [results, setResults] = useState<Media[]>([])
+  const [results, setResults] = useState<EnhancedMedia[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
 
-  // Ref to power the local fuse instance
-  const cacheRef = useRef<Map<number, Media>>(new Map())
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const workerRef = useRef<Worker | null>(null)
 
-  // Initialize background thread web worker
-  useEffect(() => {
-    workerRef.current = new Worker(new URL('../../lib/searchWorker.ts', import.meta.url), { type: 'module' })
-    return () => workerRef.current?.terminate()
+  // Session cache, scoped per search-mode so movie results never leak into a
+  // TV search. Only used to paint *instant, optimistic* results while the
+  // network request is in flight — the authoritative results always come from
+  // the query-scoped server fetch below.
+  const cacheRef = useRef<Record<SearchMode, Map<number, EnhancedMedia>>>({
+    movie: new Map(),
+    tv: new Map(),
+  })
+
+  const rememberMedia = useCallback((items: EnhancedMedia[], searchMode: SearchMode) => {
+    const cache = cacheRef.current[searchMode]
+    for (const item of items) {
+      if (cache.has(item.id)) cache.delete(item.id) // refresh recency
+      cache.set(item.id, item)
+    }
+    while (cache.size > CACHE_LIMIT) {
+      const oldest = cache.keys().next().value
+      if (oldest === undefined) break
+      cache.delete(oldest)
+    }
   }, [])
 
-  // Sync input value with external explicit searches or clears.
-  // Also re-open the dropdown if the parent pushes a non-empty query
-  // (e.g. user pastes into the header input which calls onSearch directly).
+  const searchCache = useCallback((query: string, searchMode: SearchMode): EnhancedMedia[] => {
+    const items = Array.from(cacheRef.current[searchMode].values())
+    if (items.length === 0) return []
+    const fuse = new Fuse(items, FUSE_OPTIONS)
+    return rankResults(fuse.search(query)).slice(0, MAX_RESULTS)
+  }, [])
+
+  // Sync input with external explicit searches / clears.
   useEffect(() => {
     setInputValue(searchQuery || '')
-    if (searchQuery && searchQuery.trim().length > 0) {
-      setIsOpen(true)
-    }
+    if (searchQuery && searchQuery.trim().length > 0) setIsOpen(true)
   }, [searchQuery])
 
-  // Handle clicking outside the dropdown to close it
+  // Close on outside click.
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -132,91 +180,84 @@ export function DynamicSearchBar({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Core Search Engine Logic
+  // Core search. Fully cancellable: the cleanup flips `cancelled` before the
+  // next run starts, so a slow in-flight request can never overwrite fresher
+  // results (this was the main correctness bug in the worker version).
   useEffect(() => {
-    let isStale = false
-
-    const performSearch = async () => {
-      const rawQ = debouncedQuery.trim()
-
-      if (!rawQ) {
-        setResults([])
-        setIsSearching(false)
-        return
-      }
-
-      const q = normalizeSearchQuery(rawQ) // Intelligent contextual mapping
-
-      setIsSearching(true)
-
-      try {
-        // 1. Fetch live TMDB results to ensure we have fresh data for the query
-        const searchMode = (mode === 'documentary' || mode === 'home') ? 'movie' : mode
-        const tmdbData = await searchMedia(searchMode, q, 1) // Fetch first page
-
-        if (isStale) return
-
-        // 2. Enhance TMDB data with our custom aliases
-        const newMedia = enhanceMovies(tmdbData.results || [])
-
-        // 3. Update our global cache (acting like Netflix's memory)
-        newMedia.forEach(m => cacheRef.current.set(m.id, m))
-
-        // 4. Create local Fuse instance on ALL downloaded data so far
-        const allCachedMedia = Array.from(cacheRef.current.values())
-        const fuse = new Fuse(allCachedMedia, FUSE_OPTIONS)
-
-        // 5. Perform the ultimate fuzzy search over aggregated data
-        const fuzzyResults = fuse.search(q)
-
-        if (isStale) return
-
-        // 6. Apply Advanced Mathematical Hybrid Scoring via Web Worker
-        // This guarantees O(N*M) calculation doesn't drop framedrops in UI
-        if (workerRef.current) {
-          workerRef.current.onmessage = (e) => {
-             if (isStale) return
-             setResults(e.data)
-             setIsSearching(false)
-          }
-          // Offload to background thread
-          workerRef.current.postMessage({ query: q, fuzzyResults, newMedia: newMedia.map(m => ({ ...m })) })
-        } else {
-          // Fallback if worker fails for some reason
-          setResults(fuzzyResults.map(r => r.item).slice(0, 8) as Media[])
-          setIsSearching(false)
-        }
-
-      } catch (e) {
-        console.error("Fuzzy search error:", e)
-        if (!isStale) {
-          setResults([])
-          setIsSearching(false)
-        }
-      }
-      // Removed finally { setIsSearching(false) } because the Worker is asynchronous
-      // and controls the loading state completion inside onmessage.
+    const rawQ = debouncedQuery.trim()
+    if (!rawQ) {
+      setResults([])
+      setIsSearching(false)
+      return
     }
 
-    performSearch()
+    let cancelled = false
+    const searchMode = resolveSearchMode(mode)
+
+    // 1. Instant, optimistic results from what we've already seen this session.
+    const cached = searchCache(rawQ, searchMode)
+    if (cached.length) {
+      setResults(cached)
+      setSelectedIndex(-1)
+    }
+
+    setIsSearching(true)
+
+      ; (async () => {
+        try {
+          const data = await searchMedia(searchMode, expandQueryForServer(rawQ), 1)
+          if (cancelled) return
+
+          const enhanced = enhanceMedia(data.results || [])
+          rememberMedia(enhanced, searchMode)
+
+          // 2. Re-rank fresh, query-scoped results (adds typo/alias tolerance and
+          //    a light popularity tiebreak). Server order is the fallback.
+          const fuse = new Fuse(enhanced, FUSE_OPTIONS)
+          const matched = fuse.search(rawQ)
+          const ranked = matched.length ? rankResults(matched) : enhanced
+
+          if (cancelled) return
+          setResults(ranked.slice(0, MAX_RESULTS))
+          setSelectedIndex(-1)
+        } catch (err) {
+          console.error('Search failed:', err)
+          if (!cancelled && cached.length === 0) setResults([])
+        } finally {
+          if (!cancelled) setIsSearching(false)
+        }
+      })()
 
     return () => {
-      isStale = true
+      cancelled = true
     }
-  }, [debouncedQuery, mode])
+  }, [debouncedQuery, mode, searchCache, rememberMedia])
 
-  const handleSubmit = (e: FormEvent) => {
+  // Keep the keyboard-highlighted option scrolled into view.
+  useEffect(() => {
+    if (selectedIndex < 0) return
+    const active = results[selectedIndex]
+    if (!active) return
+    document.getElementById(`search-option-${active.id}`)?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex, results])
+
+  const submitSearch = useCallback(() => {
+    const q = inputValue.trim()
+    if (!q) return
+    setIsOpen(false)
+    onSearch(q)
+  }, [inputValue, onSearch])
+
+  const handleFormSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (inputValue.trim()) {
-      setIsOpen(false)
-      onSearch(inputValue.trim())
-    }
+    submitSearch()
   }
 
   const handleClear = () => {
     setInputValue('')
     setResults([])
     setIsOpen(false)
+    setSelectedIndex(-1)
     onClearSearch()
   }
 
@@ -232,30 +273,29 @@ export function DynamicSearchBar({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setIsOpen(false)
+      return
+    }
     if (!isOpen || results.length === 0) return
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setSelectedIndex(prev => (prev < results.length - 1 ? prev + 1 : prev))
+      setSelectedIndex((prev) => (prev < results.length - 1 ? prev + 1 : prev))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setSelectedIndex(prev => (prev > 0 ? prev - 1 : prev))
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
     } else if (e.key === 'Enter') {
       if (selectedIndex >= 0 && selectedIndex < results.length) {
         e.preventDefault()
         handleSelect(results[selectedIndex])
       }
-    } else if (e.key === 'Escape') {
-      setIsOpen(false)
     }
   }
 
-  // To highlight matches if needed (Fuse.js returns matches if includeMatches: true is used)
-  // For now, simple text is fine as it avoids innerHTML injection risks
-
   return (
     <div className="relative flex w-full sm:w-auto group" ref={dropdownRef}>
-      <form onSubmit={handleSubmit} className="relative flex w-full sm:w-auto">
+      <form onSubmit={handleFormSubmit} className="relative flex w-full sm:w-auto">
         <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-all duration-300 group-focus-within:scale-110 z-10" />
         <input
           value={inputValue}
@@ -264,35 +304,22 @@ export function DynamicSearchBar({
             setIsOpen(true)
             setSelectedIndex(-1)
           }}
-          onPaste={(e) => {
-            // When pasting, the onChange fires after this event.
-            // We schedule a microtask so isOpen is set after the
-            // pasted value has been committed to the input state.
-            const pasted = e.clipboardData.getData('text')
-            if (pasted.trim().length > 0) {
-              setTimeout(() => {
-                setIsOpen(true)
-                setSelectedIndex(-1)
-              }, 0)
-            }
-          }}
           onFocus={() => {
             if (inputValue.trim()) setIsOpen(true)
           }}
           onKeyDown={handleKeyDown}
-          placeholder={`Search ${
-            mode === 'tv'
-              ? 'shows'
-              : mode === 'documentary'
-              ? 'documentaries'
-              : 'movies'
-          }...`}
+          placeholder={`Search ${mode === 'tv' ? 'shows' : mode === 'documentary' ? 'documentaries' : 'movies'
+            }...`}
           className="h-11 w-full sm:w-56 lg:w-72 rounded-lg border border-border/50 bg-secondary/60 backdrop-blur-xl pl-11 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-[background-color,color,border-color,box-shadow] duration-300 placeholder:text-muted-foreground/60 shadow-inner"
           autoComplete="off"
           role="combobox"
           aria-expanded={isOpen}
-          aria-controls="search-dropdown"
-          aria-activedescendant={selectedIndex >= 0 && results[selectedIndex] ? `search-option-${results[selectedIndex].id}` : undefined}
+          aria-controls="search-listbox"
+          aria-activedescendant={
+            selectedIndex >= 0 && results[selectedIndex]
+              ? `search-option-${results[selectedIndex].id}`
+              : undefined
+          }
         />
         {(inputValue || searchQuery) && (
           <button
@@ -306,7 +333,7 @@ export function DynamicSearchBar({
         )}
       </form>
 
-      {/* Dropdown Results Window */}
+      {/* Dropdown */}
       {isOpen && inputValue.trim().length > 0 && (
         <div
           id="search-dropdown"
@@ -323,89 +350,104 @@ export function DynamicSearchBar({
             <div className="p-10 text-center text-muted-foreground flex flex-col items-center gap-3 bg-secondary/10">
               <Search className="h-10 w-10 opacity-20" />
               <div>
-                 <p className="text-sm font-medium text-foreground">No matches for &quot;{inputValue}&quot;</p>
-                 <p className="text-xs opacity-75 mt-1">Try checking for typos or searching by genre.</p>
+                <p className="text-sm font-medium text-foreground">
+                  No matches for &quot;{inputValue}&quot;
+                </p>
+                <p className="text-xs opacity-75 mt-1">
+                  Try checking for typos or searching by genre.
+                </p>
               </div>
             </div>
           )}
 
           {results.length > 0 && (
-             <div className="overflow-y-auto py-2 custom-scrollbar" role="listbox">
-               {results.map((media, index) => {
-                 const title = media.title || media.name || 'Unknown'
-                 const year = media.release_date || media.first_air_date
+            <div id="search-listbox" className="overflow-y-auto py-2 custom-scrollbar" role="listbox">
+              {results.map((media, index) => {
+                const title = media.title || media.name || 'Unknown'
+                const year =
+                  media.release_date || media.first_air_date
                     ? new Date(media.release_date || media.first_air_date!).getFullYear()
                     : ''
-                 const typeIcon = media.media_type === 'tv' ? <Tv className="w-3.5 h-3.5" /> : <Clapperboard className="w-3.5 h-3.5" />
+                const typeIcon =
+                  media.media_type === 'tv' ? (
+                    <Tv className="w-3.5 h-3.5" />
+                  ) : (
+                    <Clapperboard className="w-3.5 h-3.5" />
+                  )
 
-                 return (
-                   <button
-                     key={media.id}
-                     id={`search-option-${media.id}`}
-                     role="option"
-                     aria-selected={index === selectedIndex}
-                     onClick={() => handleSelect(media)}
-                     onMouseEnter={() => setSelectedIndex(index)}
-                     className={`w-full text-left px-3 py-2.5 flex items-center gap-4 transition-all duration-150 ${
-                       index === selectedIndex
-                        ? 'bg-primary/10 border-l-2 border-primary pl-4'
-                        : 'hover:bg-accent border-l-2 border-transparent hover:pl-4'
-                     }`}
-                   >
-                     {/* Media Thumbnail */}
-                     <div className="w-10 h-14 shrink-0 rounded overflow-hidden bg-secondary relative shadow-sm border border-border/20">
-                       <img
-                          src={getImageUrl(media.poster_path, 'thumbnail')}
-                          alt={title}
-                          className="w-full h-full object-cover"
-                          loading="eager"
-                          width={342}
-                          height={513}
-                          onError={(e) => {
-                            const target = e.currentTarget
-                            target.style.display = 'none'
-                            const parent = target.parentElement
-                            if (parent && !parent.querySelector('.img-fallback')) {
-                              const fallback = document.createElement('div')
-                              fallback.className = 'img-fallback w-full h-full flex items-center justify-center text-muted-foreground/30'
-                              fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 9 5 12L16 3l2 4h4"/></svg>'
-                              parent.appendChild(fallback)
-                            }
-                          }}
-                       />
-                     </div>
+                return (
+                  <button
+                    key={media.id}
+                    id={`search-option-${media.id}`}
+                    role="option"
+                    aria-selected={index === selectedIndex}
+                    onClick={() => handleSelect(media)}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    className={`w-full text-left px-3 py-2.5 flex items-center gap-4 transition-all duration-150 ${index === selectedIndex
+                      ? 'bg-primary/10 border-l-2 border-primary pl-4'
+                      : 'hover:bg-accent border-l-2 border-transparent hover:pl-4'
+                      }`}
+                  >
+                    {/* Thumbnail */}
+                    <div className="w-10 h-14 shrink-0 rounded overflow-hidden bg-secondary relative shadow-sm border border-border/20">
+                      <img
+                        src={getImageUrl(media.poster_path, 'thumbnail')}
+                        alt={title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        width={342}
+                        height={513}
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.style.display = 'none'
+                          const parent = target.parentElement
+                          if (parent && !parent.querySelector('.img-fallback')) {
+                            const fallback = document.createElement('div')
+                            fallback.className =
+                              'img-fallback w-full h-full flex items-center justify-center text-muted-foreground/30'
+                            fallback.innerHTML =
+                              '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 9 5 12L16 3l2 4h4"/></svg>'
+                            parent.appendChild(fallback)
+                          }
+                        }}
+                      />
+                    </div>
 
-                     {/* Media Details */}
-                     <div className="flex-1 min-w-0 flex flex-col justify-center">
-                       <h4 className="text-sm font-semibold truncate text-foreground/90 flex items-center gap-2">
-                         {title}
-                         {year && <span className="text-xs font-normal text-muted-foreground">({year})</span>}
-                       </h4>
-                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground font-medium">
-                         <span className="flex items-center gap-1.5 uppercase tracking-wider text-[10px] text-primary/80">
-                            {typeIcon} {media.media_type || mode}
-                         </span>
-                         {media.vote_average && media.vote_average > 0 && (
-                           <span className="flex items-center gap-1 text-golden-amber">
-                             ★ {media.vote_average.toFixed(1)}
-                           </span>
-                         )}
-                       </div>
-                     </div>
-                   </button>
-                 )
-               })}
-             </div>
+                    {/* Details */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <h4 className="text-sm font-semibold truncate text-foreground/90 flex items-center gap-2">
+                        {title}
+                        {year && (
+                          <span className="text-xs font-normal text-muted-foreground">({year})</span>
+                        )}
+                      </h4>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground font-medium">
+                        <span className="flex items-center gap-1.5 uppercase tracking-wider text-[10px] text-primary/80">
+                          {typeIcon} {media.media_type || mode}
+                        </span>
+                        {media.vote_average && media.vote_average > 0 && (
+                          <span className="flex items-center gap-1 text-golden-amber">
+                            ★ {media.vote_average.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           )}
 
-          {/* Footer Action */}
+          {/* Footer */}
           {results.length > 0 && (
-             <button
-                onClick={handleSubmit}
-                className="w-full p-3.5 text-[11px] font-bold text-center text-primary bg-primary/5 hover:bg-primary/15 border-t border-border/40 transition-colors uppercase tracking-widest"
-             >
-                See all results for "{inputValue}"
-             </button>
+            <button
+              type="button"
+              onClick={() => submitSearch()}
+              className="w-full p-3.5 text-[11px] font-bold text-center text-primary bg-primary/5 hover:bg-primary/15 border-t border-border/40 transition-colors uppercase tracking-widest"
+            >
+              See all results for &quot;{inputValue}&quot;
+            </button>
           )}
         </div>
       )}
