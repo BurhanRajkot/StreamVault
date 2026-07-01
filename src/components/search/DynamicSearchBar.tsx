@@ -107,7 +107,7 @@ export function DynamicSearchBar({
 
   // Initialize background thread web worker
   useEffect(() => {
-    workerRef.current = new Worker(new URL('@/lib/searchWorker.ts', import.meta.url), { type: 'module' })
+    workerRef.current = new Worker(new URL('../../lib/searchWorker.ts', import.meta.url), { type: 'module' })
     return () => workerRef.current?.terminate()
   }, [])
 
