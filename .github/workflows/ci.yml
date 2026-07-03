@@ -133,7 +133,7 @@ jobs:
 
       - name: Upload zizmor SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         with:
           sarif_file: zizmor.sarif
           category: zizmor
@@ -209,7 +209,7 @@ jobs:
 
       - name: Upload SARIF results
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         with:
           sarif_file: results.sarif
           category: gitleaks
@@ -295,7 +295,7 @@ jobs:
 
       - name: Upload OSV SARIF results
         if: always()
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         with:
           sarif_file: osv-results.sarif
           category: osv-scanner
@@ -482,7 +482,7 @@ jobs:
           persist-credentials: false # zizmor hardening
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
+        uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         with:
           languages: javascript-typescript
           queries: security-and-quality
@@ -797,7 +797,7 @@ jobs:
 
       - name: Upload frontend Trivy SARIF
         if: always() && (steps.trivy_frontend.outcome == 'success' || steps.trivy_frontend.outcome == 'failure')
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         with:
           sarif_file: trivy-frontend.sarif
           category: trivy-frontend
@@ -865,7 +865,7 @@ jobs:
 
       - name: Upload backend Trivy SARIF
         if: always() && (steps.trivy_backend.outcome == 'success' || steps.trivy_backend.outcome == 'failure')
-        uses: github/codeql-action/upload-sarif@d77b13a0df3134d64a457ea9003f600b09fa1c8a # v3.36.1
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         with:
           sarif_file: trivy-backend.sarif
           category: trivy-backend
