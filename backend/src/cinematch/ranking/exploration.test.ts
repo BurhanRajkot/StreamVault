@@ -91,7 +91,7 @@ describe('applyWildcardInjection', () => {
     const result = applyWildcardInjection(ranked, profile)
 
     // At least one wildcard should have been injected with the discovery source
-    const discoveryItems = result.filter(c => c.source === 'genre_discovery')
+    const discoveryItems = result.filter(c => c.source === 'wildcard')
     expect(discoveryItems.length).toBeGreaterThan(0)
     expect(discoveryItems[0].sourceReason).toBe('Surprise me! Discovery pick')
   })
