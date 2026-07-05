@@ -9,7 +9,7 @@ import { MobileNav } from '@/mobile-ui/MobileNav'
 import { useAuth0 } from '@auth0/auth0-react'
 import { PageMeta } from '@/seo/PageMeta'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { Heart, Film, Tv, AlertCircle, ArrowUpDown, Clock, Star, ArrowUpAZ } from 'lucide-react'
+import { Heart, Tv, AlertCircle, ArrowUpDown, Clock, Star, ArrowUpAZ } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { slugify } from '@/lib/utils'
 import {
