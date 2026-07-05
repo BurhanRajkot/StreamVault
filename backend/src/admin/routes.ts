@@ -52,6 +52,13 @@ function isIPBlocked(ip: string): boolean {
   return false
 }
 
+function getClientIP(req: Request): string {
+  const raw = (req.ip || req.socket.remoteAddress || 'unknown').toString()
+  // Normalize IPv4-mapped IPv6 addresses (e.g. ::ffff:1.2.3.4 -> 1.2.3.4)
+  // This ensures consistent keys in the rate limiting map
+  return raw.replace(/^::ffff:/, '')
+}
+
 function recordFailedAttempt(ip: string) {
   const existing = failedAttempts.get(ip)
 
@@ -84,7 +91,7 @@ router.post('/login', adminLoginRateLimiter, async (req: Request, res: Response)
       })
     }
 
-    const clientIP = (req.ip || req.socket.remoteAddress || 'unknown').toString()
+    const clientIP = getClientIP(req)
 
     if (isIPBlocked(clientIP)) {
       return res.status(429).json({
