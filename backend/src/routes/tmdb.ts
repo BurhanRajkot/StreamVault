@@ -455,4 +455,48 @@ router.post('/continue-watching-details', async (req: Request, res: Response) =>
   }
 })
 
+/**
+ * POST /tmdb/posters/batch
+ * Batch fetch poster paths for an array of titles.
+ * Eliminates the N+1 query issue on the client side.
+ */
+router.post('/posters/batch', async (req: Request, res: Response) => {
+  const { titles } = req.body
+  const MAX_BATCH_SIZE = 50
+
+  if (!Array.isArray(titles)) {
+    return res.status(400).json({ error: 'Body must contain a titles array' })
+  }
+  if (titles.length > MAX_BATCH_SIZE) {
+    return res.status(400).json({ error: `Body must contain at most ${MAX_BATCH_SIZE} titles` })
+  }
+
+  try {
+    const safeFetchTMDB = withTmdbRateLimit(fetchTMDB)
+
+    const results = await Promise.all(
+      titles.map(async (title: string) => {
+        if (!title || typeof title !== 'string') return { title, posterPath: null }
+
+        try {
+          const searchData = await safeFetchTMDB(`/search/movie?query=${encodeURIComponent(title.trim())}`) as any
+          const posterPath = searchData?.results && searchData.results.length > 0
+            ? searchData.results[0].poster_path || null
+            : null
+
+          return { title, posterPath }
+        } catch (err: unknown) {
+          logger.warn(`Failed to fetch poster for title: ${title}`, { error: err instanceof Error ? err.message : String(err) })
+          return { title, posterPath: null }
+        }
+      })
+    )
+
+    res.json(results)
+  } catch (error: unknown) {
+    logger.error('Failed to batch fetch posters', { error: error instanceof Error ? error.message : String(error) })
+    res.status(500).json({ error: 'Server error fetching posters' })
+  }
+})
+
 export default router

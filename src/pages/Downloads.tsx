@@ -28,28 +28,61 @@ function cleanTitle(raw: string) {
     .trim()
 }
 
-async function fetchPoster(title: string): Promise<string | null> {
-  const cleaned = cleanTitle(title)
-  if (posterCache.has(cleaned)) return posterCache.get(cleaned)!
+// Helper to enrich a list of downloads with their poster paths efficiently
+async function enrichDownloadsWithPosters(raw: DownloadItem[]): Promise<EnrichedDownload[]> {
+  const titlesToFetch: string[] = []
 
-  try {
-    // Route through backend proxy to avoid exposing TMDB key in the browser bundle
-    const res = await fetch(
-      `${API_URL}/tmdb/search/movie?query=${encodeURIComponent(cleaned)}`
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    if (data.results && data.results.length > 0) {
-      const path = data.results[0].poster_path || null
-      posterCache.set(cleaned, path)
-      return path
+  // 1. Check cache first
+  raw.forEach((item) => {
+    const cleaned = cleanTitle(item.title)
+    if (!posterCache.has(cleaned)) {
+      if (!titlesToFetch.includes(cleaned)) {
+        titlesToFetch.push(cleaned)
+      }
     }
-    posterCache.set(cleaned, null)
-    return null
-  } catch (err) {
-    console.error('Poster fetch failed for:', title, err)
-    return null
+  })
+
+  // 2. Fetch missing titles in a single batch request (chunked to respect backend limit)
+  if (titlesToFetch.length > 0) {
+    const CHUNK_SIZE = 50
+    const chunks: string[][] = []
+
+    for (let i = 0; i < titlesToFetch.length; i += CHUNK_SIZE) {
+      chunks.push(titlesToFetch.slice(i, i + CHUNK_SIZE))
+    }
+
+    try {
+      await Promise.all(
+        chunks.map(async (chunk) => {
+          const res = await fetch(`${API_URL}/tmdb/posters/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titles: chunk })
+          })
+
+          if (res.ok) {
+            const batchResults = await res.json()
+            batchResults.forEach((result: { title: string, posterPath: string | null }) => {
+              posterCache.set(result.title, result.posterPath)
+            })
+          }
+        })
+      )
+    } catch (err) {
+      console.error('Batch poster fetch failed:', err)
+      // Fallback: cache them as null so we don't keep retrying on this session
+      titlesToFetch.forEach(title => posterCache.set(title, null))
+    }
   }
+
+  // 3. Map the results
+  return raw.map((item) => {
+    const cleaned = cleanTitle(item.title)
+    return {
+      ...item,
+      posterPath: posterCache.get(cleaned) || null
+    }
+  })
 }
 
 const Downloads = () => {
@@ -74,15 +107,9 @@ const Downloads = () => {
           // Fetch downloads with admin token
           const raw = await fetchDownloads(adminToken)
 
-          const enriched = await Promise.all(
-            raw.map(async (item) => {
-              const posterPath = await fetchPoster(item.title)
-              return {
-                ...item,
-                posterPath,
-              }
-            })
-          )
+          console.time('fetchPosters (optimized)');
+          const enriched = await enrichDownloadsWithPosters(raw)
+          console.timeEnd('fetchPosters (optimized)');
 
           setItems(enriched)
           setIsPremium(true)
@@ -108,15 +135,9 @@ const Downloads = () => {
         const token = await getAccessTokenSilently()
         const raw = await fetchDownloads(token)
 
-        const enriched = await Promise.all(
-          raw.map(async (item) => {
-            const posterPath = await fetchPoster(item.title)
-            return {
-              ...item,
-              posterPath,
-            }
-          })
-        )
+        console.time('fetchPosters (optimized)');
+        const enriched = await enrichDownloadsWithPosters(raw)
+        console.timeEnd('fetchPosters (optimized)');
 
         setItems(enriched)
         setIsPremium(true)
@@ -146,15 +167,9 @@ const Downloads = () => {
     try {
       const raw = await fetchDownloads(adminToken)
 
-      const enriched = await Promise.all(
-        raw.map(async (item) => {
-          const posterPath = await fetchPoster(item.title)
-          return {
-            ...item,
-            posterPath,
-          }
-        })
-      )
+      console.time('fetchPosters (optimized)');
+      const enriched = await enrichDownloadsWithPosters(raw)
+      console.timeEnd('fetchPosters (optimized)');
 
       setItems(enriched)
       setIsPremium(true)
