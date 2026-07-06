@@ -55,7 +55,7 @@
     "@tanstack/react-virtual": "^3.14.4",
     "@types/body-parser": "^1.19.6",
     "@types/express": "^5.0.6",
-    "baseline-browser-mapping": "^2.10.40",
+    "baseline-browser-mapping": "^2.10.42",
     "body-parser": "^2.3.0",
     "caniuse-lite": "^1.0.30001800",
     "class-variance-authority": "^0.7.1",
