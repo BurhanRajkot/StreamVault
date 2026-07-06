@@ -16,13 +16,19 @@ const Watch = () => {
   const location = useLocation()
   const { season, episode, server, autoPlay } = location.state || {}
   const [media, setMedia] = useState<Media | null>(null)
+  const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const tmdbId = idAndSlug ? idAndSlug.split('-')[0] : ''
 
   useEffect(() => {
     if (!mediaType || !tmdbId) return
-
-    fetchMediaDetails(mediaType, Number(tmdbId)).then(setMedia)
+    setError(false)
+    setLoading(true)
+    fetchMediaDetails(mediaType, Number(tmdbId))
+      .then(setMedia)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
   }, [mediaType, tmdbId])
 
   useEffect(() => {
@@ -37,7 +43,27 @@ const Watch = () => {
     }
   }, [media, mediaType, idAndSlug, navigate])
 
-  if (!mediaType || !media) return null
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] text-white">
+        <h1 className="text-4xl font-bold mb-4">404 - Not Found</h1>
+        <p className="text-zinc-400">Failed to load media or media not found.</p>
+        <button onClick={() => navigate('/')} className="mt-6 px-6 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-500 transition-colors">
+          Go Home
+        </button>
+      </div>
+    )
+  }
+
+  if (loading || !media) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    )
+  }
+
+  if (!mediaType) return null
 
   const mode: MediaMode = mediaType
   const typedMediaType = mediaType as 'movie' | 'tv'

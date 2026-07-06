@@ -28,9 +28,14 @@ test.describe('Favorites Page — Unauthenticated', () => {
     expect(isShowingAuth, 'Auth wall is not visible on favorites page').toBe(true)
 
     // STRONG CHECK: Verify the auth wall has explanatory text, not just a button
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Auth wall has no explanatory content').toBeGreaterThan(40)
-    expect(bodyText.toLowerCase(), 'Auth wall does not explain why login is needed').toContain('sign in')
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Auth wall has no explanatory content', timeout: 15_000 }
+    ).toBeGreaterThan(40)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().toLowerCase()),
+      { message: 'Auth wall does not explain why login is needed', timeout: 15_000 }
+    ).toContain('sign in')
   })
 })
 
@@ -50,8 +55,10 @@ test.describe('Favorites Page — Authenticated (Empty)', () => {
     // Verify CTA is visible
     await expect(favorites.emptyStateCTA).toBeVisible()
 
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Empty state has minimal content').toBeGreaterThan(20)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Empty state has minimal content', timeout: 15_000 }
+    ).toBeGreaterThan(20)
   })
 })
 
@@ -80,8 +87,10 @@ test.describe('Favorites Page — Authenticated (Populated)', () => {
     await expect(page).toHaveURL(/\/watch\//, { timeout: 10_000 })
 
     // Verify watch page rendered
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Watch page is blank after clicking favorite').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Watch page is blank after clicking favorite', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 
   test('favorites page has a visible heading and count', async ({ mockApiPage: page }) => {
@@ -93,7 +102,9 @@ test.describe('Favorites Page — Authenticated (Populated)', () => {
     expect(headingText.trim().length, 'Favorites heading is empty').toBeGreaterThan(0)
 
     // Verify page content exists
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Favorites page has no body content').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Favorites page has no body content', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 })

@@ -99,6 +99,16 @@ export async function registerApiMocks(page: Page, options: {
     })
   })
 
+  // — TMDB Image Mock (to bypass sandbox network blocks) ────────────────────
+  await page.route('https://image.tmdb.org/**', async route => {
+    const svg = '<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#cccccc"/></svg>'
+    return route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: Buffer.from(svg)
+    })
+  })
+
   // — TMDB Discovery / Trending ────────────────────────────────────────────
   await page.route('**/tmdb/discover/movie**', async route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildDiscoverResponse()) })

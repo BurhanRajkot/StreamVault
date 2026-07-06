@@ -204,7 +204,7 @@ export class MediaRenderingPage extends BasePage {
     const failures: string[] = []
     for (let i = 0; i < checkCount; i++) {
       const img = imgs.nth(i)
-      const visible = await img.isVisible().catch(() => false)
+      const visible = await img.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)
       if (!visible) continue
 
       const info = await img.evaluate((el: HTMLImageElement) => ({
@@ -290,7 +290,7 @@ export class MediaRenderingPage extends BasePage {
     const card = this.page.locator(
       '.group.relative.cursor-pointer, [role="button"]:has(img[src*="tmdb"])'
     ).first()
-    const visible = await card.isVisible({ timeout: 10_000 }).catch(() => false)
+    const visible = await card.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)
     if (!visible) return false
     await card.hover()
     await this.page.waitForTimeout(2200)
@@ -303,7 +303,7 @@ export class MediaRenderingPage extends BasePage {
    */
   async assertQuickViewModalOpen() {
     const modal = this.quickViewModal
-    const visible = await modal.isVisible().catch(() => false)
+    const visible = await modal.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)
 
     if (!visible) {
       const vp = this.page.viewportSize()

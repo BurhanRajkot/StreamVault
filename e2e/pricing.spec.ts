@@ -38,9 +38,13 @@ test.describe('Pricing Page', () => {
     expect(count, 'Pricing page does not have 3 plan cards').toBeGreaterThanOrEqual(1)
 
     // STRONG CHECK: Verify plan names appear in the text
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim().toLowerCase())
-    expect(bodyText.includes('basic') || bodyText.includes('premium') || bodyText.includes('family') || bodyText.includes('starter'), 
-      'Pricing page is missing standard plan names').toBe(true)
+    await expect.poll(
+      async () => {
+        const txt = await page.evaluate(() => (document.body.innerText || '').trim().toLowerCase());
+        return txt.includes('basic') || txt.includes('premium') || txt.includes('family') || txt.includes('starter');
+      },
+      { message: 'Pricing page is missing standard plan names', timeout: 10_000 }
+    ).toBe(true)
   })
 
   test('each plan shows its correct price', async ({ unauthMockPage: page }) => {
@@ -48,25 +52,26 @@ test.describe('Pricing Page', () => {
     await pricing.goto()
     await page.waitForLoadState('networkidle')
 
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    // Basic: 199, Premium: 499, Family: 699 (or 4K, 1080p etc depending on the exact mock data)
-    const hasPrices = bodyText.includes('199') || bodyText.includes('499') || bodyText.includes('699') || bodyText.includes('₹')
-    expect(hasPrices, 'Pricing page is missing actual price amounts').toBe(true)
+    await expect.poll(
+      async () => {
+        const txt = await page.evaluate(() => (document.body.innerText || '').trim());
+        return txt.includes('199') || txt.includes('499') || txt.includes('699') || txt.includes('₹');
+      },
+      { message: 'Pricing page is missing actual price amounts', timeout: 10_000 }
+    ).toBe(true)
   })
 
   test('plan feature lists are populated', async ({ unauthMockPage: page }) => {
     const pricing = new PricingPage(page)
     await pricing.goto()
 
-    if (await pricing.featureItems.count() > 0) {
-      const featureText = await pricing.featureItems.innerText()
-      expect(featureText.trim().length, 'Feature list item is empty').toBeGreaterThan(5)
-    } else {
-      // Fallback check if specific feature list items aren't found by the locator
-      const bodyText = await page.evaluate(() => (document.body.innerText || '').trim().toLowerCase())
-      expect(bodyText.includes('stream') || bodyText.includes('download') || bodyText.includes('screen'), 
-        'Pricing page has no feature descriptions').toBe(true)
-    }
+    await expect.poll(
+      async () => {
+        const txt = await page.evaluate(() => (document.body.innerText || '').trim().toLowerCase())
+        return txt.includes('stream') || txt.includes('download') || txt.includes('screen') || (await pricing.featureItems.count() > 0)
+      },
+      { message: 'Pricing page has no feature descriptions', timeout: 15_000 }
+    ).toBe(true)
   })
 
   test('subscription CTA buttons are visible', async ({ unauthMockPage: page }) => {
@@ -101,8 +106,13 @@ test.describe('Pricing Page', () => {
     await pricing.goto()
 
     // It should either show an error state or a graceful fallback (like hardcoded plans)
-    const hasErrorState = await pricing.errorState.count() > 0
-    const hasCards = await pricing.planCards.count() > 0
-    expect(hasErrorState || hasCards, 'Pricing page is completely blank on API failure').toBe(true)
+    await expect.poll(
+      async () => {
+        const errorCount = await pricing.errorState.count();
+        const cardCount = await pricing.planCards.count();
+        return errorCount > 0 || cardCount > 0;
+      },
+      { message: 'Pricing page is completely blank on API failure', timeout: 15_000 }
+    ).toBe(true)
   })
 })

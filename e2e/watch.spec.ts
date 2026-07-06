@@ -110,7 +110,7 @@ test.describe('Watch Page — Interactivity (Unauthenticated)', () => {
   test('back button navigates to previous page', async ({ unauthMockPage: page }) => {
     await page.goto('/')
     await page.waitForLoadState('domcontentloaded')
-    
+
     // Check if we can click a card to navigate, else directly navigate then use browser back
     await page.goto('/watch/movie/123-test', { waitUntil: 'domcontentloaded' })
     const watch = new WatchPage(page)
@@ -173,7 +173,7 @@ test.describe('Watch Page — Error States', () => {
     })
 
     await page.goto('/watch/movie/99999999', { waitUntil: 'domcontentloaded' })
-    
+
     // Wait for the UI to settle
     await page.waitForTimeout(1000)
 
@@ -181,7 +181,9 @@ test.describe('Watch Page — Error States', () => {
     await expect(errorMsg).toBeVisible({ timeout: 10_000 })
 
     // Verify it's not just a blank screen
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Error page has no descriptive content').toBeGreaterThan(20)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Error page has no descriptive content', timeout: 15_000 }
+    ).toBeGreaterThan(20)
   })
 })

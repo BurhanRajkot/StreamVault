@@ -24,7 +24,7 @@ const AccessDenied = () => {
             className="bg-accent hover:bg-accent/90 text-white shadow-lg shadow-accent/25"
           >
             <Lock className="mr-2 h-4 w-4" />
-            Login to Access
+            Sign In to Account
           </Button>
         }
       />
