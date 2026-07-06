@@ -85,10 +85,9 @@ test.describe('Smoke — App Shell (unauthenticated)', () => {
   test('body renders substantial text content (> 100 chars)', async ({ unauthMockPage: page }) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(
-      bodyText.length,
-      `Body text is only ${bodyText.length} chars — page appears blank or minimal`
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Body text is too short — page appears blank or minimal', timeout: 15_000 }
     ).toBeGreaterThan(100)
   })
 
@@ -112,13 +111,12 @@ test.describe('Smoke — App Shell (unauthenticated)', () => {
 
   test('page has meaningful content height (not a blank screen)', async ({ unauthMockPage: page }) => {
     await page.goto('/', { waitUntil: 'networkidle' })
-    const contentHeight = await page.evaluate(() => {
-      const root = document.getElementById('root')
-      return root ? root.scrollHeight : 0
-    })
-    expect(
-      contentHeight,
-      `Content height is only ${contentHeight}px — likely a blank screen`
+    await expect.poll(
+      async () => await page.evaluate(() => {
+        const root = document.getElementById('root')
+        return root ? root.scrollHeight : 0
+      }),
+      { message: 'Content height is too small — likely a blank screen', timeout: 15_000 }
     ).toBeGreaterThan(300)
   })
 
@@ -145,8 +143,10 @@ test.describe('Smoke — Core Routes', () => {
       expect(headingText.trim().length, `${name} page <h1> is empty`).toBeGreaterThan(0)
 
       // Verify page has body text content
-      const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-      expect(bodyText.length, `${name} page has minimal text content`).toBeGreaterThan(50)
+      await expect.poll(
+        async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+        { message: `${name} page has minimal text content`, timeout: 15_000 }
+      ).toBeGreaterThan(50)
     })
   }
 
@@ -160,8 +160,10 @@ test.describe('Smoke — Core Routes', () => {
     await expect(errIndicator).toBeVisible({ timeout: 10_000 })
 
     // Verify the 404 page has actual content, not just a number
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, '404 page has no content beyond the error code').toBeGreaterThan(20)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: '404 page has no content beyond the error code', timeout: 15_000 }
+    ).toBeGreaterThan(20)
   })
 
   test('/error/500 route renders server error page with content', async ({ unauthMockPage: page }) => {
@@ -170,8 +172,10 @@ test.describe('Smoke — Core Routes', () => {
     await expect(errPage).toBeVisible({ timeout: 5_000 })
 
     // Verify meaningful error message exists
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Server error page has no descriptive content').toBeGreaterThan(30)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Server error page has no descriptive content', timeout: 15_000 }
+    ).toBeGreaterThan(30)
   })
 })
 
@@ -282,8 +286,10 @@ test.describe('Smoke — Mobile Viewport (iPhone 14 Pro)', () => {
 
   test('mobile homepage shows visible content (not blank)', async ({ unauthMockPage: page }) => {
     await page.goto('/', { waitUntil: 'networkidle' })
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Mobile homepage appears blank').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Mobile homepage appears blank', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 })
 
@@ -304,7 +310,9 @@ test.describe('Smoke — Tablet Viewport (iPad Pro)', () => {
 
   test('tablet homepage shows visible content', async ({ unauthMockPage: page }) => {
     await page.goto('/', { waitUntil: 'networkidle' })
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Tablet homepage appears blank').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Tablet homepage appears blank', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 })

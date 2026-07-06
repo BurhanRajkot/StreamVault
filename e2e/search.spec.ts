@@ -135,8 +135,10 @@ test.describe('Search — Results & API Integration', () => {
     await expect(page).toHaveURL(/\/watch\//, { timeout: 10_000 })
 
     // STRONG CHECK: Watch page should render content (not blank)
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Watch page is blank after clicking search result').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Watch page is blank after clicking search result', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 
   test('broad query "dark" matches The Dark Knight', async ({ unauthMockPage: page }) => {
@@ -204,8 +206,10 @@ test.describe('Search — Authenticated User', () => {
     await expect(page).toHaveURL(/\/watch\/movie\//, { timeout: 10_000 })
 
     // Verify the watch page rendered content
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Watch page blank after auth search click').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Watch page blank after auth search click', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 })
 

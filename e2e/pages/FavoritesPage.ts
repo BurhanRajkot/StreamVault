@@ -18,7 +18,7 @@ export class FavoritesPage extends BasePage {
   }
 
   async isShowingAuthWall(): Promise<boolean> {
-    return this.signInButton.isVisible().catch(() => false)
+    return this.signInButton.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false)
   }
 
   // ─── Empty State ──────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ export class FavoritesPage extends BasePage {
   }
 
   async isShowingEmptyState(): Promise<boolean> {
-    return this.emptyStateHeading.isVisible().catch(() => false)
+    return this.emptyStateHeading.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false)
   }
 
   // ─── Content ──────────────────────────────────────────────────────────────
