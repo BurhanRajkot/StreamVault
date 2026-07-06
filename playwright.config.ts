@@ -62,6 +62,9 @@ export default defineConfig({
     locale: 'en-US',
     timezoneId: 'Asia/Kolkata',
     permissions: [],
+    launchOptions: {
+      args: ['--proxy-server=direct://']
+    }
   },
 
   /** Global expect timeouts — give content-heavy assertions extra time */

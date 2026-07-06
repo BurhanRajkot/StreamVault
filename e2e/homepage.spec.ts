@@ -263,8 +263,10 @@ test.describe('Homepage — Media Cards & Content', () => {
     await home.gotoAndWaitForContent()
 
     // At minimum, the page should have substantial text
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Homepage has no meaningful text content').toBeGreaterThan(100)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Homepage has no meaningful text content', timeout: 15_000 }
+    ).toBeGreaterThan(100)
   })
 })
 

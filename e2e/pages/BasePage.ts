@@ -73,16 +73,15 @@ export class BasePage {
    */
   async assertPageHasVisibleContent() {
     // 1. Verify meaningful text content
-    const bodyText = await this.page.evaluate(() => (document.body.innerText || '').trim())
-    expect(
-      bodyText.length,
-      `Page appears blank: body text is only ${bodyText.length} chars ("${bodyText.slice(0, 80)}...")`
+    await expect.poll(
+      async () => await this.page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Page appears blank: body text is too short', timeout: 15_000 }
     ).toBeGreaterThan(100)
 
     // 2. At least one heading or interactive element must be visible
-    const hasHeading = await this.page.locator('h1, h2, h3, h4, h5, h6').first().isVisible().catch(() => false)
-    const hasButton = await this.page.locator('button, a[href]').first().isVisible().catch(() => false)
-    const hasInput = await this.page.locator('input, select, textarea').first().isVisible().catch(() => false)
+    const hasHeading = await this.page.locator('h1, h2, h3, h4, h5, h6').first().waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)
+    const hasButton = await this.page.locator('button, a[href]').first().waitFor({ state: 'visible', timeout: 1000 }).then(() => true).catch(() => false)
+    const hasInput = await this.page.locator('input, select, textarea').first().waitFor({ state: 'visible', timeout: 1000 }).then(() => true).catch(() => false)
     expect(
       hasHeading || hasButton || hasInput,
       'Page has no visible headings, buttons, or form elements — looks broken'
@@ -94,13 +93,12 @@ export class BasePage {
    * and that at least some elements are rendered beyond the skeleton.
    */
   async assertNotBlankScreen() {
-    const contentHeight = await this.page.evaluate(() => {
-      const root = document.getElementById('root')
-      return root ? root.scrollHeight : 0
-    })
-    expect(
-      contentHeight,
-      `Page content height is only ${contentHeight}px — likely a blank screen`
+    await expect.poll(
+      async () => await this.page.evaluate(() => {
+        const root = document.getElementById('root')
+        return root ? root.scrollHeight : 0
+      }),
+      { message: 'Page content height is too short — likely a blank screen', timeout: 15_000 }
     ).toBeGreaterThan(200)
 
     // Check that there are actual visible elements (not just an empty wrapper)

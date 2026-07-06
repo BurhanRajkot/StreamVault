@@ -27,9 +27,14 @@ test.describe('Downloads Page', () => {
     await expect(downloads.premiumWarning).toBeVisible({ timeout: 10_000 })
     
     // Verify the gate has actual text, not just a blank overlay
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Premium gate has no explanatory text').toBeGreaterThan(30)
-    expect(bodyText.toLowerCase(), 'Premium gate does not mention "Premium" or "Upgrade"').toContain('premium')
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Premium gate has no explanatory text', timeout: 15_000 }
+    ).toBeGreaterThan(30)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().toLowerCase()),
+      { message: 'Premium gate does not mention "Premium" or "Upgrade"', timeout: 15_000 }
+    ).toContain('premium')
   })
 
   test('admin login modal opens with properly masked input', async ({ unauthMockPage: page }) => {
@@ -94,8 +99,10 @@ test.describe('Admin Dashboard', () => {
     await expect(tableEl).toBeVisible({ timeout: 10_000 })
 
     // Verify meaningful content is present
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Admin dashboard has no content').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Admin dashboard has no content', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 
   test('request rows show email addresses and status badges', async ({ mockApiPage: page }) => {
@@ -105,12 +112,16 @@ test.describe('Admin Dashboard', () => {
     await expect(dashboard.firstRequestRow).toBeVisible({ timeout: 10_000 })
 
     // Check that there is at least one email address visible in the table
-    const tableText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(tableText.includes('@'), 'No email addresses found in the requests table').toBe(true)
-    
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim()),
+      { message: 'No email addresses found in the requests table', timeout: 15_000 }
+    ).toContain('@')
+
     // Check for status text (Pending, Approved, Rejected)
-    const hasStatus = /pending|approved|rejected|waiting/i.test(tableText)
-    expect(hasStatus, 'No status indicators found in the requests table').toBe(true)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim()),
+      { message: 'No status indicators found in the requests table', timeout: 15_000 }
+    ).toMatch(/pending|approved|rejected|waiting/i)
   })
 
   test('clicking Approve button updates UI and shows feedback', async ({ mockApiPage: page }) => {

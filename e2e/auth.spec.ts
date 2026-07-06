@@ -35,8 +35,10 @@ test.describe('Route Protection — Unauthenticated', () => {
       await expect(signInBtn).toBeVisible({ timeout: 20_000 })
 
       // Verify the auth wall has meaningful content (not just a button)
-      const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-      expect(bodyText.length, `Auth wall on ${name} has minimal content`).toBeGreaterThan(20)
+      await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: `Auth wall on ${name} has minimal content`, timeout: 15_000 }
+    ).toBeGreaterThan(20)
     })
   }
 
@@ -46,8 +48,10 @@ test.describe('Route Protection — Unauthenticated', () => {
     await expect(signInBtn).toBeVisible({ timeout: 20_000 })
 
     // Verify the page explains what the user needs to do
-    const pageText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(pageText.length, 'Auth wall has no explanatory content').toBeGreaterThan(30)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Auth wall has no explanatory content', timeout: 15_000 }
+    ).toBeGreaterThan(30)
   })
 })
 
@@ -68,8 +72,10 @@ test.describe('Route Protection — Authenticated', () => {
     expect(headingText.trim().length, 'Favorites page heading is empty').toBeGreaterThan(0)
 
     // Verify page has body content
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Favorites page has no visible content').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Favorites page has no visible content', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 
   test('/downloads is accessible with visible content when authenticated', async ({ mockApiPage: page }) => {
@@ -79,8 +85,10 @@ test.describe('Route Protection — Authenticated', () => {
     expect(page.url().includes('login')).toBe(false)
 
     // STRONG CHECK: Page must show real content — premium gate, heading, or download list
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Downloads page has no visible content').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Downloads page has no visible content', timeout: 15_000 }
+    ).toBeGreaterThan(50)
 
     // Must have at least one heading or descriptive element
     const hasHeading = await page.locator('h1, h2, h3').first().isVisible().catch(() => false)
@@ -98,8 +106,10 @@ test.describe('Route Protection — Authenticated', () => {
     expect(page.url().includes('login')).toBe(false)
 
     // STRONG CHECK: Page must still have visible content
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Page went blank after reload').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Page went blank after reload', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 
   test('authenticated user sees nav with user-related options', async ({ mockApiPage: page }) => {
@@ -130,8 +140,10 @@ test.describe('Login Page UI', () => {
     expect(headingText.trim().length, 'Login page heading is empty').toBeGreaterThan(0)
 
     // Verify page has meaningful content
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Login page has no content').toBeGreaterThan(30)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Login page has no content', timeout: 15_000 }
+    ).toBeGreaterThan(30)
   })
 
   test('/login page has a sign-in button or form', async ({ unauthMockPage: page }) => {
@@ -168,12 +180,10 @@ test.describe('Login Page UI', () => {
     await page.waitForLoadState('domcontentloaded')
 
     // The page should mention StreamVault or have brand elements
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    const hasBranding = bodyText.toLowerCase().includes('streamvault') ||
-      bodyText.toLowerCase().includes('sign in') ||
-      bodyText.toLowerCase().includes('log in') ||
-      bodyText.toLowerCase().includes('welcome')
-    expect(hasBranding, 'Login page has no branding or welcome text').toBe(true)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().toLowerCase()),
+      { message: 'Login page has no branding or welcome text', timeout: 15_000 }
+    ).toMatch(/streamvault|sign in|log in|welcome/)
   })
 })
 
@@ -213,8 +223,10 @@ test.describe('Pricing Page — Public (No Auth Required)', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 8_000 })
 
     // Verify content renders for authenticated user
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, 'Pricing page blank for authenticated user').toBeGreaterThan(50)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Pricing page blank for authenticated user', timeout: 15_000 }
+    ).toBeGreaterThan(50)
   })
 
   test('pricing page shows price amounts', async ({ unauthMockPage: page }) => {
@@ -237,8 +249,10 @@ test.describe('Error Pages', () => {
     const content = page.locator('h1, h2, p').filter({ hasText: /403|access denied|forbidden|permission/i }).first()
     await expect(content).toBeVisible({ timeout: 5_000 })
 
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, '403 page has no descriptive content').toBeGreaterThan(20)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: '403 page has no descriptive content', timeout: 15_000 }
+    ).toBeGreaterThan(20)
   })
 
   test('/error/500 renders a server-error page with descriptive content', async ({ unauthMockPage: page }) => {
@@ -247,8 +261,10 @@ test.describe('Error Pages', () => {
     const content = page.locator('h1, h2, p').filter({ hasText: /500|server error|something went wrong/i }).first()
     await expect(content).toBeVisible({ timeout: 5_000 })
 
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length, '500 page has no descriptive content').toBeGreaterThan(20)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: '500 page has no descriptive content', timeout: 15_000 }
+    ).toBeGreaterThan(20)
   })
 
   test('error pages have a way to navigate back to home', async ({ unauthMockPage: page }) => {

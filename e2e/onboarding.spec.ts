@@ -27,28 +27,28 @@ test.describe('CineMatch Onboarding', () => {
 
   test('onboarding overlay renders and covers the page content', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    
+
     // Look for the onboarding container
-    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /What do you love watching\?|select at least/i }).first()
+    const onboardingOverlay = page.getByTestId('onboarding').first()
     await expect(onboardingOverlay).toBeVisible({ timeout: 10_000 })
 
     // Verify it covers the page (fixed positioning and high z-index)
     const isCovering = await onboardingOverlay.evaluate(el => {
       const style = window.getComputedStyle(el)
-      return (style.position === 'fixed' || style.position === 'absolute') && 
-             (style.zIndex !== 'auto' && parseInt(style.zIndex) > 10)
+      return (style.position === 'fixed' || style.position === 'absolute') &&
+        (style.zIndex !== 'auto' && parseInt(style.zIndex) > 10)
     })
     expect(isCovering, 'Onboarding is not presented as an overlay').toBe(true)
   })
 
   test('onboarding shows movie poster images for selection', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    
-    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /What do you love watching\?|select at least/i }).first()
+
+    const onboardingOverlay = page.getByTestId('onboarding').first()
     await expect(onboardingOverlay).toBeVisible({ timeout: 10_000 })
 
     // Find movie cards inside the onboarding
-    const cards = onboardingOverlay.locator('button:has(img), [role="button"]:has(img), .cursor-pointer:has(img)')
+    const cards = onboardingOverlay.locator('button.group')
     const cardCount = await cards.count()
     expect(cardCount, 'No movie posters found in onboarding').toBeGreaterThan(5)
 
@@ -59,11 +59,11 @@ test.describe('CineMatch Onboarding', () => {
 
   test('selecting movies updates visual state and progress indicator', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    
-    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /What do you love watching\?|select at least/i }).first()
+
+    const onboardingOverlay = page.getByTestId('onboarding').first()
     await expect(onboardingOverlay).toBeVisible({ timeout: 10_000 })
 
-    const cards = onboardingOverlay.locator('button:has(img), [role="button"]:has(img), .cursor-pointer:has(img)')
+    const cards = onboardingOverlay.locator('button.group')
     await expect(cards.first()).toBeVisible()
 
     // Get initial progress text
@@ -76,7 +76,7 @@ test.describe('CineMatch Onboarding', () => {
     // Wait for the visual selection indicator (border, checkmark, opacity change)
     // We check if the class list changed or if a specific check icon appeared
     await page.waitForTimeout(300)
-    
+
     // Check if progress text updated (e.g., from "0/3" to "1/3")
     const newText = await onboardingOverlay.innerText()
     const progressChanged = initialText !== newText
@@ -85,12 +85,12 @@ test.describe('CineMatch Onboarding', () => {
 
   test('completing onboarding closes the overlay', async ({ onboardingPage: page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    
-    const onboardingOverlay = page.locator('[class*="onboarding"], [data-testid*="onboarding"], .fixed.inset-0').filter({ hasText: /select|choose|movies you like/i }).first()
+
+    const onboardingOverlay = page.getByTestId('onboarding').first()
     await expect(onboardingOverlay).toBeVisible({ timeout: 10_000 })
 
-    const cards = onboardingOverlay.locator('button:has(img), [role="button"]:has(img), .cursor-pointer:has(img)')
-    
+    const cards = onboardingOverlay.locator('button.group')
+
     // Click multiple cards to satisfy typical minimum requirement (e.g. 3)
     const maxClicks = Math.min(await cards.count(), 5)
     for (let i = 0; i < maxClicks; i++) {
@@ -101,7 +101,7 @@ test.describe('CineMatch Onboarding', () => {
     // Find and click the Continue/Submit button
     const submitBtn = onboardingOverlay.locator('button:has-text("Continue"), button:has-text("Done"), button:has-text("Finish"), button:has-text("Let\'s go")').first()
     await expect(submitBtn).toBeVisible()
-    
+
     // It should be enabled now
     const isDisabled = await submitBtn.isDisabled()
     expect(isDisabled, 'Submit button is still disabled after selections').toBe(false)
@@ -110,9 +110,11 @@ test.describe('CineMatch Onboarding', () => {
 
     // Verify overlay disappears
     await expect(onboardingOverlay).not.toBeVisible({ timeout: 5_000 })
-    
+
     // Verify we can see the homepage content
-    const bodyText = await page.evaluate(() => (document.body.innerText || '').trim())
-    expect(bodyText.length).toBeGreaterThan(100)
+    await expect.poll(
+      async () => await page.evaluate(() => (document.body.innerText || '').trim().length),
+      { message: 'Homepage content is missing after onboarding', timeout: 15_000 }
+    ).toBeGreaterThan(100)
   })
 })

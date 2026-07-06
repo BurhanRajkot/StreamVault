@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useFavorites } from '@/context/FavoritesContext'
+import AccessDenied from '@/pages/AccessDenied'
 import { Media } from '@/lib/config'
 import { fetchMediaDetails } from '@/lib/api'
 import { MediaCard } from '@/components/MediaCard'
@@ -50,7 +51,6 @@ const Favorites = () => {
     if (authLoading) return
 
     if (!isAuthenticated) {
-      loginWithRedirect()
       return
     }
 
@@ -130,6 +130,9 @@ const Favorites = () => {
     { key: 'rating', label: 'Top Rated', icon: Star },
   ]
   const activeSort = sortOptions.find((s) => s.key === sortBy)!
+
+  if (authLoading) return null
+  if (!isAuthenticated) return <AccessDenied />
 
   return (
     <>
