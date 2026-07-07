@@ -287,9 +287,9 @@ export class MediaRenderingPage extends BasePage {
    * Returns true if a card was found and hovered.
    */
   async triggerQuickViewOnFirstCard(): Promise<boolean> {
-    const card = this.page.locator(
-      '.group.relative.cursor-pointer, [role="button"]:has(img[src*="tmdb"])'
-    ).first()
+    // Must be a grid card, not the hero banner — the hero variant has no
+    // hover handlers wired up, so hovering it would never open QuickView.
+    const card = this.page.locator('[data-testid="media-card"]').first()
     const visible = await card.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)
     if (!visible) return false
     await card.hover()

@@ -53,7 +53,15 @@ export class WatchPage extends BasePage {
 
   async addToFavorites() {
     await expect(this.addToFavoritesButton).toBeVisible({ timeout: 10_000 })
-    await this.addToFavoritesButton.click()
+    // The favorite/remove button flips instantly on an optimistic local
+    // update — well before the POST to persist it actually lands. Wait for
+    // that response too, otherwise a caller who immediately navigates away
+    // (e.g. to /favorites) can race the mock backend and see a stale list.
+    const [response] = await Promise.all([
+      this.page.waitForResponse(res => res.url().includes('/favorites') && res.request().method() === 'POST'),
+      this.addToFavoritesButton.click(),
+    ])
+    expect(response.ok()).toBe(true)
     await expect(this.removeFromFavoritesButton).toBeVisible({ timeout: 5_000 })
   }
 
@@ -111,8 +119,9 @@ export class WatchPage extends BasePage {
       expect(titleText.toLowerCase()).toContain(expectedTitle.toLowerCase())
     }
 
-    // Verify overview/description paragraph exists
-    const overview = this.page.locator('p').filter({ hasText: /\w{15,}/ }).first()
+    // Verify overview/description paragraph exists — match on total length,
+    // not a single 15+ char word (real overview prose rarely has one).
+    const overview = this.page.locator('p').filter({ hasText: /.{40,}/ }).first()
     await expect(overview).toBeVisible({ timeout: 10_000 })
   }
 }

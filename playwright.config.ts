@@ -62,6 +62,18 @@ export default defineConfig({
     locale: 'en-US',
     timezoneId: 'Asia/Kolkata',
     permissions: [],
+    /**
+     * The app registers a Workbox service worker in production builds (which
+     * is what `e2e` runs against, via `vite build` + `vite preview`). That SW
+     * has its own runtime-caching rule for image.tmdb.org that intercepts
+     * fetches independently of page.route() — on a cache miss it issues its
+     * own network request, bypassing our mocks and hitting the preview server
+     * directly (a bare 404). Since SW install/activation timing varies run to
+     * run, this shows up as an intermittent, hard-to-diagnose flake. Blocking
+     * service workers guarantees every request actually goes through the
+     * mocks registered in e2e/fixtures/index.ts.
+     */
+    serviceWorkers: 'block',
     launchOptions: {
       args: ['--proxy-server=direct://']
     }

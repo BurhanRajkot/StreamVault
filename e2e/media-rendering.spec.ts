@@ -52,6 +52,10 @@ const IGNORED_CONSOLE_ERRORS = [
   'Failed to load resource', 'net::ERR_',
   'Cross-Origin', 'Content Security Policy',
   'ResizeObserver', 'Non-Error promise rejection',
+  // Third-party streaming providers set their own X-Frame-Options — outside
+  // our control, and browsers log this as a console error even though the
+  // app's own iframe embed markup is correct.
+  'X-Frame-Options',
 ]
 
 // ─── Shared Helpers ──────────────────────────────────────────────────────────
@@ -164,9 +168,9 @@ async function findStreamingIframe(page: Page): Promise<Locator | null> {
  * Hover a media card long enough to trigger QuickViewModal (1500ms hover delay + animation).
  */
 async function hoverFirstCard(page: Page): Promise<boolean> {
-  const card = page.locator(
-    '.group.relative.cursor-pointer, [role="button"]:has(img[src*="tmdb"])'
-  ).first()
+  // Must be a grid card, not the hero banner — the hero variant has no
+  // hover handlers wired up, so hovering it would never open QuickView.
+  const card = page.locator('[data-testid="media-card"]').first()
   const visible = await card.isVisible({ timeout: 10_000 }).catch(() => false)
   if (!visible) return false
   await card.hover()
@@ -239,7 +243,10 @@ test.describe('§1  Poster images on media cards', () => {
     const home = new HomePage(page)
     await home.gotoAndWaitForContent()
 
-    const img = page.locator(`img[src*="${TMDB_IMG_DOMAIN}"]`).first()
+    // Scope to a grid card, not just any TMDB image — the hero banner's
+    // landscape backdrop is the first TMDB `<img>` in DOM order and would
+    // otherwise be mistaken for a portrait poster.
+    const img = page.locator(`[data-testid="media-card"] img[src*="${TMDB_IMG_DOMAIN}"]`).first()
     await expect(img).toBeVisible({ timeout: 10_000 })
 
     const box = await img.boundingBox()

@@ -34,9 +34,10 @@ export class BasePage {
    * Now: waits for React to mount AND verifies visible content exists.
    */
   async waitForAppMount() {
-    const root = this.page.locator('#root')
-    await expect(root).toBeVisible()
-    // Wait for React to actually render children
+    // NOTE: don't assert `#root` itself is "visible" — pages that render a
+    // full-screen `position: fixed` wrapper as their only child (e.g. the
+    // Watch page) leave `#root`'s own box at zero height, which Playwright
+    // treats as not visible even though the fixed content fills the viewport.
     await this.page.waitForFunction(() => {
       const el = document.getElementById('root')
       return el !== null && el.children.length > 0
@@ -93,10 +94,20 @@ export class BasePage {
    * and that at least some elements are rendered beyond the skeleton.
    */
   async assertNotBlankScreen() {
+    // Measure the union of visible elements' bounding rects rather than
+    // `#root.scrollHeight` — the latter is 0 whenever `#root`'s only child
+    // uses `position: fixed` (removed from normal flow), even though that
+    // content is fully rendered and visible in the viewport.
     await expect.poll(
       async () => await this.page.evaluate(() => {
         const root = document.getElementById('root')
-        return root ? root.scrollHeight : 0
+        if (!root) return 0
+        let maxBottom = 0
+        root.querySelectorAll('*').forEach(el => {
+          const rect = (el as HTMLElement).getBoundingClientRect()
+          if (rect.width > 0 && rect.height > 0) maxBottom = Math.max(maxBottom, rect.bottom)
+        })
+        return maxBottom
       }),
       { message: 'Page content height is too short — likely a blank screen', timeout: 15_000 }
     ).toBeGreaterThan(200)

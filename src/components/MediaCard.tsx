@@ -220,6 +220,7 @@ function MediaCardComponent({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title}`}
+        data-testid="media-card"
         className={cn(
           'group relative cursor-pointer rounded-lg md:rounded-xl bg-card border border-border/50 transition-all duration-300 ease-in-out',
           showQuickView ? 'z-50' : 'hover:scale-[1.03] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/50 active:scale-[0.97] overflow-hidden',

@@ -91,7 +91,26 @@ export async function registerApiMocks(page: Page, options: {
 
   // — TMDB Fallback Mock (registered first so it is checked last) ─────────────
   await page.route('**/tmdb/**', async route => {
-    if (route.request().resourceType() === 'document') return route.continue()
+    const request = route.request()
+    if (request.resourceType() === 'document') return route.continue()
+
+    // Sections like AuthorsChoiceSection fetch real (unmocked) TMDB ids for
+    // their own curated lists. Without a real detail shape here, those cards
+    // render with `id: undefined`, which breaks streaming URLs downstream
+    // (e.g. HoverVideoPlayer producing ".../movie/undefined"). Return a valid
+    // MockMovie-shaped object carrying the requested id for any detail
+    // lookup that isn't already covered by a more specific route above.
+    const detailMatch = new URL(request.url()).pathname.match(/\/tmdb\/(movie|tv)\/(\d+)$/)
+    if (detailMatch) {
+      const [, mediaType, id] = detailMatch
+      const template = mediaType === 'tv' ? MOCK_MOVIES.breakingBad : MOCK_MOVIES.inception
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...template, id: Number(id), media_type: mediaType })
+      })
+    }
+
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -101,13 +120,54 @@ export async function registerApiMocks(page: Page, options: {
 
   // — TMDB Image Mock (to bypass sandbox network blocks) ────────────────────
   await page.route('https://image.tmdb.org/**', async route => {
-    const svg = '<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#cccccc"/></svg>'
+    // A flat solid-color placeholder PNG-compresses to almost nothing once
+    // scaled up by `object-cover`, which makes "screenshot byte size > N KB"
+    // blank-screen checks (media-rendering.spec.ts) flake — a genuinely
+    // rendered image and a blank/failed one can end up the same tiny size.
+    // A gradient + shapes gives real per-pixel variation so those checks are
+    // actually testing something.
+    const svg = `<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#3b4252"/>
+          <stop offset="25%" stop-color="#5e81ac"/>
+          <stop offset="50%" stop-color="#88c0d0"/>
+          <stop offset="75%" stop-color="#a3be8c"/>
+          <stop offset="100%" stop-color="#ebcb8b"/>
+        </linearGradient>
+      </defs>
+      <rect width="300" height="200" fill="url(#g)"/>
+      <circle cx="80" cy="60" r="40" fill="#bf616a" opacity="0.6"/>
+      <circle cx="220" cy="140" r="50" fill="#d08770" opacity="0.6"/>
+      <rect x="40" y="120" width="90" height="50" fill="#4c566a" opacity="0.5"/>
+    </svg>`
     return route.fulfill({
       status: 200,
       contentType: 'image/svg+xml',
       body: Buffer.from(svg)
     })
   })
+
+  // — Streaming Provider Embeds (real third-party domains, e.g. vidfast.pro) ──
+  // These are real external sites — reachability and X-Frame-Options behavior
+  // vary by sandbox/CI network policy, which made "is the video area blank"
+  // checks flaky (the iframe's `load` event fires either way, but the actual
+  // frame content ranges from the real player to a blocked/blank page). Mock
+  // them so the iframe always renders identical, non-blank content.
+  const STREAMING_DOMAINS = [
+    'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc', 'vidlink.pro',
+    'vidsrc.cc', 'player.videasy.to', 'vidrock.ru', 'player.vidzee.wtf',
+  ]
+  for (const domain of STREAMING_DOMAINS) {
+    await page.route(`https://${domain}/**`, async route => {
+      if (route.request().resourceType() !== 'document') return route.continue()
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<!DOCTYPE html><html><body style="margin:0;height:100vh;background:linear-gradient(135deg,#3b4252,#88c0d0,#ebcb8b)"></body></html>',
+      })
+    })
+  }
 
   // — TMDB Discovery / Trending ────────────────────────────────────────────
   await page.route('**/tmdb/discover/movie**', async route =>
@@ -194,6 +254,14 @@ export async function registerApiMocks(page: Page, options: {
     if (route.request().resourceType() === 'document') return route.continue()
     if (route.request().method() === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+    }
+    if (route.request().method() === 'POST') {
+      const payload = JSON.parse(route.request().postData() || '{}')
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: `dislike-${payload.tmdbId}`, tmdbId: payload.tmdbId, mediaType: payload.mediaType }),
+      })
     }
     return route.continue()
   })
