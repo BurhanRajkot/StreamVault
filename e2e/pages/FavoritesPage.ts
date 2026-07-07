@@ -28,7 +28,9 @@ export class FavoritesPage extends BasePage {
   }
 
   get emptyStateCTA(): Locator {
-    return this.page.locator('a:has-text("Browse"), button:has-text("Discover"), a:has-text("Explore")').first()
+    return this.page.locator(
+      'a:has-text("Browse"), button:has-text("Browse"), button:has-text("Discover"), a:has-text("Explore")'
+    ).first()
   }
 
   async isShowingEmptyState(): Promise<boolean> {
@@ -38,7 +40,7 @@ export class FavoritesPage extends BasePage {
   // ─── Content ──────────────────────────────────────────────────────────────
 
   get mediaCards(): Locator {
-    return this.page.locator('.group.relative.cursor-pointer, [role="button"]:has(img)').filter({ hasNot: this.page.locator('nav') })
+    return this.page.locator('[data-testid="media-card"]')
   }
 
   get firstMediaCard(): Locator {

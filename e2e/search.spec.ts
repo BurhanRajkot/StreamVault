@@ -96,10 +96,18 @@ test.describe('Search — Results & API Integration', () => {
     const count = await search.resultCards.count()
     expect(count, 'No search results appeared').toBeGreaterThan(0)
 
-    // STRONG CHECK: Verify actual movie title text appears in results
-    const pageText = await page.evaluate(() => (document.body.innerText || '').trim())
+    // STRONG CHECK: Verify the movie title is present in the accessible name
+    // of a result — cards are poster-only by design (no visible title text
+    // below the image), so the title lives in `aria-label`/`alt`, not innerText.
+    const accessibleText = await page.evaluate(() => {
+      const root = document.getElementById('root')
+      if (!root) return ''
+      return Array.from(root.querySelectorAll('[aria-label], img[alt]'))
+        .map(el => el.getAttribute('aria-label') || el.getAttribute('alt') || '')
+        .join(' ')
+    })
     expect(
-      pageText.toLowerCase().includes('inception'),
+      accessibleText.toLowerCase().includes('inception'),
       'Search results don\'t contain the movie title "Inception"'
     ).toBe(true)
   })

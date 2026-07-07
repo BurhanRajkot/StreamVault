@@ -41,11 +41,10 @@ test.describe('Favorites Page — Unauthenticated', () => {
 
 test.describe('Favorites Page — Authenticated (Empty)', () => {
   test('empty state shows specific messaging and CTA when user has no favorites', async ({ mockApiPage: page }) => {
-    // Override the mock to return empty array for favorites
-    await page.route('**/favorites', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
-    })
-
+    // mockApiPage already seeds an empty favorites list by default (no
+    // initialFavorites passed), so no route override is needed here — and
+    // adding one without a `resourceType() === 'document'` passthrough
+    // would intercept the page navigation itself, not just the API call.
     const favorites = new FavoritesPage(page)
     await favorites.goto()
 
@@ -63,6 +62,26 @@ test.describe('Favorites Page — Authenticated (Empty)', () => {
 })
 
 test.describe('Favorites Page — Authenticated (Populated)', () => {
+  test.beforeEach(async ({ mockApiPage: page }) => {
+    // Seed the favorites list — mockApiPage's default is an empty array, so
+    // these tests need their own favorites referencing movies whose TMDB
+    // detail routes are already mocked in registerApiMocks().
+    await page.route('**/favorites', async route => {
+      if (route.request().resourceType() === 'document') return route.continue()
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            { id: 'fav-1', tmdbId: MOCK_MOVIES.inception.id, mediaType: 'movie', addedAt: new Date().toISOString() },
+            { id: 'fav-2', tmdbId: MOCK_MOVIES.darkKnight.id, mediaType: 'movie', addedAt: new Date().toISOString() },
+          ])
+        })
+      }
+      return route.continue()
+    })
+  })
+
   test('renders favorite cards with actual images and content', async ({ mockApiPage: page }) => {
     const favorites = new FavoritesPage(page)
     await favorites.goto()

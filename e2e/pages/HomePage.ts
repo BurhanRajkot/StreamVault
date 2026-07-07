@@ -58,7 +58,10 @@ export class HomePage extends BasePage {
   // ─── Media Cards ─────────────────────────────────────────────────────────
 
   get mediaCards(): Locator {
-    return this.page.locator('.group.relative.cursor-pointer, [role="button"]:has(img[src*="tmdb"])').filter({ hasNot: this.page.locator('nav') })
+    // `data-testid="media-card"` is only set on the grid-style card variant —
+    // it deliberately excludes the full-bleed hero banner, which also
+    // matches `[role="button"]:has(img)` but isn't a grid column.
+    return this.page.locator('[data-testid="media-card"]')
   }
 
   get firstMediaCard(): Locator {

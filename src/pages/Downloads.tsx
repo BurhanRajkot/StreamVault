@@ -184,38 +184,23 @@ const Downloads = () => {
     )
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Download className="mb-4 h-12 w-12 text-muted-foreground" />
-        <h2 className="mb-2 text-xl font-semibold">Login Required</h2>
-        <p className="mb-4 text-muted-foreground">
-          Please sign in to access downloads.
-        </p>
-        <Link
-          to="/login"
-          className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Sign In
-        </Link>
-      </div>
-    )
-  }
-
-  if (needsUpgrade) {
+  if (!isAdmin && (!isAuthenticated || needsUpgrade)) {
     return (
       <>
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Crown className="mb-4 h-12 w-12 text-yellow-500" />
           <h2 className="mb-2 text-xl font-semibold">Premium Feature</h2>
           <p className="mb-4 max-w-md text-muted-foreground">
-            Downloads are only available for premium subscribers. Upgrade now to download unlimited content!
+            Downloads are only available for premium subscribers.{' '}
+            {isAuthenticated
+              ? 'Upgrade now to download unlimited content!'
+              : 'Sign in to your account and upgrade to start downloading.'}
           </p>
           <Link
-            to="/pricing"
+            to={isAuthenticated ? '/pricing' : '/login'}
             className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            Upgrade to Premium
+            {isAuthenticated ? 'Upgrade to Premium' : 'Sign In'}
           </Link>
 
           {/* Admin Login Button - Bottom Left */}
