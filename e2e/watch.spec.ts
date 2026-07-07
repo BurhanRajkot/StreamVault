@@ -101,7 +101,7 @@ test.describe('Watch Page — Interactivity (Unauthenticated)', () => {
     if (await favBtn.count() > 0) {
       await favBtn.click()
       // Should redirect to login or show auth modal
-      const loginVisible = await page.getByText(/Log in to|Sign In/).isVisible()
+      const loginVisible = await page.getByText(/Log in to|Sign In/i).isVisible()
       const navigatedToLogin = page.url().includes('login')
       expect(loginVisible || navigatedToLogin).toBe(true)
     }

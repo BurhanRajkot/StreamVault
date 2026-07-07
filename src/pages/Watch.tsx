@@ -26,7 +26,12 @@ const Watch = () => {
     setError(false)
     setLoading(true)
     fetchMediaDetails(mediaType, Number(tmdbId))
-      .then(setMedia)
+      .then((data) => {
+        // fetchMediaDetails resolves with `null` (rather than rejecting) on
+        // a non-ok response — treat that the same as a fetch failure.
+        if (!data) setError(true)
+        else setMedia(data)
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
   }, [mediaType, tmdbId])

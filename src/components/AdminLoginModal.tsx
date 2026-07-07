@@ -116,7 +116,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
               <Hash className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <input
                 id="admin-code"
-                type="text"
+                type="password"
                 value={code}
                 onChange={(e) => {
                   // Allow hex characters (0-9 a-f) — HMAC codes are hex-encoded
