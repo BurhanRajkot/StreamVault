@@ -20,10 +20,23 @@ const router = Router()
 
 // Security: Sanitize filename to prevent path traversal attacks
 function sanitizeFilename(filename: string): string {
-  // Remove any path separators and only keep the basename
+  // Reject any filename containing path traversal sequences explicitly
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    throw new Error('Invalid filename: Path traversal detected')
+  }
+
+  // Remove any path separators and only keep the basename (defense in depth)
   const basename = path.basename(filename)
+
   // Only allow alphanumeric, dots, hyphens, and underscores
-  const sanitized = basename.replace(/[^a-zA-Z0-9._-]/g, '_')
+  let sanitized = basename.replace(/[^a-zA-Z0-9._-]/g, '_')
+
+  // Fallback to safe default if string becomes empty after sanitization
+  // or if the string only contains safe characters like underscores/hyphens/dots but no actual name
+  if (!sanitized || sanitized.replace(/[._-]/g, '').length === 0) {
+    sanitized = 'download_file'
+  }
+
   return sanitized
 }
 
@@ -114,7 +127,17 @@ router.get('/', checkAuth, async (req, res) => {
 async function streamDownloadFromStorage(res: Response, filename: string) {
   try {
     // Security: Sanitize filename to prevent path traversal
-    const sanitizedFilename = sanitizeFilename(filename)
+    let sanitizedFilename: string
+    try {
+      sanitizedFilename = sanitizeFilename(filename)
+    } catch (sanitizeErr) {
+      logger.warn('Invalid filename requested', {
+        filename,
+        error: sanitizeErr instanceof Error ? sanitizeErr.message : String(sanitizeErr)
+      })
+      return res.status(400).json({ error: 'Invalid filename' })
+    }
+
     logger.info('File download requested', { filename: sanitizedFilename })
 
     const { data, error } = await supabaseAdmin.storage
