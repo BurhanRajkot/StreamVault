@@ -1,0 +1,17 @@
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; frame-src 'self' https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://*.vercel.live https://cdn.jwplayer.com https://*.jwplayer.com https://*.jwpltx.com; connect-src 'self' https: wss: https://api.themoviedb.org https://image.tmdb.org https://*.googleusercontent.com https://*.supabase.co wss://*.supabase.co https://*.auth0.com https://streamvault-backend-bq9p.onrender.com https://vercel.live https://*.vercel.live https://fonts.googleapis.com https://fonts.gstatic.com https://*.jwplayer.com https://*.jwpltx.com https://*.cloudflareinsights.com; img-src 'self' data: https: http: blob: https://image.tmdb.org https://*.googleusercontent.com https://wsrv.nl; media-src 'self' https: http: blob: data:; style-src 'self' 'unsafe-inline' https: http:; font-src 'self' data: https: http:; worker-src 'self' blob:; child-src 'self' https: http: blob:; object-src 'none';"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "no-referrer-when-downgrade"
+    Cross-Origin-Embedder-Policy = "unsafe-none"
+    Cross-Origin-Opener-Policy = "unsafe-none"
+    Cross-Origin-Resource-Policy = "cross-origin"
+    X-Content-Type-Options = "nosniff"
+    Permissions-Policy = "accelerometer=*, autoplay=*, clipboard-write=*, encrypted-media=*, gyroscope=*, picture-in-picture=*, fullscreen=*"
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+

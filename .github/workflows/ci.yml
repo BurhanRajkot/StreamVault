@@ -88,13 +88,13 @@ jobs:
               - "backend/**"
               - "shared/**"
             docker:
-              - "Dockerfile"
+              - "infrastructure/docker/Dockerfile"
               - "backend/Dockerfile"
-              - "docker-compose*.yml"
-              - ".dockerignore"
+              - "infrastructure/docker/docker-compose*.yml"
+              - "infrastructure/docker/.dockerignore"
             infra:
               - "infra/**"
-              - "k8s/**"
+              - "infrastructure/**"
               - ".github/workflows/**"
 
   # ──────────────────────────────────────────────────────────────
@@ -776,7 +776,7 @@ jobs:
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          file: ./Dockerfile
+          file: ./infrastructure/docker/Dockerfile
           push: false
           load: true
           tags: streamvault-frontend:scan
@@ -807,7 +807,7 @@ jobs:
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          file: ./Dockerfile
+          file: ./infrastructure/docker/Dockerfile
           push: true
           platforms: ${{ env.PLATFORMS }}
           provenance: true

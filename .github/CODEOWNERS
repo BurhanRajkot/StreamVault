@@ -6,18 +6,19 @@
 .github/workflows/      @dragon-manner
 
 # Container images
-Dockerfile              @dragon-manner
-backend/Dockerfile      @dragon-manner
-nginx.conf              @dragon-manner
-.dockerignore           @dragon-manner
+infrastructure/docker/Dockerfile              @dragon-manner
+backend/Dockerfile                            @dragon-manner
+infrastructure/nginx/nginx.conf               @dragon-manner
+infrastructure/docker/.dockerignore           @dragon-manner
 
 # Kubernetes & Infrastructure
-k8s/                    @dragon-manner
+infrastructure/k8s/                           @dragon-manner
+infrastructure/                               @dragon-manner
 
 # Database migrations
-backend/supabase/       @dragon-manner
+backend/supabase/                             @dragon-manner
 
 # Security-sensitive configuration
-.env.example            @dragon-manner
-vercel.json             @dragon-manner
-netlify.toml            @dragon-manner
+.env.example                                  @dragon-manner
+infrastructure/vercel.json                    @dragon-manner
+infrastructure/netlify.toml                   @dragon-manner
