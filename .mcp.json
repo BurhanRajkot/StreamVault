@@ -1,0 +1,45 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "description": "Provides latest documentation for React, Vite, Tailwind, Supabase, Auth0, Radix UI, and more"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "description": "Read/create PRs, issues, commits, branches. Set GITHUB_PERSONAL_ACCESS_TOKEN in .env.local"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "description": "Browser automation for E2E testing, screenshots, UI debugging"
+    },
+    "serena": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+      "description": "Advanced code navigation, symbol search, refactoring support. Requires: pip install uv"
+    },
+    "docker": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-docker"],
+      "description": "Manage Docker containers, images, networks, volumes. View logs, inspect containers, start/stop services"
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      },
+      "description": "Web search for coding questions. Get BRAVE_API_KEY from https://brave.com/search/api/ (optional, has free tier)"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/burhan/Desktop/movie/StreamVault"],
+      "description": "Enhanced file system access for the project directory"
+    }
+  }
+}

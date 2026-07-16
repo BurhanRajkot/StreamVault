@@ -6,18 +6,19 @@
 .github/workflows/      @BurhanRajkot
 
 # Container images
-Dockerfile              @BurhanRajkot
-backend/Dockerfile      @BurhanRajkot
-nginx.conf              @BurhanRajkot
-.dockerignore           @BurhanRajkot
+infrastructure/docker/Dockerfile              @BurhanRajkot
+backend/Dockerfile                            @BurhanRajkot
+infrastructure/nginx/nginx.conf               @BurhanRajkot
+infrastructure/docker/.dockerignore           @BurhanRajkot
 
 # Kubernetes & Infrastructure
-k8s/                    @BurhanRajkot
+infrastructure/k8s/                           @BurhanRajkot
+infrastructure/                               @BurhanRajkot
 
 # Database migrations
-backend/supabase/       @BurhanRajkot
+backend/supabase/                             @BurhanRajkot
 
 # Security-sensitive configuration
-.env.example            @BurhanRajkot
-vercel.json             @BurhanRajkot
-netlify.toml            @BurhanRajkot
+.env.example                                  @BurhanRajkot
+infrastructure/vercel.json                    @BurhanRajkot
+infrastructure/netlify.toml                   @BurhanRajkot
