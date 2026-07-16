@@ -30,51 +30,10 @@ export const helmetMiddleware = helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 
   // Content Security Policy - prevents XSS attacks
-  contentSecurityPolicy: isProduction ? {
-    directives: {
-      defaultSrc: ["'self'"],
-      // Compiled React bundles do not need 'unsafe-inline'; inline scripts are
-      // used only in dev (Vite HMR). Removing it closes the XSS attack surface.
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles
-      imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow images from TMDB, etc.
-      connectSrc: ["'self'", "https://api.themoviedb.org", "https://image.tmdb.org", process.env.FRONTEND_URL || ""].filter(src => src !== ""),
-      fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'", "blob:", "https:"],
-      // Allow all streaming provider iframes
-      frameSrc: [
-        "'self'",
-        "https://peachify.top",
-        "https://*.peachify.top",
-        "https://vidup.to",
-        "https://*.vidup.to",
-        "https://2embed.cc",
-        "https://*.2embed.cc",
-        "https://vidfast.pro",
-        "https://*.vidfast.pro",
-        "https://vidlink.pro",
-        "https://*.vidlink.pro",
-        "https://vidsrc.cc",
-        "https://*.vidsrc.cc",
-        "https://player.videasy.net",
-        "https://player.videasy.to",
-        "https://*.videasy.to",
-        "https://vidsrc.net",
-        "https://*.vidsrc.net",
-        "https://vidsrc.me",
-        "https://*.vidsrc.me",
-        "https://vidsrc.pm",
-        "https://*.vidsrc.pm",
-        "https://player.vidzee.wtf",
-        "https://*.vidzee.wtf",
-        "https://flicky.host",
-        "https://*.flicky.host",
-        "https://vidrock.ru",
-        "https://*.vidrock.ru",
-      ],
-    },
-  } : false, // Disable CSP in development for easier debugging
+  // NOTE: This backend CSP is intentionally disabled. The frontend (Vercel/Netlify)
+  // enforces CSP via deployment configs. Backend responses don't need CSP headers
+  // because they serve JSON APIs, not HTML pages.
+  contentSecurityPolicy: false, // Disabled - frontend handles CSP
 
   // HTTP Strict Transport Security - Force HTTPS
   hsts: isProduction ? {

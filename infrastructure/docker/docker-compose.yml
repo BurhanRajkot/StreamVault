@@ -3,20 +3,20 @@ version: '3.8'
 services:
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
       target: development
     ports:
       - "8081:8080"
     volumes:
       # Mount entire root context for vite to detect config and source correctly
-      - .:/opt/app
+      - ../..:/opt/app
       # Prevent overwriting node_modules on Linux from Windows host
       - /opt/app/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
     env_file:
-      - .env.local
+      - ../../.env.local
     depends_on:
       backend:
         condition: service_healthy
@@ -26,24 +26,24 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../../backend
       dockerfile: Dockerfile
       target: development
     ports:
       - "4000:4000"
     volumes:
       # Mount backend source code for hot-reloading
-      - ./backend:/opt/app
+      - ../../backend:/opt/app
       # Prevent overwriting node_modules on Linux from Windows host
       - /opt/app/node_modules
       # Persistent storage mount for raw movie files mapped as read-only
       # Create a local ./media directory or link your real media vault here
-      - ./media:/media:ro
+      - ../../media:/media:ro
     environment:
       - REDIS_URL=redis://redis:6379
       - CHOKIDAR_USEPOLLING=true
     env_file:
-      - .env.local
+      - ../../.env.local
     healthcheck:
       test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 10s
@@ -104,7 +104,7 @@ services:
     ports:
       - "8082:80" # Exposed on port 8082 to act as a cached media streaming proxy
     volumes:
-      - ./nginx/edge-cache.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/edge-cache.conf:/etc/nginx/nginx.conf:ro
       - nginx_cache:/var/cache/nginx
     depends_on:
       backend:
