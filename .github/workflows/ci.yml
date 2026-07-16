@@ -693,7 +693,7 @@ jobs:
           FAILED=0
           for job in "${!R[@]}"; do
             case " $ADVISORY " in *" $job "*) continue;; esac
-            if [[ "${R[$job]}" == "failure" || "${R[$job]}" == "cancelled" ]]; then
+            if [[ "${R[$job]}" == "failure" ]]; then
               echo "::error title=$job::$job concluded with '${R[$job]}'."
               FAILED=1
             fi

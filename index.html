@@ -6,15 +6,23 @@
     <script>
       // Suppress annoying Vercel Toolbar injected scripts errors that pollute the console
       window.addEventListener('error', function(e) {
-        if (e.filename && e.filename.includes('share-modal.js')) {
+        if ((e.filename && e.filename.includes('share-modal.js')) ||
+            (e.message && e.message.includes('share-modal.js')) ||
+            (e.error && e.error.stack && e.error.stack.includes('share-modal.js'))) {
+          e.stopImmediatePropagation();
           e.preventDefault();
+          return true;
         }
-      });
+      }, true);
       window.addEventListener('unhandledrejection', function(e) {
-        if (e.reason && e.reason.stack && e.reason.stack.includes('share-modal.js')) {
+        if (e.reason && (
+            (e.reason.stack && e.reason.stack.includes('share-modal.js')) ||
+            (e.reason.message && e.reason.message.includes('share-modal.js')))) {
+          e.stopImmediatePropagation();
           e.preventDefault();
+          return true;
         }
-      });
+      }, true);
     </script>
     <title>StreamVault • Watch Movies, TV Shows &amp; Anime Online Free</title>
     <meta name="description" content="StreamVault is your ultimate destination to watch movies, TV shows, and anime online for free. Enjoy high-quality streaming with no sign-up required." />
