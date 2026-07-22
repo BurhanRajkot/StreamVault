@@ -1,0 +1,59 @@
+# StreamVault — Dependabot Auto-Merge
+# Dependabot opens weekly PRs (npm, docker, github-actions — see dependabot.yml)
+# that otherwise sit until someone clicks merge. This enables GitHub's native
+# auto-merge for minor/patch bumps, so they merge on their own once the
+# existing required CI checks pass — no manual step. Major version bumps are
+# deliberately left for manual review: a per-PR Dependabot major is less
+# predictable than the validated, majors-included sweep in dependency-update.yml.
+#
+# Uses `pull_request` (not `pull_request_target`): Dependabot pushes its
+# branches to this repo directly, never from a fork, so the plain event
+# already carries the permissions/secrets this job needs — no reason to reach
+# for the fork-oriented trigger. This workflow never checks out PR code.
+
+name: "Dependabot Auto-Merge"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: "Enable Auto-Merge (minor/patch)"
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for minor/patch updates
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Leave major updates for manual review
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          echo "::notice title=Dependabot::Major version bump — left for manual review, not auto-merged."
+          gh pr comment "$PR_URL" --body "This is a **major** version bump — auto-merge is intentionally skipped. Please review before merging." || true
