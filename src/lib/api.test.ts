@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { adminLogin, getImageSrcSet } from './api';
+import { adminLogin, getImageSrcSet, buildEmbedUrl } from './api';
 import { CONFIG } from './config';
 
 const originalFetch = globalThis.fetch;
@@ -80,5 +80,61 @@ describe('getImageSrcSet', () => {
 
     expect(result).toBe(expected);
     expect(result).toContain('/w300/backdroppath.jpg 300w');
+  });
+});
+
+describe('buildEmbedUrl', () => {
+  it('fills the movie template for a known provider', () => {
+    const result = buildEmbedUrl('movie', 'vidfast_pro', 550, {});
+    const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro_movie.replace('{tmdbId}', '550');
+    expect(result).toBe(expected);
+  });
+
+  it('fills the tv template with season/episode for a known provider', () => {
+    const result = buildEmbedUrl('tv', 'vidfast_pro', 1399, { season: 3, episode: 7 });
+    const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro
+      .replace('{tmdbId}', '1399')
+      .replace('{season}', '3')
+      .replace('{episode}', '7');
+    expect(result).toBe(expected);
+  });
+
+  it('defaults season/episode to 1 when omitted', () => {
+    const result = buildEmbedUrl('tv', 'vidfast_pro', 1399, {});
+    const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro
+      .replace('{tmdbId}', '1399')
+      .replace('{season}', '1')
+      .replace('{episode}', '1');
+    expect(result).toBe(expected);
+  });
+
+  it('returns an empty string for an unknown provider', () => {
+    expect(buildEmbedUrl('movie', 'not_a_real_provider', 550, {})).toBe('');
+    expect(buildEmbedUrl('tv', 'not_a_real_provider', 550, {})).toBe('');
+  });
+
+  it('returns an empty string for a mode with no embed (e.g. home)', () => {
+    expect(buildEmbedUrl('home', 'vidfast_pro', 550, {})).toBe('');
+  });
+
+  it('resolves a documentary as a tv embed when media.media_type is tv', () => {
+    const result = buildEmbedUrl('documentary', 'vidfast_pro', 1399, {
+      season: 1,
+      episode: 1,
+      media: { media_type: 'tv' } as any,
+    });
+    const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro
+      .replace('{tmdbId}', '1399')
+      .replace('{season}', '1')
+      .replace('{episode}', '1');
+    expect(result).toBe(expected);
+  });
+
+  it('resolves a documentary as a movie embed when media.media_type is movie', () => {
+    const result = buildEmbedUrl('documentary', 'vidfast_pro', 550, {
+      media: { media_type: 'movie' } as any,
+    });
+    const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro_movie.replace('{tmdbId}', '550');
+    expect(result).toBe(expected);
   });
 });

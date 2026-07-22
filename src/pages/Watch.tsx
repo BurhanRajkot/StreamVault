@@ -1,7 +1,8 @@
 import { useLocation, useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { fetchMediaDetails } from '@/lib/api'
-import { Media, MediaMode } from '@/lib/config'
+import { MediaMode } from '@/lib/config'
 import { MovieDetailModal } from '@/components/modals/MovieDetailModal'
 import { MovieMeta } from '@/seo/MovieMeta'
 import { MovieJsonLd, VideoObjectJsonLd, WatchActionJsonLd } from '@/seo/JsonLd'
@@ -15,26 +16,23 @@ const Watch = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { season, episode, server, autoPlay } = location.state || {}
-  const [media, setMedia] = useState<Media | null>(null)
-  const [error, setError] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   const tmdbId = idAndSlug ? idAndSlug.split('-')[0] : ''
 
-  useEffect(() => {
-    if (!mediaType || !tmdbId) return
-    setError(false)
-    setLoading(true)
-    fetchMediaDetails(mediaType, Number(tmdbId))
-      .then((data) => {
-        // fetchMediaDetails resolves with `null` (rather than rejecting) on
-        // a non-ok response — treat that the same as a fetch failure.
-        if (!data) setError(true)
-        else setMedia(data)
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
-  }, [mediaType, tmdbId])
+  // Backend caches this same response for 2hrs (Redis + Cache-Control), so
+  // matching staleTime here means revisiting a title you already opened is
+  // instant — no re-fetch, no loading-spinner flash.
+  const { data: media, isError, isLoading: loading } = useQuery({
+    queryKey: ['mediaDetails', mediaType, tmdbId],
+    queryFn: () => fetchMediaDetails(mediaType as MediaMode, Number(tmdbId)),
+    enabled: !!mediaType && !!tmdbId,
+    staleTime: 2 * 60 * 60 * 1000,
+    gcTime: 4 * 60 * 60 * 1000,
+    retry: 1,
+  })
+  // fetchMediaDetails resolves with `null` (rather than rejecting) on a
+  // non-ok response — treat that the same as a fetch failure.
+  const error = isError || (!loading && media === null)
 
   useEffect(() => {
     if (media && mediaType && idAndSlug) {
