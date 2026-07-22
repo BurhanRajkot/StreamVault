@@ -1,0 +1,78 @@
+# StreamVault — Scheduled Image Rescan
+# The Trivy scan in ci.yml only ever looks at an image at the moment it's
+# built. A CVE disclosed the week after that build ships silently invisible
+# to that pipeline. This workflow re-scans the *already-published* :latest
+# images on a schedule, so newly-disclosed vulnerabilities in code you
+# already shipped still show up in the Security tab.
+
+name: "Scheduled Image Rescan"
+
+on:
+  schedule:
+    - cron: "0 2 * * 3" # Weekly — Wednesday 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rescan:
+    name: "Trivy Rescan — Published Images"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [frontend, backend]
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false # zizmor hardening
+
+      - name: Login to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image namespace
+        id: ns
+        run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan published image with Trivy
+        id: trivy
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        continue-on-error: true # Advisory — a new CVE here shouldn't fail a scheduled run
+        with:
+          image-ref: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-${{ matrix.image }}:latest
+          format: sarif
+          output: trivy-${{ matrix.image }}-rescan.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        if: always() && (steps.trivy.outcome == 'success' || steps.trivy.outcome == 'failure')
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          sarif_file: trivy-${{ matrix.image }}-rescan.sarif
+          category: trivy-${{ matrix.image }}-rescan
+
+      - name: Upload scan artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-${{ matrix.image }}-rescan
+          path: trivy-${{ matrix.image }}-rescan.sarif
+          retention-days: 30

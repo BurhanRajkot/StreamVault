@@ -1,7 +1,9 @@
 # StreamVault — Kubernetes Setup Guide
 
-This directory contains the complete Kubernetes configuration for StreamVault,
-organized as a **Kustomize** project with **Argo Rollouts**, **Istio**, and **ArgoCD**.
+This directory (`infrastructure/k8s/`) contains the complete Kubernetes
+configuration for StreamVault, organized as a **Kustomize** project with
+**Argo Rollouts**, **Istio**, and **ArgoCD**. All commands below are meant to
+be run from the repository root, so paths are given as `infrastructure/k8s/...`.
 
 ---
 
@@ -24,6 +26,7 @@ k8s/
 │   ├── hpa.yaml                   # HorizontalPodAutoscaler (auto-scaling)
 │   ├── network-policy.yaml        # Zero-trust pod networking rules
 │   ├── pdb.yaml                   # PodDisruptionBudgets (HA during upgrades)
+│   ├── media-scan-cronjob.yaml    # Weekly ClamAV scan of the media PVC (log-only)
 │   └── analysis-templates/
 │       ├── success-rate.yaml      # Prometheus gate: fail if success < 99.5%
 │       └── p95-latency.yaml       # Prometheus gate: fail if P95 > 300ms
@@ -33,7 +36,6 @@ k8s/
 │   │   ├── kustomization.yaml
 │   │   └── patches/
 │   │       ├── replicas.yaml      # 5 replicas (HA)
-│   │       ├── resources.yaml     # Higher CPU/memory limits
 │   │       └── configmap.yaml     # FRONTEND_URL → Vercel URL
 │   └── staging/                   # Staging environment overrides
 │       ├── kustomization.yaml
@@ -183,7 +185,7 @@ Your actual secret values can be found in your **Render backend environment vari
 ## Step 8 — Apply the Namespace First
 
 ```bash
-kubectl apply -f k8s/base/namespace.yaml
+kubectl apply -f infrastructure/k8s/base/namespace.yaml
 ```
 
 ---
@@ -192,8 +194,8 @@ kubectl apply -f k8s/base/namespace.yaml
 
 ```bash
 # Apply both ArgoCD Applications (they will start syncing)
-kubectl apply -f k8s/argocd/application.yaml         # Production
-kubectl apply -f k8s/argocd/staging-application.yaml  # Staging
+kubectl apply -f infrastructure/k8s/argocd/application.yaml         # Production
+kubectl apply -f infrastructure/k8s/argocd/staging-application.yaml  # Staging
 ```
 
 ArgoCD will now watch the `main` branch (production) and `develop` branch (staging)
@@ -233,14 +235,18 @@ Before applying to a real cluster, validate manifests locally:
 
 ```bash
 # Validate production overlay
-kubectl kustomize k8s/overlays/production
+kubectl kustomize infrastructure/k8s/overlays/production
 
 # Validate staging overlay
-kubectl kustomize k8s/overlays/staging
+kubectl kustomize infrastructure/k8s/overlays/staging
 
 # Apply a dry run to a cluster
-kubectl kustomize k8s/overlays/production | kubectl apply --dry-run=client -f -
+kubectl kustomize infrastructure/k8s/overlays/production | kubectl apply --dry-run=client -f -
 ```
+
+This is also enforced automatically: the `k8s-validate` job in
+`.github/workflows/ci.yml` runs both builds on every change under
+`infrastructure/**`, so a broken overlay fails CI instead of shipping silently.
 
 ---
 
@@ -269,6 +275,27 @@ Manually promote or abort:
 ```bash
 kubectl argo rollouts promote streamvault-backend -n streamvault
 kubectl argo rollouts abort streamvault-backend -n streamvault
+```
+
+---
+
+## Media Library Malware Scan
+
+`base/media-scan-cronjob.yaml` runs a weekly ClamAV scan (Wednesday 04:00 UTC)
+against a `media` PVC, read-only. It's log-only for now — there's no live
+cluster to wire alerting into yet, so findings are read from the Job's logs:
+
+```bash
+kubectl logs -n streamvault -l app.kubernetes.io/name=media-scan --tail=200
+```
+
+The `media` PVC (50Gi placeholder — resize once the real library size is
+known) isn't yet mounted by `backend-rollout.yaml`; wire it in read-only
+there once persistent media storage is actually in use.
+
+You can run the same scan locally without a cluster at all:
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml --profile scan run --rm clamav-scan
 ```
 
 ---

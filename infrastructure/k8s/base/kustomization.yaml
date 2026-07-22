@@ -29,6 +29,9 @@ resources:
   - analysis-templates/success-rate.yaml
   - analysis-templates/p95-latency.yaml
 
+  # ── Scheduled Security Jobs ──────────────────────────────────
+  - media-scan-cronjob.yaml
+
 labels:
   - pairs:
       app.kubernetes.io/part-of: streamvault

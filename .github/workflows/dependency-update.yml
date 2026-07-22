@@ -1,9 +1,24 @@
 # StreamVault — Automated Dependency Update Workflow
 #
 # Runs npm-check-updates (ncu) against the frontend and backend package.json
-# files on a weekly schedule, commits any version bumps, and opens a single
-# consolidated PR. This complements Dependabot (which handles lockfiles and
-# Docker images) by aggressively bumping semver ranges in package.json itself.
+# files on a weekly schedule, targeting `latest` — including major version
+# bumps, e.g. a new React major. This complements Dependabot (which handles
+# lockfiles and Docker images via its own PR flow) by aggressively bumping
+# semver ranges in package.json itself.
+#
+# HANDS-OFF BY DESIGN: after bumping, each area's job runs the same
+# type-check/lint/build/test steps its normal CI job runs, using the updated
+# dependencies. Only if that validation passes does this workflow commit
+# directly to `main` and push — no PR, no manual click. If validation fails,
+# or if the direct push is rejected (e.g. branch protection), it falls back
+# to opening a PR instead, so a human reviews what actually broke rather than
+# a broken upgrade landing on `main` unreviewed.
+#
+# This is safe to run unattended because a push to `main` re-triggers the
+# FULL ci.yml pipeline (type-check/lint/build/test/e2e/CodeQL/security scans),
+# and publish-images (what GitOps/ArgoCD deploys from) only runs after
+# status-check succeeds there too. A bad auto-push can reach `main`, but it
+# can't reach production undetected.
 #
 # Schedule: Every Tuesday at 03:00 UTC (one day after Dependabot's Monday sweep,
 #           so both sets of PRs don't pile up on the same day).
@@ -11,7 +26,8 @@
 # Manual trigger: workflow_dispatch (run it any time from the Actions tab).
 #
 # Required secret / permission:
-#   - GITHUB_TOKEN (built-in) — used to create the PR via gh CLI.
+#   - GITHUB_TOKEN (built-in) — used to push directly and, on fallback, to
+#     open a PR via gh CLI.
 #   - The workflow needs `contents: write` + `pull-requests: write`.
 
 name: Dependency Update
@@ -22,7 +38,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Which packages to upgrade"
+        description: "Which packages to upgrade (always targets latest, including majors)"
         required: false
         default: "all"
         type: choice
@@ -30,7 +46,6 @@ on:
           - all
           - frontend
           - backend
-          - major   # major bumps only (use with caution!)
 
 concurrency:
   group: dependency-update
@@ -49,19 +64,22 @@ jobs:
   #  UPDATE FRONTEND DEPS (root package.json)
   # ──────────────────────────────────────────────────────────────
   update-frontend:
-    name: "Bump Frontend Dependencies"
+    name: "Bump & Validate Frontend Dependencies"
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' && (
         inputs.target == 'all' ||
-        inputs.target == 'frontend' ||
-        inputs.target == 'major'
+        inputs.target == 'frontend'
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      VITE_MOCK_AUTH: "true"
+      VITE_API_URL: "http://localhost:4173"
     outputs:
       changed: ${{ steps.ncu.outputs.changed }}
       summary: ${{ steps.ncu.outputs.summary }}
+      validated: ${{ steps.validate.outputs.validated }}
 
     steps:
       - name: Harden the runner
@@ -73,7 +91,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          # Use a PAT or GITHUB_TOKEN — PAT preferred so the resulting PR
+          # Use a PAT or GITHUB_TOKEN — PAT preferred so a fallback PR
           # triggers CI. With GITHUB_TOKEN, GitHub blocks re-triggering to
           # prevent recursive workflows. If you have a bot PAT, set it here:
           #   token: ${{ secrets.DEPS_BOT_PAT }}
@@ -88,21 +106,15 @@ jobs:
       - name: Install npm-check-updates
         run: npm install -g npm-check-updates@latest --no-fund --no-audit
 
-      - name: Run ncu — frontend (minor + patch by default)
+      - name: Run ncu — frontend (target latest, majors included)
         id: ncu
         run: |
-          # Determine upgrade target
-          UPGRADE_TYPE="minor"
-          if [ "${{ inputs.target }}" = "major" ]; then
-            UPGRADE_TYPE="latest"
-          fi
-
-          echo "Running ncu with target=${UPGRADE_TYPE} on root package.json"
+          echo "Running ncu with target=latest on root package.json"
 
           # Run ncu and capture output; --jsonUpgraded prints a JSON diff
           UPGRADED=$(ncu \
             --upgrade \
-            --target "${UPGRADE_TYPE}" \
+            --target latest \
             --jsonUpgraded \
             --reject "caniuse-lite" \
             2>/dev/null || echo "{}")
@@ -125,6 +137,50 @@ jobs:
         if: steps.ncu.outputs.changed == 'true'
         run: npm install --legacy-peer-deps --no-audit
 
+      # ── Validation gate — same checks frontend-ci runs, against the
+      #    upgraded dependencies. continue-on-error so every check runs and
+      #    reports, instead of the job aborting after the first failure.
+      - name: Validate — type-check
+        id: typecheck
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        run: npx tsc --noEmit
+
+      - name: Validate — lint
+        id: lint
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Validate — build
+        id: build
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        run: npm run build
+
+      - name: Validate — test
+        id: test
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        run: npm run test --if-present
+
+      - name: Determine validation result
+        id: validate
+        run: |
+          if [ "${{ steps.ncu.outputs.changed }}" != "true" ]; then
+            echo "validated=true" >> "$GITHUB_OUTPUT" # nothing changed — vacuously fine
+            exit 0
+          fi
+          if [ "${{ steps.typecheck.outcome }}" = "success" ] && \
+             [ "${{ steps.lint.outcome }}" = "success" ] && \
+             [ "${{ steps.build.outcome }}" = "success" ] && \
+             [ "${{ steps.test.outcome }}" = "success" ]; then
+            echo "validated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Dependency Update::Frontend validation failed (type-check=${{ steps.typecheck.outcome }}, lint=${{ steps.lint.outcome }}, build=${{ steps.build.outcome }}, test=${{ steps.test.outcome }}) — will open a PR instead of pushing to main."
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload updated frontend manifests
         if: steps.ncu.outputs.changed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -139,19 +195,19 @@ jobs:
   #  UPDATE BACKEND DEPS (backend/package.json)
   # ──────────────────────────────────────────────────────────────
   update-backend:
-    name: "Bump Backend Dependencies"
+    name: "Bump & Validate Backend Dependencies"
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' && (
         inputs.target == 'all' ||
-        inputs.target == 'backend' ||
-        inputs.target == 'major'
+        inputs.target == 'backend'
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     outputs:
       changed: ${{ steps.ncu.outputs.changed }}
       summary: ${{ steps.ncu.outputs.summary }}
+      validated: ${{ steps.validate.outputs.validated }}
 
     steps:
       - name: Harden the runner
@@ -178,20 +234,15 @@ jobs:
       - name: Install npm-check-updates
         run: npm install -g npm-check-updates@latest --no-fund --no-audit
 
-      - name: Run ncu — backend (minor + patch by default)
+      - name: Run ncu — backend (target latest, majors included)
         id: ncu
         working-directory: ./backend
         run: |
-          UPGRADE_TYPE="minor"
-          if [ "${{ inputs.target }}" = "major" ]; then
-            UPGRADE_TYPE="latest"
-          fi
-
-          echo "Running ncu with target=${UPGRADE_TYPE} on backend/package.json"
+          echo "Running ncu with target=latest on backend/package.json"
 
           UPGRADED=$(ncu \
             --upgrade \
-            --target "${UPGRADE_TYPE}" \
+            --target latest \
             --jsonUpgraded \
             2>/dev/null || echo "{}")
 
@@ -213,6 +264,53 @@ jobs:
         working-directory: ./backend
         run: bun install
 
+      # ── Validation gate — same checks backend-ci runs, against the
+      #    upgraded dependencies.
+      - name: Validate — type-check
+        id: typecheck
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        working-directory: ./backend
+        run: bunx tsc --noEmit
+
+      - name: Validate — lint
+        id: lint
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        working-directory: ./backend
+        run: bun run lint
+
+      - name: Validate — build
+        id: build
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        working-directory: ./backend
+        run: bun run build
+
+      - name: Validate — test
+        id: test
+        if: steps.ncu.outputs.changed == 'true'
+        continue-on-error: true
+        working-directory: ./backend
+        run: bun run test
+
+      - name: Determine validation result
+        id: validate
+        run: |
+          if [ "${{ steps.ncu.outputs.changed }}" != "true" ]; then
+            echo "validated=true" >> "$GITHUB_OUTPUT" # nothing changed — vacuously fine
+            exit 0
+          fi
+          if [ "${{ steps.typecheck.outcome }}" = "success" ] && \
+             [ "${{ steps.lint.outcome }}" = "success" ] && \
+             [ "${{ steps.build.outcome }}" = "success" ] && \
+             [ "${{ steps.test.outcome }}" = "success" ]; then
+            echo "validated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Dependency Update::Backend validation failed (type-check=${{ steps.typecheck.outcome }}, lint=${{ steps.lint.outcome }}, build=${{ steps.build.outcome }}, test=${{ steps.test.outcome }}) — will open a PR instead of pushing to main."
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload updated backend manifests
         if: steps.ncu.outputs.changed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -225,10 +323,10 @@ jobs:
           retention-days: 1
 
   # ──────────────────────────────────────────────────────────────
-  #  OPEN CONSOLIDATED PR  (only if something actually changed)
+  #  LAND CHANGES — direct push to main when validated, PR fallback otherwise
   # ──────────────────────────────────────────────────────────────
-  open-pr:
-    name: "Open Dependency Update PR"
+  land-changes:
+    name: "Land Dependency Changes"
     needs: [update-frontend, update-backend]
     # Run only if at least one of the jobs produced changes
     if: >-
@@ -275,17 +373,16 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create branch and commit changes
-        id: branch
+      - name: Stage, commit, and push (direct, with PR fallback)
+        id: stage
         env:
           FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
-          BACKEND_CHANGED:  ${{ needs.update-backend.outputs.changed }}
+          BACKEND_CHANGED: ${{ needs.update-backend.outputs.changed }}
+          FRONTEND_VALIDATED: ${{ needs.update-frontend.outputs.validated }}
+          BACKEND_VALIDATED: ${{ needs.update-backend.outputs.validated }}
+          FRONTEND_SUMMARY: ${{ needs.update-frontend.outputs.summary }}
+          BACKEND_SUMMARY: ${{ needs.update-backend.outputs.summary }}
         run: |
-          BRANCH="chore/dep-update-$(date +'%Y-%m-%d')"
-          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
-
-          git checkout -b "${BRANCH}"
-
           # Stage changed manifests only
           if [ "$FRONTEND_CHANGED" = "true" ]; then
             git add package.json package-lock.json || true
@@ -294,39 +391,69 @@ jobs:
             git add backend/package.json backend/bun.lock backend/package-lock.json || true
           fi
 
-          # Only commit if there's something staged
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(deps): automated weekly dependency update $(date +'%Y-%m-%d')
-
-          $([ '$FRONTEND_CHANGED' = 'true' ] && echo '${{ needs.update-frontend.outputs.summary }}')
-          $([ '$BACKEND_CHANGED'  = 'true' ] && echo '${{ needs.update-backend.outputs.summary }}')
-
-          Automated by: .github/workflows/dependency-update.yml"
-            git push origin "${BRANCH}"
-            echo "committed=true" >> "$GITHUB_OUTPUT"
-          else
+          if git diff --cached --quiet; then
             echo "Nothing to commit — manifests unchanged after restore."
             echo "committed=false" >> "$GITHUB_OUTPUT"
+            echo "mode=none" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-      - name: Open Pull Request
-        if: steps.branch.outputs.committed == 'true'
+          VALIDATED=true
+          if [ "$FRONTEND_CHANGED" = "true" ] && [ "$FRONTEND_VALIDATED" != "true" ]; then VALIDATED=false; fi
+          if [ "$BACKEND_CHANGED" = "true" ] && [ "$BACKEND_VALIDATED" != "true" ]; then VALIDATED=false; fi
+
+          git commit -m "chore(deps): automated dependency update $(date +'%Y-%m-%d')
+
+          $([ "$FRONTEND_CHANGED" = "true" ] && echo "$FRONTEND_SUMMARY")
+          $([ "$BACKEND_CHANGED" = "true" ] && echo "$BACKEND_SUMMARY")
+
+          Automated by: .github/workflows/dependency-update.yml"
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+          if [ "$VALIDATED" = "true" ]; then
+            echo "In-job validation passed — pushing directly to main."
+            if git push origin main; then
+              echo "mode=direct_push" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::warning title=Dependency Update::Direct push to main was rejected (branch protection?) — opening a PR with the same commit instead."
+            REASON="push_rejected"
+          else
+            REASON="validation_failed"
+          fi
+          echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
+
+          BRANCH="chore/dep-update-$(date +'%Y-%m-%d-%H%M')"
+          git checkout -b "${BRANCH}"
+          git push origin "${BRANCH}"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "mode=pr_needed" >> "$GITHUB_OUTPUT"
+
+      - name: Open Pull Request (fallback only)
+        if: steps.stage.outputs.mode == 'pr_needed'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.branch.outputs.branch }}
+          BRANCH: ${{ steps.stage.outputs.branch }}
+          REASON: ${{ steps.stage.outputs.reason }}
           FRONTEND_SUMMARY: ${{ needs.update-frontend.outputs.summary }}
-          BACKEND_SUMMARY:  ${{ needs.update-backend.outputs.summary }}
+          BACKEND_SUMMARY: ${{ needs.update-backend.outputs.summary }}
           FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
-          BACKEND_CHANGED:  ${{ needs.update-backend.outputs.changed }}
+          BACKEND_CHANGED: ${{ needs.update-backend.outputs.changed }}
         run: |
           DATE=$(date +'%Y-%m-%d')
 
-          # Build a readable body
+          if [ "$REASON" = "validation_failed" ]; then
+            REASON_LINE="⚠️ **Why this is a PR, not a direct push:** the in-job validation (type-check/lint/build/test) failed against the upgraded dependencies. Review before merging."
+          else
+            REASON_LINE="⚠️ **Why this is a PR, not a direct push:** validation passed, but pushing directly to \`main\` was rejected (branch protection or similar). Merge normally once reviewed."
+          fi
+
           BODY="## Automated Dependency Update — ${DATE}
 
           This PR was opened automatically by the \`dependency-update\` workflow.
-          All version bumps are **minor or patch** by default (no breaking major changes).
-          CI must pass before merging.
+          Targets are bumped to **latest**, including majors.
+
+          ${REASON_LINE}
 
           ### Changes
           "
@@ -364,7 +491,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   report:
     name: "Update Summary"
-    needs: [update-frontend, update-backend, open-pr]
+    needs: [update-frontend, update-backend, land-changes]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -373,21 +500,23 @@ jobs:
         env:
           FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
           FRONTEND_SUMMARY: ${{ needs.update-frontend.outputs.summary }}
-          BACKEND_CHANGED:  ${{ needs.update-backend.outputs.changed }}
-          BACKEND_SUMMARY:  ${{ needs.update-backend.outputs.summary }}
-          PR_RESULT:        ${{ needs.open-pr.result }}
+          FRONTEND_VALIDATED: ${{ needs.update-frontend.outputs.validated }}
+          BACKEND_CHANGED: ${{ needs.update-backend.outputs.changed }}
+          BACKEND_SUMMARY: ${{ needs.update-backend.outputs.summary }}
+          BACKEND_VALIDATED: ${{ needs.update-backend.outputs.validated }}
+          LAND_RESULT: ${{ needs.land-changes.result }}
         run: |
           echo "## StreamVault Dependency Update Report"
           echo ""
-          echo "| Area     | Changed | Summary |"
-          echo "|----------|---------|---------|"
-          echo "| Frontend | ${FRONTEND_CHANGED:-false} | ${FRONTEND_SUMMARY:-no changes} |"
-          echo "| Backend  | ${BACKEND_CHANGED:-false}  | ${BACKEND_SUMMARY:-no changes}  |"
+          echo "| Area     | Changed | Validated | Summary |"
+          echo "|----------|---------|-----------|---------|"
+          echo "| Frontend | ${FRONTEND_CHANGED:-false} | ${FRONTEND_VALIDATED:-n/a} | ${FRONTEND_SUMMARY:-no changes} |"
+          echo "| Backend  | ${BACKEND_CHANGED:-false}  | ${BACKEND_VALIDATED:-n/a}  | ${BACKEND_SUMMARY:-no changes}  |"
           echo ""
-          if [ "$PR_RESULT" = "success" ]; then
-            echo "✅ PR opened — check the Pull Requests tab."
-          elif [ "$PR_RESULT" = "skipped" ]; then
+          if [ "$LAND_RESULT" = "success" ]; then
+            echo "✅ Changes landed — check main's history or the Pull Requests tab."
+          elif [ "$LAND_RESULT" = "skipped" ]; then
             echo "✅ No packages to upgrade this week — all up to date."
           else
-            echo "⚠️  PR job result: ${PR_RESULT}"
+            echo "⚠️  land-changes job result: ${LAND_RESULT}"
           fi

@@ -1,0 +1,104 @@
+# StreamVault — Monthly Security & Health Digest
+# The individual scheduled workflows (secret-scan sweep, code health, Scorecard,
+# image rescan, malware scan, dependency updates) are only visible one at a
+# time in the Actions tab. This rolls their latest scheduled-run outcome into
+# a single monthly issue — one place to see overall posture instead of
+# checking five workflows individually.
+
+name: "Monthly Digest"
+
+on:
+  schedule:
+    - cron: "0 6 1 * *" # 1st of each month, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  digest:
+    name: "Build Monthly Digest"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false # zizmor hardening
+
+      - name: Gather latest scheduled runs
+        id: gather
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          row() {
+            local label="$1" workflow="$2"
+            local json
+            json=$(gh run list --workflow="$workflow" --event schedule --limit 1 \
+                     --json conclusion,url,createdAt 2>/dev/null || echo "[]")
+            local conclusion url created
+            conclusion=$(echo "$json" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(d[0]?.conclusion || 'no run yet')")
+            url=$(echo "$json" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(d[0]?.url || '')")
+            created=$(echo "$json" | node -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(d[0]?.createdAt || '')")
+            local icon="❓"
+            case "$conclusion" in
+              success) icon="✅" ;;
+              failure) icon="❌" ;;
+              cancelled|skipped) icon="⏭️" ;;
+            esac
+            if [ -n "$url" ]; then
+              echo "| ${label} | ${icon} ${conclusion} | ${created} | [view run](${url}) |" >> digest_rows.md
+            else
+              echo "| ${label} | ${icon} ${conclusion} | — | — |" >> digest_rows.md
+            fi
+          }
+
+          : > digest_rows.md
+          row "Secret Scan Sweep"        "ci.yml"
+          row "Code Health"              "code-health.yml"
+          row "OpenSSF Scorecard"        "scorecard.yml"
+          row "Scheduled Image Rescan"   "image-rescan.yml"
+          row "Malware Scan"             "malware-scan.yml"
+          row "Dependency Update"        "dependency-update.yml"
+
+          echo "Rows:"
+          cat digest_rows.md
+
+      - name: Build and file the digest issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MONTH=$(date +'%B %Y')
+          TITLE="Monthly Security & Health Digest — ${MONTH}"
+
+          BODY="## StreamVault Monthly Digest — ${MONTH}
+
+          Latest **scheduled** run of each recurring workflow:
+
+          | Check | Status | Last Run | Link |
+          |-------|--------|----------|------|
+          $(cat digest_rows.md)
+
+          ---
+          _Generated automatically by \`.github/workflows/monthly-digest.yml\`._"
+
+          # One issue per month: if this month's issue already exists (e.g. a
+          # manual re-run via workflow_dispatch), comment on it instead of
+          # opening a duplicate.
+          EXISTING=$(gh issue list --search "in:title \"${TITLE}\"" --state all --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #${EXISTING} already exists for ${MONTH} — adding an update comment."
+            gh issue comment "$EXISTING" --body "$BODY"
+          elif ! gh issue create --title "$TITLE" --body "$BODY" --label "automated,digest" 2>/tmp/gh_err.log; then
+            echo "Could not create with labels (they may not exist in this repo) — retrying without labels."
+            cat /tmp/gh_err.log
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi

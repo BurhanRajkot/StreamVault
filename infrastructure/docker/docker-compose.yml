@@ -97,6 +97,20 @@ services:
       - streamvault-network
     restart: unless-stopped
 
+  # Malware scan of the media library — not part of the normal `docker compose up`.
+  # Run on demand: docker compose --profile scan run --rm clamav-scan
+  # This is the local-dev equivalent of infrastructure/k8s/base/media-scan-cronjob.yaml,
+  # which runs the same scan on a weekly schedule once a cluster exists.
+  clamav-scan:
+    image: clamav/clamav:1.4
+    profiles: ["scan"]
+    volumes:
+      - ../../media:/media:ro
+    command: >
+      sh -c "freshclam --quiet && clamscan --recursive --infected /media"
+    networks:
+      - streamvault-network
+
   edge-cache:
     image: nginx:1.27-alpine
     container_name: streamvault_edge_cache

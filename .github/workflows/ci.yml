@@ -10,11 +10,15 @@
 #     multi-commit push would slip past. (Range vars passed via env: to stay
 #     zizmor-clean — no ${{ github.event.* }} interpolated into run blocks.)
 #   - Harden-Runner now sets disable-sudo on every job that doesn't need root
-#     (everything except the Playwright apt install, Docker build, and deploys).
-#   - Deploy jobs get their own concurrency group with cancel-in-progress:false
-#     so a newer push can't cancel an in-flight production rollout mid-apply.
-#   - deploy-production carries an explicit push+main guard (defence in depth;
-#     it already inherits the gate transitively via deploy-canary).
+#     (everything except the Playwright apt install and Docker build).
+#   - Removed the deploy-canary/deploy-production jobs: they were echo-only
+#     placeholders referencing k8s/canary and k8s/production paths that never
+#     existed. Real deployment is GitOps — gitops-deploy.yml updates the
+#     Kustomize image tag after publish-images succeeds, and ArgoCD syncs it.
+#   - Added k8s-validate: builds both Kustomize overlays on any infra change,
+#     so a broken manifest path fails CI instead of shipping silently (this
+#     is exactly the check that would have caught the post-restructure path
+#     bug in gitops-deploy.yml immediately).
 #
 # Unchanged and deliberately kept: Harden-Runner everywhere, SHA pins, the
 # secret-scan status-gate fix, Trivy pre-push image scans, provenance + SBOM.
@@ -93,9 +97,40 @@ jobs:
               - "infrastructure/docker/docker-compose*.yml"
               - "infrastructure/docker/.dockerignore"
             infra:
-              - "infra/**"
               - "infrastructure/**"
               - ".github/workflows/**"
+
+  # ──────────────────────────────────────────────────────────────
+  #  K8S MANIFEST VALIDATION — build both Kustomize overlays and fail if
+  #  either doesn't resolve. Catches broken paths/refs (e.g. a folder
+  #  restructure that moves k8s/ under infrastructure/ without updating every
+  #  reference to it) before they ship instead of silently breaking GitOps.
+  # ──────────────────────────────────────────────────────────────
+
+  k8s-validate:
+    name: "K8s — Validate Kustomize Overlays"
+    needs: [change-detection]
+    if: needs.change-detection.outputs.infra == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false # zizmor hardening
+
+      - name: Build production overlay
+        run: kubectl kustomize infrastructure/k8s/overlays/production > /dev/null
+
+      - name: Build staging overlay
+        run: kubectl kustomize infrastructure/k8s/overlays/staging > /dev/null
 
   # ──────────────────────────────────────────────────────────────
   #  WORKFLOW LINT (zizmor) — static analysis of the workflows themselves
@@ -247,6 +282,13 @@ jobs:
 
       - name: Frontend — npm audit (HIGH advisory)
         run: npm audit --omit=dev --audit-level=high || echo "::warning title=npm audit::HIGH severity vulnerabilities found — review before next release."
+        continue-on-error: true
+
+      - name: Frontend — verify registry signatures
+        # Different failure mode than the CVE audits above: this catches a
+        # tampered/hijacked package (bad signature) even when no known CVE
+        # exists for it yet. Advisory — not every package on npm is signed.
+        run: npm audit signatures || echo "::warning title=npm audit signatures::One or more packages failed registry signature verification — review before next release."
         continue-on-error: true
 
       - name: Setup Bun ${{ env.BUN_VERSION }}
@@ -663,6 +705,7 @@ jobs:
         e2e-audit,
         npm-audit,
         osv-scan,
+        k8s-validate,
       ]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
@@ -679,6 +722,7 @@ jobs:
             [e2e-audit]="${{ needs.e2e-audit.result }}"
             [npm-audit]="${{ needs.npm-audit.result }}"
             [osv-scan]="${{ needs.osv-scan.result }}"
+            [k8s-validate]="${{ needs.k8s-validate.result }}"
           )
 
           printf "%-18s %s\n" "Job" "Result"
@@ -892,93 +936,8 @@ jobs:
           subject-digest: ${{ steps.build_backend.outputs.digest }}
           push-to-registry: true
 
-  # ──────────────────────────────────────────────────────────────
-  #  DEPLOYMENT  (main branch pushes only)
-  #
-  #  Deploy jobs use their OWN concurrency group with cancel-in-progress:false,
-  #  so the workflow-level cancel-in-progress:true (good for CI) can never abort
-  #  an in-flight rollout part-way through a kubectl apply.
-  # ──────────────────────────────────────────────────────────────
-
-  deploy-canary:
-    name: "Deploy — Canary (5%)"
-    needs: [publish-images]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: streamvault-deploy
-      cancel-in-progress: false
-    environment:
-      name: production-canary
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false # zizmor hardening
-
-      # - name: Authenticate to Google Cloud
-      #   uses: google-github-actions/auth@v3
-      #   with:
-      #     workload_identity_provider: projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER
-      #     service_account: streamvault-deployer@PROJECT_ID.iam.gserviceaccount.com
-
-      - name: Deploy canary release
-        run: |
-          # kubectl apply -f k8s/canary/
-          echo "Canary deploy — replace with real commands."
-
-      - name: Health-check canary
-        run: |
-          # kubectl rollout status deployment/streamvault-canary --timeout=5m
-          echo "Health check — replace with real commands."
-
-  deploy-production:
-    name: "Deploy — Production (100%)"
-    needs: [deploy-canary]
-    # Explicit guard (defence in depth — already inherited via deploy-canary).
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    concurrency:
-      group: streamvault-deploy
-      cancel-in-progress: false
-    environment:
-      name: production
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false # zizmor hardening
-
-      - name: Promote canary to production
-        run: |
-          # kubectl apply -f k8s/production/
-          echo "Production promotion — replace with real commands."
-
-      - name: Verify rollout
-        run: |
-          # kubectl rollout status deployment/streamvault --timeout=10m
-          echo "Rollout verification — replace with real commands."
-
-      - name: Rollback on failure
-        if: failure()
-        run: |
-          # kubectl rollout undo deployment/streamvault
-          echo "Rollback — replace with real commands."
+  # Deployment beyond this point is GitOps, not a CI job: gitops-deploy.yml
+  # (triggered by this workflow completing) bumps the image tag in
+  # infrastructure/k8s/overlays/production/kustomization.yaml, and ArgoCD
+  # (once a cluster is registered — see infrastructure/k8s/README.md) syncs
+  # and runs the canary progression defined in infrastructure/k8s/base/*-rollout.yaml.

@@ -1,0 +1,77 @@
+# Media Library Malware Scan — CronJob
+# Weekly ClamAV signature scan of the raw media library (the same volume the
+# backend mounts read-only for transcoding — see infrastructure/docker/docker-compose.yml).
+# Log-only for now: there's no live cluster to wire alerting into yet, so
+# results are inspected via `kubectl logs -n streamvault -l app.kubernetes.io/name=media-scan`.
+# When the backend Rollout is wired to use persistent media storage, it
+# should mount this same `media` PVC read-only.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media
+  labels:
+    app.kubernetes.io/name: media-scan
+    app.kubernetes.io/component: storage
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      # Placeholder size — resize once real media library capacity is known.
+      storage: 50Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: media-scan
+  labels:
+    app.kubernetes.io/name: media-scan
+    app.kubernetes.io/component: security
+spec:
+  schedule: "0 4 * * 3" # Weekly — Wednesday 04:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200 # 2h ceiling — large libraries can take a while
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: media-scan
+            app.kubernetes.io/component: security
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: clamav-scan
+              image: clamav/clamav:1.4
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "Updating virus definitions..."
+                  freshclam --quiet
+                  echo "Scanning /media..."
+                  clamscan --recursive --infected --log=/tmp/clamscan-report.txt /media || SCAN_CODE=$?
+                  echo "clamscan exit code: ${SCAN_CODE:-0} (0=clean, 1=infected found, 2=error)"
+                  cat /tmp/clamscan-report.txt || true
+                  # Log-only: don't fail the Job on findings yet (no alerting
+                  # wired up to a live cluster). Revisit once one exists.
+                  exit 0
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              volumeMounts:
+                - name: media
+                  mountPath: /media
+                  readOnly: true
+          volumes:
+            - name: media
+              persistentVolumeClaim:
+                claimName: media
+                readOnly: true
