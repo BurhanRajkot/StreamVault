@@ -5,7 +5,7 @@ import { getImageUrl } from '@/lib/api'
 import { Search, Download, Crown, ShieldCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
-import AdminLoginModal from '@/components/AdminLoginModal'
+import AdminLoginModal from '@/components/modals/AdminLoginModal'
 import { PageMeta } from '@/seo/PageMeta'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'

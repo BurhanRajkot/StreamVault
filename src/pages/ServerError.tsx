@@ -1,5 +1,5 @@
 
-import ErrorLayout from "@/components/ErrorLayout";
+import ErrorLayout from "@/components/layout/ErrorLayout";
 import { PageMeta } from "@/seo/PageMeta";
 
 const ServerError = () => {

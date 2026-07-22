@@ -3,7 +3,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Media, MediaMode } from '@/lib/config'
 import { fetchRecentlyAdded } from '@/lib/api'
 import { OTT_PROVIDERS } from '@/lib/ottProviders'
-import { MediaCard, MediaCardSkeleton } from '@/components/MediaCard'
+import { MediaCard, MediaCardSkeleton } from '@/components/media/MediaCard'
 
 interface RecentlyAddedSectionProps {
   mode: MediaMode

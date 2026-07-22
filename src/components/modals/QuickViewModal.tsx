@@ -4,7 +4,7 @@ import { X, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Media, CONFIG } from '@/lib/config'
 import { getImageUrl, fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { HoverVideoPlayer } from './HoverVideoPlayer'
+import { HoverVideoPlayer } from '@/components/media/HoverVideoPlayer'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useDislikes } from '@/context/DislikesContext'
 

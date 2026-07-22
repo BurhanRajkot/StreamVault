@@ -3,7 +3,7 @@ import { PageMeta } from '@/seo/PageMeta'
 import { Check, Sparkles, Zap, Loader2, Crown, QrCode } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Footer } from '@/components/Footer'
+import { Footer } from '@/components/layout/Footer'
 import { useToast } from '@/hooks/use-toast'
 import {
   Dialog,

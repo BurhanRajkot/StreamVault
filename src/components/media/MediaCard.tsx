@@ -8,7 +8,7 @@ import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useIsMobile } from '@/mobile-ui/use-mobile'
 
-import { QuickViewModal } from './QuickViewModal'
+import { QuickViewModal } from '@/components/modals/QuickViewModal'
 
 interface MediaCardProps {
   media: Media

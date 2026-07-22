@@ -152,15 +152,12 @@ export async function seedTrieBackground() {
     }
   }
 
-  const results = await mapConcurrent(tasks, 5, async ({ ep, page }) => {
+  const results = await mapConcurrent(tasks, 2, async ({ ep, page }) => {
     const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
     try {
       const res = await fetch(url, {
         headers: {
-          'accept': 'application/json',
-          // Disable gzip: Bun's fetch() does not auto-decompress, so raw bytes
-          // would corrupt the body and cause JSON.parse to throw.
-          'accept-encoding': 'identity',
+          'accept': 'application/json'
         }
       })
       if (!res.ok) return { ep, items: [] }

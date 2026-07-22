@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Media } from '@/lib/config'
 import { Play, MoreVertical, Trash2 } from 'lucide-react'
-import { QuickViewModal } from './QuickViewModal'
+import { QuickViewModal } from '@/components/modals/QuickViewModal'
 import { cn } from '@/lib/utils'
 import { ContinueWatchingItem, getImageUrl } from '@/lib/api'
 
