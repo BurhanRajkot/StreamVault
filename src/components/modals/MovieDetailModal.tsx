@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Play, Clock, Calendar, ChevronLeft, Share2, Heart, ThumbsUp, ThumbsDown, Server, SkipForward, SkipBack, Check } from 'lucide-react'
+import { Play, Clock, Calendar, ChevronLeft, Share2, Heart, ThumbsUp, ThumbsDown, Server, SkipForward, SkipBack, Check, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { CircularRating } from '@/components/media/CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
-import { fetchMediaDetails, getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
+import { getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFavorites } from '@/context/FavoritesContext'
@@ -44,7 +44,9 @@ export function MovieDetailModal({
   autoPlay
 }: MovieDetailModalProps) {
   const [media, setMedia] = useState<Media>(initialMedia)
-  const [isLoading, setIsLoading] = useState(true)
+  // `initialMedia` already comes from Watch.tsx's fetchMediaDetails() call
+  // (same append_to_response fields), so there's nothing left to fetch here.
+  const [isLoading] = useState(false)
 
   const [season, setSeason] = useState(initialSeason || 1)
   const [episode, setEpisode] = useState(initialEpisode || 1)
@@ -62,6 +64,10 @@ export function MovieDetailModal({
   const [server, setServer] = useState(() => {
     return initialServer || 'vidfast_pro'
   })
+  const [iframeLoaded, setIframeLoaded] = useState(false)
+  const [showStallPrompt, setShowStallPrompt] = useState(false)
+  const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const serverSelectTriggerRef = useRef<HTMLButtonElement>(null)
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const queryClient = useQueryClient()
@@ -149,6 +155,16 @@ export function MovieDetailModal({
       const url = buildEmbedUrl(mode, server, media.id, { season, episode, media })
       setEmbedUrl(url)
 
+      // Reset the loading/stall UI for the new server or episode, and start
+      // a fresh stall timer — cross-origin iframes never report load errors,
+      // so a timeout is the only signal we have that a provider is slow/dead.
+      setIframeLoaded(false)
+      setShowStallPrompt(false)
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
+      stallTimerRef.current = setTimeout(() => {
+        setShowStallPrompt(true)
+      }, 7_000)
+
       // Log the watch event once when playback starts
       if (!hasLoggedWatch.current) {
         hasLoggedWatch.current = true
@@ -187,6 +203,10 @@ export function MovieDetailModal({
 
         logWatch()
       }
+    }
+
+    return () => {
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
     }
   }, [isPlaying, server, media, mode, season, episode, isAuthenticated, getAccessTokenSilently, typedMode, queryClient])
 
@@ -264,18 +284,13 @@ export function MovieDetailModal({
     if (currentSeason) setCurrentSeasonEpisodes(currentSeason.episode_count)
   }, [season, seasons])
 
+  // Keep `media` in sync with the `initialMedia` prop when navigating directly
+  // between two titles (React Router keeps this component instance mounted
+  // across /watch/:mediaType/:idAndSlug param changes — no fetch needed here,
+  // Watch.tsx already owns fetching full details via fetchMediaDetails()).
   useEffect(() => {
-    let isMounted = true
-    setIsLoading(true)
-    fetchMediaDetails(mode, initialMedia.id).then(details => {
-      if (isMounted && details) setMedia(prev => ({ ...prev, ...details }))
-      setIsLoading(false)
-    }).catch(err => {
-      console.error(err)
-      setIsLoading(false)
-    })
-    return () => { isMounted = false }
-  }, [initialMedia.id, mode])
+    setMedia(initialMedia)
+  }, [initialMedia])
 
   const title = media.title || media.name || 'Unknown'
   const subtitle = media.tagline || ''
@@ -798,14 +813,37 @@ export function MovieDetailModal({
                       </button>
                     )}
                     {embedUrl ? (
-                      <iframe
-                        ref={iframeRef}
-                        src={embedUrl}
-                        className="w-full h-full"
-                        referrerPolicy="origin"
-                        allow="accelerometer *; autoplay *; clipboard-write *; encrypted-media *; gyroscope *; picture-in-picture *; fullscreen *; web-share *"
-                        allowFullScreen
-                      />
+                      <>
+                        <iframe
+                          ref={iframeRef}
+                          src={embedUrl}
+                          className="w-full h-full"
+                          referrerPolicy="origin"
+                          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                          allowFullScreen
+                          onLoad={() => {
+                            setIframeLoaded(true)
+                            setShowStallPrompt(false)
+                            if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
+                          }}
+                        />
+                        {!iframeLoaded && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black pointer-events-none">
+                            <Loader2 className="w-10 h-10 text-white/30 animate-spin" />
+                          </div>
+                        )}
+                        {showStallPrompt && !iframeLoaded && (
+                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 rounded-full bg-black/80 backdrop-blur-md border border-white/10 px-4 py-2.5 text-sm text-white/80 shadow-2xl">
+                            <span>This server is taking a while…</span>
+                            <button
+                              onClick={() => serverSelectTriggerRef.current?.click()}
+                              className="font-semibold text-primary hover:text-primary/80 transition-colors"
+                            >
+                              Try another server
+                            </button>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <Play className="w-24 h-24 text-white/10" />
@@ -860,7 +898,7 @@ export function MovieDetailModal({
                           <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Streaming Server</span>
                         </div>
                         <Select value={server} onValueChange={setServer}>
-                          <SelectTrigger className="w-full lg:w-64 bg-black/40 backdrop-blur-md border-white/5 text-white h-12 rounded-xl text-base font-medium hover:bg-white/10 transition-colors">
+                          <SelectTrigger ref={serverSelectTriggerRef} className="w-full lg:w-64 bg-black/40 backdrop-blur-md border-white/5 text-white h-12 rounded-xl text-base font-medium hover:bg-white/10 transition-colors">
                             <SelectValue placeholder="Select Server" />
                           </SelectTrigger>
                           <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl">
