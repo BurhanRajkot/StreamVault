@@ -7,7 +7,7 @@ import {
 } from '@/Data/authorsChoice'
 import { fetchMediaDetails } from '@/lib/api'
 import { Media } from '@/lib/config'
-import { MediaCard, MediaCardSkeleton } from '@/components/MediaCard'
+import { MediaCard, MediaCardSkeleton } from '@/components/media/MediaCard'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Props {

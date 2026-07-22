@@ -6,10 +6,10 @@ import { HelmetProvider } from 'react-helmet-async'
 import { Routes, Route, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
-import ErrorBoundary from './components/ErrorBoundary'
+import ErrorBoundary from './components/layout/ErrorBoundary'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { DislikesProvider } from './context/DislikesContext'
-import { SmoothScrollProvider } from './components/SmoothScrollProvider'
+import { SmoothScrollProvider } from './components/layout/SmoothScrollProvider'
 
 // Helper to handle dynamic import failures (e.g. chunk 404s after new deployment)
 const lazyImport = (fn: () => Promise<any>) => lazy(() => 

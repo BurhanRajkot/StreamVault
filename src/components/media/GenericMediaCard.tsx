@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { QuickViewModal } from './QuickViewModal'
+import { QuickViewModal } from '@/components/modals/QuickViewModal'
 import { cn } from '@/lib/utils'
 import { getImageUrl, getImageSrcSet } from '@/lib/api'
 

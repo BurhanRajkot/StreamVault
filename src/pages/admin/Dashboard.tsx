@@ -3,7 +3,7 @@ import { PageMeta } from '@/seo/PageMeta'
 import { Check, X, Loader2, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Footer } from '@/components/Footer'
+import { Footer } from '@/components/layout/Footer'
 import { toast } from 'sonner'
 import {
   Table,
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { getAdminToken, isAdminAuthenticated } from '@/lib/api'
-import AdminLoginModal from '@/components/AdminLoginModal'
+import AdminLoginModal from '@/components/modals/AdminLoginModal'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
