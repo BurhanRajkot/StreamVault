@@ -10,7 +10,7 @@ import {
   removeGuestProgress,
 } from '@/lib/api'
 import { Media } from '@/lib/config'
-import { ContinueWatchingCard } from './ContinueWatchingCard'
+import { ContinueWatchingCard } from '@/components/media/ContinueWatchingCard'
 import { useToast } from '@/hooks/use-toast'
 
 import { ContinueWatchingItem } from '@/lib/api'

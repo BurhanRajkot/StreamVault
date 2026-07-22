@@ -16,3 +16,6 @@ backend/.env.*
 
 # Torrent Files
 public/downloads/*.torrent
+
+# Generated test reports
+test-results.xml

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Media } from '@/lib/config'
-import { MediaCard } from './MediaCard'
+import { MediaCard } from '@/components/media/MediaCard'
 import { cn } from '@/lib/utils'
 
 interface HeroCarouselProps {
