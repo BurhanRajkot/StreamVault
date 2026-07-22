@@ -57,7 +57,7 @@ RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
 COPY --from=builder /opt/app/dist /usr/share/nginx/html
 
 # Copy custom nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY infrastructure/nginx/nginx.conf /etc/nginx/nginx.conf
 
 # Create required directories and set permissions for non-root
 RUN mkdir -p /var/cache/nginx /var/log/nginx /run && \
