@@ -819,8 +819,14 @@ export function MovieDetailModal({
                           src={embedUrl}
                           className="w-full h-full"
                           referrerPolicy="origin"
-                          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                          allowFullScreen
+                          // Each feature needs an explicit `*` allowlist, not the bare
+                          // name. A bare `fullscreen` delegates only to the iframe's
+                          // *original* src origin, and several providers redirect
+                          // (vidfast.pro -> vidfast.vc) or nest a second player frame —
+                          // the redirected/nested document then lands outside the
+                          // allowlist and Chrome logs "Permissions policy violation:
+                          // fullscreen is not allowed in this document".
+                          allow="autoplay *; encrypted-media *; picture-in-picture *; fullscreen *"
                           onLoad={() => {
                             setIframeLoaded(true)
                             setShowStallPrompt(false)

@@ -4,6 +4,16 @@ import { CONFIG } from './config';
 
 const originalFetch = globalThis.fetch;
 
+/**
+ * React 19 augments the global `fetch` type with its own `preconnect` property,
+ * so a bare `mock()` is not assignable to `typeof fetch` and every stub was a
+ * type error. Only the call signature matters to these tests, so launder the
+ * mock through this helper rather than repeating the cast at each call site.
+ */
+const stubFetch = (impl: () => Promise<Response>) => {
+  globalThis.fetch = mock(impl) as unknown as typeof fetch;
+};
+
 describe('adminLogin', () => {
   afterEach(() => {
     // Restore fetch after each test
@@ -11,8 +21,10 @@ describe('adminLogin', () => {
   });
 
   it('should return token on successful login', async () => {
-    const mockResponse = { token: 'mock-jwt-token' };
-    globalThis.fetch = mock(() =>
+    // Must be a complete AdminLoginResponse — adminLogin is typed to resolve to
+    // one, so a `{ token }`-only fixture fails to typecheck against the result.
+    const mockResponse = { success: true, token: 'mock-jwt-token', expiresIn: '24h' };
+    stubFetch(() =>
       Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }))
     );
 
@@ -20,28 +32,32 @@ describe('adminLogin', () => {
     expect(result).toEqual(mockResponse);
   });
 
+  // The three rejection cases below must stay `await`ed. Without it the
+  // assertion is a floating promise that settles after the test has already
+  // returned, so the test passes even when adminLogin resolves instead of
+  // throwing — which is the exact regression they exist to catch.
   it('should throw error with specific message when login fails with message', async () => {
     const mockErrorResponse = { message: 'Invalid daily code' };
-    globalThis.fetch = mock(() =>
+    stubFetch(() =>
       Promise.resolve(new Response(JSON.stringify(mockErrorResponse), { status: 401 }))
     );
 
-    expect(adminLogin('invalid-code')).rejects.toThrow('Invalid daily code');
+    await expect(adminLogin('invalid-code')).rejects.toThrow('Invalid daily code');
   });
 
   it('should throw fallback error when login fails without message', async () => {
-    globalThis.fetch = mock(() =>
+    stubFetch(() =>
       Promise.resolve(new Response(JSON.stringify({}), { status: 401 }))
     );
 
-    expect(adminLogin('invalid-code')).rejects.toThrow('Login failed');
+    await expect(adminLogin('invalid-code')).rejects.toThrow('Login failed');
   });
 
   it('should throw network error when fetch fails', async () => {
     const networkError = new Error('Network failure');
-    globalThis.fetch = mock(() => Promise.reject(networkError));
+    stubFetch(() => Promise.reject(networkError));
 
-    expect(adminLogin('some-code')).rejects.toThrow('Network failure');
+    await expect(adminLogin('some-code')).rejects.toThrow('Network failure');
   });
 });
 
