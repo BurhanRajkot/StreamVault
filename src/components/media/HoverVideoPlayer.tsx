@@ -55,7 +55,9 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
       <iframe
         ref={iframeRef}
         src={url}
-        allow="autoplay; fullscreen"
+        // `*` allowlists rather than bare feature names — providers redirect to a
+        // sibling domain, which drops a `'src'`-scoped grant. See MovieDetailModal.
+        allow="autoplay *; encrypted-media *; picture-in-picture *; fullscreen *"
         className={cn(
           "absolute inset-0 w-full h-full transition duration-500",
           loaded ? "opacity-100" : "opacity-0"

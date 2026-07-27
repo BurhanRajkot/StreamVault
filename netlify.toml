@@ -14,4 +14,15 @@
   command = "npm run build"
   publish = "dist"
 
+# SPA fallback. Without it every deep link (/pricing, /watch/movie/<id>-<slug>)
+# 404s on a hard refresh or a shared link, because only /index.html exists on
+# disk — React Router never gets a chance to resolve the path. Vercel has the
+# equivalent rewrite in vercel.json; keep the two in step.
+# Must stay last: Netlify applies the first matching rule, so an earlier /*
+# would shadow every rule below it.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
 

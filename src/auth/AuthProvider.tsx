@@ -28,6 +28,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
       cacheLocation="localstorage"
       useRefreshTokens
+      // Without this, a refresh token that Auth0 has rotated away or revoked makes
+      // every getAccessTokenSilently() call hard-fail — the SDK posts the stale token
+      // to /oauth/token, gets 403 "Unknown or invalid refresh token", and rethrows.
+      // Because several components request a token independently on mount, one stale
+      // token in localStorage produces a burst of 403s and signed-in users silently
+      // lose continue-watching, favourites and recommendations until they log out and
+      // back in. With the fallback on, the SDK retries via a hidden /authorize
+      // ?prompt=none iframe and recovers whenever the Auth0 session cookie is intact.
+      useRefreshTokensFallback
       onRedirectCallback={(appState) => {
         navigate(appState?.returnTo || '/', { replace: true })
       }}
