@@ -14,6 +14,47 @@ if (!TMDB_API_KEY) {
   throw new Error('CRITICAL: TMDB_API_KEY (or legacy VITE_TMDB_API_KEY) environment variable is not set. Server cannot start without it.')
 }
 
+/** TMDB caps discover/search paging at 500. */
+const MAX_PAGE = 500
+
+/** Upper bound on a single upstream TMDB request. */
+const TMDB_TIMEOUT_MS = Number(process.env.TMDB_TIMEOUT_MS || 8000)
+
+const DEFAULT_SORT_BY = 'popularity.desc'
+
+/** Allowlist of TMDB discover sort keys the client may request. */
+const ALLOWED_SORT_BY = new Set([
+  'popularity.asc', 'popularity.desc',
+  'revenue.asc', 'revenue.desc',
+  'primary_release_date.asc', 'primary_release_date.desc',
+  'first_air_date.asc', 'first_air_date.desc',
+  'release_date.asc', 'release_date.desc',
+  'original_title.asc', 'original_title.desc',
+  'vote_average.asc', 'vote_average.desc',
+  'vote_count.asc', 'vote_count.desc',
+])
+
+/**
+ * Express parses `?a=1&a=2` into an array and `?a[b]=1` into an object.
+ * Collapse either to a single string so callers can't smuggle structured
+ * values into places that expect a scalar.
+ */
+function firstString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value || undefined
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0] || undefined
+  return undefined
+}
+
+/** Returns the validated page number, or null when the input is unusable. */
+function parsePage(value: unknown): number | null {
+  const raw = firstString(value)
+  if (raw === undefined) return 1
+
+  const page = Number(raw)
+  if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) return null
+  return page
+}
+
 /**
  * Fetch from TMDB with caching, retry logic, and rate limit handling
  */
@@ -29,7 +70,9 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<unknown> {
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url)
+      // Without a deadline a stalled upstream connection pins an Express
+      // handler (and its TMDB rate-limit slot) open indefinitely.
+      const response = await fetch(url, { signal: AbortSignal.timeout(TMDB_TIMEOUT_MS) })
 
       // Handle rate limiting (429 Too Many Requests)
       if (response.status === 429) {
@@ -97,21 +140,31 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<unknown> {
  */
 router.get('/discover/:mediaType', async (req: Request, res: Response) => {
   const { mediaType } = req.params
-  const page = req.query.page || '1'
-  const with_watch_providers = req.query.with_watch_providers as string
-  const watch_region = req.query.watch_region || 'IN'
-
-  const sort_by = req.query.sort_by || 'popularity.desc'
 
   if (mediaType !== 'movie' && mediaType !== 'tv') {
     return res.status(400).json({ error: 'Invalid media type' })
   }
 
-  try {
-    let url = `/discover/${mediaType}?sort_by=${sort_by}&page=${page}`
+  const page = parsePage(req.query.page)
+  if (page === null) {
+    return res.status(400).json({ error: 'page must be an integer between 1 and 500' })
+  }
 
-    if (with_watch_providers) {
-      url += `&with_watch_providers=${with_watch_providers}&watch_region=${watch_region}`
+  const sortBy = String(req.query.sort_by ?? DEFAULT_SORT_BY)
+  if (!ALLOWED_SORT_BY.has(sortBy)) {
+    return res.status(400).json({ error: 'Unsupported sort_by value' })
+  }
+
+  try {
+    // URLSearchParams encodes every value, so a caller can't smuggle extra
+    // upstream parameters (`&include_adult=true`, `&api_key=…`) through one of
+    // these fields, nor mint unbounded distinct cache keys.
+    const params = new URLSearchParams({ sort_by: sortBy, page: String(page) })
+
+    const watchProviders = firstString(req.query.with_watch_providers)
+    if (watchProviders) {
+      params.set('with_watch_providers', watchProviders)
+      params.set('watch_region', firstString(req.query.watch_region) || 'IN')
     }
 
     // Forward additional filters
@@ -125,13 +178,12 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
         'with_genres'
     ]
 
-    validParams.forEach(param => {
-        if (req.query[param]) {
-            url += `&${param}=${encodeURIComponent(String(req.query[param]))}`
-        }
-    })
+    for (const param of validParams) {
+      const value = firstString(req.query[param])
+      if (value) params.set(param, value)
+    }
 
-    const data = await fetchTMDB(url)
+    const data = await fetchTMDB(`/discover/${mediaType}?${params.toString()}`)
     // Stale-while-revalidate: serve cached version instantly, update in background
     // 1hr browser cache, 6hr stale window — CDN can serve without hitting backend
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=21600')
@@ -170,13 +222,17 @@ router.get('/trending/:mediaType', async (req: Request, res: Response) => {
  * This is the upgraded search route for the CineMatch discovery engine.
  */
 router.get('/search/hybrid', async (req: Request, res: Response) => {
-  const query = req.query.query as string
-  const page = parseInt((req.query.page as string) || '1', 10)
+  const query = firstString(req.query.query)
   const mediaOnly = req.query.mediaOnly === 'true'
-  const mediaType = req.query.mediaType as 'movie' | 'tv' | undefined
+  const mediaType = firstString(req.query.mediaType) as 'movie' | 'tv' | undefined
 
   if (!query || query.trim().length === 0) {
     return res.status(400).json({ error: 'Query parameter required' })
+  }
+
+  const page = parsePage(req.query.page)
+  if (page === null) {
+    return res.status(400).json({ error: 'page must be an integer between 1 and 500' })
   }
 
   // 1. Instant prefix check via In-Memory Trie
@@ -227,8 +283,7 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
  */
 router.get('/search/:mediaType', async (req: Request, res: Response) => {
   const { mediaType } = req.params
-  const query = req.query.query as string
-  const page = req.query.page || '1'
+  const query = firstString(req.query.query)
 
   if (!query) {
     return res.status(400).json({ error: 'Query parameter required' })
@@ -238,8 +293,14 @@ router.get('/search/:mediaType', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid media type' })
   }
 
+  const page = parsePage(req.query.page)
+  if (page === null) {
+    return res.status(400).json({ error: 'page must be an integer between 1 and 500' })
+  }
+
   try {
-    const data = await fetchTMDB(`/search/${mediaType}?query=${encodeURIComponent(query)}&page=${page}`)
+    const params = new URLSearchParams({ query, page: String(page) })
+    const data = await fetchTMDB(`/search/${mediaType}?${params.toString()}`)
     res.setHeader('Cache-Control', 'public, max-age=900, stale-while-revalidate=1800') // 15min cache, 30min stale
     res.json(data)
   } catch (_error) {
