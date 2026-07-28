@@ -32,6 +32,39 @@ export function generateCacheKey(...parts: (string | number | undefined)[]): str
   return parts.filter(Boolean).join(':')
 }
 
+/** Batch size for SCAN and the pipelined DELs that follow it. */
+const SCAN_BATCH = 500
+
+/**
+ * Delete every Redis key matching `pattern`.
+ *
+ * Uses SCAN rather than KEYS: KEYS walks the entire keyspace in one blocking
+ * call, stalling every other client on the server for the duration. SCAN
+ * amortises the same work across short, non-blocking cursor steps.
+ *
+ * Returns the number of keys deleted.
+ */
+async function deleteRedisByPattern(operation: string, pattern: string): Promise<number> {
+  const deleted = await runRedisOperation(operation, async () => {
+    let cursor = '0'
+    let count = 0
+
+    do {
+      const reply = await redisClient.scan(cursor, { MATCH: pattern, COUNT: SCAN_BATCH })
+      cursor = String(reply.cursor)
+
+      if (reply.keys.length > 0) {
+        await redisClient.del(reply.keys)
+        count += reply.keys.length
+      }
+    } while (cursor !== '0')
+
+    return count
+  })
+
+  return deleted ?? 0
+}
+
 const createNamespace = (namespace: string, defaultTtl: number) => ({
   get: async <T>(key: string): Promise<T | undefined> => {
     const namespacedKey = toNamespacedKey(namespace, key)
@@ -83,19 +116,7 @@ const createNamespace = (namespace: string, defaultTtl: number) => ({
   },
 
   flush: async (): Promise<void> => {
-    const pattern = `${namespace}:*`
-
-    const keys = await runRedisOperation(`keys:${namespace}`, async () => {
-      return redisClient.keys(pattern)
-    })
-
-    if (keys && keys.length > 0) {
-      await runRedisOperation(`delkeys:${namespace}`, async () => {
-        await redisClient.del(keys)
-        return true
-      })
-    }
-
+    await deleteRedisByPattern(`flush:${namespace}`, `${escapeRedisGlob(namespace)}:*`)
     delLocalByPattern(new RegExp(`^${escapeRegExp(namespace)}:`))
   },
 })
@@ -112,17 +133,7 @@ export const userData = {
   ...createNamespace('user', 60),
 
   invalidateUser: async (userId: string): Promise<void> => {
-    const safeRedisUserId = escapeRedisGlob(userId)
-    const redisKeys = await runRedisOperation('invalidate_user:keys', async () => {
-      return redisClient.keys(`user:*${safeRedisUserId}*`)
-    })
-
-    if (redisKeys && redisKeys.length > 0) {
-      await runRedisOperation('invalidate_user:del', async () => {
-        await redisClient.del(redisKeys)
-        return true
-      })
-    }
+    await deleteRedisByPattern('invalidate_user', `user:*${escapeRedisGlob(userId)}*`)
 
     const safeRegexUserId = escapeRegExp(userId)
     delLocalByPattern(new RegExp(`^user:.*${safeRegexUserId}.*`))

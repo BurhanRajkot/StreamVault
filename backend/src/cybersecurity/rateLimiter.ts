@@ -48,21 +48,17 @@ export const apiRateLimiter = rateLimit({
     retryAfter: '15 minutes'
   },
 
-  // Skip rate limiting for health checks, cache stats, and static assets
-  // These endpoints should not be throttled
+  // Skip rate limiting for liveness/readiness probes only.
+  //
+  // This deliberately does NOT exempt static-asset extensions: this service
+  // returns JSON exclusively (static files are served by the CDN), so those
+  // rules matched nothing legitimate while letting any caller opt out of
+  // throttling just by suffixing a path with `.png`. /cache-stats is likewise
+  // no longer exempt — it is admin-authenticated, which is precisely the kind
+  // of endpoint that needs a brute-force ceiling.
   skip: (req: import('express').Request) => {
     const path = req.path
-    return (
-      path === '/' ||
-      path === '/health' ||
-      path === '/cache-stats' ||
-      path.startsWith('/static/') ||
-      path.endsWith('.js') ||
-      path.endsWith('.css') ||
-      path.endsWith('.png') ||
-      path.endsWith('.jpg') ||
-      path.endsWith('.svg')
-    )
+    return path === '/' || path === '/health' || path === '/ping'
   },
 
   // Disable validation warnings (we handle trust proxy correctly)
