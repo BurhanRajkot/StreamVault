@@ -102,9 +102,6 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('node_modules/@studio-freight/lenis')) {
               return 'scroll-vendor';
             }
-            if (id.includes('node_modules/recharts')) {
-              return 'charts-vendor';
-            }
             if (['react-hook-form', '@hookform/resolvers', 'zod'].some(pkg => id.includes(`node_modules/${pkg}`))) {
               return 'form-vendor';
             }
@@ -117,7 +114,7 @@ export default defineConfig(({ mode }) => ({
     terserOptions: {
       compress: {
         drop_console: mode === 'production',
-        drop_debugger: false,  // keep debugger; – used by DevToolsGuard timing attack in blocker.js
+        drop_debugger: true,
         pure_funcs: mode === 'production' ? ['console.log', 'console.info', 'console.debug', 'console.warn'] : [],
         passes: 2,
       },
