@@ -38,25 +38,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 )
 
-// ── Service Worker Registration ───────────────────────────────────────────────
-// Registered on production only — in dev we rely on Vite's HMR.
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js', { updateViaCache: 'none' })
-      .then(reg => {
-        // Check for updates whenever the user navigates
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing
-          newWorker?.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New cache version available — new worker will activate on next navigation
-              console.info('[SW] New version available, will activate on next page load.')
-            }
-          })
-        })
-      })
-      .catch(err => console.warn('[SW] Registration failed:', err))
-  })
-}
+// ── Service Worker ────────────────────────────────────────────────────────────
+// Registration is owned by vite-plugin-pwa (injectRegister: 'auto' emits
+// registerSW.js and wires it into index.html at build time), and its
+// registerType: 'autoUpdate' handles version rollover. Registering here as well
+// would just re-register the same script.
 
