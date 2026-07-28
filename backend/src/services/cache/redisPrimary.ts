@@ -156,6 +156,37 @@ redisClient.on('end', () => {
 // Fire and forget: Redis stays primary, fallback is only for degraded periods.
 void ensureRedisConnection('startup')
 
+/**
+ * Close the Redis connection for a graceful shutdown.
+ *
+ * Cancels any pending reconnect first — otherwise the timer fires after we've
+ * disconnected and reopens the socket, keeping the process alive past SIGTERM.
+ */
+export async function closeRedis(): Promise<void> {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+
+  if (!redisClient.isOpen) return
+
+  // quit() drains queued commands first, which only works on a live connection.
+  // While the client is retrying a dead server it is "open" but not "ready", and
+  // quit() blocks waiting for a handshake that never completes — so tear the
+  // socket down directly in that state.
+  if (!redisClient.isReady) {
+    redisClient.destroy()
+    return
+  }
+
+  try {
+    await redisClient.quit()
+  } catch (err) {
+    logger.warn('Redis quit failed during shutdown, forcing disconnect', normalizeRedisError(err))
+    redisClient.destroy()
+  }
+}
+
 export function getRedisStatus() {
   return {
     redisReady: redisClient.isReady,

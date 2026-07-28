@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach, setSystemTime } from 'bun:test'
 import {
   getLocalValue,
   setLocalValue,
@@ -13,6 +13,12 @@ describe('localStore', () => {
     clearLocalStore()
   })
 
+  afterEach(() => {
+    // Undo any clock travel so a failing test can't leak a frozen clock
+    // into the rest of the suite.
+    setSystemTime()
+  })
+
   describe('getLocalValue and setLocalValue', () => {
     it('should set and get a value', () => {
       setLocalValue('test-key', 'test-value', 100)
@@ -23,31 +29,31 @@ describe('localStore', () => {
       expect(getLocalValue('missing-key')).toBeUndefined()
     })
 
-    it('should pass ttlSeconds to the underlying node-cache instance', async () => {
-      const mockSet = mock(() => true)
-      mock.module('node-cache', () => {
-        return {
-          default: class MockNodeCache {
-            set = mockSet
-            get = mock(() => undefined)
-            del = mock(() => 1)
-            keys = mock(() => [])
-            flushAll = mock(() => {})
-          },
-        }
-      })
+    it('should expire a value once its ttlSeconds has elapsed', () => {
+      // The store is created with stdTTL: 0 (never expire), so a dropped
+      // ttlSeconds argument would silently make every cache entry permanent.
+      // Travel the clock rather than sleeping to keep the suite fast.
+      setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+      setLocalValue('ttl-key', 'ttl-value', 60)
+      expect(getLocalValue<string>('ttl-key')).toBe('ttl-value')
 
-      // Use a dynamic import with cache-busting to get the newly mocked version
-      const { setLocalValue: mockedSetLocalValue } = await import(
-        `./localStore.ts?t=${Date.now()}`
-      )
+      // 59s in: still inside the window
+      setSystemTime(new Date('2026-01-01T00:00:59.000Z'))
+      expect(getLocalValue<string>('ttl-key')).toBe('ttl-value')
 
-      mockedSetLocalValue('ttl-key', 'ttl-value', 60)
+      // 61s in: past the window
+      setSystemTime(new Date('2026-01-01T00:01:01.000Z'))
+      expect(getLocalValue('ttl-key')).toBeUndefined()
+    })
 
-      expect(mockSet).toHaveBeenCalledWith('ttl-key', 'ttl-value', 60)
+    it('should keep entries with a longer ttl while shorter ones expire', () => {
+      setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+      setLocalValue('short', 'a', 30)
+      setLocalValue('long', 'b', 600)
 
-      // Reset the mock module after use
-      mock.module('node-cache', () => import('node-cache'))
+      setSystemTime(new Date('2026-01-01T00:01:00.000Z'))
+      expect(getLocalValue('short')).toBeUndefined()
+      expect(getLocalValue<string>('long')).toBe('b')
     })
   })
 
