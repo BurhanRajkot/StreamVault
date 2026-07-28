@@ -1,18 +1,23 @@
-import { Router, Response } from 'express'
+import { Router, Request, Response } from 'express'
 import { supabaseAdmin } from '../lib/supabase'
 import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
 import { getUserId } from '../utils/auth'
 import path from 'path'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
+import type { ReadableStream as NodeReadableStream } from 'stream/web'
 
-/** A single download record (from DB or hardcoded) */
+/** A single download record (from DB or seeded) */
 interface DownloadItem {
   id: string
   title?: string
   quality?: string
   filename: string
   createdAt: string
+  /** When set, the file is served by redirecting here instead of from Supabase Storage. */
+  externalUrl?: string
   [key: string]: unknown
 }
 
@@ -38,64 +43,43 @@ async function isPaidUser(userId: string): Promise<boolean> {
 }
 
 // ---------------------------------------------------------
-// HARDCODED INJECTION FOR TORRENTS (User Request)
-// Since we can't seed the DB directly from here easily.
+// SEEDED CATALOGUE ENTRIES
+//
+// These titles are not in the Download table yet. They are merged into the
+// listing at read time so the catalogue is not empty, and they go through the
+// exact same auth + premium checks as database-backed rows.
+//
+// This belongs in a seed migration against the Download table; until then it
+// lives here as the single source for these entries.
 // ---------------------------------------------------------
-function injectHardcodedDownloads(results: DownloadItem[]): DownloadItem[] {
-  const hardcodedItems: DownloadItem[] = [
-    {
-      id: 'hardcoded-mumbai-mafia',
-      title: 'Mumbai Mafia: Police vs The Underworld',
-      quality: '1080p WEBRip',
-      filename: 'Mumbai.Mafia.Police.vs.The.Underworld.2023.1080p.WEBRip.x264-RARBG-xpost.mp4',
-      createdAt: '2024-01-03T00:00:00.000Z'
-    }
-  ]
+const SEEDED_DOWNLOADS: readonly DownloadItem[] = [
+  {
+    id: 'seed-mumbai-mafia',
+    title: 'Mumbai Mafia: Police vs The Underworld',
+    quality: '1080p WEBRip',
+    filename: 'Mumbai.Mafia.Police.vs.The.Underworld.2023.1080p.WEBRip.x264-RARBG-xpost.mp4',
+    createdAt: '2024-01-03T00:00:00.000Z',
+    externalUrl: 'https://drive.google.com/uc?export=download&id=1ZKfHMswUcdHhOsRfnwWmyHN5pd-qD0Et',
+  },
+]
 
-  // Add hardcoded items if they don't exist
-  for (const item of hardcodedItems) {
-    const exists = results.some((i) => i.filename === item.filename)
-    if (!exists) {
-      results.push(item)
+/** Merge seeded entries into DB results, newest first. */
+function withSeededDownloads(results: DownloadItem[]): DownloadItem[] {
+  const merged = [...results]
+
+  for (const item of SEEDED_DOWNLOADS) {
+    if (!merged.some((i) => i.filename === item.filename)) {
+      merged.push(item)
     }
   }
 
-  // Re-sort by date
-  results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-  return results
+  return merged.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
 }
 
-router.get('/', checkAuth, async (req, res) => {
-  // Check if user is admin - bypass premium check
-  if (req.admin) {
-    logger.info('Admin access granted to downloads')
-
-    const { data, error } = await supabaseAdmin
-      .from('Download')
-      .select('*')
-      .order('createdAt', { ascending: false })
-
-    if (error) {
-      logger.error('Downloads fetch error', { error: error.message })
-      return res.status(500).json({ error: 'Server error' })
-    }
-
-    const results = injectHardcodedDownloads(data || [])
-    return res.json(results)
-  }
-
-  // Regular user flow - check premium status
-  const userId = getUserId(req)
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  const isPaid = await isPaidUser(userId)
-  if (!isPaid) {
-    return res.status(403).json({ error: 'Downloads are only available for premium users. Please upgrade.' })
-  }
-
+/** Fetch the full download catalogue (DB rows + seeded entries). */
+async function listDownloads(): Promise<DownloadItem[]> {
   const { data, error } = await supabaseAdmin
     .from('Download')
     .select('*')
@@ -103,11 +87,48 @@ router.get('/', checkAuth, async (req, res) => {
 
   if (error) {
     logger.error('Downloads fetch error', { error: error.message })
-    return res.status(500).json({ error: 'Server error' })
+    throw new Error('Failed to load downloads')
   }
 
-  const results = injectHardcodedDownloads(data || [])
-  res.json(results)
+  return withSeededDownloads(data || [])
+}
+
+/**
+ * Authorise a request for download content.
+ * Admins bypass the paywall; everyone else needs an active subscription.
+ * Returns null when allowed, or the response to send when denied.
+ */
+async function authorizeDownloadAccess(
+  req: Request
+): Promise<{ status: number; body: { error: string } } | null> {
+  if (req.admin) return null
+
+  const userId = getUserId(req)
+  if (!userId) {
+    return { status: 401, body: { error: 'Unauthorized' } }
+  }
+
+  if (!(await isPaidUser(userId))) {
+    return {
+      status: 403,
+      body: { error: 'Downloads are only available for premium users. Please upgrade.' },
+    }
+  }
+
+  return null
+}
+
+router.get('/', checkAuth, async (req, res) => {
+  const denied = await authorizeDownloadAccess(req)
+  if (denied) {
+    return res.status(denied.status).json(denied.body)
+  }
+
+  try {
+    return res.json(await listDownloads())
+  } catch {
+    return res.status(500).json({ error: 'Server error' })
+  }
 })
 
 // Helper to stream file from Supabase Storage
@@ -132,59 +153,61 @@ async function streamDownloadFromStorage(res: Response, filename: string) {
 
     // Set headers for download
     res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`)
-    res.setHeader('Content-Type', data.type || 'application/x-bittorrent')
+    res.setHeader('Content-Type', data.type || 'application/octet-stream')
     res.setHeader('Content-Length', data.size.toString())
 
-    // Stream the file efficiently (avoid loading entire file into memory)
-    const arrayBuffer = await data.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    return res.send(buffer)
+    // Pipe the blob straight through. Buffering via arrayBuffer() would hold the
+    // whole file in memory, so a handful of concurrent multi-GB downloads could
+    // exhaust the container's heap.
+    // The runtime value is a web ReadableStream; the DOM and node:stream/web
+    // declarations of that type just aren't structurally compatible.
+    const webStream = data.stream() as unknown as NodeReadableStream<Uint8Array>
+    await pipeline(Readable.fromWeb(webStream), res)
   } catch (err: unknown) {
     logger.error('Stream download error', { error: err instanceof Error ? err.message : String(err) })
-    return res.status(500).json({ error: 'Server error' })
+    // Headers are already flushed once piping starts; tearing down the socket is
+    // the only way left to signal failure.
+    if (res.headersSent) {
+      res.destroy()
+      return
+    }
+    res.status(500).json({ error: 'Server error' })
   }
 }
 
-// Map the hardcoded public download directly above the wildcard route to bypass checkAuth
-router.get('/hardcoded-mumbai-mafia/file', downloadRateLimiter, (req, res) => {
-  logger.info('Public file download access', { filename: 'Mumbai Mafia' })
-  return res.redirect('https://drive.google.com/uc?export=download&id=1ZKfHMswUcdHhOsRfnwWmyHN5pd-qD0Et')
-})
-
 router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   const { id } = req.params
-  let filename = ''
 
-  // 1. Determine filename based on ID
-  if (id === 'hardcoded-mumbai-mafia') {
-    filename = 'Mumbai.Mafia.Police.vs.The.Underworld.2023.1080p.WEBRip.x264-RARBG-xpost.mp4'
-  } else {
-    // Fetch from DB
-    const { data: item } = await supabaseAdmin
+  // 1. Authorise BEFORE resolving the file. Every download — seeded or
+  //    database-backed — goes through the same paywall.
+  const denied = await authorizeDownloadAccess(req)
+  if (denied) {
+    return res.status(denied.status).json(denied.body)
+  }
+
+  // 2. Resolve the item
+  const seeded = SEEDED_DOWNLOADS.find((item) => item.id === id)
+  let item: Pick<DownloadItem, 'filename' | 'externalUrl'> | null = seeded ?? null
+
+  if (!item) {
+    const { data } = await supabaseAdmin
       .from('Download')
       .select('filename')
       .eq('id', id)
       .single()
 
-    if (!item) return res.status(404).json({ error: 'Not found' })
-    filename = item.filename
+    item = data ?? null
   }
 
-  // 2. Auth checks
-  if (req.admin) {
-    logger.info('Admin file download access', { filename })
-    return streamDownloadFromStorage(res, filename)
+  if (!item) return res.status(404).json({ error: 'Not found' })
+
+  // 3. Deliver
+  if (item.externalUrl) {
+    logger.info('Redirecting to external download host', { id })
+    return res.redirect(302, item.externalUrl)
   }
 
-  // Regular user check
-  const userId = getUserId(req)
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' })
-
-  const isPaid = await isPaidUser(userId)
-  if (!isPaid) return res.status(403).json({ error: 'Downloads are only available for premium users.' })
-
-  return streamDownloadFromStorage(res, filename)
+  return streamDownloadFromStorage(res, item.filename)
 })
 
 export default router

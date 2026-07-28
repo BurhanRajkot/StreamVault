@@ -1,16 +1,14 @@
 // ============================================================
-// CineMatch — Ranking Weights Refresh Job (Phase 4 wiring)
+// CineMatch — Ranking Weights Refresh Job
 //
-// Closes the loop that was previously open: estimateIPSAdjustedWeights()
-// computed IPS/LambdaRank-corrected weights that nothing consumed. This job
-// runs it on a schedule and publishes the result via setBaseWeights(), so
-// computeDynamicWeights() (and therefore live ranking) reflects what the
-// position-bias learner has learned.
+// Closes the position-bias learning loop. tracking/events.ts writes impression
+// records via logPositionImpression(), and estimateIPSAdjustedWeights() turns
+// them into IPS-corrected ranking weights. This job runs that estimation on a
+// schedule and publishes the result through setBaseWeights(), so
+// computeDynamicWeights() — and therefore live ranking — actually reflects what
+// the learner has measured.
 //
-// NOTE ON IMPORT PATHS: adjust to your layout. Based on positionBias.ts
-// (which imports '../ranking/dynamicWeights' and '../../lib/logger'), this
-// file is assumed to sit at the recommendation-engine root, a sibling of the
-// 'ranking/' and 'recommendation/' folders.
+// Started from backend/src/index.ts on server boot.
 // ============================================================
 
 import { getDefaultBaseWeights, setBaseWeights } from './dynamicWeights'

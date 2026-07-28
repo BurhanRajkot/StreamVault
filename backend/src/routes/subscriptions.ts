@@ -10,35 +10,56 @@ import { strictRateLimiter } from '../cybersecurity'
 
 const router = express.Router()
 
+type PlanId = keyof typeof SUBSCRIPTION_PLANS
+
+const VALID_PLAN_IDS = Object.keys(SUBSCRIPTION_PLANS)
+
+function isValidPlanId(value: unknown): value is PlanId {
+  return typeof value === 'string' && VALID_PLAN_IDS.includes(value)
+}
+
+/**
+ * Plans and their UPI QR codes are derived entirely from boot-time config, so
+ * the payload is identical for every caller. Building it once avoids
+ * re-running QR encoding (CPU-bound) on every page load of /pricing.
+ */
+let plansPayloadPromise: Promise<unknown> | null = null
+
+function buildPlansPayload() {
+  // Format: upi://pay?pa=<upi_id>&pn=<payee_name>&cu=<currency>
+  const baseUrl = `upi://pay?pa=${encodeURIComponent(UPI_CONFIG.upiId)}&pn=${encodeURIComponent(UPI_CONFIG.payeeName)}&cu=${UPI_CONFIG.currency}`
+
+  return Promise.all(
+    Object.entries(SUBSCRIPTION_PLANS).map(async ([key, plan]) => {
+      const upiUrl = `${baseUrl}&am=${plan.price}&tn=${encodeURIComponent(plan.name)}`
+      return {
+        id: key,
+        ...plan,
+        qrCode: await QRCode.toDataURL(upiUrl),
+        upiId: UPI_CONFIG.upiId,
+      }
+    })
+  ).then((plans) => ({
+    plans,
+    upiConfig: {
+      payeeName: UPI_CONFIG.payeeName,
+      upiId: UPI_CONFIG.upiId,
+    },
+  }))
+}
+
 // Get available subscription plans and UPI config
 router.get('/plans', async (_req, res) => {
   try {
-    // Generate UPI URI for QR Code
-    // Format: upi://pay?pa=<upi_id>&pn=<payee_name>&cu=<currency>
-    const baseUrl = `upi://pay?pa=${UPI_CONFIG.upiId}&pn=${encodeURIComponent(UPI_CONFIG.payeeName)}&cu=${UPI_CONFIG.currency}`
+    // Cache the promise, not the value, so concurrent cold requests share one build.
+    plansPayloadPromise ??= buildPlansPayload()
+    const payload = await plansPayloadPromise
 
-    const plansWithQr = await Promise.all(
-      Object.entries(SUBSCRIPTION_PLANS).map(async ([key, plan]) => {
-        const upiUrl = `${baseUrl}&am=${plan.price}&tn=${encodeURIComponent(plan.name)}`
-        const qrCodeDataUrl = await QRCode.toDataURL(upiUrl)
-
-        return {
-          id: key,
-          ...plan,
-          qrCode: qrCodeDataUrl,
-          upiId: UPI_CONFIG.upiId
-        }
-      })
-    )
-
-    res.json({
-      plans: plansWithQr,
-      upiConfig: {
-        payeeName: UPI_CONFIG.payeeName,
-        upiId: UPI_CONFIG.upiId
-      }
-    })
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+    res.json(payload)
   } catch (error: unknown) {
+    // Don't let a transient failure poison the cache for the process lifetime.
+    plansPayloadPromise = null
     logger.error('Error fetching plans', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to fetch plans' })
   }
@@ -57,7 +78,9 @@ router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => 
       return res.status(400).json({ error: 'Missing required fields: planId and transactionId' })
     }
 
-    if (!['basic', 'premium'].includes(planId)) {
+    // Validate against the actual plan catalogue rather than a hardcoded list —
+    // a stale list here silently rejects every real plan id.
+    if (!isValidPlanId(planId)) {
       return res.status(400).json({ error: 'Invalid planId' })
     }
 
@@ -67,7 +90,7 @@ router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => 
       return res.status(400).json({ error: 'Invalid transactionId format' })
     }
 
-    const plan = SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS]
+    const plan = SUBSCRIPTION_PLANS[planId]
 
     // Check if transaction ID already exists
     const { data: existing } = await supabaseAdmin
@@ -113,26 +136,6 @@ router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => 
   } catch (error: unknown) {
     logger.error('Manual request error', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to submit request' })
-  }
-})
-
-// Get status of a request
-router.get('/request/:requestId', async (req, res) => {
-  try {
-    const { requestId } = req.params
-
-    const { data, error } = await supabaseAdmin
-      .from('subscription_requests')
-      .select('*')
-      .eq('id', requestId)
-      .single()
-
-    if (error) throw error
-
-    res.json(data)
-  } catch (error: unknown) {
-    logger.error('Request fetch error', { error: error instanceof Error ? error.message : String(error) })
-    res.status(500).json({ error: 'Failed to fetch request' })
   }
 })
 
