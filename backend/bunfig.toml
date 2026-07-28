@@ -1,0 +1,9 @@
+# Bun configuration for the StreamVault backend
+#
+# `dist/` holds the tsc build output, which includes compiled copies of every
+# *.test.ts file. Without this, `bun test` collects both src/**/*.test.ts and
+# the stale dist/**/*.test.js copies — running each suite twice and reporting
+# results from whatever was last compiled rather than from current source.
+
+[test]
+pathIgnorePatterns = ["dist/**"]
