@@ -55,6 +55,7 @@ export const CONFIG = {
     // New "Extra" Providers
     extra_2: 'https://vidsrc.pm/embed/tv?tmdb={tmdbId}&season={season}&episode={episode}',
     extra_4: 'https://flicky.host/embed/tv/?id={tmdbId}/{season}/{episode}',
+    super111movies: 'https://111movies.net/tv/{tmdbId}/{season}/{episode}?autoplay=1&theme=23ddc36c',
 
     /* ================= MOVIE ================= */
     // Kept Providers (Verified Working)
@@ -68,6 +69,7 @@ export const CONFIG = {
     // New "Extra" Providers
     extra_2_movie: 'https://vidsrc.pm/embed/movie?tmdb={tmdbId}',
     extra_4_movie: 'https://flicky.host/embed/movie/?id={tmdbId}',
+    super111movies_movie: 'https://111movies.net/movie/{tmdbId}?autoplay=1&theme=23ddc36c',
   },
 
   PROVIDER_NAMES: {
@@ -82,6 +84,7 @@ export const CONFIG = {
     // Extras
     extra_2: 'Extra 2 (vidsrc.pm)',
     extra_4: 'Extra 4 (flicky)',
+    super111movies: 'Super 111movies',
   } as Record<string, string>,
 
   PROVIDER_METADATA: {
@@ -96,7 +99,40 @@ export const CONFIG = {
     // Extras
     extra_2: { quality: '✓ Stable', seekSupport: 'good', description: 'VidSrc PM failover' },
     extra_4: { quality: '⚡ Fast', seekSupport: 'excellent', description: 'Flicky host stream' },
+    super111movies: { quality: '🚫 Ads Free', seekSupport: 'excellent', description: 'Super 111movies — Ads free • Skip intro' },
   } as Record<string, { quality: string; seekSupport: string; description: string }>,
+
+  /**
+   * Origins an embedded player is allowed to post playback telemetry from.
+   * Several providers redirect to a different origin than the iframe src
+   * (vidfast.pro -> vidfast.vc, 111movies.net -> player.vidlove.cc), so the
+   * embed URL's own origin is not a sufficient check on incoming messages.
+   */
+  PLAYER_MESSAGE_ORIGINS: [
+    'https://vidfast.pro',
+    'https://vidfast.vc',
+    'https://vidlink.pro',
+    'https://player.videasy.to',
+    'https://player.vidzee.wtf',
+    'https://player.vidlove.cc',
+  ],
+
+  /**
+   * Providers whose player reports playback telemetry (MEDIA_DATA /
+   * PLAYER_EVENT) to the parent window — verified per provider, since a
+   * provider that stays silent would otherwise look permanently stalled.
+   *
+   * Only these can be watched for the "iframe loaded but the stream never
+   * started" case: the player renders its own shell and sits on a spinner
+   * while it resolves a source, which the iframe `load` event cannot detect.
+   */
+  PROVIDERS_REPORTING_PLAYBACK: [
+    'vidfast_pro',
+    'vidlink_pro',
+    'videasy',
+    'vidzee',
+    'super111movies',
+  ],
 
   STREAMING_DOMAINS: [
     'vidsrc.me',
@@ -106,7 +142,10 @@ export const CONFIG = {
     'player.videasy.to',
     'vidrock.ru',
     'vidsrc.pm',
-    'flicky.host'
+    'flicky.host',
+    '111movies.net',
+    // 111movies.net serves a 302 to this host, so the iframe ends up here
+    'player.vidlove.cc',
   ],
 }
 

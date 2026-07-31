@@ -1,5 +1,7 @@
 import { logger } from '../../lib/logger'
 import { mapConcurrent } from '../../utils/concurrency'
+import { TMDB_BASE_URL } from '../../lib/tmdbBase'
+import { tmdbFetch } from '../../lib/tmdbFetch'
 import { MediaType } from '../types'
 
 export interface TrieEntity {
@@ -119,7 +121,6 @@ export const globalTrie = new AutocompleteTrie()
 // ── Background Seed Job ─────────────────────────────────────
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 
 /**
  * Seeds the Trie on server startup.
@@ -155,7 +156,7 @@ export async function seedTrieBackground() {
   const results = await mapConcurrent(tasks, 2, async ({ ep, page }) => {
     const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
     try {
-      const res = await fetch(url, {
+      const res = await tmdbFetch(url, {
         headers: {
           'accept': 'application/json'
         }

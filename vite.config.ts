@@ -9,6 +9,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/tmdb': { target: 'http://localhost:4000', changeOrigin: true },
+      '/continue-watching': { target: 'http://localhost:4000', changeOrigin: true },
+      '/downloads': { target: 'http://localhost:4000', changeOrigin: true },
+      '/admin': { target: 'http://localhost:4000', changeOrigin: true },
+      '/recommendations': { target: 'http://localhost:4000', changeOrigin: true },
+      '/ping': { target: 'http://localhost:4000', changeOrigin: true },
+    },
   },
   plugins: [
     tailwindcss(),

@@ -21,6 +21,7 @@ const STREAMING_DOMAINS = [
   'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc',
   'vidlink.pro', 'vidsrc.cc', 'player.videasy.net',
   'player.videasy.to', 'videasy.to', 'vidrock.ru',
+  '111movies.net', 'player.vidlove.cc',
 ]
 
 export interface ImageReport {

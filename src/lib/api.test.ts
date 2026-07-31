@@ -154,3 +154,41 @@ describe('buildEmbedUrl', () => {
     expect(result).toBe(expected);
   });
 });
+
+// Every provider listed in PROVIDER_NAMES is rendered as a selectable option in
+// the server dropdown, so each one must actually resolve to a playable embed.
+// These run over the whole list so adding a provider can't half-land again.
+describe('stream provider registry', () => {
+  const providerKeys = Object.keys(CONFIG.PROVIDER_NAMES);
+
+  it('exposes at least one selectable provider', () => {
+    expect(providerKeys.length).toBeGreaterThan(0);
+  });
+
+  for (const key of providerKeys) {
+    it(`${key}: builds a movie and a tv embed URL`, () => {
+      const movie = buildEmbedUrl('movie', key, 550, {});
+      const tv = buildEmbedUrl('tv', key, 1399, { season: 1, episode: 1 });
+
+      expect(movie, `${key} has no movie template`).not.toBe('');
+      expect(tv, `${key} has no tv template`).not.toBe('');
+      // An unsubstituted placeholder means a template/mode mismatch.
+      expect(movie).not.toContain('{');
+      expect(tv).not.toContain('{');
+    });
+
+    it(`${key}: embeds over https from a declared streaming domain`, () => {
+      for (const url of [
+        buildEmbedUrl('movie', key, 550, {}),
+        buildEmbedUrl('tv', key, 1399, { season: 1, episode: 1 }),
+      ]) {
+        const { protocol, hostname } = new URL(url);
+        expect(protocol).toBe('https:');
+        expect(
+          CONFIG.STREAMING_DOMAINS,
+          `${hostname} is missing from CONFIG.STREAMING_DOMAINS`
+        ).toContain(hostname);
+      }
+    });
+  }
+});
