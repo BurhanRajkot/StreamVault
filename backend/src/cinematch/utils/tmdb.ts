@@ -1,8 +1,9 @@
 import NodeCache from 'node-cache'
 import { Candidate, MediaType } from "../types"
+import { TMDB_BASE_URL as TMDB_BASE, assertTmdbHost } from "../../lib/tmdbBase"
+import { tmdbFetch } from "../../lib/tmdbFetch"
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY || ""
-const TMDB_BASE = "https://api.themoviedb.org/3"
 const TMDB_FETCH_TIMEOUT_MS = Number(process.env.CINEMATCH_TMDB_TIMEOUT_MS || 1800)
 
 // In-memory TMDB response cache — 10 min TTL, check every 2 min
@@ -31,10 +32,7 @@ export async function fetchTMDB(path: string, options: { timeoutMs?: number } = 
   const cacheKey = `${TMDB_BASE}${path}`
 
   // Defence-in-depth: ensure the constructed URL stays on the TMDB domain
-  const constructed = new URL(cacheKey)
-  if (constructed.hostname !== 'api.themoviedb.org') {
-    throw new Error(`fetchTMDB: SSRF blocked — unexpected host: ${constructed.hostname}`)
-  }
+  assertTmdbHost(cacheKey)
 
   const url = `${cacheKey}${sep}api_key=${TMDB_API_KEY}`
   const timeoutMs = options.timeoutMs ?? TMDB_FETCH_TIMEOUT_MS
@@ -52,7 +50,7 @@ export async function fetchTMDB(path: string, options: { timeoutMs?: number } = 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      const res = await fetch(url, { signal: controller.signal })
+      const res = await tmdbFetch(url, { signal: controller.signal })
       if (!res.ok) return { results: [] }
       const data = await res.json() as unknown
       tmdbResponseCache.set(cacheKey, data)

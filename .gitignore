@@ -85,6 +85,8 @@ Thumbs.db
 # =========================
 e2e/test-results/
 e2e/playwright-report/
+# Playwright MCP debug artifacts (snapshots, console logs, screenshots)
+.playwright-mcp/
 
 # =========================
 # Kubernetes — NEVER commit real secrets

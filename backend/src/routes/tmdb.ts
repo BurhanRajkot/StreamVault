@@ -4,11 +4,12 @@ import { logger } from '../lib/logger'
 import { hybridSearch } from '../cinematch/search/hybridSearch'
 import { globalTrie } from '../cinematch/search/trieAutocomplete'
 import { withTmdbRateLimit } from '../services/tmdbLimiter'
+import { TMDB_BASE_URL } from '../lib/tmdbBase'
+import { tmdbFetch } from '../lib/tmdbFetch'
 
 const router = Router()
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 
 if (!TMDB_API_KEY) {
   throw new Error('CRITICAL: TMDB_API_KEY (or legacy VITE_TMDB_API_KEY) environment variable is not set. Server cannot start without it.')
@@ -72,7 +73,7 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<unknown> {
     try {
       // Without a deadline a stalled upstream connection pins an Express
       // handler (and its TMDB rate-limit slot) open indefinitely.
-      const response = await fetch(url, { signal: AbortSignal.timeout(TMDB_TIMEOUT_MS) })
+      const response = await tmdbFetch(url, { signal: AbortSignal.timeout(TMDB_TIMEOUT_MS) })
 
       // Handle rate limiting (429 Too Many Requests)
       if (response.status === 429) {

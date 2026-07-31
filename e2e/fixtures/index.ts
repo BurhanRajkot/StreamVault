@@ -157,6 +157,8 @@ export async function registerApiMocks(page: Page, options: {
   const STREAMING_DOMAINS = [
     'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc', 'vidlink.pro',
     'vidsrc.cc', 'player.videasy.to', 'vidrock.ru', 'player.vidzee.wtf',
+    // 111movies.net redirects to player.vidlove.cc — mock both ends of the hop
+    '111movies.net', 'player.vidlove.cc',
   ]
   for (const domain of STREAMING_DOMAINS) {
     await page.route(`https://${domain}/**`, async route => {

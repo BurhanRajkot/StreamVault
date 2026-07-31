@@ -65,6 +65,10 @@ export function MovieDetailModal({
     return initialServer || 'vidfast_pro'
   })
   const [iframeLoaded, setIframeLoaded] = useState(false)
+  const [playbackStarted, setPlaybackStarted] = useState(false)
+  // Mirrored in a ref so the post-load watchdog can read the latest value
+  // without being torn down and restarted on every telemetry message.
+  const playbackStartedRef = useRef(false)
   const [showStallPrompt, setShowStallPrompt] = useState(false)
   const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const serverSelectTriggerRef = useRef<HTMLButtonElement>(null)
@@ -159,6 +163,8 @@ export function MovieDetailModal({
       // a fresh stall timer — cross-origin iframes never report load errors,
       // so a timeout is the only signal we have that a provider is slow/dead.
       setIframeLoaded(false)
+      playbackStartedRef.current = false
+      setPlaybackStarted(false)
       setShowStallPrompt(false)
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
       stallTimerRef.current = setTimeout(() => {
@@ -209,6 +215,41 @@ export function MovieDetailModal({
       if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
     }
   }, [isPlaying, server, media, mode, season, episode, isAuthenticated, getAccessTokenSilently, typedMode, queryClient])
+
+  // Players post playback telemetry (MEDIA_DATA / PLAYER_EVENT) to the parent
+  // window. That is the only evidence a cross-origin iframe gives us that a
+  // stream actually started: the iframe's `load` event only proves the
+  // provider's page arrived, not that it ever resolved a source. A provider
+  // whose source lookup hangs renders its own spinner and posts nothing at all,
+  // which is exactly what this listener distinguishes.
+  useEffect(() => {
+    if (!isPlaying) return
+
+    const onMessage = (event: MessageEvent) => {
+      if (!CONFIG.PLAYER_MESSAGE_ORIGINS.includes(event.origin)) return
+
+      let payload: unknown = event.data
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload)
+        } catch {
+          return
+        }
+      }
+      if (!payload || typeof payload !== 'object') return
+
+      const { type } = payload as { type?: string }
+      if (type !== 'MEDIA_DATA' && type !== 'PLAYER_EVENT') return
+
+      playbackStartedRef.current = true
+      setPlaybackStarted(true)
+      setShowStallPrompt(false)
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
+    }
+
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [isPlaying])
 
   // Save progress=0.1 after 30 seconds of playback (marks episode as "started")
   useEffect(() => {
@@ -831,6 +872,19 @@ export function MovieDetailModal({
                             setIframeLoaded(true)
                             setShowStallPrompt(false)
                             if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
+
+                            // The provider's page is up, but it still has to
+                            // resolve a source before anything plays — and that
+                            // step can hang indefinitely (a blocked/filtered
+                            // source-lookup host leaves the player spinning on
+                            // its own loading bar). Keep watching for telemetry
+                            // so the user still gets an escape hatch instead of
+                            // a frozen player. Only for providers that report;
+                            // a silent one would look stalled forever.
+                            if (!CONFIG.PROVIDERS_REPORTING_PLAYBACK.includes(server)) return
+                            stallTimerRef.current = setTimeout(() => {
+                              if (!playbackStartedRef.current) setShowStallPrompt(true)
+                            }, 15_000)
                           }}
                         />
                         {!iframeLoaded && (
@@ -838,7 +892,7 @@ export function MovieDetailModal({
                             <Loader2 className="w-10 h-10 text-white/30 animate-spin" />
                           </div>
                         )}
-                        {showStallPrompt && !iframeLoaded && (
+                        {showStallPrompt && !playbackStarted && (
                           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 rounded-full bg-black/80 backdrop-blur-md border border-white/10 px-4 py-2.5 text-sm text-white/80 shadow-2xl">
                             <span>This server is taking a while…</span>
                             <button
