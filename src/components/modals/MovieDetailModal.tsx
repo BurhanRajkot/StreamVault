@@ -59,10 +59,9 @@ export function MovieDetailModal({
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const videoContainerRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
-    return initialServer || 'vidfast_pro'
+    return initialServer || CONFIG.DEFAULT_PROVIDER
   })
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [playbackStarted, setPlaybackStarted] = useState(false)
@@ -859,15 +858,11 @@ export function MovieDetailModal({
                           ref={iframeRef}
                           src={embedUrl}
                           className="w-full h-full"
-                          referrerPolicy="origin"
-                          // Each feature needs an explicit `*` allowlist, not the bare
-                          // name. A bare `fullscreen` delegates only to the iframe's
-                          // *original* src origin, and several providers redirect
-                          // (vidfast.pro -> vidfast.vc) or nest a second player frame —
-                          // the redirected/nested document then lands outside the
-                          // allowlist and Chrome logs "Permissions policy violation:
-                          // fullscreen is not allowed in this document".
-                          allow="autoplay *; encrypted-media *; picture-in-picture *; fullscreen *"
+                          // Embed contract lives in CONFIG so both player render
+                          // points stay identical. No `sandbox`: these providers
+                          // do not play under one.
+                          referrerPolicy={CONFIG.PLAYER_IFRAME_REFERRER_POLICY}
+                          allow={CONFIG.PLAYER_IFRAME_ALLOW}
                           onLoad={() => {
                             setIframeLoaded(true)
                             setShowStallPrompt(false)
