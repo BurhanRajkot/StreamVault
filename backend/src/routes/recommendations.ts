@@ -608,8 +608,16 @@ router.get('/debug/:userId', requireAdminAuth, async (req: Request, res: Respons
 
 // ── POST /recommendations/eval ────────────────────────────
 // Dedicated evaluation endpoint for Promptfoo / Red Teaming.
-// Allows testing the pipeline with arbitrary user profiles without JWT.
-router.post('/eval', async (req: Request, res: Response) => {
+//
+// Runs the entire pipeline (fetchAllSources -> applyFilters -> rankCandidates)
+// against a caller-supplied profile, which fans out into a burst of TMDB calls
+// per request. Unauthenticated that is a free lever on our TMDB quota and CPU,
+// so it is admin-gated and additionally refuses to serve in production.
+router.post('/eval', requireAdminAuth, async (req: Request, res: Response) => {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_RECO_EVAL !== 'true') {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
   const { recentTitles, topGenreNames } = req.body
 
   try {

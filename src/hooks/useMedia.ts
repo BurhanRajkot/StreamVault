@@ -7,13 +7,10 @@
 //   • Infinite scroll pages accumulate correctly via getNextPageParam
 // ============================================================
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { fetchPopular, fetchTrending, searchMedia } from '@/lib/api'
 import { Media, MediaMode } from '@/lib/config'
-
-// How many items to show on the very first page render
-const INITIAL_SLICE = 16
 
 interface UseMediaReturn {
   media: Media[]
@@ -42,8 +39,14 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
     enabled: mode !== 'downloads',
   })
 
-  // Flatten trending to a plain array
-  const trending: Media[] = (trendingQuery.data?.pages.flat() as unknown as Media[]) ?? []
+  // Flatten trending to a plain array. Memoised on the pages array so the
+  // identity is stable across renders — a fresh array every render would defeat
+  // the memo on every consumer downstream.
+  const trendingPages = trendingQuery.data?.pages
+  const trending: Media[] = useMemo(
+    () => (trendingPages?.flat() as unknown as Media[]) ?? [],
+    [trendingPages]
+  )
 
   // ─── Main (popular/discover) infinite query ───────────────────────────────
   const popularQuery = useInfiniteQuery({
@@ -64,10 +67,8 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
   const searchQuery_ = useInfiniteQuery({
     queryKey: ['search', mode, searchQuery],
     queryFn: ({ pageParam }) => searchMedia(mode, searchQuery, pageParam as number),
-    getNextPageParam: (lastPage, allPages) => {
-      const nextPage = allPages.length + 1
-      return nextPage <= (lastPage.total_pages || 1) ? nextPage : undefined
-    },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasMore ? allPages.length + 1 : undefined,
     initialPageParam: 1,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
@@ -77,28 +78,31 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
   // ─── Derive media list ───────────────────────────────────────────────────
   const activeQuery = isSearchMode ? searchQuery_ : popularQuery
 
-  const allPages = activeQuery.data?.pages ?? []
-  let media: Media[] = []
+  const pages = activeQuery.data?.pages
 
-  if (isSearchMode) {
-    // Search: show all results as-is (user expects them immediately)
-    media = allPages.flatMap((p) => p.results)
-  } else {
-    // Popular: slice first page to INITIAL_SLICE, rest is unsliced
-    media = allPages.flatMap((p, i) =>
-      i === 0 ? p.results.slice(0, INITIAL_SLICE) : p.results
-    )
-  }
+  // Every fetched page is shown in full. An earlier version truncated page 1 to
+  // the first 16 items as a "first render" optimisation, but the slice applied
+  // on every render forever — the other 24 items of a blended home page were
+  // fetched over the network and then permanently discarded.
+  const media: Media[] = useMemo(
+    () => (pages ?? []).flatMap((p) => p.results),
+    [pages]
+  )
 
   const isLoading = activeQuery.isLoading || activeQuery.isFetchingNextPage
   const hasMore = activeQuery.hasNextPage ?? false
 
   // ─── Actions ────────────────────────────────────────────────────────────
+  // Depend on the query's own stable methods rather than the result object,
+  // which React Query hands back fresh on state changes. An unstable loadMore
+  // makes MediaGrid tear down and rebuild its infinite-scroll IntersectionObserver.
+  const { fetchNextPage, refetch } = activeQuery
+
   const loadMore = useCallback(() => {
     if (!isLoading && hasMore) {
-      activeQuery.fetchNextPage()
+      fetchNextPage()
     }
-  }, [isLoading, hasMore, activeQuery])
+  }, [isLoading, hasMore, fetchNextPage])
 
   const search = useCallback((query: string) => {
     setSearchQuery(query)
@@ -116,8 +120,8 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
 
   // loadMedia kept for API compatibility (no-op: React Query handles it)
   const loadMedia = useCallback(() => {
-    activeQuery.refetch()
-  }, [activeQuery])
+    refetch()
+  }, [refetch])
 
   return {
     media,

@@ -257,10 +257,11 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
         _source: 'trie_autocomplete', // Debug flag
       }))
       
-      // We return these immediately as sub-10ms autocomplete results
+      // We return these immediately as sub-10ms autocomplete results.
+      // The trie holds a bounded top-entity set, so there is nothing to page to.
       res.setHeader('Cache-Control', 'public, max-age=60')
       res.setHeader('X-Search-Engine', 'memory-trie')
-      return res.json({ results, total_results: results.length, query })
+      return res.json({ results, total_results: results.length, has_more: false, page, query })
     }
   }
 
@@ -271,7 +272,17 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
   try {
     const results = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType })
     res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=900')
-    res.json({ results, total_results: results.length, query })
+    // `has_more` rather than a page count: hybridSearch re-ranks a single
+    // upstream page, so it has no idea how many pages exist in total. Reporting
+    // total_results as the length of this page made the client compute
+    // total_pages = 1 and stop paginating after the first page every time.
+    res.json({
+      results,
+      total_results: results.length,
+      has_more: results.length > 0 && page < MAX_PAGE,
+      page,
+      query,
+    })
   } catch (error: unknown) {
     logger.error('Hybrid search error', { error: error instanceof Error ? error.message : String(error), query })
     res.status(500).json({ error: 'Hybrid search failed' })
