@@ -1,16 +1,14 @@
+// Solution-style root config: it owns no files itself, it only points at the
+// real projects.
+//
+// Do NOT type-check the repo with a bare `tsc --noEmit`. Without `-b`, tsc does
+// not follow project references, so `files: []` means it compiles zero files
+// and exits 0 no matter how broken the code is. Use `npm run typecheck`, which
+// runs each project (app, node/e2e, backend) explicitly.
+//
+// Per-project compilerOptions belong in the referenced configs; putting them
+// here does nothing but mislead.
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
-    "skipLibCheck": true,
-    "allowJs": true,
-    "noUnusedLocals": false,
-    "strictNullChecks": false
-  }
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
 }
