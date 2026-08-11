@@ -15,11 +15,18 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    // `strict` is on, matching what CLAUDE.md documents. strictNullChecks and
+    // noImplicitAny are the two the existing code does not satisfy yet; they
+    // are opted out individually so the rest of strict (strictBindCallApply,
+    // strictFunctionTypes, noImplicitThis, useUnknownInCatchVariables, …) is
+    // enforced now rather than blocked behind one big migration. Flip these two
+    // off-switches away as the codebase is annotated.
+    "strict": true,
+    "strictNullChecks": false,
     "noImplicitAny": false,
-    "noFallthroughCasesInSwitch": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
 
     "baseUrl": ".",
     "paths": {
