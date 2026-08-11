@@ -1,7 +1,7 @@
 import { useState, useRef } from "react"
 import { Volume2, VolumeX } from "lucide-react"
 import { Media, CONFIG } from "@/lib/config"
-import { getImageUrl } from "@/lib/api"
+import { buildEmbedUrl, getImageUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 interface HoverVideoPlayerProps {
@@ -19,19 +19,18 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
     media.media_type ||
     (media.first_air_date ? "tv" : "movie")
 
-  const movieProvider = CONFIG.STREAM_PROVIDERS.vidfast_pro_movie;
-  const tvProvider = CONFIG.STREAM_PROVIDERS.vidfast_pro;
-
-  const url =
-    mediaType === "movie"
-      ? movieProvider.replace(
-          "{tmdbId}",
-          String(media.id)
-        )
-      : tvProvider
-          .replace("{tmdbId}", String(media.id))
-          .replace("{season}", "1")
-          .replace("{episode}", "1")
+  // Built through buildEmbedUrl against the configured default provider, rather
+  // than reaching into STREAM_PROVIDERS for a hardcoded `vidfast_pro` and
+  // re-implementing placeholder substitution. The hand-rolled version pinned the
+  // preview to one provider regardless of DEFAULT_PROVIDER, and would silently
+  // yield a URL with live `{season}`/`{episode}` placeholders in it if a
+  // template ever gained a placeholder this copy didn't know about.
+  const url = buildEmbedUrl(
+    mediaType === "movie" ? "movie" : "tv",
+    CONFIG.DEFAULT_PROVIDER,
+    media.id,
+    { season: 1, episode: 1 }
+  )
 
   const backdrop = getImageUrl(
     media.backdrop_path || media.poster_path,
@@ -55,9 +54,11 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
       <iframe
         ref={iframeRef}
         src={url}
-        // `*` allowlists rather than bare feature names — providers redirect to a
-        // sibling domain, which drops a `'src'`-scoped grant. See MovieDetailModal.
-        allow="autoplay *; encrypted-media *; picture-in-picture *; fullscreen *"
+        // Same embed contract as the full player. This frame previously carried
+        // no referrerPolicy at all, so it inherited the document default and
+        // providers that verify the embedding domain could reject it.
+        allow={CONFIG.PLAYER_IFRAME_ALLOW}
+        referrerPolicy={CONFIG.PLAYER_IFRAME_REFERRER_POLICY}
         className={cn(
           "absolute inset-0 w-full h-full transition duration-500",
           loaded ? "opacity-100" : "opacity-0"
