@@ -35,6 +35,7 @@ import type { Page, Locator } from '@playwright/test'
 import { HomePage } from './pages/HomePage'
 import { WatchPage } from './pages/WatchPage'
 import { MOCK_MOVIES } from './fixtures/mocks'
+import { CONFIG } from '../src/lib/config'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -817,8 +818,9 @@ test.describe('§6  Embed iframe in play mode (MovieDetailModal)', () => {
     if (!iframe) return
 
     const src = await iframe.getAttribute('src')
-    const knownProviders = ['vidfast.pro', 'vidlink.pro', 'peachify.top', 'vidup.to', '2embed.cc', 'vidsrc.cc', 'videasy.net', 'player.videasy.to', 'videasy.to', 'vidrock.ru']
-    const matchedProvider = knownProviders.find(p => src!.includes(p))
+    // Derived from the provider config rather than hand-listed, so adding a
+    // provider can't leave this assertion silently out of date.
+    const matchedProvider = CONFIG.STREAMING_DOMAINS.find(p => src!.includes(p))
     expect(
       matchedProvider,
       `Default streaming src "${src}" is not from a known provider`
