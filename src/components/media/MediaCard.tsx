@@ -125,12 +125,6 @@ function MediaCardComponent({
       media.backdrop_path || media.poster_path,
       'hero'
     )
-    const certification = media.release_dates?.results.find(
-      (r) => r.iso_3166_1 === 'US'
-    )?.release_dates[0]?.certification || media.content_ratings?.results.find(
-      (r) => r.iso_3166_1 === 'US'
-    )?.rating || 'NR'
-
     const releaseYear = media.release_date
       ? new Date(media.release_date).getFullYear()
       : media.first_air_date

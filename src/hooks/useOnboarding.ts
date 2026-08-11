@@ -52,7 +52,7 @@ export function useOnboarding() {
              localStorage.setItem(storageKey, 'true')
           }
         }
-      } catch (err) {
+      } catch (_err) {
         // Fallback: if backend check fails, assume not a new user to prevent annoyance
         if (isMounted) setIsBackendNewUser(false)
       }

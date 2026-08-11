@@ -22,7 +22,6 @@
  */
 
 import { test, expect } from './fixtures'
-import { HomePage } from './pages/HomePage'
 
 // ─── Routes to sanity-check ────────────────────────────────────────────────
 

@@ -27,7 +27,7 @@ export function getDeviceContext() {
   let timezone = 'Unknown';
   try {
     timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch (e) {
+  } catch (_e) {
     // Ignore error, fallback to 'Unknown'
   }
 

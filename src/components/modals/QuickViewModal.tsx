@@ -2,7 +2,7 @@ import { useEffect, useState, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Media, CONFIG } from '@/lib/config'
-import { getImageUrl, fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
+import { fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { HoverVideoPlayer } from '@/components/media/HoverVideoPlayer'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -17,7 +17,7 @@ interface QuickViewModalProps {
 
 export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickViewModalProps) {
   const [details, setDetails] = useState<Media | null>(null)
-  const [provider, setProvider] = useState('vidfast_pro')
+  const [provider, setProvider] = useState(CONFIG.DEFAULT_PROVIDER)
   const [isVisible, setIsVisible] = useState(false)
   const [feedback, setFeedback] = useState<'rate' | 'dislike' | null>(null)
   const [modalStyle, setModalStyle] = useState<React.CSSProperties>({})
@@ -94,7 +94,6 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
   }
 
   const providers = Object.entries(CONFIG.PROVIDER_NAMES)
-  const backdrop = getImageUrl(media.backdrop_path || media.poster_path, 'backdrop')
   const title = media.title || media.name
   const year = media.release_date?.split('-')[0] || media.first_air_date?.split('-')[0]
   const rating = (media.vote_average * 10).toFixed(0)

@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { Component, ErrorInfo, ReactNode } from 'react'
 import ServerError from '@/pages/ServerError'
 
 interface Props {
@@ -17,7 +17,7 @@ class ErrorBoundary extends Component<Props, State> {
     }
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(_error: Error): State {
     return {
       hasError: true,
     }

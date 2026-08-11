@@ -63,7 +63,7 @@ export default function AdminDashboard() {
       const data = await res.json()
       setRequests(data)
       setIsAdmin(true)
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to load subscription requests')
     } finally {
       setLoading(false)
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
 
       // Refresh list
       fetchRequests()
-    } catch (err) {
+    } catch (_err) {
       toast.error(`Could not ${action} the request. Please try again.`)
     } finally {
       setProcessingId(null)

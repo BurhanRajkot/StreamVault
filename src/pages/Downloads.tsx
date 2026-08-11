@@ -57,7 +57,6 @@ const Downloads = () => {
   const [items, setItems] = useState<EnrichedDownload[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [isPremium, setIsPremium] = useState(false)
   const [needsUpgrade, setNeedsUpgrade] = useState(false)
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -85,7 +84,6 @@ const Downloads = () => {
           )
 
           setItems(enriched)
-          setIsPremium(true)
           setNeedsUpgrade(false)
         } catch (err: any) {
           console.error('Admin downloads fetch error:', err)
@@ -119,7 +117,6 @@ const Downloads = () => {
         )
 
         setItems(enriched)
-        setIsPremium(true)
         setNeedsUpgrade(false)
       } catch (err: any) {
         if (err.message?.includes('premium') || err.message?.includes('upgrade')) {
@@ -157,7 +154,6 @@ const Downloads = () => {
       )
 
       setItems(enriched)
-      setIsPremium(true)
       setNeedsUpgrade(false)
       setIsAdmin(true)
     } catch (err: any) {

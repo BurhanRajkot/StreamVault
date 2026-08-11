@@ -15,7 +15,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
-import { getGuestProgress, getImageUrl, RecoSection, RecoItem } from '../lib/api'
+import { getGuestProgress, RecoSection, RecoItem } from '../lib/api'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
