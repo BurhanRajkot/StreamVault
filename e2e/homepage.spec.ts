@@ -21,7 +21,6 @@
 
 import { test, expect } from './fixtures'
 import { HomePage } from './pages/HomePage'
-import { MOCK_MOVIES } from './fixtures/mocks'
 
 // ─── SEO & Document Head ──────────────────────────────────────────────────
 

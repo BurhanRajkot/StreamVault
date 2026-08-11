@@ -3,9 +3,9 @@ interface Auth0ContextType {
   isAuthenticated: boolean
   isLoading: boolean
   user: any
-  loginWithRedirect: (options?: any) => Promise<void>
-  logout: (options?: any) => void
-  getAccessTokenSilently: (options?: any) => Promise<string>
+  loginWithRedirect: (_options?: any) => Promise<void>
+  logout: (_options?: any) => void
+  getAccessTokenSilently: (_options?: any) => Promise<string>
 }
 const Auth0Context = createContext<Auth0ContextType | undefined>(undefined)
 export function Auth0Provider({ children }: { children: React.ReactNode }) {
@@ -26,7 +26,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
     setUser(mockAuth ? mockUser : null)
     setIsLoading(false)
   }, [])
-  const loginWithRedirect = async (options?: any) => {
+  const loginWithRedirect = async (_options?: any) => {
     // If we are already on the login or signup page, mock the login and redirect back
     if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
       localStorage.setItem('e2e_mock_authenticated', 'true')
@@ -50,7 +50,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
         if (parsedUrl.origin !== window.location.origin || !returnTo.startsWith('/')) {
           returnTo = '/'
         }
-      } catch (e) {
+      } catch (_e) {
         returnTo = '/'
       }
       window.location.href = returnTo
@@ -60,7 +60,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
     }
   }
-  const logout = (options?: any) => {
+  const logout = (_options?: any) => {
     localStorage.removeItem('e2e_mock_authenticated')
     localStorage.removeItem('e2e_mock_user')
     // Clear other user settings to prevent leftover state
@@ -69,7 +69,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
     setUser(null)
     window.location.reload()
   }
-  const getAccessTokenSilently = async (options?: any) => {
+  const getAccessTokenSilently = async (_options?: any) => {
     return 'mock-access-token'
   }
   return (

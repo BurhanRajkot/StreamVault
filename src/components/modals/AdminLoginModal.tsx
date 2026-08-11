@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Lock, Loader2, ShieldCheck, Hash } from 'lucide-react'
+import { X, Loader2, ShieldCheck, Hash } from 'lucide-react'
 import { adminLogin, setAdminToken } from '@/lib/api'
 import { cn } from '@/lib/utils'
 

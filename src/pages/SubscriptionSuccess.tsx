@@ -48,7 +48,7 @@ export default function SubscriptionSuccess() {
 
       const data = await res.json()
       setPaymentDetails(data)
-    } catch (err) {
+    } catch (_err) {
       setError('Unable to verify payment')
     } finally {
       setLoading(false)

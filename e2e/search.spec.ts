@@ -22,7 +22,6 @@
 
 import { test, expect } from './fixtures'
 import { SearchPage } from './pages/SearchPage'
-import { MOCK_MOVIES } from './fixtures/mocks'
 
 // ─── Search Overlay — Unauthenticated ─────────────────────────────────────
 
