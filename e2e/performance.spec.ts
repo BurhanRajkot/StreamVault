@@ -87,7 +87,7 @@ test.describe('Performance Metrics', () => {
             totalBytes += buffer.length
           }
         }
-      } catch (e) {
+      } catch (_e) {
         // Ignore read errors for aborted requests
       }
     })

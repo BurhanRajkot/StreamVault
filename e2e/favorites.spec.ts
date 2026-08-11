@@ -17,7 +17,6 @@
 import { test, expect } from './fixtures'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { MOCK_MOVIES } from './fixtures/mocks'
-import { BasePage } from './pages/BasePage'
 
 test.describe('Favorites Page — Unauthenticated', () => {
   test('unauthenticated user sees the auth wall with descriptive content', async ({ unauthMockPage: page }) => {

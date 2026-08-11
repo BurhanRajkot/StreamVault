@@ -16,7 +16,9 @@
     "test:backend": "cd backend && bun test",
     "e2e": "playwright test",
     "e2e:ci": "playwright test --project='Desktop Chrome' --reporter=list,html --grep-invert @skip-ci",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p backend/tsconfig.json --noEmit",
+    "gen:csp": "bun run scripts/gen-csp.ts"
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.19.0",

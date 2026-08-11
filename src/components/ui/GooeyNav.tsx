@@ -1,25 +1,16 @@
 import { useRef, useEffect, useState } from 'react';
 import './GooeyNav.css';
 
+// The particle/animation props (animationTime, particleCount, particleDistances,
+// particleR, timeVariance, colors) were declared and destructured but never read
+// by the component — dead API surface, now removed.
 interface GooeyNavProps {
   items: { label: string; onClick?: () => void }[];
-  animationTime?: number;
-  particleCount?: number;
-  particleDistances?: [number, number];
-  particleR?: number;
-  timeVariance?: number;
-  colors?: number[];
   initialActiveIndex?: number;
 }
 
 const GooeyNav = ({
   items,
-  animationTime = 600,
-  particleCount = 15,
-  particleDistances = [90, 10],
-  particleR = 100,
-  timeVariance = 300,
-  colors = [1, 2, 3, 1, 2, 3, 1, 4],
   initialActiveIndex = 0
 }: GooeyNavProps) => {
   const containerRef = useRef<HTMLDivElement>(null);

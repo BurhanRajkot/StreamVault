@@ -51,7 +51,7 @@ export default function Pricing() {
       if (!res.ok) throw new Error('Failed to fetch plans')
       const data = await res.json()
       setPlans(Array.isArray(data) ? data : (data.plans ?? []))
-    } catch (err) {
+    } catch (_err) {
       setError('Unable to load subscription plans')
     } finally {
       setLoading(false)

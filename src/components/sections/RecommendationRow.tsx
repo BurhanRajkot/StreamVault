@@ -12,10 +12,9 @@ import {
   Tag,
   UserCircle,
 } from 'lucide-react'
-import { RecoSection, RecoItem, getImageSrcSet } from '@/lib/api'
+import { RecoSection, RecoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useDislikes } from '@/context/DislikesContext'
-import { QuickViewModal } from '@/components/modals/QuickViewModal'
 
 interface RecommendationRowProps {
   section: RecoSection
