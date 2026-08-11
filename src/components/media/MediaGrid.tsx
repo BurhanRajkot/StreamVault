@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useEffect, useRef, useCallback, useState, useMemo, useLayoutEffect } from 'react'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { Media } from '@/lib/config'
 import { MediaCard, MediaCardSkeleton } from './MediaCard'
 
@@ -57,6 +57,27 @@ export function MediaGrid({
     return () => ro.disconnect()
   }, [])
 
+  // Distance from the top of the document to the top of the grid. The window
+  // virtualizer measures scroll against the page, but the grid starts well down
+  // it (hero + carousel sections), so without this offset every row is
+  // positioned against the wrong origin. It has to be re-measured whenever the
+  // page height changes, because the sections above the grid mount lazily as
+  // they scroll into view — a one-shot read on mount goes stale immediately.
+  const [scrollMargin, setScrollMargin] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = parentRef.current
+    if (!el) return
+    const measure = () => {
+      const top = Math.round(el.getBoundingClientRect().top + window.scrollY)
+      setScrollMargin(prev => (prev === top ? prev : top))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(document.body)
+    return () => ro.disconnect()
+  }, [])
+
   const cols = getColCount(containerWidth)
 
   // Slot gap in px (matches Tailwind gap-2/gap-3/gap-4 at each breakpoint)
@@ -67,23 +88,38 @@ export function MediaGrid({
   const rowHeight  = Math.round((cardWidth / 2) * 3) // 2:3 ratio
 
   // Chunk media into rows of `cols`
-  const rows = [] as Media[][]
-  for (let i = 0; i < media.length; i += cols) {
-    rows.push(media.slice(i, i + cols))
-  }
+  const rows = useMemo(() => {
+    const out: Media[][] = []
+    for (let i = 0; i < media.length; i += cols) {
+      out.push(media.slice(i, i + cols))
+    }
+    return out
+  }, [media, cols])
 
   // Add a skeleton row if loading
   const skeletonRowCount = isLoading ? Math.ceil((containerWidth < 640 ? 6 : 12) / cols) : 0
 
   const totalRows = rows.length + skeletonRowCount
 
-  const rowVirtualizer = useVirtualizer({
+  // Window virtualizer, NOT useVirtualizer({ getScrollElement: documentElement }):
+  // the latter sizes its viewport from the scroll element's bounding rect, and
+  // documentElement's rect is the height of the entire document. It therefore
+  // believed the viewport was as tall as the page and rendered every single row
+  // — which then made the page taller, which widened the "viewport" again.
+  const rowVirtualizer = useWindowVirtualizer({
     count: totalRows,
-    getScrollElement: () => document.documentElement,
     estimateSize: () => rowHeight,
     overscan: 2,           // pre-render 2 rows above/below; 5 was too many compositor layers
     gap,
+    scrollMargin,
   })
+
+  // estimateSize is captured per virtualizer instance, so a breakpoint change
+  // (new column count -> new row height) needs the measurement cache dropped.
+  useEffect(() => {
+    rowVirtualizer.measure()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowHeight, cols])
 
   // IntersectionObserver for infinite scroll sentinel
   const handleObserver = useCallback(
@@ -135,7 +171,7 @@ export function MediaGrid({
                 top: 0,
                 left: 0,
                 right: 0,
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
                 display: 'grid',
                 gridTemplateColumns: `repeat(${cols}, 1fr)`,
                 gap: `${gap}px`,
@@ -148,8 +184,11 @@ export function MediaGrid({
                 : rows[virtualRow.index].map((item, i) => {
                     const absoluteIndex = virtualRow.index * cols + i
                     return (
+                      // TMDB's movie and tv id spaces are independent and
+                      // overlap, and home/documentary feeds interleave both —
+                      // a bare `item.id` collides and bleeds card state.
                       <MediaCard
-                        key={item.id}
+                        key={`${item.media_type ?? 'unknown'}-${item.id}`}
                         media={item}
                         onClick={onMediaClick}
                         priority={absoluteIndex < cols * 2}

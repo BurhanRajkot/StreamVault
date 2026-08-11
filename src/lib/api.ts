@@ -219,9 +219,9 @@ export async function searchMedia(
   page = 1,
   /** Optional AbortSignal — pass one from an AbortController to cancel stale requests */
   signal?: AbortSignal
-): Promise<{ results: Media[]; total_pages: number }> {
+): Promise<{ results: Media[]; hasMore: boolean }> {
   if (mode === 'downloads') {
-    return { results: [], total_pages: 0 }
+    return { results: [], hasMore: false }
   }
 
   const params = new URLSearchParams()
@@ -245,23 +245,24 @@ export async function searchMedia(
     const res = await fetch(url, { signal })
     if (!res.ok) {
       console.error('searchMedia failed:', res.status, res.statusText)
-      return { results: [], total_pages: 0 }
+      return { results: [], hasMore: false }
     }
     const data = await res.json()
+    const results: Media[] = data.results || []
 
+    // The hybrid route re-ranks one upstream page at a time, so it reports
+    // `has_more` rather than a total page count. Deriving pages from
+    // total_results (which is just this page's length) always yielded 1 and
+    // killed pagination after the first page.
     return {
-      results: data.results || [],
-      // The hybrid route returns total_results, we approximate pages or default to 1
-      total_pages:
-        data.total_pages ||
-        Math.ceil((data.total_results || (data.results || []).length) / 20) ||
-        1,
+      results,
+      hasMore: typeof data.has_more === 'boolean' ? data.has_more : results.length > 0,
     }
   } catch (err: any) {
     // AbortError is expected when the caller cancels a stale request — not a real error
-    if (err?.name === 'AbortError') return { results: [], total_pages: 0 }
+    if (err?.name === 'AbortError') return { results: [], hasMore: false }
     console.error('searchMedia fetch err:', err)
-    return { results: [], total_pages: 0 }
+    return { results: [], hasMore: false }
   }
 }
 
@@ -616,11 +617,13 @@ const GUEST_PROGRESS_CAP = 20 // max stored items
 /** Guest progress carries a client-side timestamp for TTL cleanup. */
 type GuestProgressItem = ContinueWatchingItem & { savedAt?: number }
 
-export function getGuestProgress(): ContinueWatchingItem[] {
+/** Read raw stored items, dropping any past the TTL. Does not write back. */
+function readGuestProgress(): GuestProgressItem[] {
   try {
     const data = localStorage.getItem(GUEST_PROGRESS_KEY)
     if (!data) return []
     const parsed = JSON.parse(data) as GuestProgressItem[]
+    if (!Array.isArray(parsed)) return []
 
     // Drop items older than the TTL (legacy items without savedAt are kept).
     const now = Date.now()
@@ -634,23 +637,39 @@ export function getGuestProgress(): ContinueWatchingItem[] {
   }
 }
 
+export function getGuestProgress(): ContinueWatchingItem[] {
+  const items = readGuestProgress()
+
+  // Persist the pruned list. Filtering on read alone meant expired entries were
+  // re-parsed and re-filtered on every single call and never actually evicted,
+  // so localStorage only ever grew.
+  try {
+    const raw = localStorage.getItem(GUEST_PROGRESS_KEY)
+    if (raw && (JSON.parse(raw) as unknown[]).length !== items.length) {
+      localStorage.setItem(GUEST_PROGRESS_KEY, JSON.stringify(items))
+    }
+  } catch {
+    // Pruning is best-effort; a failed write must not break the read.
+  }
+
+  return items
+}
+
 export function saveGuestProgress(item: ContinueWatchingItem) {
   try {
-    const items = getGuestProgress() as GuestProgressItem[]
+    const items = readGuestProgress()
     const itemWithTimestamp: GuestProgressItem = { ...item, savedAt: Date.now() }
 
-    const index = items.findIndex(
-      (i) => i.tmdbId === item.tmdbId && i.mediaType === item.mediaType
+    // Drop any existing entry for this title and re-append, so array order is
+    // genuine recency order. Updating in place left the entry at its original
+    // index, which meant the cap below could evict the title you just watched.
+    const withoutCurrent = items.filter(
+      (i) => !(i.tmdbId === item.tmdbId && i.mediaType === item.mediaType)
     )
-
-    if (index > -1) {
-      items[index] = itemWithTimestamp
-    } else {
-      items.push(itemWithTimestamp)
-    }
+    withoutCurrent.push(itemWithTimestamp)
 
     // Keep the most recent N items to bound localStorage growth.
-    const capped = items.slice(-GUEST_PROGRESS_CAP)
+    const capped = withoutCurrent.slice(-GUEST_PROGRESS_CAP)
 
     localStorage.setItem(GUEST_PROGRESS_KEY, JSON.stringify(capped))
   } catch (e) {

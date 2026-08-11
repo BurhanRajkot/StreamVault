@@ -1,6 +1,24 @@
 import { supabaseAdmin } from './supabase'
 
+/**
+ * Memo of user ids already provisioned, so the hot path skips a Supabase
+ * round-trip per request.
+ *
+ * Bounded and FIFO-evicted: an unbounded Set here grows for the whole process
+ * lifetime, one entry per distinct user ever seen. Evicting the oldest entry
+ * costs at most one extra existence check next time that user returns.
+ */
+const ENSURED_USERS_CAP = 10_000
 const ensuredUsers = new Set<string>()
+
+function remember(userId: string): void {
+  if (ensuredUsers.size >= ENSURED_USERS_CAP) {
+    // Set iterates in insertion order, so the first key is the oldest.
+    const oldest = ensuredUsers.values().next().value
+    if (oldest !== undefined) ensuredUsers.delete(oldest)
+  }
+  ensuredUsers.add(userId)
+}
 
 /**
  * Upsert a User row for the given Auth0 userId.
@@ -22,9 +40,9 @@ export async function ensureUser(userId: string): Promise<void> {
   if (!existing) {
     const { error } = await supabaseAdmin.from('User').insert({ id: userId })
     if (!error) {
-      ensuredUsers.add(userId)
+      remember(userId)
     }
   } else {
-    ensuredUsers.add(userId)
+    remember(userId)
   }
 }
