@@ -1,9 +1,17 @@
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Sun, Cloud } from "lucide-react";
+import { Sun, Cloud, Moon } from "lucide-react";
 
-export function ThemeToggle() {
+interface ThemeToggleProps {
+  /**
+   * Icon button instead of the day/night switch. The switch is 80px wide —
+   * a fifth of a phone's top bar for a control used about once ever.
+   */
+  compact?: boolean;
+}
+
+export function ThemeToggle({ compact = false }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -53,6 +61,18 @@ export function ThemeToggle() {
       );
     });
   };
+
+  if (compact) {
+    return (
+      <button
+        onClick={toggleTheme}
+        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground tap-scale"
+      >
+        {isDark ? <Moon className="h-[21px] w-[21px]" /> : <Sun className="h-[21px] w-[21px]" />}
+      </button>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center">

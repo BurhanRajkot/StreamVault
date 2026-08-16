@@ -80,14 +80,14 @@ export function CineMatchOnboarding({ onComplete }: Props) {
   const content = submitted ? (
     <SuccessScreen />
   ) : (
-    <div className="min-h-full bg-[#0a0a0a] text-white pb-36 font-sans selection:bg-blue-500/30">
+    <div className="min-h-full bg-[#0a0a0a] text-white pb-52 sm:pb-36 font-sans selection:bg-blue-500/30">
       <StickyHeader
         selectedCount={selectedIds.length}
         minSelections={MIN_SELECTIONS}
         progress={progress}
       />
 
-      <main className="max-w-[1440px] mx-auto pt-12 md:pt-20">
+      <main className="max-w-[1440px] mx-auto pt-6 md:pt-20">
         <HeroCopy minSelections={MIN_SELECTIONS} />
 
         <MovieGrid

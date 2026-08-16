@@ -67,10 +67,15 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
     touchStartX.current = null
   }
 
+  // Portrait phones get a tall, poster-led hero (svh so the address bar
+  // collapsing doesn't resize it mid-scroll); md+ keeps the wide 16:9 banner.
+  const heroHeightClass =
+    'h-[min(72svh,600px)] min-h-[440px] md:h-[clamp(240px,25vw,750px)] md:min-h-0'
+
   if (items.length === 0) {
     return (
       <section className="relative mb-6" aria-label="Featured content loading">
-        <div className="relative h-[clamp(240px,25vw,750px)] overflow-hidden rounded-b-xl bg-secondary/40 animate-pulse" />
+        <div className={cn('relative overflow-hidden bg-secondary/40 animate-pulse md:rounded-b-xl', heroHeightClass)} />
       </section>
     )
   }
@@ -84,7 +89,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
 
       {/* TALLER HERO ON XL / 2XL SCREENS */}
       <div
-        className="relative h-[clamp(240px,25vw,750px)] overflow-hidden rounded-b-xl"
+        className={cn('relative overflow-hidden md:rounded-b-xl', heroHeightClass)}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -113,7 +118,7 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
       <button
         onClick={goToPrev}
         aria-label="Previous slide"
-        className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden sm:flex"
+        className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden md:flex"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
@@ -121,13 +126,13 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
       <button
         onClick={goToNext}
         aria-label="Next slide"
-        className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden sm:flex"
+        className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden md:flex"
       >
         <ChevronRight className="h-5 w-5" />
       </button>
 
       {/* Slide indicators with CSS-animated progress (zero JS per-tick) */}
-      <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2">
+      <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2 md:bottom-4">
         {displayItems.map((_, index) => (
           <button
             key={index}

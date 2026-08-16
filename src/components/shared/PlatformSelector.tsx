@@ -13,9 +13,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
   const scrollRef = useRef<HTMLDivElement>(null)
 
   return (
-    <div className="w-full px-4 md:px-10 mb-4 mt-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+    /* No horizontal padding on mobile — the page gutter already provides it */
+    <div className="w-full mb-4 mt-5 md:px-10">
+      <div className="flex items-center justify-between mb-2.5 md:mb-4">
+        <h2 className="text-[17px] md:text-xl font-bold text-foreground flex items-center gap-2">
           <div className="flex items-center justify-center p-1.5 rounded-lg bg-primary/10 border border-primary/20">
             <MonitorPlay className="w-4 h-4 text-primary" />
           </div>
@@ -26,7 +27,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
       {/* Scrollable Container */}
       <div
         ref={scrollRef}
-        className="flex md:flex-wrap items-center gap-3 md:gap-5 overflow-x-auto pb-4 pt-2 scrollbar-hide snap-x md:justify-start"
+        className="flex md:flex-wrap items-center gap-4 md:gap-5 overflow-x-auto pb-3 pt-1 no-scrollbar snap-x md:justify-start md:pb-4 md:pt-2 -mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {/* All Button */}
@@ -75,7 +76,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
 
           <div className="flex flex-col items-center gap-1">
             <span className={cn(
-              "text-xs md:text-sm font-semibold tracking-wide transition-colors uppercase",
+              "text-[11px] md:text-sm font-semibold tracking-wide transition-colors uppercase",
               selected === null ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
             )}>
               All Content
@@ -151,7 +152,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
 
               <div className="flex flex-col items-center gap-1">
                 <span className={cn(
-                  "text-xs md:text-sm font-semibold tracking-wide transition-colors max-w-[80px] truncate text-center",
+                  "text-[11px] md:text-sm font-semibold tracking-wide transition-colors max-w-[68px] md:max-w-[80px] truncate text-center",
                   isSelected ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
                 )}>
                   {provider.displayName}

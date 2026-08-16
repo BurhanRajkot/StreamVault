@@ -144,17 +144,21 @@ const Favorites = () => {
       <div className="flex min-h-screen flex-col">
         <Header
           mode="home"
-          onModeChange={() => navigate('/')}
+          onModeChange={(m) => navigate('/', { state: { mode: m } })}
           onSearch={() => {}}
           searchQuery=""
           onClearSearch={() => {}}
           onLogoClick={() => navigate('/')}
         />
-        <MobileNav mode="home" onModeChange={() => navigate('/')} />
+        <MobileNav
+          mode="home"
+          // Browsing modes live on the home page — carry the tap over to it
+          onModeChange={(m) => navigate('/', { state: { mode: m } })}
+        />
 
         {/* Page header */}
-        <div className="border-b border-border/50 pt-[72px]">
-          <div className="mx-auto w-full max-w-[2560px] px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16 py-6">
+        <div className="border-b border-border/50 pt-[var(--sv-header-h)]">
+          <div className="mx-auto w-full max-w-[2560px] px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16 py-4 sm:py-6">
             <div className="flex items-center gap-3">
               <Heart className="h-5 w-5 text-primary" fill="currentColor" />
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
@@ -226,7 +230,7 @@ const Favorites = () => {
         </div>
 
         {/* Content */}
-        <main className="mx-auto w-full max-w-[2560px] px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16 py-6 flex-1">
+        <main className="mx-auto w-full max-w-[2560px] px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16 py-4 sm:py-6 flex-1 pb-tabbar">
           {error ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-destructive/20">

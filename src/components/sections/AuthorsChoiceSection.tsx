@@ -101,9 +101,10 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Header */}
-      <div className="mb-4 flex flex-row items-end justify-between gap-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-none">{getTitle()}</h2>
-        <p className="text-sm text-foreground/80 text-right shrink-0">
+      <div className="mb-2.5 flex flex-row items-end justify-between gap-4 sm:mb-4">
+        <h2 className="text-[17px] sm:text-2xl font-bold text-foreground leading-tight">{getTitle()}</h2>
+        {/* The strapline costs a phone half its header width for no navigation value */}
+        <p className="hidden text-sm text-foreground/80 text-right shrink-0 md:block">
           Hand-picked recommendations by the creator of StreamVault
         </p>
       </div>
@@ -145,19 +146,19 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
       {/* Horizontal Scroll Row */}
       <div
         id={`authors-choice-row-${mode}`}
-        className="flex gap-4 overflow-x-auto scroll-smooth px-8 pb-4 no-scrollbar"
+        className="flex gap-2 overflow-x-auto scroll-smooth pb-3 no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-8 md:pb-4"
         style={{ contain: 'layout' }}
       >
         {loading
           ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="w-[clamp(160px,9vw,300px)] flex-shrink-0">
+              <div key={i} className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(160px,9vw,300px)] md:max-w-none">
                 <MediaCardSkeleton />
               </div>
             ))
           : media.map((item, index) => (
               <div
                 key={`${item.id}-${index}`}
-                className="w-[clamp(160px,9vw,300px)] flex-shrink-0"
+                className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(160px,9vw,300px)] md:max-w-none"
               >
                 <MediaCard media={item} onClick={onMediaClick} />
               </div>

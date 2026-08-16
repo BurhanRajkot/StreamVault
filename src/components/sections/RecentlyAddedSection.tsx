@@ -64,12 +64,12 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Header */}
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+      <div className="mb-2.5 flex items-center justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex shrink-0 items-center justify-center p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <Calendar className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
           </div>
-          <h2 className="text-lg md:text-xl font-bold text-foreground">
+          <h2 className="truncate text-[17px] md:text-xl font-bold text-foreground">
             {providerId ? (
               <>Recently Added on <span className="text-primary">{providerName}</span></>
             ) : (
@@ -123,16 +123,16 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       {/* Horizontal Scroll Row */}
       <div
         id="recently-added-row"
-        className="flex gap-4 overflow-x-auto scroll-smooth px-8 pb-4 no-scrollbar"
+        className="flex gap-2 overflow-x-auto scroll-smooth pb-3 no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-8 md:pb-4"
       >
         {isLoading
           ? Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-[clamp(240px,13.5vw,450px)] w-[clamp(160px,9vw,300px)] animate-pulse rounded-lg bg-muted">
+            <div key={i} className="aspect-[2/3] w-[30vw] min-w-[104px] max-w-[150px] shrink-0 animate-pulse rounded-lg bg-muted md:aspect-auto md:h-[clamp(240px,13.5vw,450px)] md:w-[clamp(160px,9vw,300px)] md:max-w-none">
               <MediaCardSkeleton />
             </div>
           ))
           : items.map((media, index) => (
-            <div key={`${media.id || index}-${index}`} className="w-[clamp(160px,9vw,300px)] flex-shrink-0">
+            <div key={`${media.id || index}-${index}`} className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(160px,9vw,300px)] md:max-w-none">
               <MediaCard media={media} onClick={onMediaClick} />
             </div>
           ))}
