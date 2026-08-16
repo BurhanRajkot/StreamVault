@@ -3,7 +3,8 @@ import { Heart, Facebook, Instagram, Linkedin, Youtube } from 'lucide-react';
 export function Footer() {
   return (
     <footer className="mt-auto border-t border-border/40 bg-gradient-to-b from-background to-card/30 backdrop-blur-sm">
-      <div className="container mx-auto px-4 py-8">
+      {/* pb-tabbar keeps the last line clear of the mobile bottom tab bar */}
+      <div className="container mx-auto px-4 py-8 pb-tabbar">
         <div className="flex flex-col md:flex-row justify-between gap-8 text-sm text-muted-foreground mb-8">
           <div className="space-y-4">
             <h3 className="text-foreground font-semibold">StreamVault</h3>

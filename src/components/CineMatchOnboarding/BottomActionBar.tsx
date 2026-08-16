@@ -16,14 +16,19 @@ export function BottomActionBar({
   onContinue,
 }: Props) {
   return (
-    <div className={[
-      'fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6 transition-all duration-500',
-      selectedCount > 0 ? 'opacity-100' : 'opacity-60',
-    ].join(' ')}>
-      <div className="max-w-4xl mx-auto bg-zinc-900/95 backdrop-blur-xl border border-white/10 p-4 sm:p-5 rounded-2xl flex items-center justify-between shadow-2xl shadow-black/50">
+    <div
+      className={[
+        'fixed bottom-0 left-0 right-0 z-50 p-3 sm:p-6 transition-all duration-500',
+        selectedCount > 0 ? 'opacity-100' : 'opacity-60',
+      ].join(' ')}
+      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+    >
+      {/* Stacked on phones: a count dial, a progress rail and a CTA side by
+          side leaves the button under 100px wide on a 390px screen. */}
+      <div className="max-w-4xl mx-auto bg-zinc-900/95 backdrop-blur-xl border border-white/10 p-3.5 sm:p-5 rounded-2xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0 shadow-2xl shadow-black/50">
         {/* Count + Progress */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-8 flex-1">
-          <div className="flex items-center gap-4">
+          <div className="hidden items-center gap-4 sm:flex">
             <div className="w-12 h-12 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-xl font-bold text-white tabular-nums">
               {selectedCount}
             </div>
@@ -35,7 +40,7 @@ export function BottomActionBar({
           <div className="hidden sm:block w-px h-10 bg-white/10" />
 
           <div className="flex-1 max-w-sm w-full">
-            <div className="flex justify-between text-xs font-medium mb-2">
+            <div className="flex justify-between text-xs font-medium mb-1.5 sm:mb-2">
               <span className="text-zinc-300">
                 {isReady
                   ? '✓ Awesome taste! Ready to continue.'
@@ -57,7 +62,8 @@ export function BottomActionBar({
           onClick={onContinue}
           disabled={!isReady || isSubmitting}
           className={[
-            'relative overflow-hidden ml-4 flex items-center gap-2 px-6 sm:px-8 py-3.5 rounded-xl font-bold transition-all shrink-0',
+            'relative overflow-hidden flex h-12 w-full items-center justify-center gap-2 rounded-xl font-bold transition-all shrink-0',
+            'sm:ml-4 sm:h-auto sm:w-auto sm:px-8 sm:py-3.5',
             isReady
               ? 'bg-blue-500 hover:bg-blue-400 text-white shadow-[0_0_24px_rgba(59,130,246,0.35)] hover:shadow-[0_0_36px_rgba(59,130,246,0.55)] active:scale-95'
               : 'bg-zinc-800 text-zinc-500 cursor-not-allowed',

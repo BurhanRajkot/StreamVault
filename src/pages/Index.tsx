@@ -33,6 +33,8 @@ const Index = () => {
   )
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  // Owned here (not in Header) so the bottom tab bar can open search too
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   // useLocation MUST be called before prevPathnameRef so the React Router
   // location object is in scope when the ref is initialised.
@@ -54,6 +56,17 @@ const Index = () => {
       setRefreshKey(k => k + 1)
     }
   }, [location.pathname])
+
+  // Handoff from a page that has no browse UI of its own (e.g. Favorites):
+  // it navigates here carrying the tab the user actually tapped.
+  useEffect(() => {
+    const state = location.state as { openSearch?: boolean; mode?: MediaMode } | null
+    if (!state?.openSearch && !state?.mode) return
+
+    if (state.openSearch) setMobileSearchOpen(true)
+    if (state.mode) setMode(state.mode)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
 
   // ─── CineMatch Onboarding (first-time users only) ────────────────────────
   const { shouldShowOnboarding, markDone } = useOnboarding()
@@ -167,17 +180,26 @@ const Index = () => {
           searchQuery={searchQuery}
           onClearSearch={clearSearch}
           onLogoClick={handleLogoClick}
+          mobileSearchOpen={mobileSearchOpen}
+          onMobileSearchOpenChange={setMobileSearchOpen}
         />
-        <MobileNav mode={mode} onModeChange={setMode} />
+        <MobileNav
+          mode={mode}
+          onModeChange={setMode}
+          onSearchOpen={() => setMobileSearchOpen(true)}
+          searchOpen={mobileSearchOpen}
+        />
 
         {/* WIDER CONTAINER FOR LARGE MONITORS */}
-        <main className="w-full flex-1 px-2 pt-[72px] pb-2 sm:px-4">
+        <main className="w-full flex-1 px-3 pt-[var(--sv-header-h)] pb-2 pb-tabbar sm:px-4">
           {mode === 'downloads' ? (
             <Downloads />
           ) : (
             <>
               {!searchQuery && (
-                <div className="-mt-[72px]">
+                /* Hero bleeds past the page gutter on phones — a 12px margin
+                   around a full-bleed image reads as a rendering mistake. */
+                <div className="-mx-3 -mt-[var(--sv-header-h)] sm:-mx-4 md:mx-0">
                   <HeroCarousel
                     items={trending}
                     onMediaClick={handleMediaClick}

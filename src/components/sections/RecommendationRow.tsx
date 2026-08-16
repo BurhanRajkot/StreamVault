@@ -39,7 +39,7 @@ function SectionIcon({ source }: { source: string }) {
 // ── Skeleton card ──────────────────────────────────────────
 function RecoCardSkeleton() {
   return (
-    <div className="flex-shrink-0 w-[clamp(110px,10vw,320px)]">
+    <div className="flex-shrink-0 w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(110px,10vw,320px)] md:max-w-none">
       <div className="aspect-[2/3] rounded-xl animate-shimmer bg-card border border-border/30" />
     </div>
   )
@@ -91,38 +91,19 @@ export function RecommendationRow({
 
   return (
     <section 
-      className="relative mb-5 sm:mb-6"
+      className="relative mb-6 sm:mb-6"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* ── Header ─────────────────────────────────────── */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="mb-2.5 flex items-center justify-between sm:mb-3">
+        <div className="flex items-center gap-2 min-w-0 sm:gap-2.5">
           <SectionIcon source={section.source} />
-          <h2 className="text-lg sm:text-xl font-bold text-foreground leading-tight truncate">
+          <h2 className="text-[17px] sm:text-xl font-bold text-foreground leading-tight truncate">
             {section.title}
           </h2>
         </div>
 
-        {/* Mobile-only scroll indicators */}
-        <div className="flex gap-2 md:hidden flex-shrink-0 ml-3">
-          <button 
-            onClick={() => handleArrowScroll('left')}
-            disabled={!showLeftButton}
-            aria-label={`Scroll ${section.title} left`}
-            className={`p-1.5 rounded-full bg-white/5 ${!showLeftButton ? 'opacity-30' : 'active:bg-white/10'}`}
-          >
-            <ChevronLeft className="w-4 h-4 text-white" />
-          </button>
-          <button 
-            onClick={() => handleArrowScroll('right')}
-            disabled={!showRightButton}
-            aria-label={`Scroll ${section.title} right`}
-            className={`p-1.5 rounded-full bg-white/5 ${!showRightButton ? 'opacity-30' : 'active:bg-white/10'}`}
-          >
-            <ChevronRight className="w-4 h-4 text-white" />
-          </button>
-        </div>
       </div>
 
       {/* ── Outer Carousel Bounds ── */}
@@ -153,7 +134,7 @@ export function RecommendationRow({
         <div
           ref={innerTrackRef}
           onScroll={checkScroll}
-          className="flex gap-3 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory pr-10 pb-2" 
+          className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-2 -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-3 md:mx-0 md:px-0 md:pr-10" 
         >
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="snap-start shrink-0"><RecoCardSkeleton /></div>)
@@ -231,7 +212,7 @@ function RecoCard({ item, index, source, onClick, onDislike, isDisliked = false 
       mediaType={item.mediaType}
       isDisliked={isDisliked}
       className={cn(
-        'w-[clamp(120px,11vw,340px)]',
+        'w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(120px,11vw,340px)] md:max-w-none',
         'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden'
       )}
       imageClassName="group-hover:scale-110 group-hover:brightness-110"
@@ -251,7 +232,9 @@ function RecoCard({ item, index, source, onClick, onDislike, isDisliked = false 
             onClick={handleDislike}
             aria-label={`Not interested in ${item.title}`}
             className={cn(
-              'absolute right-2 top-2 z-10 rounded-full bg-background/90 backdrop-blur-sm shadow-lg',
+              // Desktop-only: on touch it was an invisible tap target sitting
+              // over the artwork, and "not interested" belongs in the detail view
+              'absolute right-2 top-2 z-10 hidden rounded-full bg-background/90 backdrop-blur-sm shadow-lg md:block',
               'p-2',
               'opacity-0 group-hover:opacity-100 transition-all duration-200',
               'hover:scale-110 active:scale-95',

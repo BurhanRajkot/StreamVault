@@ -110,7 +110,8 @@ export function GenericMediaCard({
       onKeyDown={handleCardKeyDown}
       className={cn(
         'group relative flex-shrink-0 cursor-pointer text-left',
-        'rounded-xl bg-card border border-border/50',
+        // Border reads as grid noise at phone poster sizes
+        'rounded-lg bg-card md:rounded-xl md:border md:border-border/50',
         'transition-[transform,opacity,box-shadow,border-color] duration-300 ease-in-out',
         showQuickView ? 'z-50' : 'z-0',
         isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100',
@@ -122,7 +123,7 @@ export function GenericMediaCard({
       tabIndex={tabIndex}
       aria-label={ariaLabel || `Open ${title}`}
     >
-      <div className={cn("relative overflow-hidden rounded-t-xl bg-secondary/30", aspectRatio)}>
+      <div className={cn("relative overflow-hidden rounded-lg bg-secondary/30 md:rounded-t-xl md:rounded-b-none", aspectRatio)}>
         {imgSrc ? (
           <img
             src={imgSrc}

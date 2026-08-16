@@ -73,13 +73,17 @@ export function ContinueWatchingCard({
   return (
     <div
       ref={cardRef}
-      className={cn("group relative w-[clamp(160px,11vw,300px)] flex-shrink-0 cursor-pointer", showQuickView ? "z-50" : "z-0")}
+      className={cn(
+        "group relative w-[34vw] min-w-[116px] max-w-[170px] flex-shrink-0 cursor-pointer",
+        "md:w-[clamp(160px,11vw,300px)] md:max-w-none",
+        showQuickView ? "z-50" : "z-0"
+      )}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       {/* Play Overlay (hover + touch) */}
       <div
-        className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none"
+        className="absolute inset-0 z-10 hidden flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none md:flex"
       >
         <button
           onClick={(e) => {
@@ -106,10 +110,11 @@ export function ContinueWatchingCard({
           setMenuOpen((v) => !v)
         }}
         className="
-          absolute right-2 top-2 z-20
-          rounded-full bg-black/70 p-1.5
+          absolute right-1.5 top-1.5 z-20
+          rounded-full bg-black/60 p-2 backdrop-blur-sm
           text-white
-          opacity-0 group-hover:opacity-100
+          md:right-2 md:top-2 md:p-1.5
+          md:opacity-0 md:group-hover:opacity-100
           transition
           active:opacity-100
           active:scale-95
@@ -167,7 +172,7 @@ export function ContinueWatchingCard({
           height={750}
           loading="lazy"
           decoding="async"
-          className="w-full h-[clamp(240px,16.5vw,450px)] object-cover rounded-lg"
+          className="aspect-[2/3] w-full object-cover rounded-lg md:aspect-auto md:h-[clamp(240px,16.5vw,450px)]"
           onError={(e) => {
             const target = e.currentTarget
             target.onerror = null // Prevent infinite loop
@@ -183,7 +188,7 @@ export function ContinueWatchingCard({
           />
 
           {/* Exact Time Remaining (Appears on Hover) */}
-          <div className="absolute right-2 bottom-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 text-[10px] font-bold text-white bg-black/80 px-2 py-1 rounded shadow-[0_2px_8px_rgba(0,0,0,0.8)] pointer-events-none whitespace-nowrap border border-white/10">
+          <div className="absolute right-2 bottom-3 hidden translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 md:block text-[10px] font-bold text-white bg-black/80 px-2 py-1 rounded shadow-[0_2px_8px_rgba(0,0,0,0.8)] pointer-events-none whitespace-nowrap border border-white/10">
             {remainingMinutes === 0 ? 'Finishing...' : `${formatTime(remainingMinutes)} left`}
           </div>
         </div>
