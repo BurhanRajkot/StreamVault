@@ -9,6 +9,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
+import { useIsMobile } from '@/mobile-ui/use-mobile'
 import { cn } from '@/lib/utils'
 import {
   Select,
@@ -54,10 +55,10 @@ export function MovieDetailModal({
   const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState(10)
 
   const [isPlaying, setIsPlaying] = useState(autoPlay || false)
-  const [isMobileDevice] = useState(() => {
-    if (typeof navigator === 'undefined') return false
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  })
+  // Picks between two genuinely different pre-play layouts. Only the chosen
+  // one is mounted: rendering both and hiding one with CSS would duplicate
+  // every control on the screen (two Play buttons, two server pickers).
+  const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
@@ -78,6 +79,8 @@ export function MovieDetailModal({
   const { toggleDislike, isDisliked } = useDislikes()
   const [isLiked, setIsLiked] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
+  // Mobile synopsis starts clamped — a 5-line block pushes Play off-screen
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
 
   const handleLikeToggle = async () => {
     const newValue = !isLiked
@@ -152,6 +155,42 @@ export function MovieDetailModal({
     },
     [media.id, typedMode, mode, server, isAuthenticated, getAccessTokenSilently]
   )
+
+  /**
+   * Share sheet on mobile, clipboard everywhere else. `navigator.share` must be
+   * called straight from the tap to keep the user-gesture, so no awaits before it.
+   */
+  const handleShare = () => {
+    const shareTitle = initialMedia.title || initialMedia.name || 'StreamVault'
+    const slug = shareTitle
+      ? `-${shareTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`
+      : ''
+    const url = `${window.location.origin}/watch/${typedMode}/${initialMedia.id}${slug}`
+
+    if (typeof navigator.share === 'function') {
+      navigator
+        .share({ title: shareTitle, url })
+        // AbortError just means the user dismissed the sheet
+        .catch(() => {})
+      return
+    }
+
+    navigator.clipboard.writeText(url)
+    setIsCopied(true)
+    toast.success('Link copied to clipboard!')
+    setTimeout(() => setIsCopied(false), 2000)
+  }
+
+  // Save mid-watch progress (0.5) when the user leaves after >= 30s
+  const handleClose = () => {
+    if (isPlaying && watchStartTimeRef.current) {
+      const elapsed = Date.now() - watchStartTimeRef.current
+      if (elapsed >= 30_000) {
+        saveProgress(season, episode, 0.5)
+      }
+    }
+    onClose()
+  }
 
   useEffect(() => {
     if (isPlaying) {
@@ -375,6 +414,7 @@ export function MovieDetailModal({
   })) || []
 
   const heroImage = getImageUrl(media.backdrop_path, 'backdrop')
+  const posterImage = getImageUrl(media.poster_path || media.backdrop_path, 'poster')
 
   const logos = media.images?.logos || []
   let logoImage = null
@@ -477,6 +517,189 @@ export function MovieDetailModal({
     !sortedSeasons.length
       ? episode >= currentSeasonEpisodes
       : season === lastSeasonNumber && episode >= lastSeasonEpisodes
+
+  /* ══════════════════════════════════════════════════════════════════════
+     MOBILE PRE-PLAY SHEET (< md)
+     Poster art fills the screen behind a sheet of details that scrolls up
+     over it. Score dial and like/dislike are deliberately absent here — on a
+     phone they crowded out the only two things that matter on this screen,
+     Play and what the title actually is.
+     ══════════════════════════════════════════════════════════════════════ */
+  const renderMobileDetails = () => (
+    <div className="flex min-h-full flex-col">
+      {/* See-through spacer — the ambient poster shows through it */}
+      <div className="h-[44svh] shrink-0" aria-hidden="true" />
+
+      <div className="relative flex-1 bg-gradient-to-b from-transparent via-background/95 to-background px-5 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))]">
+        {logoImage ? (
+          <img
+            src={logoImage}
+            alt={title}
+            aria-hidden="true"
+            role="presentation"
+            draggable="false"
+            className="mb-1 max-h-[84px] w-auto max-w-[78%] object-contain drop-shadow-2xl"
+          />
+        ) : (
+          <h1 className="text-[27px] font-bold leading-[1.15] tracking-tight">{title}</h1>
+        )}
+
+        {/* Meta line — year, certificate, runtime */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-medium text-foreground/60">
+          {year && <span>{year}</span>}
+          <span className="rounded border border-foreground/25 px-1.5 py-px text-[11px] uppercase tracking-wider">
+            {contentRating}
+          </span>
+          {durationStr && <span>{durationStr}</span>}
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">HD</span>
+        </div>
+
+        {/* Season / episode pickers */}
+        {mode === 'tv' && (
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <Select
+              value={season.toString()}
+              onValueChange={(val) => { setSeason(Number(val)); setEpisode(1) }}
+            >
+              <SelectTrigger className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
+                <SelectValue placeholder="Season" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
+                {(seasons.length > 0
+                  ? seasons.map(s => s.season_number)
+                  : Array.from({ length: 10 }, (_, i) => i + 1)
+                ).map(n => (
+                  <SelectItem key={n} value={n.toString()} className="py-3 text-[15px]">
+                    Season {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={episode.toString()} onValueChange={(val) => setEpisode(Number(val))}>
+              <SelectTrigger className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
+                <SelectValue placeholder="Episode" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
+                {Array.from({ length: currentSeasonEpisodes }, (_, i) => i + 1).map(n => (
+                  <SelectItem key={n} value={n.toString()} className="py-3 text-[15px]">
+                    Episode {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Primary CTA */}
+        <button
+          onClick={() => setIsPlaying(true)}
+          className="mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-foreground text-[16px] font-bold text-background tap-scale"
+        >
+          <Play className="h-5 w-5 fill-current" />
+          Play
+        </button>
+
+        {/* Server picker — secondary, but has to be reachable when one fails */}
+        <Select value={server} onValueChange={setServer}>
+          <SelectTrigger className="mt-2.5 h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-foreground/80">
+            <div className="flex items-center gap-2">
+              <Server className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
+              <SelectValue placeholder="Server" />
+            </div>
+          </SelectTrigger>
+          <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
+            {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
+              <SelectItem key={key} value={key} className="py-3 text-[15px]">{name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Save / share */}
+        <div className="mt-6 flex items-center gap-9 px-1">
+          <button
+            onClick={() => {
+              const genreIds = initialMedia.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+              toggleFavorite(initialMedia.id, typedMode, genreIds)
+            }}
+            aria-pressed={favorited}
+            className="flex flex-col items-center gap-1.5 text-[11px] font-medium text-foreground/60 tap-scale"
+          >
+            <Heart className={cn('h-6 w-6', favorited && 'fill-primary text-primary')} />
+            My List
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex flex-col items-center gap-1.5 text-[11px] font-medium text-foreground/60 tap-scale"
+          >
+            {isCopied ? <Check className="h-6 w-6 text-emerald-teal" /> : <Share2 className="h-6 w-6" />}
+            Share
+          </button>
+        </div>
+
+        {/* Synopsis */}
+        <p
+          className={cn(
+            'mt-6 text-[15px] leading-relaxed text-foreground/75',
+            !isOverviewExpanded && 'line-clamp-4'
+          )}
+        >
+          {description}
+        </p>
+        {description.length > 190 && (
+          <button
+            onClick={() => setIsOverviewExpanded(v => !v)}
+            className="mt-1.5 text-[13px] font-semibold text-foreground/50"
+          >
+            {isOverviewExpanded ? 'Show less' : 'More'}
+          </button>
+        )}
+
+        {genres.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {genres.slice(0, 4).map(genre => (
+              <span
+                key={genre}
+                className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[12px] text-foreground/75"
+              >
+                {genre}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {cast.length > 0 && (
+          <div className="mt-7">
+            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/40">Cast</h3>
+            {/* Negative margin lets the row bleed to the screen edge */}
+            <div className="edge-row -mx-5 gap-4 px-5">
+              {cast.map(actor => (
+                <div key={actor.name} className="w-[68px] shrink-0">
+                  <img
+                    src={actor.image}
+                    alt={actor.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-[68px] w-[68px] rounded-full border border-white/10 object-cover"
+                  />
+                  <p className="mt-1.5 text-center text-[11px] leading-tight text-foreground/70 line-clamp-2">
+                    {actor.name}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mode === 'movie' && director !== 'Unknown' && (
+          <p className="mt-6 text-[13px] text-foreground/60">
+            <span className="text-foreground/40">Director: </span>
+            {director}
+          </p>
+        )}
+      </div>
+    </div>
+  )
 
   // Helper to render the details grid for both views
   const renderDetails = (isPrePlay: boolean) => (
@@ -725,42 +948,48 @@ export function MovieDetailModal({
       >
         {/* ── Ambient Background (always fixed, never scrolls) ── */}
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img
-            src={heroImage}
-            alt={title}
-            className={cn(
-              "w-full h-full object-cover transition-all duration-[1500ms] ease-in-out",
-              isPlaying ? "scale-110 opacity-15 blur-[40px]" : "scale-100 opacity-55 blur-0"
-            )}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/30" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent opacity-80" />
+          <picture>
+            {/* A 16:9 backdrop cropped to a portrait phone is mostly sky and
+                shoulders — the poster is the art that was composed for it.
+                Declared as an override so the <img> keeps the backdrop as its
+                own src, which is what non-picture-aware consumers read. */}
+            <source media="(max-width: 767px)" srcSet={posterImage} />
+            <img
+              src={heroImage}
+              alt={title}
+              className={cn(
+                // Capped to the top of the screen on mobile: stretching a 2:3
+                // poster over a 0.46:1 viewport crops ~45% of its width away
+                // and blows the rest up past its own resolution.
+                "w-full h-[58svh] object-cover object-top md:h-full md:object-center transition-all duration-[1500ms] ease-in-out",
+                isPlaying
+                  ? "scale-110 opacity-15 blur-[40px]"
+                  : "scale-100 opacity-100 blur-0 md:opacity-55"
+              )}
+            />
+          </picture>
+          {/* Portrait scrim: art up top, solid background where the sheet sits */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background md:bg-gradient-to-t md:from-background md:via-background/80 md:to-background/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent opacity-80 max-md:hidden" />
         </div>
 
         {/* ── Top Navigation (always visible, non-scrolling) ── */}
         <div className={cn(
-          "absolute top-0 left-0 right-0 px-6 py-5 md:px-10 md:py-6 flex justify-between items-center z-[100] pointer-events-none transition-opacity duration-300",
-          isPlaying && isMobileDevice ? "max-md:opacity-0 max-md:pointer-events-none" : "opacity-100"
+          "absolute top-0 left-0 right-0 px-4 py-4 md:px-10 md:py-6 flex justify-between items-center z-[100] pointer-events-none transition-opacity duration-300 max-md:pt-[calc(1rem+env(safe-area-inset-top,0px))]",
+          // The takeover player draws its own back control over the video
+          isPlaying ? "player-hide-chrome" : "opacity-100"
         )}>
           <button
-            onClick={() => {
-              // Save mid-watch progress (0.5) when user closes after >= 30s
-              if (isPlaying && watchStartTimeRef.current) {
-                const elapsed = Date.now() - watchStartTimeRef.current
-                if (elapsed >= 30_000) {
-                  saveProgress(season, episode, 0.5)
-                }
-              }
-              onClose()
-            }}
+            onClick={handleClose}
+            aria-label="Back"
             className="pointer-events-auto flex items-center gap-2 text-sm font-medium tracking-widest uppercase text-white/70 hover:text-white transition-colors group"
           >
-            <div className="p-3 rounded-full border border-white/20 group-hover:border-white/50 transition-colors backdrop-blur-sm bg-black/20">
+            <div className="p-2.5 md:p-3 rounded-full border border-white/20 group-hover:border-white/50 transition-colors backdrop-blur-sm bg-black/40">
               <ChevronLeft className="w-5 h-5" />
             </div>
-            <span className="text-base">Back</span>
+            <span className="hidden text-base md:inline">Back</span>
           </button>
-          <div className="flex gap-4 pointer-events-auto">
+          <div className="flex gap-2 md:gap-4 pointer-events-auto">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -769,25 +998,19 @@ export function MovieDetailModal({
               }}
               aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
               aria-pressed={favorited}
-              className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-foreground/70 hover:text-foreground bg-background/30 group cursor-pointer"
+              className="p-2.5 md:p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-foreground/70 hover:text-foreground bg-background/40 group cursor-pointer tap-scale"
             >
-              <Heart className={cn('w-6 h-6 transition-colors', favorited ? 'fill-red-500 text-red-500' : 'group-hover:text-red-500')} />
+              <Heart className={cn('w-5 h-5 md:w-6 md:h-6 transition-colors', favorited ? 'fill-red-500 text-red-500' : 'group-hover:text-red-500')} />
             </button>
             <button
               onClick={(e) => {
-                e.stopPropagation();
-                const title = initialMedia.title || initialMedia.name || '';
-                const slug = title ? `-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}` : '';
-                const url = `${window.location.origin}/watch/${typedMode}/${initialMedia.id}${slug}`;
-                navigator.clipboard.writeText(url);
-                setIsCopied(true);
-                toast.success('Link copied to clipboard!');
-                setTimeout(() => setIsCopied(false), 2000);
+                e.stopPropagation()
+                handleShare()
               }}
               aria-label={isCopied ? 'Link copied' : 'Copy share link'}
-              className="p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-foreground/70 hover:text-foreground bg-background/30 cursor-pointer transition-[color,border-color,background-color,transform]"
+              className="p-2.5 md:p-3 rounded-full border border-white/20 hover:border-white/50 transition-colors backdrop-blur-sm text-foreground/70 hover:text-foreground bg-background/40 cursor-pointer tap-scale"
             >
-              {isCopied ? <Check className="w-6 h-6 text-green-500" /> : <Share2 className="w-6 h-6" />}
+              {isCopied ? <Check className="w-5 h-5 md:w-6 md:h-6 text-green-500" /> : <Share2 className="w-5 h-5 md:w-6 md:h-6" />}
             </button>
           </div>
         </div>
@@ -795,14 +1018,22 @@ export function MovieDetailModal({
         {/* ══════════════════════════════════════════
             LAYER 1 — PRE-PLAY: full-screen, no scroll
             ══════════════════════════════════════════ */}
-        {!isPlaying && (
-          <div className="absolute inset-0 z-10 flex flex-col overflow-hidden">
-            {/* Content anchored to bottom of screen */}
+        {!isPlaying && (isMobile ? (
+          /* Mobile — scrollable sheet over the artwork */
+          <div
+            data-lenis-prevent
+            className="absolute inset-0 z-10 overflow-y-auto overscroll-contain custom-scrollbar"
+          >
+            {renderMobileDetails()}
+          </div>
+        ) : (
+          /* Desktop — bottom-anchored */
+          <div className="absolute inset-0 z-10 flex flex-col overflow-y-auto">
             <div className="mt-auto w-full max-w-[1500px] mx-auto px-6 md:px-16 lg:px-24 pb-12">
               {renderDetails(true)}
             </div>
           </div>
-        )}
+        ))}
 
         {/* ══════════════════════════════════════════
             LAYER 2 — THEATER MODE: scrollable
@@ -811,17 +1042,9 @@ export function MovieDetailModal({
           <div
             ref={scrollRef}
             data-lenis-prevent
-            className={cn(
-              "absolute inset-0 z-10 overflow-x-hidden custom-scrollbar",
-              isMobileDevice ? "max-md:bg-black md:overflow-y-auto max-md:overflow-hidden" : "overflow-y-auto"
-            )}
+            className="absolute inset-0 z-10 overflow-x-hidden overflow-y-auto custom-scrollbar max-md:overflow-hidden max-md:bg-black"
           >
-            <div className={cn(
-              "w-full max-w-[1500px] mx-auto",
-              isMobileDevice 
-                ? "max-md:px-0 max-md:pt-0 max-md:pb-8 md:px-12 lg:px-24 md:pt-24 md:pb-16"
-                : "px-4 pt-20 pb-8 md:px-12 lg:px-24 md:pt-24 md:pb-16"
-            )}>
+            <div className="w-full max-w-[1500px] mx-auto px-4 pt-20 pb-8 max-md:px-0 max-md:pt-0 max-md:pb-0 md:px-12 lg:px-24 md:pt-24 md:pb-16">
               <AnimatePresence>
                 <motion.div
                   key="theater"
@@ -831,33 +1054,46 @@ export function MovieDetailModal({
                   transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                   className="w-full flex flex-col gap-0 md:gap-6"
                 >
-                  {/* Video Player */}
+                  {/*
+                    Video Player.
+
+                    One iframe for every viewport — the container is what
+                    changes. On md+ it's an inline 16:9 card; below md the
+                    `.player-shell` class takes the whole screen (portrait:
+                    frame centred on black, landscape: edge to edge). The old
+                    build faked landscape by rotating the frame 90°, which
+                    broke native fullscreen, put the provider's own controls
+                    sideways, and left tap coordinates transposed.
+                  */}
                   <div className={cn(
-                    "w-full bg-black relative overflow-hidden",
-                    isMobileDevice 
-                      ? [
-                          "md:aspect-video md:bg-card md:rounded-2xl md:shadow-[0_0_80px_rgba(0,0,0,0.8)] md:border md:border-white/5",
-                          "max-md:fixed max-md:z-[100] max-md:flex max-md:items-center max-md:justify-center",
-                          "portrait:max-md:w-[100dvh] portrait:max-md:h-[100dvw] portrait:max-md:top-1/2 portrait:max-md:left-1/2 portrait:max-md:-translate-x-1/2 portrait:max-md:-translate-y-1/2 portrait:max-md:rotate-90",
-                          "landscape:max-md:inset-0 landscape:max-md:w-screen landscape:max-md:h-screen"
-                        ]
-                      : "aspect-video bg-card rounded-xl md:rounded-2xl shadow-2xl md:shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-white/5"
+                    "w-full bg-black relative overflow-hidden player-shell",
+                    "aspect-video md:bg-card rounded-xl md:rounded-2xl shadow-2xl md:shadow-[0_0_80px_rgba(0,0,0,0.8)] border border-white/5",
+                    "max-md:aspect-auto max-md:rounded-none max-md:border-0 max-md:shadow-none"
                   )}>
-                    {/* Mobile Back Button for Video */}
-                    {isMobileDevice && (
-                      <button 
+                    {/* Player chrome — back out of playback without leaving the title */}
+                    <div className="player-chrome-top pointer-events-none absolute inset-x-0 top-0 z-[110] items-center gap-3 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-[calc(0.5rem+env(safe-area-inset-top,0px))]">
+                      <button
                         onClick={() => setIsPlaying(false)}
-                        className="md:hidden absolute top-6 left-6 z-[110] p-3 bg-black/50 backdrop-blur-md rounded-full text-white/70 hover:text-white border border-white/20 transition-colors pointer-events-auto"
+                        aria-label="Back to details"
+                        className="pointer-events-auto rounded-full border border-white/20 bg-black/50 p-2.5 text-white/80 backdrop-blur-md tap-scale"
                       >
-                        <ChevronLeft className="w-6 h-6" />
+                        <ChevronLeft className="h-5 w-5" />
                       </button>
-                    )}
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white/90">
+                        {title}
+                        {mode === 'tv' && (
+                          <span className="ml-2 font-normal text-white/50">S{season}:E{episode}</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="player-frame">
                     {embedUrl ? (
                       <>
                         <iframe
                           ref={iframeRef}
                           src={embedUrl}
-                          className="w-full h-full"
+                          className="absolute inset-0 w-full h-full"
                           // Embed contract lives in CONFIG so both player render
                           // points stay identical. No `sandbox`: these providers
                           // do not play under one.
@@ -904,79 +1140,135 @@ export function MovieDetailModal({
                         <Play className="w-24 h-24 text-white/10" />
                       </div>
                     )}
-                  </div>
+                    </div>
 
-                  {/* Command Center */}
-                  <div className={cn(
-                    "w-full bg-card/90 p-5 md:p-6",
-                    isMobileDevice 
-                      ? "md:border md:border-border/30 md:rounded-2xl md:shadow-2xl max-md:bg-[#0a0a0a] max-md:border-t max-md:border-white/10"
-                      : "border border-border/30 rounded-2xl shadow-2xl"
-                  )}>
-                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-                      {/* Left: TV navigation or movie title */}
-                      {mode === 'tv' ? (
-                        <div className="flex items-center gap-6 w-full lg:w-auto">
-                          <div className="flex items-center gap-2 bg-black/40 rounded-full p-1.5 border border-white/5 shrink-0">
-                            <button
-                              onClick={handleSkipPrev}
-                              disabled={isAtAbsoluteFirstEpisode}
-                              className="p-3 rounded-full hover:bg-white/10 disabled:opacity-30 transition-colors"
-                            >
-                              <SkipBack className="w-5 h-5" />
-                            </button>
-                            <div className="w-px h-6 bg-white/10" />
-                            <button
-                              onClick={handleSkipNext}
-                              disabled={isAtAbsoluteLastEpisode}
-                              className="p-3 rounded-full hover:bg-white/10 disabled:opacity-30 transition-colors"
-                            >
-                              <SkipForward className="w-5 h-5" />
-                            </button>
-                          </div>
-                          <div className="min-w-0">
-                            <span className="block text-xs text-primary uppercase tracking-widest font-bold mb-1">Season {season} • Episode {episode}</span>
-                            <span className="block text-lg font-medium text-white/90 truncate">{title}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <span className="block text-xs text-primary uppercase tracking-widest font-bold mb-1">Now Playing</span>
-                          <span className="block text-lg font-medium text-white/90 truncate">{title}</span>
+                    {/*
+                      Portrait controls. In portrait the 16:9 frame only uses
+                      about a third of the screen, so episode navigation and
+                      the server picker live in the space under it instead of
+                      being buried a screen away. Rotating hides them and the
+                      video takes over — see .player-chrome-portrait.
+                    */}
+                    <div
+                      /* In flow rather than pinned to the bottom: the shell
+                         centres its children, so frame + controls read as one
+                         group instead of being split by a void of black. */
+                      className="player-chrome-portrait z-[110] w-full px-5 pt-6"
+                    >
+                      {mode === 'tv' && (
+                        <div className="mb-4 flex items-center justify-center gap-6">
+                          <button
+                            onClick={handleSkipPrev}
+                            disabled={isAtAbsoluteFirstEpisode}
+                            aria-label="Previous episode"
+                            className="rounded-full border border-white/15 bg-white/[0.06] p-3.5 text-white disabled:opacity-25 tap-scale"
+                          >
+                            <SkipBack className="h-5 w-5" />
+                          </button>
+                          <span className="min-w-[92px] text-center text-sm font-semibold text-white/80">
+                            S{season} · E{episode}
+                          </span>
+                          <button
+                            onClick={handleSkipNext}
+                            disabled={isAtAbsoluteLastEpisode}
+                            aria-label="Next episode"
+                            className="rounded-full border border-white/15 bg-white/[0.06] p-3.5 text-white disabled:opacity-25 tap-scale"
+                          >
+                            <SkipForward className="h-5 w-5" />
+                          </button>
                         </div>
                       )}
 
-                      {/* Right: Server selector */}
-                      <div className="flex flex-col lg:items-end gap-2 shrink-0 z-[60] w-full lg:w-auto">
-                        <div className="flex items-center gap-2 px-2">
-                          <Server className="w-3.5 h-3.5 text-white/40" />
-                          <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Streaming Server</span>
-                        </div>
-                        <Select value={server} onValueChange={setServer}>
-                          <SelectTrigger ref={serverSelectTriggerRef} className="w-full lg:w-64 bg-black/40 backdrop-blur-md border-white/5 text-white h-12 rounded-xl text-base font-medium hover:bg-white/10 transition-colors">
-                            <SelectValue placeholder="Select Server" />
-                          </SelectTrigger>
-                          <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl">
-                            {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
-                              <SelectItem key={key} value={key} className="cursor-pointer focus:bg-white/10 py-3 text-base">{name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <Select value={server} onValueChange={setServer}>
+                        <SelectTrigger className="h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-white/80">
+                          <div className="flex items-center gap-2">
+                            <Server className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                            <SelectValue placeholder="Server" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
+                          {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
+                            <SelectItem key={key} value={key} className="py-3 text-[15px]">{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <p className="mt-3 text-center text-[11px] text-white/35">
+                        Rotate your phone for full-width playback
+                      </p>
                     </div>
                   </div>
+
+                  {/* Command Center — mobile drives playback from the player
+                      shell's own controls, which sit over this */}
+                  {!isMobile && (
+                    <div className="w-full bg-card/90 p-5 md:p-6 border border-border/30 rounded-2xl shadow-2xl">
+                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                        {/* Left: TV navigation or movie title */}
+                        {mode === 'tv' ? (
+                          <div className="flex items-center gap-6 w-full lg:w-auto">
+                            <div className="flex items-center gap-2 bg-black/40 rounded-full p-1.5 border border-white/5 shrink-0">
+                              <button
+                                onClick={handleSkipPrev}
+                                disabled={isAtAbsoluteFirstEpisode}
+                                className="p-3 rounded-full hover:bg-white/10 disabled:opacity-30 transition-colors"
+                              >
+                                <SkipBack className="w-5 h-5" />
+                              </button>
+                              <div className="w-px h-6 bg-white/10" />
+                              <button
+                                onClick={handleSkipNext}
+                                disabled={isAtAbsoluteLastEpisode}
+                                className="p-3 rounded-full hover:bg-white/10 disabled:opacity-30 transition-colors"
+                              >
+                                <SkipForward className="w-5 h-5" />
+                              </button>
+                            </div>
+                            <div className="min-w-0">
+                              <span className="block text-xs text-primary uppercase tracking-widest font-bold mb-1">Season {season} • Episode {episode}</span>
+                              <span className="block text-lg font-medium text-white/90 truncate">{title}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="block text-xs text-primary uppercase tracking-widest font-bold mb-1">Now Playing</span>
+                            <span className="block text-lg font-medium text-white/90 truncate">{title}</span>
+                          </div>
+                        )}
+
+                        {/* Right: Server selector */}
+                        <div className="flex flex-col lg:items-end gap-2 shrink-0 z-[60] w-full lg:w-auto">
+                          <div className="flex items-center gap-2 px-2">
+                            <Server className="w-3.5 h-3.5 text-white/40" />
+                            <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Streaming Server</span>
+                          </div>
+                          <Select value={server} onValueChange={setServer}>
+                            <SelectTrigger ref={serverSelectTriggerRef} className="w-full lg:w-64 bg-black/40 backdrop-blur-md border-white/5 text-white h-12 rounded-xl text-base font-medium hover:bg-white/10 transition-colors">
+                              <SelectValue placeholder="Select Server" />
+                            </SelectTrigger>
+                            <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl">
+                              {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
+                                <SelectItem key={key} value={key} className="cursor-pointer focus:bg-white/10 py-3 text-base">{name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ─────────────────────────────────────────────
                       DETAILS RENDERED BELOW THE PLAYER
                       ───────────────────────────────────────────── */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3, duration: 0.5 }}
-                    className="max-md:px-6"
-                  >
-                    {renderDetails(false)}
-                  </motion.div>
+                  {!isMobile && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3, duration: 0.5 }}
+                    >
+                      {renderDetails(false)}
+                    </motion.div>
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>

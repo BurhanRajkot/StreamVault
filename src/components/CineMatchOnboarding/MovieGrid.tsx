@@ -19,7 +19,7 @@ export function MovieGrid({
   onImgLoad,
 }: Props) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4 px-6 pb-4">
+    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2 sm:gap-4 px-5 pb-4 sm:px-6">
       {CURATED_TITLES.map((title) => {
         const isSelected = selectedIds.includes(title.tmdbId)
         const hasImgError = imgErrors.has(title.tmdbId)
@@ -66,11 +66,13 @@ export function MovieGrid({
 
             {/* Bottom gradient + title */}
             <div className={[
-              'absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/40 to-transparent transition-all duration-150',
-              isSelected ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100',
+              'absolute bottom-0 left-0 right-0 p-2 sm:p-3 bg-gradient-to-t from-[#0a0a0a]/95 via-[#0a0a0a]/40 to-transparent transition-all duration-150',
+              isSelected
+                ? 'translate-y-0 opacity-100'
+                : 'translate-y-0 opacity-100 md:translate-y-2 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100',
             ].join(' ')}>
-              <p className="text-white font-bold text-xs sm:text-sm leading-tight">{title.title}</p>
-              <span className={`inline-block mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md text-white ${genreColor}`}>
+              <p className="text-white font-bold text-[11px] sm:text-sm leading-tight line-clamp-2">{title.title}</p>
+              <span className={`mt-1 hidden sm:inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-md text-white ${genreColor}`}>
                 {title.genre}
               </span>
             </div>
@@ -83,7 +85,7 @@ export function MovieGrid({
 
             {/* Checkmark badge */}
             <div className={[
-              'absolute top-2.5 right-2.5 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 transition-all duration-150',
+              'absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 w-6 h-6 sm:w-7 sm:h-7 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 transition-all duration-150',
               isSelected ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
             ].join(' ')}>
               <CheckIcon />

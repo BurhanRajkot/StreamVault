@@ -135,20 +135,20 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="mb-2 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-bold sm:text-xl">▶ Continue Watching</h2>
-        <span className="text-sm text-foreground/80">
+      <div className="mb-2.5 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-[17px] font-bold sm:text-xl">Continue Watching</h2>
+        <span className="hidden text-sm text-foreground/80 sm:block">
           Pick up where you left off
         </span>
       </div>
 
       {/* Loading skeleton */}
       {loading && (
-        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar sm:gap-4">
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-0">
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="h-[clamp(240px,16.5vw,450px)] w-[clamp(160px,11vw,300px)] animate-pulse rounded-lg bg-muted"
+              className="aspect-[2/3] w-[34vw] min-w-[116px] max-w-[170px] shrink-0 animate-pulse rounded-lg bg-muted md:aspect-auto md:h-[clamp(240px,16.5vw,450px)] md:w-[clamp(160px,11vw,300px)] md:max-w-none"
             />
           ))}
         </div>
@@ -207,7 +207,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
 
       {/* Content */}
       {!loading && entries.length > 0 && (
-        <div id="continue-watching-row" className="flex gap-3 overflow-x-auto pb-2 no-scrollbar scroll-smooth sm:gap-4">
+        <div id="continue-watching-row" className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-0">
           {entries.map(({ media, item }) => (
             <ContinueWatchingCard
               key={`${item.mediaType}-${item.tmdbId}`}

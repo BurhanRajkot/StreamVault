@@ -123,6 +123,13 @@
 
       --radius: 0.75rem;
 
+      /* Height of the fixed app header. Pages offset their content by this
+         (pt-[var(--sv-header-h)]) and the hero pulls back under it, so the
+         value only has to be changed in one place per breakpoint. */
+      --sv-header-h: 72px;
+      /* Height of the mobile bottom tab bar, excluding the safe-area inset. */
+      --sv-tabbar-h: 60px;
+
       /* Premium color palette */
       --deep-purple: 221 83% 53%;
       --golden-amber: 199 89% 48%;
@@ -244,6 +251,42 @@
       touch-action: manipulation;
     }
 
+    /* ── Mobile base (< md) ─────────────────────────────────────────────
+       The mobile header is two rows (brand bar + category pills), so the
+       offset every page uses grows accordingly, and the notch inset is
+       folded in since the header paints under it. */
+    @media (max-width: 767.98px) {
+      :root {
+        --sv-header-h: calc(104px + env(safe-area-inset-top, 0px));
+      }
+
+      /* While searching, the header collapses to the single field row — pages
+         offset themselves from this variable, so they follow automatically. */
+      html[data-mobile-search='open'] {
+        --sv-header-h: calc(56px + env(safe-area-inset-top, 0px));
+      }
+
+      html {
+        /* Stop iOS Safari inflating text in landscape */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+
+      body {
+        /* Grey flash on every tap looks broken in an app-style UI */
+        -webkit-tap-highlight-color: transparent;
+        /* A stray horizontal overflow on a phone is far more damaging than
+           on desktop — one wide child makes the whole page pannable. */
+        overflow-x: hidden;
+      }
+
+      /* Touch devices never hover, so a hover-only reveal is dead UI.
+         Anything that must stay hidden on mobile is hidden explicitly. */
+      button, a, [role='button'] {
+        -webkit-tap-highlight-color: transparent;
+      }
+    }
+
     body::before {
       content: "";
       position: fixed;
@@ -292,6 +335,14 @@
     h1 { font-size: clamp(1.75rem, 1.25rem + 2.5vw, 4.5rem); }
     h2 { font-size: clamp(1.25rem, 1rem + 1.25vw, 2.5rem); }
     h3 { font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.5rem); }
+
+    /* WebKit draws its own clear button inside type=search, which lands next
+       to ours in the mobile search bar — two ✕ glyphs, one of them a mystery. */
+    input[type='search']::-webkit-search-cancel-button,
+    input[type='search']::-webkit-search-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+    }
 
     /* Global keyboard navigation indicator */
     :focus-visible {
@@ -602,6 +653,164 @@
   @keyframes hero-progress-fill {
     from { width: 0%; }
     to   { width: 100%; }
+  }
+
+  /* ── Safe-area insets (notch / home indicator) ──────────────────────── */
+  /* viewport-fit=cover means the page paints edge to edge; these put the
+     padding back only where content would otherwise sit under hardware. */
+  .pt-safe   { padding-top: env(safe-area-inset-top, 0px); }
+  .pb-safe   { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pl-safe   { padding-left: env(safe-area-inset-left, 0px); }
+  .pr-safe   { padding-right: env(safe-area-inset-right, 0px); }
+  .px-safe   {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .mt-safe   { margin-top: env(safe-area-inset-top, 0px); }
+
+  /* Clears the fixed bottom tab bar so the last row of content is reachable.
+     Scoped to the breakpoint where the tab bar actually exists — this rule is
+     authored after Tailwind's generated utilities, so leaving it unscoped
+     would let it win over a `md:pb-*` on the same element. */
+  @media (max-width: 767.98px) {
+    .pb-tabbar {
+      padding-bottom: calc(var(--sv-tabbar-h) + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  /* ── Mobile carousels ───────────────────────────────────────────────── */
+  /**
+   * Netflix-style edge-to-edge row: the track bleeds to both screen edges but
+   * the first and last cards still align with the page gutter, so a row reads
+   * as "there is more over there" instead of ending in dead space.
+   */
+  .edge-row {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding-left: 1rem;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .edge-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .edge-row > * {
+    scroll-snap-align: start;
+  }
+
+  /* ── Mobile fullscreen player ───────────────────────────────────────── */
+  /**
+   * On a phone, playback takes over the whole screen: the frame is centred on
+   * black in portrait and fills the screen edge-to-edge once the device is
+   * rotated. Written as plain CSS rather than a stack of `max-md:` +
+   * `landscape:` variants because the portrait/landscape rules set conflicting
+   * values for the same properties, and utility order would decide the winner.
+   */
+  .player-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* The player's own controls exist only in the takeover layouts below */
+  .player-chrome-top,
+  .player-chrome-portrait {
+    display: none;
+  }
+
+  /**
+   * Takes over the screen on a narrow viewport OR any short landscape one —
+   * a rotated phone reports ~844px wide, which is past the `md` breakpoint, so
+   * a width-only rule would drop it back to the desktop inline player exactly
+   * when the user rotated to get a bigger picture.
+   */
+  @media (max-width: 767.98px), (orientation: landscape) and (max-height: 500px) {
+    .player-shell {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: #000;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      overscroll-behavior: none;
+    }
+
+    /* Page chrome that would otherwise sit over the video */
+    .player-hide-chrome {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .player-chrome-top {
+      display: flex;
+    }
+  }
+
+  @media (max-width: 767.98px) and (orientation: portrait) {
+    .player-frame {
+      height: auto;
+      aspect-ratio: 16 / 9;
+      /* Flex item: without this the frame is squashed by the controls below */
+      flex: 0 0 auto;
+    }
+
+    .player-chrome-portrait {
+      display: block;
+    }
+  }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    /* Rotated: hand the entire viewport to the video */
+    .player-frame {
+      height: 100%;
+      aspect-ratio: auto;
+    }
+  }
+
+  /* ── Touch feedback ─────────────────────────────────────────────────── */
+  /**
+   * Hover states do nothing on touch, so tappable surfaces get a press state
+   * instead. Kept transform-only so it composites on the GPU.
+   */
+  .tap-scale {
+    transition: transform 140ms cubic-bezier(0.2, 0, 0.2, 1);
+  }
+
+  .tap-scale:active {
+    transform: scale(0.96);
+  }
+
+  /* ── Mobile performance ─────────────────────────────────────────────── */
+  @media (max-width: 767.98px) {
+    /**
+     * Large backdrop-filter regions are the single most expensive thing a
+     * mid-range phone GPU has to composite every frame. Cap the radius on
+     * mobile — visually near-identical, dramatically cheaper to scroll past.
+     */
+    .backdrop-blur-2xl,
+    .backdrop-blur-3xl {
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   /* ── GPU-composited scroll elements ─────────────────────────────────── */
