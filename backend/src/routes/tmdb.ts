@@ -57,6 +57,17 @@ function parsePage(value: unknown): number | null {
 }
 
 /**
+ * The actual upstream network call — this is the only part that needs to be
+ * rate-limited. Wrapping fetchTMDB() itself (cache check included) meant
+ * cache HITS were also serialized behind Bottleneck's 250ms dispatch pacing,
+ * so e.g. 20 fully-cached continue-watching items took ~5s of pure artificial
+ * delay for zero network calls. Only gate the real request.
+ */
+const rateLimitedNetworkFetch = withTmdbRateLimit((url: string) =>
+  tmdbFetch(url, { signal: AbortSignal.timeout(TMDB_TIMEOUT_MS) })
+)
+
+/**
  * Fetch from TMDB with caching, retry logic, and rate limit handling
  */
 async function fetchTMDB(endpoint: string, retries = 3): Promise<unknown> {
@@ -73,7 +84,7 @@ async function fetchTMDB(endpoint: string, retries = 3): Promise<unknown> {
     try {
       // Without a deadline a stalled upstream connection pins an Express
       // handler (and its TMDB rate-limit slot) open indefinitely.
-      const response = await tmdbFetch(url, { signal: AbortSignal.timeout(TMDB_TIMEOUT_MS) })
+      const response = await rateLimitedNetworkFetch(url)
 
       // Handle rate limiting (429 Too Many Requests)
       if (response.status === 429) {
@@ -495,10 +506,9 @@ router.post('/continue-watching-details', async (req: Request, res: Response) =>
   }
 
   try {
-    // We wrap fetchTMDB with our bottleneck instance to protect against 429 errors from TMDB
-    const safeFetchTMDB = withTmdbRateLimit(fetchTMDB)
-
-    // Using Promise.all here is safe because Bottleneck controls the actual execution concurrency!
+    // fetchTMDB() already rate-limits (only) its real network calls and serves
+    // cache hits immediately, so items already in the TMDB cache resolve in
+    // parallel with no artificial delay — see rateLimitedNetworkFetch above.
     const resolvedItems = await Promise.all(
       items.map(async (item) => {
         const tmdbId = Number(item?.tmdbId)
@@ -508,7 +518,7 @@ router.post('/continue-watching-details', async (req: Request, res: Response) =>
         if (mediaType !== 'movie' && mediaType !== 'tv') return null
 
         try {
-          const tmdbData = await safeFetchTMDB(`/${mediaType}/${tmdbId}`)
+          const tmdbData = await fetchTMDB(`/${mediaType}/${tmdbId}`)
           return {
             media: tmdbData,
             item,

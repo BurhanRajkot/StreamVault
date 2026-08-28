@@ -138,9 +138,16 @@ export async function logInteraction(event: {
     }).catch(() => {})
   }
 
-  // Invalidate ALL caches so next request rebuilds profile from DB
-  invalidateRecommendationCache(event.userId)
-  invalidateUserProfile(event.userId)
+  // Invalidate the recommendation/profile caches so the next request rebuilds
+  // from DB — but only for signals strong enough to actually move the needle.
+  // 'click' and 'search' are weak curiosity/intent signals (weight 0.1-0.3);
+  // invalidating on every one of those forces the next feed load into the
+  // full, multi-second CineMatch pipeline (bypassing the 5-min in-memory
+  // cache) far more often than the signal strength justifies.
+  if (event.eventType !== 'click' && event.eventType !== 'search') {
+    invalidateRecommendationCache(event.userId)
+    invalidateUserProfile(event.userId)
+  }
 
   // Update UserGenreProfile incrementally (async, non-blocking).
   // If genreIds were supplied by the frontend, skip the extra getMovieFeatures() call.
