@@ -4,7 +4,6 @@ import { auth } from 'express-oauth2-jwt-bearer'
 import type { AuthResult } from 'express-oauth2-jwt-bearer'
 import { Request, Response, NextFunction, RequestHandler } from 'express'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let checkJwt: RequestHandler | ((...args: unknown[]) => Promise<void>)
 
 /**

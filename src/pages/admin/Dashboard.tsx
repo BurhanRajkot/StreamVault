@@ -55,8 +55,11 @@ export default function AdminDashboard() {
       })
       if (!res.ok) {
         if (res.status === 401) {
+          // Expired/invalid token — the login screen below explains this well
+          // enough on its own; an error toast on top of it just reads as a bug.
           setIsAdmin(false)
           localStorage.removeItem('adminToken')
+          return
         }
         throw new Error('Failed to fetch requests')
       }
@@ -93,7 +96,17 @@ export default function AdminDashboard() {
         body: JSON.stringify({ requestId }),
       })
 
-      if (!res.ok) throw new Error(`Failed to ${action} request`)
+      if (!res.ok) {
+        // An expired token has to drop us back to the login screen, otherwise
+        // every subsequent click just fails with no way to re-authenticate.
+        if (res.status === 401) {
+          localStorage.removeItem('adminToken')
+          setIsAdmin(false)
+          toast.error('Your admin session expired — please log in again')
+          return
+        }
+        throw new Error(`Failed to ${action} request`)
+      }
 
       toast.success(`Request ${action === 'approve' ? 'Approved' : 'Rejected'}`)
 

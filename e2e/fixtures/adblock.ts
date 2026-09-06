@@ -27,10 +27,19 @@ import type { BrowserContext } from '@playwright/test'
 
 export const AD_BLOCK_ENABLED = process.env.E2E_ADBLOCK === '1'
 
-// Cache the compiled engine for the whole run (and on disk between runs).
-let blockerPromise: Promise<any> | null = null
+/**
+ * The one method we call on the engine. The package is an optional dependency
+ * loaded through a non-literal specifier, so its real types are deliberately
+ * out of reach here — this is the contract we rely on.
+ */
+interface AdBlockEngine {
+  enableBlockingInContext(context: BrowserContext): Promise<void>
+}
 
-async function getBlocker(): Promise<any> {
+// Cache the compiled engine for the whole run (and on disk between runs).
+let blockerPromise: Promise<AdBlockEngine> | null = null
+
+async function getBlocker(): Promise<AdBlockEngine> {
   if (blockerPromise) return blockerPromise
 
   blockerPromise = (async () => {

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { QuickViewModal } from '@/components/modals/QuickViewModal'
 import { cn } from '@/lib/utils'
+import type { Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet } from '@/lib/api'
 
 export interface GenericMediaCardProps {
@@ -35,7 +36,7 @@ export interface GenericMediaCardProps {
   ariaLabel?: string
 
   // Provide raw item for quick view
-  rawMedia?: any
+  rawMedia?: Media
 }
 
 export function GenericMediaCard({

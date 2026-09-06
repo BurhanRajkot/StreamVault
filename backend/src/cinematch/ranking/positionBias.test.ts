@@ -6,8 +6,7 @@ mock.module('../../lib/supabase', () => ({
   supabaseAdmin: {}
 }))
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let ipsCorrectWeight: any
+let ipsCorrectWeight: typeof import('./positionBias').ipsCorrectWeight
 
 beforeAll(async () => {
   const mod = await import('./positionBias')

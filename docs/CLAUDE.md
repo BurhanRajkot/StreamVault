@@ -216,16 +216,22 @@ const { addFavorite, removeFavorite, isFavorite } = useFavorites()
 ```
 
 ### Protected Routes
+Admin pages guard themselves rather than being wrapped in a route element —
+the page needs to render the login modal in place when the token is missing or
+has expired, which a redirecting wrapper cannot do.
 ```tsx
-// Wrap with ProtectedRoute
-<Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+import { isAdminAuthenticated } from '@/lib/api'
+
+const [isAdmin, setIsAdmin] = useState(isAdminAuthenticated())
+if (!isAdmin) return <AdminLoginModal onSuccess={() => setIsAdmin(true)} />
 ```
 
 ### API Calls
+`lib/api.ts` exports one named function per endpoint — there is no generic
+`api` client object.
 ```tsx
-// Use the API client from lib/
-import { api } from '@/lib/api'
-const response = await api.get('/movies')
+import { fetchMediaDetails } from '@/lib/api'
+const media = await fetchMediaDetails('movie', tmdbId)
 ```
 
 ## Troubleshooting

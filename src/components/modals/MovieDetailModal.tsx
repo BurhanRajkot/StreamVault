@@ -1,16 +1,26 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Play, Clock, Calendar, ChevronLeft, Share2, Heart, ThumbsUp, ThumbsDown, Server, SkipForward, SkipBack, Check, Loader2 } from 'lucide-react'
+import { Play, ChevronLeft, Share2, Heart, Server, SkipForward, SkipBack, Check, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { CircularRating } from '@/components/media/CircularRating'
 import { Media, MediaMode, CONFIG } from '@/lib/config'
-import { getImageUrl, fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
+import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { useIsMobile } from '@/mobile-ui/use-mobile'
-import { cn } from '@/lib/utils'
+import { cn, genreIdsOf } from '@/lib/utils'
+import { deriveMediaDisplay } from '@/lib/mediaDisplay'
+import { MobileDetailSheet } from './movie-detail/MobileDetailSheet'
+import { DetailPanel } from './movie-detail/DetailPanel'
+import type { PlaybackControls } from './movie-detail/types'
+import {
+  nextEpisode,
+  previousEpisode,
+  isFirstEpisode,
+  isLastEpisode,
+  type EpisodePosition,
+} from '@/lib/episodeNavigation'
 import {
   Select,
   SelectContent,
@@ -44,10 +54,10 @@ export function MovieDetailModal({
   initialServer,
   autoPlay
 }: MovieDetailModalProps) {
-  const [media, setMedia] = useState<Media>(initialMedia)
   // `initialMedia` already comes from Watch.tsx's fetchMediaDetails() call
-  // (same append_to_response fields), so there's nothing left to fetch here.
-  const [isLoading] = useState(false)
+  // (same append_to_response fields), so there's nothing left to fetch here —
+  // this component never has a loading state of its own.
+  const [media, setMedia] = useState<Media>(initialMedia)
 
   const [season, setSeason] = useState(initialSeason || 1)
   const [episode, setEpisode] = useState(initialEpisode || 1)
@@ -71,7 +81,14 @@ export function MovieDetailModal({
   const playbackStartedRef = useRef(false)
   const [showStallPrompt, setShowStallPrompt] = useState(false)
   const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Two server pickers exist and only one is ever mounted (the desktop command
+  // centre is gated on !isMobile), so the stall prompt has to reach for
+  // whichever is actually there — pointing at the desktop one alone left the
+  // "Try another server" button doing nothing on a phone.
   const serverSelectTriggerRef = useRef<HTMLButtonElement>(null)
+  const mobileServerSelectTriggerRef = useRef<HTMLButtonElement>(null)
+  const openServerPicker = () =>
+    (serverSelectTriggerRef.current ?? mobileServerSelectTriggerRef.current)?.click()
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const queryClient = useQueryClient()
@@ -79,14 +96,12 @@ export function MovieDetailModal({
   const { toggleDislike, isDisliked } = useDislikes()
   const [isLiked, setIsLiked] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
-  // Mobile synopsis starts clamped — a 5-line block pushes Play off-screen
-  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
 
   const handleLikeToggle = async () => {
     const newValue = !isLiked
     setIsLiked(newValue)
     if (newValue) {
-      const genreIds = initialMedia.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+      const genreIds = genreIdsOf(initialMedia)
 
       try {
         if (isAuthenticated) {
@@ -215,7 +230,7 @@ export function MovieDetailModal({
 
         const logWatch = async () => {
           // Extract genre IDs from the media object (already loaded — zero cost)
-          const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+          const genreIds = genreIdsOf(media)
 
           try {
             if (isAuthenticated) {
@@ -371,571 +386,39 @@ export function MovieDetailModal({
     setMedia(initialMedia)
   }, [initialMedia])
 
-  const title = media.title || media.name || 'Unknown'
-  const subtitle = media.tagline || ''
-  const description = media.overview || 'No description available.'
-  const rating = media.vote_average || 0
-  const match = (rating * 10).toFixed(0) + '%'
-  const year = (media.release_date || media.first_air_date || '').split('-')[0] || ''
-
-  let contentRating = 'NR'
-  if (mode === 'movie' || media.media_type === 'movie') {
-    if (media.release_dates?.results) {
-      const usRelease = media.release_dates.results.find((r: any) => r.iso_3166_1 === 'US')
-      if (usRelease && usRelease.release_dates.length > 0) {
-        const cert = usRelease.release_dates.find((d: any) => d.certification)?.certification
-        if (cert) contentRating = cert
-      }
-    }
-  } else {
-    if (media.content_ratings?.results) {
-      const usRating = media.content_ratings.results.find((r: any) => r.iso_3166_1 === 'US')
-      if (usRating && usRating.rating) {
-        contentRating = usRating.rating
-      }
-    }
-  }
-
-  let durationStr = ''
-  if (media.runtime) {
-    const hours = Math.floor(media.runtime / 60)
-    const mins = media.runtime % 60
-    durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-  } else if (media.number_of_seasons) {
-    durationStr = `${media.number_of_seasons} Season${media.number_of_seasons > 1 ? 's' : ''}`
-  }
-
-  const genres = media.genres ? media.genres.map(g => g.name) : []
-  const director = media.credits?.crew?.find((c: any) => c.job === 'Director')?.name || 'Unknown'
-  const cast = media.credits?.cast?.slice(0, 4).map(c => ({
-    name: c.name,
-    role: c.character,
-    image: getImageUrl(c.profile_path, 'thumbnail')
-  })) || []
-
-  const heroImage = getImageUrl(media.backdrop_path, 'backdrop')
-  const posterImage = getImageUrl(media.poster_path || media.backdrop_path, 'poster')
-
-  const logos = media.images?.logos || []
-  let logoImage = null
-  if (logos.length > 0) {
-    const enLogo = logos.find((l: any) => l.iso_639_1 === 'en')
-    const noLangLogo = logos.find((l: any) => !l.iso_639_1)
-    logoImage = enLogo ? getImageUrl(enLogo.file_path, 'logo')
-               : (noLangLogo ? getImageUrl(noLangLogo.file_path, 'logo') : getImageUrl(logos[0].file_path, 'logo'))
-  }
-
-  // Helper to get seasons sorted by season number (ascending)
-  const getSortedSeasons = () =>
-    [...seasons].sort((a, b) => a.season_number - b.season_number)
+  const display = deriveMediaDisplay(media, mode)
+  const { title, heroImage, posterImage } = display
 
   // Episode navigation within and across seasons
-  const handleSkipNext = () => {
-    const sorted = getSortedSeasons()
-
-    // Fallback: if we don't have season metadata, clamp within currentSeasonEpisodes
-    if (!sorted.length) {
-      setEpisode(prev => Math.min(currentSeasonEpisodes, prev + 1))
-      return
-    }
-
-    const currentIndex = sorted.findIndex(s => s.season_number === season)
-    const isKnownSeason = currentIndex !== -1
-
-    if (!isKnownSeason) {
-      setEpisode(prev => Math.min(currentSeasonEpisodes, prev + 1))
-      return
-    }
-
-    // If there is another episode in the current season, just advance
-    if (episode < currentSeasonEpisodes) {
-      setEpisode(episode + 1)
-      return
-    }
-
-    // We are at the last episode of this season – try to move to the next season
-    const isLastSeason = currentIndex === sorted.length - 1
-    if (isLastSeason) {
-      // Already at the final episode of the final season – do nothing
-      return
-    }
-
-    const nextSeason = sorted[currentIndex + 1]
-    setSeason(nextSeason.season_number)
-    setEpisode(1)
+  const goToEpisode = (target: EpisodePosition | null) => {
+    if (!target) return // already at the first/last episode
+    setSeason(target.season)
+    setEpisode(target.episode)
   }
 
-  const handleSkipPrev = () => {
-    const sorted = getSortedSeasons()
-
-    // Fallback when no season information is available
-    if (!sorted.length) {
-      setEpisode(prev => Math.max(1, prev - 1))
-      return
-    }
-
-    const currentIndex = sorted.findIndex(s => s.season_number === season)
-    const isKnownSeason = currentIndex !== -1
-
-    if (!isKnownSeason) {
-      setEpisode(prev => Math.max(1, prev - 1))
-      return
-    }
-
-    // If there is a previous episode in the current season, just go back
-    if (episode > 1) {
-      setEpisode(episode - 1)
-      return
-    }
-
-    // We are at episode 1 – try to go to the previous season's last episode
-    const isFirstSeason = currentIndex === 0
-    if (isFirstSeason) {
-      // Already at the very first episode of the very first season – do nothing
-      return
-    }
-
-    const prevSeason = sorted[currentIndex - 1]
-    const prevSeasonEpisodes = prevSeason.episode_count || 1
-    setSeason(prevSeason.season_number)
-    setEpisode(prevSeasonEpisodes)
-  }
+  const position = { season, episode }
+  const handleSkipNext = () =>
+    goToEpisode(nextEpisode(position, seasons, currentSeasonEpisodes))
+  const handleSkipPrev = () => goToEpisode(previousEpisode(position, seasons))
 
   // Disabled states for navigation buttons
-  const sortedSeasons = getSortedSeasons()
-  const firstSeasonNumber = sortedSeasons[0]?.season_number
-  const lastSeasonNumber = sortedSeasons[sortedSeasons.length - 1]?.season_number
-  const lastSeasonEpisodes =
-    sortedSeasons[sortedSeasons.length - 1]?.episode_count || currentSeasonEpisodes
+  const isAtAbsoluteFirstEpisode = isFirstEpisode(position, seasons)
+  const isAtAbsoluteLastEpisode = isLastEpisode(position, seasons, currentSeasonEpisodes)
 
-  const isAtAbsoluteFirstEpisode =
-    !sortedSeasons.length
-      ? episode <= 1
-      : season === firstSeasonNumber && episode <= 1
-
-  const isAtAbsoluteLastEpisode =
-    !sortedSeasons.length
-      ? episode >= currentSeasonEpisodes
-      : season === lastSeasonNumber && episode >= lastSeasonEpisodes
-
-  /* ══════════════════════════════════════════════════════════════════════
-     MOBILE PRE-PLAY SHEET (< md)
-     Poster art fills the screen behind a sheet of details that scrolls up
-     over it. Score dial and like/dislike are deliberately absent here — on a
-     phone they crowded out the only two things that matter on this screen,
-     Play and what the title actually is.
-     ══════════════════════════════════════════════════════════════════════ */
-  const renderMobileDetails = () => (
-    <div className="flex min-h-full flex-col">
-      {/* See-through spacer — the ambient poster shows through it */}
-      <div className="h-[44svh] shrink-0" aria-hidden="true" />
-
-      <div className="relative flex-1 bg-gradient-to-b from-transparent via-background/95 to-background px-5 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))]">
-        {logoImage ? (
-          <img
-            src={logoImage}
-            alt={title}
-            aria-hidden="true"
-            role="presentation"
-            draggable="false"
-            className="mb-1 max-h-[84px] w-auto max-w-[78%] object-contain drop-shadow-2xl"
-          />
-        ) : (
-          <h1 className="text-[27px] font-bold leading-[1.15] tracking-tight">{title}</h1>
-        )}
-
-        {/* Meta line — year, certificate, runtime */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-medium text-foreground/60">
-          {year && <span>{year}</span>}
-          <span className="rounded border border-foreground/25 px-1.5 py-px text-[11px] uppercase tracking-wider">
-            {contentRating}
-          </span>
-          {durationStr && <span>{durationStr}</span>}
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">HD</span>
-        </div>
-
-        {/* Season / episode pickers */}
-        {mode === 'tv' && (
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <Select
-              value={season.toString()}
-              onValueChange={(val) => { setSeason(Number(val)); setEpisode(1) }}
-            >
-              <SelectTrigger className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
-                <SelectValue placeholder="Season" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-                {(seasons.length > 0
-                  ? seasons.map(s => s.season_number)
-                  : Array.from({ length: 10 }, (_, i) => i + 1)
-                ).map(n => (
-                  <SelectItem key={n} value={n.toString()} className="py-3 text-[15px]">
-                    Season {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={episode.toString()} onValueChange={(val) => setEpisode(Number(val))}>
-              <SelectTrigger className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
-                <SelectValue placeholder="Episode" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-                {Array.from({ length: currentSeasonEpisodes }, (_, i) => i + 1).map(n => (
-                  <SelectItem key={n} value={n.toString()} className="py-3 text-[15px]">
-                    Episode {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Primary CTA */}
-        <button
-          onClick={() => setIsPlaying(true)}
-          className="mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-foreground text-[16px] font-bold text-background tap-scale"
-        >
-          <Play className="h-5 w-5 fill-current" />
-          Play
-        </button>
-
-        {/* Server picker — secondary, but has to be reachable when one fails */}
-        <Select value={server} onValueChange={setServer}>
-          <SelectTrigger className="mt-2.5 h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-foreground/80">
-            <div className="flex items-center gap-2">
-              <Server className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
-              <SelectValue placeholder="Server" />
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-            {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
-              <SelectItem key={key} value={key} className="py-3 text-[15px]">{name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Save / share */}
-        <div className="mt-6 flex items-center gap-9 px-1">
-          <button
-            onClick={() => {
-              const genreIds = initialMedia.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
-              toggleFavorite(initialMedia.id, typedMode, genreIds)
-            }}
-            aria-pressed={favorited}
-            className="flex flex-col items-center gap-1.5 text-[11px] font-medium text-foreground/60 tap-scale"
-          >
-            <Heart className={cn('h-6 w-6', favorited && 'fill-primary text-primary')} />
-            My List
-          </button>
-          <button
-            onClick={handleShare}
-            className="flex flex-col items-center gap-1.5 text-[11px] font-medium text-foreground/60 tap-scale"
-          >
-            {isCopied ? <Check className="h-6 w-6 text-emerald-teal" /> : <Share2 className="h-6 w-6" />}
-            Share
-          </button>
-        </div>
-
-        {/* Synopsis */}
-        <p
-          className={cn(
-            'mt-6 text-[15px] leading-relaxed text-foreground/75',
-            !isOverviewExpanded && 'line-clamp-4'
-          )}
-        >
-          {description}
-        </p>
-        {description.length > 190 && (
-          <button
-            onClick={() => setIsOverviewExpanded(v => !v)}
-            className="mt-1.5 text-[13px] font-semibold text-foreground/50"
-          >
-            {isOverviewExpanded ? 'Show less' : 'More'}
-          </button>
-        )}
-
-        {genres.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {genres.slice(0, 4).map(genre => (
-              <span
-                key={genre}
-                className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[12px] text-foreground/75"
-              >
-                {genre}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {cast.length > 0 && (
-          <div className="mt-7">
-            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/40">Cast</h3>
-            {/* Negative margin lets the row bleed to the screen edge */}
-            <div className="edge-row -mx-5 gap-4 px-5">
-              {cast.map(actor => (
-                <div key={actor.name} className="w-[68px] shrink-0">
-                  <img
-                    src={actor.image}
-                    alt={actor.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-[68px] w-[68px] rounded-full border border-white/10 object-cover"
-                  />
-                  <p className="mt-1.5 text-center text-[11px] leading-tight text-foreground/70 line-clamp-2">
-                    {actor.name}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {mode === 'movie' && director !== 'Unknown' && (
-          <p className="mt-6 text-[13px] text-foreground/60">
-            <span className="text-foreground/40">Director: </span>
-            {director}
-          </p>
-        )}
-      </div>
-    </div>
-  )
-
-  // Helper to render the details grid for both views
-  const renderDetails = (isPrePlay: boolean) => (
-    <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-20 items-end", !isPrePlay && "mt-12 mb-16 px-2")}>
-      {/* Left — Details */}
-      {!isLoading && (
-        <div className="lg:col-span-7 space-y-6">
-          {/* Title / Logo */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.7, ease: 'easeOut' }}
-          >
-            {logoImage ? (
-              <img
-                src={logoImage}
-                alt={title}
-                aria-hidden="true"
-                className="max-h-[120px] md:max-h-[160px] lg:max-h-[180px] w-auto object-contain mb-6 drop-shadow-2xl"
-                draggable="false"
-                role="presentation"
-              />
-            ) : (
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-display leading-tight tracking-tight mb-4">
-                {title}
-              </h1>
-            )}
-            {subtitle && (
-              <p className="text-lg md:text-xl lg:text-2xl text-primary font-light tracking-wide italic font-display">
-                {subtitle}
-              </p>
-            )}
-          </motion.div>
-
-          {/* Metadata & Rating */}
-          <motion.div
-            initial={{ y: 15, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.7 }}
-            className="flex flex-wrap items-center gap-6"
-          >
-            <div className="flex items-center gap-4">
-              <CircularRating rating={rating} />
-              <div className="flex flex-col">
-                <span className="text-xs uppercase tracking-widest text-white/50 font-semibold">Score</span>
-                <span className="text-sm md:text-base font-medium text-white/90">{match} Match</span>
-              </div>
-            </div>
-            <div className="h-8 w-px bg-white/20 hidden sm:block" />
-            <div className="flex flex-wrap items-center gap-5 text-sm md:text-base font-medium text-white/70 tracking-wide">
-              {year && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span>{year}</span>
-                </div>
-              )}
-              {durationStr && (
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  <span>{durationStr}</span>
-                </div>
-              )}
-              <div className="px-2.5 py-1 border border-white/20 rounded text-xs tracking-widest uppercase bg-white/5">
-                {contentRating}
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Genres */}
-          <motion.div
-            initial={{ y: 15, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.35, duration: 0.7 }}
-            className="flex flex-wrap gap-3"
-          >
-            {genres.slice(0, 4).map(genre => (
-              <span key={genre} className="px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-sm border border-white/10 text-white/80">
-                {genre}
-              </span>
-            ))}
-          </motion.div>
-
-          {/* Description */}
-          <motion.p
-            initial={{ y: 15, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.7 }}
-            className="text-base md:text-lg lg:text-xl text-white/60 leading-relaxed max-w-2xl font-light line-clamp-4 lg:line-clamp-none"
-          >
-            {description}
-          </motion.p>
-
-          {/* Pre-Play Selectors + Actions (Only in Layer 1) */}
-          {isPrePlay && (
-            <motion.div
-              initial={{ y: 15, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.45, duration: 0.7 }}
-              className="space-y-4 pt-2"
-            >
-              {mode === 'tv' && (
-                <div className="flex flex-wrap gap-3">
-                  <div className="w-40 z-[60]">
-                    <Select value={season.toString()} onValueChange={(val) => { setSeason(Number(val)); setEpisode(1) }}>
-                      <SelectTrigger className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
-                        <SelectValue placeholder="Season" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                        {seasons.length > 0
-                          ? seasons.map(s => <SelectItem key={s.season_number} value={s.season_number.toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Season {s.season_number}</SelectItem>)
-                          : Array.from({ length: 10 }, (_, i) => <SelectItem key={i + 1} value={(i + 1).toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Season {i + 1}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="w-40 z-[60]">
-                    <Select value={episode.toString()} onValueChange={(val) => setEpisode(Number(val))}>
-                      <SelectTrigger className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
-                        <SelectValue placeholder="Episode" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                        {Array.from({ length: currentSeasonEpisodes }, (_, i) => <SelectItem key={i + 1} value={(i + 1).toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Episode {i + 1}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-
-              {/* Actions row — clean, minimalistic */}
-              <div className="flex items-center gap-3">
-                {/* Play Now — primary CTA */}
-                <button
-                  onClick={() => setIsPlaying(true)}
-                  className="flex min-h-11 items-center gap-2.5 bg-white text-black px-8 py-3 rounded-full font-semibold text-base hover:bg-white/90 transition-[background-color,transform,box-shadow] hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,255,255,0.2)]"
-                >
-                  <Play className="w-5 h-5 fill-current" />
-                  Play Now
-                </button>
-
-                {/* Server selector — ghost style */}
-                <div className="w-48 z-[60]">
-                  <Select value={server} onValueChange={setServer}>
-                    <SelectTrigger className="w-full bg-white/[0.06] border-white/[0.08] text-white/80 h-11 backdrop-blur-md rounded-full hover:bg-white/10 transition-colors text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <Server className="w-3.5 h-3.5 text-white/40 shrink-0" />
-                        <SelectValue placeholder="Server" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                      {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
-                        <SelectItem key={key} value={key} className="cursor-pointer focus:bg-white/10 py-2.5 text-sm">{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Divider */}
-                <div className="w-px h-8 bg-white/10" />
-
-                {/* Like / Dislike — icon-only ghost buttons */}
-                <button
-                  onClick={handleLikeToggle}
-                  aria-label={isLiked ? 'Remove like' : 'Like this title'}
-                  aria-pressed={isLiked}
-                  className={cn(
-                    'p-2.5 rounded-full border transition-all',
-                    isLiked
-                      ? 'border-primary/60 bg-primary/10 text-primary'
-                      : 'border-white/10 text-white/50 hover:text-white hover:border-white/30'
-                  )}
-                >
-                  <ThumbsUp className={cn('w-4 h-4', isLiked && 'fill-current')} />
-                </button>
-                <button
-                  onClick={() => toggleDislike(initialMedia.id, typedMode)}
-                  aria-label={disliked ? 'Remove dislike' : 'Dislike this title'}
-                  aria-pressed={disliked}
-                  className={cn(
-                    'p-2.5 rounded-full border transition-all',
-                    disliked
-                      ? 'border-red-500/60 bg-red-500/10 text-red-400'
-                      : 'border-white/10 text-white/50 hover:text-white hover:border-white/30'
-                  )}
-                >
-                  <ThumbsDown className={cn('w-4 h-4', disliked && 'fill-current')} />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </div>
-      )}
-
-      {/* Right — Cast & Crew */}
-      {!isLoading && (
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.6, duration: 0.7 }}
-          className="lg:col-span-5 space-y-8 pb-4"
-        >
-          {mode === 'movie' && (
-            <div className="border-l-2 border-primary/50 pl-5">
-              <h3 className="text-xs uppercase tracking-[0.2em] text-white/40 mb-2 font-semibold">Director</h3>
-              <p className="text-xl font-medium tracking-wide">{director}</p>
-            </div>
-          )}
-          {cast.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-xs uppercase tracking-[0.2em] text-white/40 font-semibold">Top Cast</h3>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {cast.map((actor, idx) => (
-                  <motion.div
-                    key={actor.name}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.7 + idx * 0.08 }}
-                    className="flex items-center gap-4 group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors"
-                  >
-                    <div className="relative overflow-hidden rounded-full w-14 h-14 shrink-0">
-                      <img src={actor.image} alt={actor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                      <div className="absolute inset-0 border border-white/10 rounded-full group-hover:border-primary/50 transition-colors" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-base font-medium text-white/85 group-hover:text-white transition-colors truncate">{actor.name}</p>
-                      <p className="text-sm text-white/40 truncate">{actor.role}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
-        </motion.div>
-      )}
-    </div>
-  )
+  // Everything the two detail layouts need to drive playback. Both render the
+  // same controls, so they take one group rather than a dozen props each.
+  const playbackControls: PlaybackControls = {
+    mode,
+    season,
+    episode,
+    seasons,
+    episodeCount: currentSeasonEpisodes,
+    server,
+    onSeasonChange: setSeason,
+    onEpisodeChange: setEpisode,
+    onServerChange: setServer,
+    onPlay: () => setIsPlaying(true),
+  }
 
   // --- RENDER ---
   return (
@@ -993,7 +476,7 @@ export function MovieDetailModal({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const genreIds = initialMedia.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined;
+                const genreIds = genreIdsOf(initialMedia);
                 toggleFavorite(initialMedia.id, typedMode, genreIds);
               }}
               aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
@@ -1024,13 +507,28 @@ export function MovieDetailModal({
             data-lenis-prevent
             className="absolute inset-0 z-10 overflow-y-auto overscroll-contain custom-scrollbar"
           >
-            {renderMobileDetails()}
+            <MobileDetailSheet
+              display={display}
+              playback={playbackControls}
+              favorited={favorited}
+              onToggleFavorite={() => toggleFavorite(initialMedia.id, typedMode, genreIdsOf(initialMedia))}
+              isCopied={isCopied}
+              onShare={handleShare}
+            />
           </div>
         ) : (
           /* Desktop — bottom-anchored */
           <div className="absolute inset-0 z-10 flex flex-col overflow-y-auto">
             <div className="mt-auto w-full max-w-[1500px] mx-auto px-6 md:px-16 lg:px-24 pb-12">
-              {renderDetails(true)}
+              <DetailPanel
+                display={display}
+                playback={playbackControls}
+                isPrePlay
+                isLiked={isLiked}
+                onToggleLike={handleLikeToggle}
+                disliked={disliked}
+                onToggleDislike={() => toggleDislike(initialMedia.id, typedMode)}
+              />
             </div>
           </div>
         ))}
@@ -1127,7 +625,7 @@ export function MovieDetailModal({
                           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 rounded-full bg-black/80 backdrop-blur-md border border-white/10 px-4 py-2.5 text-sm text-white/80 shadow-2xl">
                             <span>This server is taking a while…</span>
                             <button
-                              onClick={() => serverSelectTriggerRef.current?.click()}
+                              onClick={openServerPicker}
                               className="font-semibold text-primary hover:text-primary/80 transition-colors"
                             >
                               Try another server
@@ -1180,7 +678,7 @@ export function MovieDetailModal({
                       )}
 
                       <Select value={server} onValueChange={setServer}>
-                        <SelectTrigger className="h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-white/80">
+                        <SelectTrigger ref={mobileServerSelectTriggerRef} className="h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-white/80">
                           <div className="flex items-center gap-2">
                             <Server className="h-3.5 w-3.5 shrink-0 text-white/40" />
                             <SelectValue placeholder="Server" />
@@ -1266,7 +764,15 @@ export function MovieDetailModal({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3, duration: 0.5 }}
                     >
-                      {renderDetails(false)}
+                      <DetailPanel
+                        display={display}
+                        playback={playbackControls}
+                        isPrePlay={false}
+                        isLiked={isLiked}
+                        onToggleLike={handleLikeToggle}
+                        disliked={disliked}
+                        onToggleDislike={() => toggleDislike(initialMedia.id, typedMode)}
+                      />
                     </motion.div>
                   )}
                 </motion.div>

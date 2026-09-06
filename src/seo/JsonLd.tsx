@@ -32,7 +32,7 @@ export function MovieJsonLd({ media, mediaType }: JsonLdProps) {
   const posterUrl = media.poster_path
     ? `${SEO.TMDB_POSTER_BASE}${media.poster_path}`
     : SEO.DEFAULT_OG_IMAGE
-  const director = media.credits?.crew?.find((c: any) => c.job === 'Director')?.name
+  const director = media.credits?.crew?.find((c) => c.job === 'Director')?.name
 
   const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -54,11 +54,11 @@ export function MovieJsonLd({ media, mediaType }: JsonLdProps) {
         ratingValue: media.vote_average.toFixed(1),
         bestRating: '10',
         worstRating: '0',
-        ratingCount: (media as any).vote_count ?? 1,
+        ratingCount: media.vote_count ?? 1,
       },
     }),
     ...(media.genres && {
-      genre: media.genres.map((g: any) => g.name),
+      genre: media.genres.map((g) => g.name),
     }),
   }
 

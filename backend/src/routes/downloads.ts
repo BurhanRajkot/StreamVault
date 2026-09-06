@@ -23,6 +23,9 @@ interface DownloadItem {
 
 const router = Router()
 
+/** Long enough to start a download, short enough that a leaked link is stale. */
+const SIGNED_URL_TTL_SECONDS = 60
+
 // Security: Sanitize filename to prevent path traversal attacks
 function sanitizeFilename(filename: string): string {
   // Remove any path separators and only keep the basename
@@ -175,6 +178,59 @@ async function streamDownloadFromStorage(res: Response, filename: string) {
   }
 }
 
+/** Resolve a download id to its stored record, seeded entries included. */
+async function findDownload(
+  id: string
+): Promise<Pick<DownloadItem, 'filename' | 'externalUrl'> | null> {
+  const seeded = SEEDED_DOWNLOADS.find((item) => item.id === id)
+  if (seeded) return seeded
+
+  const { data } = await supabaseAdmin
+    .from('Download')
+    .select('filename')
+    .eq('id', id)
+    .single()
+
+  return data ?? null
+}
+
+/**
+ * Hand back a URL the browser can navigate to directly.
+ *
+ * A download is triggered by pointing the browser at a URL, and a top-level
+ * navigation cannot carry an Authorization header — so `/:id/file` (which is
+ * behind checkAuth) is unreachable that way and every download click failed on
+ * auth. This endpoint takes the token over normal fetch, applies the same
+ * paywall, and returns a short-lived pre-authorised link instead.
+ */
+router.get('/:id/link', downloadRateLimiter, checkAuth, async (req, res) => {
+  const { id } = req.params
+
+  const denied = await authorizeDownloadAccess(req)
+  if (denied) {
+    return res.status(denied.status).json(denied.body)
+  }
+
+  const item = await findDownload(id)
+  if (!item) return res.status(404).json({ error: 'Not found' })
+
+  if (item.externalUrl) {
+    return res.json({ url: item.externalUrl })
+  }
+
+  const filename = sanitizeFilename(item.filename)
+  const { data, error } = await supabaseAdmin.storage
+    .from('downloads')
+    .createSignedUrl(filename, SIGNED_URL_TTL_SECONDS, { download: filename })
+
+  if (error || !data?.signedUrl) {
+    logger.error('Failed to sign download URL', { id, error: error?.message })
+    return res.status(404).json({ error: 'File not found' })
+  }
+
+  return res.json({ url: data.signedUrl })
+})
+
 router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   const { id } = req.params
 
@@ -186,19 +242,7 @@ router.get('/:id/file', downloadRateLimiter, checkAuth, async (req, res) => {
   }
 
   // 2. Resolve the item
-  const seeded = SEEDED_DOWNLOADS.find((item) => item.id === id)
-  let item: Pick<DownloadItem, 'filename' | 'externalUrl'> | null = seeded ?? null
-
-  if (!item) {
-    const { data } = await supabaseAdmin
-      .from('Download')
-      .select('filename')
-      .eq('id', id)
-      .single()
-
-    item = data ?? null
-  }
-
+  const item = await findDownload(id)
   if (!item) return res.status(404).json({ error: 'Not found' })
 
   // 3. Deliver

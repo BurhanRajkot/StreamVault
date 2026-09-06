@@ -3,8 +3,9 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { fetchDownloads, downloadFile, DownloadItem, getAdminToken } from '@/lib/api'
 import { getImageUrl } from '@/lib/api'
 import { Search, Download, Crown, ShieldCheck, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, errorMessage } from '@/lib/utils'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import AdminLoginModal from '@/components/modals/AdminLoginModal'
 import { PageMeta } from '@/seo/PageMeta'
 
@@ -85,7 +86,7 @@ const Downloads = () => {
 
           setItems(enriched)
           setNeedsUpgrade(false)
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Admin downloads fetch error:', err)
           setItems([])
           setIsAdmin(false)
@@ -118,8 +119,9 @@ const Downloads = () => {
 
         setItems(enriched)
         setNeedsUpgrade(false)
-      } catch (err: any) {
-        if (err.message?.includes('premium') || err.message?.includes('upgrade')) {
+      } catch (err: unknown) {
+        const message = errorMessage(err, '')
+        if (message.includes('premium') || message.includes('upgrade')) {
           setNeedsUpgrade(true)
         }
         setItems([])
@@ -156,11 +158,23 @@ const Downloads = () => {
       setItems(enriched)
       setNeedsUpgrade(false)
       setIsAdmin(true)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Admin downloads fetch error:', err)
       setItems([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  /** Admins authenticate with the stored admin token, everyone else via Auth0. */
+  const getDownloadToken = async () => getAdminToken() ?? (await getAccessTokenSilently())
+
+  const startDownload = async (item: EnrichedDownload) => {
+    try {
+      await downloadFile(item.id, await getDownloadToken())
+    } catch (err: unknown) {
+      console.error('Download failed:', err)
+      toast.error(errorMessage(err, 'Could not start the download'))
     }
   }
 
@@ -275,7 +289,7 @@ const Downloads = () => {
       >
         {filtered.map((item) => {
           const imageUrl = getImageUrl(item.posterPath, 'poster')
-          const handleDownload = () => downloadFile(item.id)
+          const handleDownload = () => { void startDownload(item) }
           const handleCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()

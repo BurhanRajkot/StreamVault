@@ -4,7 +4,8 @@ import { Check, Sparkles, Zap, Loader2, Crown, QrCode } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/layout/Footer'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
+import { errorMessage } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -38,7 +39,6 @@ export default function Pricing() {
   const [error, setError] = useState<string | null>(null)
 
   const navigate = useNavigate()
-  const { toast } = useToast()
   const { user, isAuthenticated, loginWithRedirect, getAccessTokenSilently } = useAuth0()
 
   useEffect(() => {
@@ -99,18 +99,15 @@ export default function Pricing() {
         throw new Error(data.error || 'Failed to submit request')
       }
 
-      toast({
-        title: 'Payment Submitted',
+      toast.success('Payment Submitted', {
         description: 'Your request is under review. Please allow 1-2 hours for approval.',
       })
 
       setSelectedPlan(null)
       navigate('/subscription/success?manual=true')
-    } catch (err: any) {
-      toast({
-        title: 'Submission Failed',
-        description: err.message,
-        variant: 'destructive',
+    } catch (err: unknown) {
+      toast.error('Submission Failed', {
+        description: errorMessage(err, 'Could not submit your payment. Please try again.'),
       })
     } finally {
       setSubmitting(false)

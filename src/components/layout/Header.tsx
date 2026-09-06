@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Clapperboard, Crown, Heart, LogOut, Search, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaMode } from '@/lib/config'
@@ -60,6 +60,7 @@ export function Header({
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
+  const navigate = useNavigate()
   const { user, isAuthenticated, logout } = useAuth0()
 
   // Mobile search state is controlled when the page passes it down.
@@ -181,13 +182,24 @@ export function Header({
     active?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
   }, [mode])
 
-  const handleLogoClick = () => {
+  // The anchor keeps its href so the logo is a real, crawlable link that still
+  // supports middle-click / open-in-new-tab. A plain left-click has to be
+  // cancelled, though: letting it through triggers a full document load, which
+  // throws away the router state these handlers just set (and the whole React
+  // Query cache with it).
+  const handleLogoClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return
+    }
+    event.preventDefault()
+
     if (onLogoClick) {
       onLogoClick()
       return
     }
     onClearSearch()
     onModeChange('home')
+    navigate('/')
   }
 
   const handleSearchToggle = () => {
