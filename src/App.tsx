@@ -12,9 +12,12 @@ import { DislikesProvider } from './context/DislikesContext'
 import { SmoothScrollProvider } from './components/layout/SmoothScrollProvider'
 
 // Helper to handle dynamic import failures (e.g. chunk 404s after new deployment)
-const lazyImport = (fn: () => Promise<any>) => lazy(() => 
-  fn().catch((error) => {
-    if (error.message.includes('Failed to fetch dynamically imported module') || error.message.includes('Importing a module script failed')) {
+type LazyModule = { default: React.ComponentType<Record<string, never>> }
+
+const lazyImport = (fn: () => Promise<LazyModule>) => lazy(() =>
+  fn().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('Failed to fetch dynamically imported module') || message.includes('Importing a module script failed')) {
       if (!sessionStorage.getItem('chunk_reload')) {
         sessionStorage.setItem('chunk_reload', 'true')
         window.location.reload()

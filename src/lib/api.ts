@@ -33,6 +33,14 @@ function providerFilterParams(
   return `&with_watch_providers=${providerId}&watch_region=${region}&with_watch_monetization_types=${monetization}`
 }
 
+/** The envelope every TMDB list endpoint (discover/search/trending) returns. */
+interface TmdbListResponse {
+  results?: Media[]
+  total_pages?: number
+}
+
+const EMPTY_LIST: TmdbListResponse = { results: [], total_pages: 0 }
+
 /**
  * Fetch a movie discover URL and a tv discover URL in parallel.
  * A failed sub-request degrades to an empty result set instead of throwing,
@@ -41,11 +49,11 @@ function providerFilterParams(
 async function discoverMovieAndTv(
   movieUrl: string,
   tvUrl: string
-): Promise<{ movieData: any; tvData: any }> {
+): Promise<{ movieData: TmdbListResponse; tvData: TmdbListResponse }> {
   const [movieRes, tvRes] = await Promise.all([fetch(movieUrl), fetch(tvUrl)])
   const [movieData, tvData] = await Promise.all([
-    movieRes.ok ? movieRes.json() : Promise.resolve({ results: [], total_pages: 0 }),
-    tvRes.ok ? tvRes.json() : Promise.resolve({ results: [], total_pages: 0 }),
+    movieRes.ok ? (movieRes.json() as Promise<TmdbListResponse>) : Promise.resolve(EMPTY_LIST),
+    tvRes.ok ? (tvRes.json() as Promise<TmdbListResponse>) : Promise.resolve(EMPTY_LIST),
   ])
   return { movieData, tvData }
 }
@@ -76,8 +84,8 @@ export async function fetchPopular(
     try {
       const { movieData, tvData } = await discoverMovieAndTv(movieUrl, tvUrl)
 
-      const movies = (movieData.results || []).map((m: any) => ({ ...m, media_type: 'movie' }))
-      const tv = (tvData.results || []).map((t: any) => ({ ...t, media_type: 'tv' }))
+      const movies = (movieData.results || []).map((m) => ({ ...m, media_type: 'movie' }))
+      const tv = (tvData.results || []).map((t) => ({ ...t, media_type: 'tv' }))
 
       const combined = [...movies, ...tv].sort(
         (a, b) => (b.popularity || 0) - (a.popularity || 0)
@@ -147,12 +155,12 @@ export async function fetchRecentlyAdded(
     try {
       const { movieData, tvData } = await discoverMovieAndTv(movieUrl, tvUrl)
 
-      const movies = (movieData.results || []).map((m: any) => ({
+      const movies = (movieData.results || []).map((m) => ({
         ...m,
         media_type: 'movie',
-        date: new Date(m.release_date || m.primary_release_date || 0),
+        date: new Date(m.release_date || 0),
       }))
-      const tv = (tvData.results || []).map((t: any) => ({
+      const tv = (tvData.results || []).map((t) => ({
         ...t,
         media_type: 'tv',
         date: new Date(t.first_air_date || 0),
@@ -258,9 +266,9 @@ export async function searchMedia(
       results,
       hasMore: typeof data.has_more === 'boolean' ? data.has_more : results.length > 0,
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // AbortError is expected when the caller cancels a stale request — not a real error
-    if (err?.name === 'AbortError') return { results: [], hasMore: false }
+    if (err instanceof Error && err.name === 'AbortError') return { results: [], hasMore: false }
     console.error('searchMedia fetch err:', err)
     return { results: [], hasMore: false }
   }
@@ -280,33 +288,6 @@ export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Me
     return null
   }
   return res.json()
-}
-
-export async function fetchMediaBasicDetails(mode: MediaMode, id: number): Promise<Media | null> {
-  if (mode === 'downloads' || !id) return null
-
-  // Omitting appended relationships reduces the TMDB response from ~120KB to ~2KB each.
-  const url = `${API_BASE}/tmdb/${mode}/${id}?include_image_language=en,null`
-  const res = await fetch(url)
-  if (!res.ok) {
-    console.error(`fetchMediaBasicDetails failed for ${mode}/${id}:`, res.status)
-    return null
-  }
-  return res.json()
-}
-
-export async function fetchMediaVideos(
-  mode: MediaMode,
-  id: number
-): Promise<{ key: string; site: string; type: string }[]> {
-  if (mode === 'downloads' || !id) return []
-
-  const url = `${API_BASE}/tmdb/${mode}/${id}/videos`
-  const res = await fetch(url)
-  if (!res.ok) return []
-
-  const data = await res.json()
-  return data.results || []
 }
 
 export async function fetchTVSeasons(
@@ -425,22 +406,6 @@ export async function removeContinueWatching(
   if (!res.ok) throw new Error('Failed to remove continue watching')
 }
 
-/**
- * Fetch existing progress for a specific media item.
- * Used for movie heuristic logic (0.1 → 0.5 → 0.9).
- */
-export async function fetchExistingProgress(
-  token: string,
-  tmdbId: number,
-  mediaType: 'movie' | 'tv'
-): Promise<ContinueWatchingItem | null> {
-  const res = await fetch(`${API_BASE}/continue-watching/${tmdbId}/${mediaType}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) return null
-  return res.json()
-}
-
 /* ======================================================
    EMBED URL BUILDER
 ====================================================== */
@@ -487,7 +452,7 @@ export function buildEmbedUrl(
 
   // Documentaries can be either a movie or a TV series — resolve by media_type.
   if (mode === 'documentary' && media) {
-    const actualMode = (media as any).media_type || 'movie'
+    const actualMode = media.media_type || 'movie'
     return actualMode === 'tv' ? tvUrl() : movieUrl()
   }
 
@@ -522,8 +487,25 @@ export async function fetchDownloads(token?: string): Promise<DownloadItem[]> {
   return res.json()
 }
 
-export function downloadFile(id: string) {
-  window.location.href = `${API_BASE}/downloads/${encodeURIComponent(id)}/file`
+/**
+ * Start a download.
+ *
+ * The file endpoint is behind auth, and pointing `window.location` at it sends
+ * no Authorization header — so we exchange the token for a short-lived
+ * pre-authorised URL first and navigate to that.
+ */
+export async function downloadFile(id: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/downloads/${encodeURIComponent(id)}/link`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.error || 'Failed to start download')
+  }
+
+  const { url } = (await res.json()) as { url: string }
+  window.location.href = url
 }
 
 /* ======================================================
@@ -534,14 +516,6 @@ export type AdminLoginResponse = {
   success: boolean
   token: string
   expiresIn: string
-}
-
-export type AdminVerifyResponse = {
-  valid: boolean
-  admin: {
-    email: string
-    role: string
-  }
 }
 
 /** Admin login with daily code. Returns a JWT token on success. */
@@ -558,40 +532,6 @@ export async function adminLogin(code: string): Promise<AdminLoginResponse> {
   }
 
   return res.json()
-}
-
-/** Verify admin token validity. */
-export async function verifyAdminToken(token: string): Promise<AdminVerifyResponse> {
-  const res = await fetch(`${API_BASE}/admin/verify`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-  })
-
-  if (!res.ok) {
-    throw new Error('Token verification failed')
-  }
-
-  return res.json()
-}
-
-/** Admin logout (best-effort backend call + local token removal). */
-export async function adminLogout(): Promise<void> {
-  const token = localStorage.getItem('adminToken')
-
-  if (token) {
-    // Optional: call backend logout endpoint for consistency
-    try {
-      await fetch(`${API_BASE}/admin/logout`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-    } catch (error) {
-      // Ignore errors but still proceed to clear the local token
-      console.error('Admin logout error:', error)
-    }
-  }
-
-  localStorage.removeItem('adminToken')
 }
 
 export function getAdminToken(): string | null {
@@ -687,14 +627,6 @@ export function removeGuestProgress(tmdbId: number, mediaType: 'movie' | 'tv') {
   } catch (e) {
     console.error('Failed to remove guest progress:', e)
   }
-}
-
-export function getGuestItemProgress(
-  tmdbId: number,
-  mediaType: 'movie' | 'tv'
-): ContinueWatchingItem | null {
-  const items = getGuestProgress()
-  return items.find((i) => i.tmdbId === tmdbId && i.mediaType === mediaType) || null
 }
 
 /* ======================================================

@@ -16,6 +16,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { getGuestProgress, RecoSection, RecoItem } from '../lib/api'
+import type { Media } from '../lib/config'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -50,8 +51,8 @@ export function useContextualRecommendations(refreshKey = 0): {
         )
         if (!res.ok || cancelled) return
 
-        const data = await res.json()
-        const results: any[] = data.results || []
+        const data = (await res.json()) as { results?: Media[] }
+        const results: Media[] = data.results || []
 
         if (results.length === 0) return
 
@@ -62,7 +63,7 @@ export function useContextualRecommendations(refreshKey = 0): {
             `${API_BASE}/tmdb/${lastWatched.mediaType}/${lastWatched.tmdbId}?include_image_language=en,null`
           )
           if (detailRes.ok && !cancelled) {
-            const detail = await detailRes.json()
+            const detail = (await detailRes.json()) as Media
             seedTitle = detail.title || detail.name || seedTitle
           }
         } catch { /* non-critical */ }
@@ -70,7 +71,7 @@ export function useContextualRecommendations(refreshKey = 0): {
         if (cancelled) return
 
         // Map TMDB results to RecoItem shape
-        const items: RecoItem[] = results.slice(0, 20).map((r: any) => ({
+        const items: RecoItem[] = results.slice(0, 20).map((r) => ({
           tmdbId: r.id,
           mediaType: (r.media_type === 'tv' || lastWatched.mediaType === 'tv') ? 'tv' : 'movie',
           title: r.title || r.name || '',

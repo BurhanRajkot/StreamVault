@@ -81,7 +81,15 @@ const Watch = () => {
       <VideoObjectJsonLd media={media} mediaType={typedMediaType} />
       <WatchActionJsonLd media={media} mediaType={typedMediaType} />
 
+      {/*
+        Keyed on the title so switching between two already-cached titles gets
+        a fresh player. Without it React reuses the instance across the param
+        change and the new title inherits the previous one's playback state —
+        it auto-plays, keeps the old show's season/episode, and never logs its
+        own watch event (the "already logged" ref is still set).
+      */}
       <MovieDetailModal
+        key={`${typedMediaType}:${media.id}`}
         media={media}
         mode={mode}
         onClose={() => {

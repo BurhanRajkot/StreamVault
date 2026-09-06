@@ -326,6 +326,7 @@ export interface Media {
   backdrop_path: string | null
   overview: string
   vote_average: number
+  vote_count?: number
   popularity?: number
   release_date?: string
   first_air_date?: string
@@ -334,7 +335,10 @@ export interface Media {
   tagline?: string
   number_of_seasons?: number
   episode_run_time?: number[]
+  /** Full genre objects — returned by the detail endpoints. */
   genres?: Genre[]
+  /** Bare genre ids — what the list endpoints (discover/search/trending) return instead. */
+  genre_ids?: number[]
   credits?: {
     cast: Cast[]
     crew: Crew[]

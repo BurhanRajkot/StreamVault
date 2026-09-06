@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Media, CONFIG } from '@/lib/config'
 import { fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, genreIdsOf } from '@/lib/utils'
 import { HoverVideoPlayer } from '@/components/media/HoverVideoPlayer'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useDislikes } from '@/context/DislikesContext'
@@ -79,7 +79,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
 
     try {
       const token = await getAccessTokenSilently()
-      const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+      const genreIds = genreIdsOf(media)
 
       logRecommendationInteraction(token, {
         tmdbId: media.id,

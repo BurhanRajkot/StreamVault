@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,6 +15,7 @@ import {
 import { RecoSection, RecoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useDislikes } from '@/context/DislikesContext'
+import { useScrollArrows } from '@/hooks/useScrollArrows'
 
 interface RecommendationRowProps {
   section: RecoSection
@@ -52,38 +53,11 @@ export function RecommendationRow({
   onDislike,
   isLoading = false,
 }: RecommendationRowProps) {
-  const carouselRef = useRef<HTMLDivElement>(null)
-  const innerTrackRef = useRef<HTMLDivElement>(null)
-
-  const [showLeftButton, setShowLeftButton] = useState(false)
-  const [showRightButton, setShowRightButton] = useState(true)
   const [isHovered, setIsHovered] = useState(false)
-
-  // Measure the true width of the content vs the container to set drag constraints/buttons
-  const checkScroll = useCallback(() => {
-    if (innerTrackRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = innerTrackRef.current
-      setShowLeftButton(scrollLeft > 10)
-      setShowRightButton(scrollLeft < scrollWidth - clientWidth - 10)
-    }
-  }, [])
-
-  useEffect(() => {
-    checkScroll()
-    window.addEventListener('resize', checkScroll)
-    return () => window.removeEventListener('resize', checkScroll)
-  }, [checkScroll, section.items, isLoading])
-
-  const handleArrowScroll = (direction: 'left' | 'right') => {
-    if (!innerTrackRef.current) return
-
-    const shiftAmount = innerTrackRef.current.clientWidth * 0.75
-    
-    innerTrackRef.current.scrollBy({
-      left: direction === 'right' ? shiftAmount : -shiftAmount,
-      behavior: 'smooth'
-    })
-  }
+  const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([
+    section.items,
+    isLoading,
+  ])
 
   const { isDisliked, toggleDislike } = useDislikes()
 
@@ -117,7 +91,7 @@ export function RecommendationRow({
             hidden md:flex`}
         >
           <button
-            onClick={() => handleArrowScroll('left')}
+            onClick={() => scrollBy('left')}
             className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
             aria-label="Scroll left"
           >
@@ -126,15 +100,13 @@ export function RecommendationRow({
         </div>
 
         <div
-          ref={carouselRef}
           className="overflow-hidden pb-4"
           style={{ contain: 'layout' }}
         >
         {/* ── Inner Track (Native Scroll) ────────────────────────── */}
         <div
-          ref={innerTrackRef}
-          onScroll={checkScroll}
-          className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-2 -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-3 md:mx-0 md:px-0 md:pr-10" 
+          ref={rowRef}
+          className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-2 -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-3 md:mx-0 md:px-0 md:pr-10"
         >
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="snap-start shrink-0"><RecoCardSkeleton /></div>)
@@ -164,7 +136,7 @@ export function RecommendationRow({
             hidden md:flex`}
         >
           <button
-            onClick={() => handleArrowScroll('right')}
+            onClick={() => scrollBy('right')}
             className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
             aria-label="Scroll right"
           >

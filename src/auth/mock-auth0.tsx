@@ -1,22 +1,36 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+
+/** The subset of Auth0's `User` this app actually reads. */
+interface MockUser {
+  sub: string
+  name: string
+  email: string
+  picture: string
+}
+
+/**
+ * Options are accepted and ignored — the real Auth0 methods take rich option
+ * objects (`logoutParams`, `authorizationParams`) and every call site passes
+ * one, so the parameter has to exist even though the mock has no use for it.
+ */
 interface Auth0ContextType {
   isAuthenticated: boolean
   isLoading: boolean
-  user: any
-  loginWithRedirect: (_options?: any) => Promise<void>
-  logout: (_options?: any) => void
-  getAccessTokenSilently: (_options?: any) => Promise<string>
+  user: MockUser | null
+  loginWithRedirect: (_options?: unknown) => Promise<void>
+  logout: (_options?: unknown) => void
+  getAccessTokenSilently: (_options?: unknown) => Promise<string>
 }
 const Auth0Context = createContext<Auth0ContextType | undefined>(undefined)
 export function Auth0Provider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<MockUser | null>(null)
   useEffect(() => {
     // Read mock state from localStorage
     const mockAuth = localStorage.getItem('e2e_mock_authenticated') === 'true'
     const mockUserStr = localStorage.getItem('e2e_mock_user')
-    const mockUser = mockUserStr ? JSON.parse(mockUserStr) : {
+    const mockUser: MockUser = mockUserStr ? JSON.parse(mockUserStr) : {
       sub: 'auth0|mock-user-123',
       name: 'E2E Tester',
       email: 'tester@streamvault.test',
@@ -26,12 +40,12 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
     setUser(mockAuth ? mockUser : null)
     setIsLoading(false)
   }, [])
-  const loginWithRedirect = async (_options?: any) => {
+  const loginWithRedirect = async (_options?: unknown) => {
     // If we are already on the login or signup page, mock the login and redirect back
     if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
       localStorage.setItem('e2e_mock_authenticated', 'true')
       setIsAuthenticated(true)
-      const mockUser = {
+      const mockUser: MockUser = {
         sub: 'auth0|mock-user-123',
         name: 'E2E Tester',
         email: 'tester@streamvault.test',
@@ -60,7 +74,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
     }
   }
-  const logout = (_options?: any) => {
+  const logout = (_options?: unknown) => {
     localStorage.removeItem('e2e_mock_authenticated')
     localStorage.removeItem('e2e_mock_user')
     // Clear other user settings to prevent leftover state
@@ -69,7 +83,7 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
     setUser(null)
     window.location.reload()
   }
-  const getAccessTokenSilently = async (_options?: any) => {
+  const getAccessTokenSilently = async (_options?: unknown) => {
     return 'mock-access-token'
   }
   return (

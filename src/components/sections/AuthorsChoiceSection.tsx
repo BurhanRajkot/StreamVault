@@ -8,6 +8,7 @@ import {
 import { fetchMediaDetails } from '@/lib/api'
 import { Media } from '@/lib/config'
 import { MediaCard, MediaCardSkeleton } from '@/components/media/MediaCard'
+import { useScrollArrows } from '@/hooks/useScrollArrows'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Props {
@@ -20,21 +21,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   const [loading, setLoading] = useState(true)
 
   const [isHovered, setIsHovered] = useState(false)
-  const [showLeftButton, setShowLeftButton] = useState(false)
-  const [showRightButton, setShowRightButton] = useState(true)
-
-  useEffect(() => {
-    const row = document.getElementById(`authors-choice-row-${mode}`)
-    if (!row) return
-    const handleScroll = () => {
-      setShowLeftButton(row.scrollLeft > 10)
-      setShowRightButton(row.scrollLeft < row.scrollWidth - row.clientWidth - 10)
-    }
-    row.addEventListener('scroll', handleScroll)
-    // Delay initial check to ensure render is complete
-    setTimeout(handleScroll, 100)
-    return () => row.removeEventListener('scroll', handleScroll)
-  }, [mode, media])
+  const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([mode, media])
 
   useEffect(() => {
     async function load() {
@@ -59,7 +46,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
 
       const results = await Promise.all(
         sourceData.map((item) =>
-          fetchMediaDetails(item.mediaType as any, item.tmdbId)
+          fetchMediaDetails(item.mediaType, item.tmdbId)
         )
       )
 
@@ -70,16 +57,6 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
 
     load()
   }, [mode])
-
-  const scroll = (dir: 'left' | 'right') => {
-    const row = document.getElementById(`authors-choice-row-${mode}`)
-    if (!row) return
-
-    row.scrollBy({
-      left: dir === 'left' ? -600 : 600,
-      behavior: 'smooth',
-    })
-  }
 
   const getTitle = () => {
     switch (mode) {
@@ -118,7 +95,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
           hidden md:flex`}
       >
         <button
-          onClick={() => scroll('left')}
+          onClick={() => scrollBy('left')}
           className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
           aria-label="Scroll left"
         >
@@ -135,7 +112,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
           hidden md:flex`}
       >
         <button
-          onClick={() => scroll('right')}
+          onClick={() => scrollBy('right')}
           className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
           aria-label="Scroll right"
         >
@@ -145,7 +122,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
 
       {/* Horizontal Scroll Row */}
       <div
-        id={`authors-choice-row-${mode}`}
+        ref={rowRef}
         className="flex gap-2 overflow-x-auto scroll-smooth pb-3 no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-8 md:pb-4"
         style={{ contain: 'layout' }}
       >

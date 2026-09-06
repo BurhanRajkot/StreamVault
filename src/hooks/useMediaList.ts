@@ -10,22 +10,36 @@ export interface MediaItem {
   mediaType: 'movie' | 'tv'
 }
 
+/** An error carrying the HTTP status of the response that produced it. */
+class HttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'HttpError'
+  }
+}
+
+/** True for the rate-limit responses that are worth retrying. */
+function isRateLimited(error: unknown): boolean {
+  if (error instanceof HttpError) return error.status === 429
+  return error instanceof Error && error.message.includes('429')
+}
+
 // Retry utility with exponential backoff
-export async function retryWithBackoff<T>(
+async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
   initialDelay = 1000
 ): Promise<T> {
-  let lastError: Error | null = null
+  let lastError: unknown = null
 
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn()
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error
 
       // Don't retry if it's not a rate limit error
-      if (!error.message?.includes('429') && error.status !== 429) {
+      if (!isRateLimited(error)) {
         throw error
       }
 
@@ -165,16 +179,11 @@ export function useMediaList({
       if (existing) {
         // Reverse an action
         await retryWithBackoff(async () => {
-          // DELETE endpoints for some items are `/favorites/:id` and for some are `/dislikes/:mediaType/:tmdbId`
-          // Let's check what the API calls are in the originals:
-          // Dislikes: fetch(`${API_URL}/dislikes/${mediaType}/${tmdbId}`, { method: 'DELETE' })
-          // Favorites: fetch(`${API_URL}/favorites/${existing.id}`, { method: 'DELETE' })
-
-          // Using `/${endpoint}/${mediaType}/${tmdbId}` or `/${endpoint}/${existing.id}`
-          // We need to resolve this difference.
+          // The two endpoints key their DELETE differently: favorites by the
+          // row id, dislikes by the media it points at.
           const deleteUrl = endpoint === 'favorites'
             ? `${API_URL}/${endpoint}/${existing.id}`
-            : `${API_URL}/${endpoint}/${mediaType}/${tmdbId}`;
+            : `${API_URL}/${endpoint}/${mediaType}/${tmdbId}`
 
           const res = await fetch(deleteUrl, {
             method: 'DELETE',
@@ -183,10 +192,7 @@ export function useMediaList({
 
           if (!res.ok) {
             if (res.status === 404) return // Already deleted — treat as success
-            const errorText = await res.text()
-            const error: any = new Error(errorText)
-            error.status = res.status
-            throw error
+            throw new HttpError(await res.text(), res.status)
           }
 
           return res
@@ -206,10 +212,7 @@ export function useMediaList({
             return res.json()
           }
 
-          const errorText = await res.text()
-          const error: any = new Error(errorText)
-          error.status = res.status
-          throw error
+          throw new HttpError(await res.text(), res.status)
         })
 
         // Replace temp ID with real ID from backend
@@ -224,7 +227,7 @@ export function useMediaList({
 
         toast.success(messages.addSuccess)
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`${endpoint} toggle failed:`, err)
 
       // Rollback on error
