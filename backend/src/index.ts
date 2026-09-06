@@ -131,12 +131,26 @@ app.use((req, res) => {
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const message = err instanceof Error ? err.message : String(err)
 
-  logger.error('Unhandled request error', {
-    method: req.method,
-    path: req.path,
-    error: message,
-    stack: err instanceof Error ? err.stack : undefined,
-  })
+  // Errors that carry their own 4xx status are the caller's fault, not ours
+  // (express-oauth2-jwt-bearer throws UnauthorizedError with status 401).
+  // Flattening those to 500 told every client the server was broken when the
+  // request was simply unauthenticated, and buried real faults under a stream
+  // of stack-traced "errors" that were just anonymous traffic.
+  const rawStatus = (err as { status?: unknown; statusCode?: unknown })?.status
+    ?? (err as { statusCode?: unknown })?.statusCode
+  const clientStatus =
+    typeof rawStatus === 'number' && rawStatus >= 400 && rawStatus < 500 ? rawStatus : null
+
+  if (clientStatus) {
+    logger.warn('Rejected request', { method: req.method, path: req.path, status: clientStatus, error: message })
+  } else {
+    logger.error('Unhandled request error', {
+      method: req.method,
+      path: req.path,
+      error: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    })
+  }
 
   if (res.headersSent) {
     // Response already started — the only correct move is to abort the socket.
@@ -147,6 +161,11 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   // A rejected CORS origin surfaces here; answer 403 rather than a generic 500.
   if (message.startsWith('CORS policy:')) {
     res.status(403).json({ error: 'Origin not allowed' })
+    return
+  }
+
+  if (clientStatus) {
+    res.status(clientStatus).json({ error: message })
     return
   }
 

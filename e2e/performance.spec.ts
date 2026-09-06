@@ -24,7 +24,7 @@ test.describe('Performance Metrics', () => {
 
     // Wait for metrics to be available
     await page.waitForFunction(() => {
-      return (window as any).performance.getEntriesByType('paint').length > 0
+      return performance.getEntriesByType('paint').length > 0
     }, { timeout: 10_000 })
 
     const fcp = await page.evaluate(() => {
@@ -50,12 +50,18 @@ test.describe('Performance Metrics', () => {
     await home.scrollToTop()
 
     const cls = await page.evaluate(() => {
+      // layout-shift entries aren't in TypeScript's DOM lib yet
+      interface LayoutShiftEntry extends PerformanceEntry {
+        hadRecentInput: boolean
+        value: number
+      }
+
       return new Promise<number>((resolve) => {
         let clsValue = 0
         const observer = new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) {
-            if (!(entry as any).hadRecentInput) {
-              clsValue += (entry as any).value
+          for (const entry of list.getEntries() as LayoutShiftEntry[]) {
+            if (!entry.hadRecentInput) {
+              clsValue += entry.value
             }
           }
         })

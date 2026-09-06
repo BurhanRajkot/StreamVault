@@ -2,7 +2,7 @@ import { useState, useRef, memo } from 'react'
 import { Play, Star, Heart, ThumbsDown, Info } from 'lucide-react'
 import { Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet, logRecommendationInteraction } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, genreIdsOf } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -32,8 +32,7 @@ function MediaCardComponent({
   const isMobile = useIsMobile()
 
   const [showQuickView, setShowQuickView] = useState(false)
-  const hoverTimeout = useRef<NodeJS.Timeout | null>(null)
-  const quickViewTimeout = useRef<NodeJS.Timeout | null>(null)
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -50,7 +49,7 @@ function MediaCardComponent({
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+    const genreIds = genreIdsOf(media)
     toggleFavorite(media.id, mediaType, genreIds)
   }
 
@@ -81,7 +80,6 @@ function MediaCardComponent({
   const handleMouseLeave = () => {
     if (isMobile) return
     if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
-    if (quickViewTimeout.current) clearTimeout(quickViewTimeout.current)
     setShowQuickView(false)
   }
 
@@ -90,7 +88,7 @@ function MediaCardComponent({
       localStorage.setItem('stream_provider', provider)
     }
 
-    const genreIds = media.genres?.map((g: any) => g.id).filter(Boolean) as number[] | undefined
+    const genreIds = genreIdsOf(media)
 
     if (isAuthenticated) {
       getAccessTokenSilently().then(token => {
@@ -349,11 +347,6 @@ function MediaCardComponent({
               </button>
             </div>
           )}
-
-          {/* Hover Video Player - Removed for 'Poster Only' requirement */}
-          {/* <div className="hidden md:block absolute inset-0 z-20 pointer-events-none group-hover:pointer-events-auto">
-            {showQuickView && <HoverVideoPlayer media={media} />}
-          </div> */}
 
           {/* Score badge — desktop only, see note on the favourite controls */}
           <div className="absolute left-2 top-2 hidden items-center gap-1 rounded-lg bg-background/90 backdrop-blur-sm px-2 py-1 text-xs font-medium shadow-lg z-10 md:flex">

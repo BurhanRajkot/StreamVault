@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,7 +11,8 @@ import {
 } from '@/lib/api'
 import { Media } from '@/lib/config'
 import { ContinueWatchingCard } from '@/components/media/ContinueWatchingCard'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
+import { useScrollArrows } from '@/hooks/useScrollArrows'
 
 import { ContinueWatchingItem } from '@/lib/api'
 
@@ -27,7 +28,6 @@ interface Props {
 
 export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props) {
   const { isAuthenticated, isLoading: authLoading, user, getAccessTokenSilently } = useAuth0()
-  const { toast } = useToast()
   const queryClient = useQueryClient()
 
   // Include the user's unique ID in the key so each account gets its own isolated
@@ -35,8 +35,6 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   const queryKey = ['continueWatching', isAuthenticated ? (user?.sub ?? 'user') : 'guest', refreshKey]
 
   const [isHovered, setIsHovered] = useState(false)
-  const [showLeftButton, setShowLeftButton] = useState(false)
-  const [showRightButton, setShowRightButton] = useState(true)
 
   const { data: entries = [], isLoading: loading } = useQuery<ContinueWatchingEntry[]>({
     queryKey,
@@ -78,18 +76,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
     refetchOnWindowFocus: false, // prevent expensive re-fetch when returning to tab
   })
 
-  useEffect(() => {
-    const row = document.getElementById('continue-watching-row')
-    if (!row) return
-    const handleScroll = () => {
-      setShowLeftButton(row.scrollLeft > 10)
-      setShowRightButton(row.scrollLeft < row.scrollWidth - row.clientWidth - 10)
-    }
-    row.addEventListener('scroll', handleScroll)
-    // Delay initial check to ensure render is complete
-    setTimeout(handleScroll, 100)
-    return () => row.removeEventListener('scroll', handleScroll)
-  }, [entries])
+  const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([entries])
 
   /* ================= HANDLERS ================= */
 
@@ -110,20 +97,13 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
         removeGuestProgress(item.tmdbId, item.mediaType)
       }
 
-      toast({
-        title: 'Removed',
-        description: 'Removed from Continue Watching',
-      })
+      toast.success('Removed from Continue Watching')
       // invalidate to refetch in bg to ensure total sync
       queryClient.invalidateQueries({ queryKey })
     } catch {
       // Revert optimism on error
       queryClient.invalidateQueries({ queryKey })
-      toast({
-        title: 'Error',
-        description: 'Could not remove item',
-        variant: 'destructive',
-      })
+      toast.error('Could not remove item')
     }
   }
 
@@ -171,10 +151,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
             hidden md:flex`}
         >
           <button
-            onClick={() => {
-              const row = document.getElementById('continue-watching-row')
-              if (row) row.scrollBy({ left: -600, behavior: 'smooth' })
-            }}
+            onClick={() => scrollBy('left')}
             className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
             aria-label="Scroll left"
           >
@@ -193,10 +170,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
             hidden md:flex`}
         >
           <button
-            onClick={() => {
-              const row = document.getElementById('continue-watching-row')
-              if (row) row.scrollBy({ left: 600, behavior: 'smooth' })
-            }}
+            onClick={() => scrollBy('right')}
             className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
             aria-label="Scroll right"
           >
@@ -207,7 +181,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
 
       {/* Content */}
       {!loading && entries.length > 0 && (
-        <div id="continue-watching-row" className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-0">
+        <div ref={rowRef} className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-0">
           {entries.map(({ media, item }) => (
             <ContinueWatchingCard
               key={`${item.mediaType}-${item.tmdbId}`}

@@ -4,6 +4,7 @@ import { Media, MediaMode } from '@/lib/config'
 import { fetchRecentlyAdded } from '@/lib/api'
 import { OTT_PROVIDERS } from '@/lib/ottProviders'
 import { MediaCard, MediaCardSkeleton } from '@/components/media/MediaCard'
+import { useScrollArrows } from '@/hooks/useScrollArrows'
 
 interface RecentlyAddedSectionProps {
   mode: MediaMode
@@ -16,21 +17,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
   const [isLoading, setIsLoading] = useState(false)
 
   const [isHovered, setIsHovered] = useState(false)
-  const [showLeftButton, setShowLeftButton] = useState(false)
-  const [showRightButton, setShowRightButton] = useState(true)
-
-  useEffect(() => {
-    const row = document.getElementById('recently-added-row')
-    if (!row) return
-    const handleScroll = () => {
-      setShowLeftButton(row.scrollLeft > 10)
-      setShowRightButton(row.scrollLeft < row.scrollWidth - row.clientWidth - 10)
-    }
-    row.addEventListener('scroll', handleScroll)
-    // Delay initial check to ensure render is complete
-    setTimeout(handleScroll, 100)
-    return () => row.removeEventListener('scroll', handleScroll)
-  }, [items])
+  const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([items])
 
   const providerName = providerId
     ? (OTT_PROVIDERS.find(p => p.id === providerId)?.displayName || 'Provider')
@@ -89,10 +76,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
           hidden md:flex`}
       >
         <button
-          onClick={() => {
-            const row = document.getElementById('recently-added-row')
-            if (row) row.scrollBy({ left: -600, behavior: 'smooth' })
-          }}
+          onClick={() => scrollBy('left')}
           className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
           aria-label="Scroll left"
         >
@@ -109,10 +93,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
           hidden md:flex`}
       >
         <button
-          onClick={() => {
-            const row = document.getElementById('recently-added-row')
-            if (row) row.scrollBy({ left: 600, behavior: 'smooth' })
-          }}
+          onClick={() => scrollBy('right')}
           className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
           aria-label="Scroll right"
         >
@@ -122,7 +103,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
 
       {/* Horizontal Scroll Row */}
       <div
-        id="recently-added-row"
+        ref={rowRef}
         className="flex gap-2 overflow-x-auto scroll-smooth pb-3 no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-8 md:pb-4"
       >
         {isLoading

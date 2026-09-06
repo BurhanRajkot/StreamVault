@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { adminLogin, getImageSrcSet, buildEmbedUrl } from './api';
-import { CONFIG } from './config';
+import { CONFIG, type Media } from './config';
 
 const originalFetch = globalThis.fetch;
 
@@ -67,7 +67,7 @@ describe('getImageSrcSet', () => {
   });
 
   it('should return undefined if path is undefined (defensive)', () => {
-    expect(getImageSrcSet(undefined as any)).toBeUndefined();
+    expect(getImageSrcSet(undefined as unknown as string)).toBeUndefined();
   });
 
   it('should return undefined if path is empty string', () => {
@@ -137,7 +137,7 @@ describe('buildEmbedUrl', () => {
     const result = buildEmbedUrl('documentary', 'vidfast_pro', 1399, {
       season: 1,
       episode: 1,
-      media: { media_type: 'tv' } as any,
+      media: { media_type: 'tv' } as Media,
     });
     const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro
       .replace('{tmdbId}', '1399')
@@ -148,7 +148,7 @@ describe('buildEmbedUrl', () => {
 
   it('resolves a documentary as a movie embed when media.media_type is movie', () => {
     const result = buildEmbedUrl('documentary', 'vidfast_pro', 550, {
-      media: { media_type: 'movie' } as any,
+      media: { media_type: 'movie' } as Media,
     });
     const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro_movie.replace('{tmdbId}', '550');
     expect(result).toBe(expected);

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X, Loader2, ShieldCheck, Hash } from 'lucide-react'
 import { adminLogin, setAdminToken } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, errorMessage } from '@/lib/utils'
 
 interface AdminLoginModalProps {
   isOpen: boolean
@@ -45,9 +45,9 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
 
       // Close modal
       onClose()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Admin login error:', err)
-      setError(err.message || 'Invalid code. Please try again.')
+      setError(errorMessage(err, 'Invalid code. Please try again.'))
     } finally {
       setLoading(false)
     }
