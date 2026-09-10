@@ -4,7 +4,12 @@
 #   1. npm  — frontend (root package.json)
 #   2. npm  — backend  (backend/package.json + bun.lock)
 #   3. docker — Dockerfile base images (node:24-slim, nginx:1.30-alpine)
-#   4. github-actions — SHA-pinned action refs in .github/workflows/
+#   4. github-actions — SHA-pinned action refs in .github/workflows/ AND
+#      in .github/actions/*/ (composite actions need their own entry —
+#      the github-actions ecosystem does not recurse into subdirectories
+#      of a configured `directory`, it only reads workflow files there.
+#      This bit us once already: setup-ci/action.yml pinned setup-node
+#      two majors behind everything else because nothing was watching it.)
 #
 # PRs are opened on Monday mornings so the team can review them alongside
 # the weekly secret-scan sweep that already runs at 02:31 UTC on Mondays.
@@ -279,3 +284,28 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # ──────────────────────────────────────────────────────────────
+  # 5. GITHUB ACTIONS — composite actions under .github/actions/
+  #    A separate entry per composite-action directory is required:
+  #    Dependabot's github-actions ecosystem only reads workflow files
+  #    inside a configured `directory`, not action.yml files nested
+  #    below it. Add one entry here for every new .github/actions/<name>/
+  #    directory that references third-party actions.
+  # ──────────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/setup-ci"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    commit-message:
+      prefix: "chore(actions/setup-ci)"
+      include: "scope"
