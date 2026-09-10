@@ -24,7 +24,7 @@ jobs:
           persist-credentials: false  # zizmor hardening
 
       - name: Ensure SHA-pinned actions
-        uses: zgosalvez/github-actions-ensure-sha-pinned-actions@4830be28ce81da52ec70d65c552a7403821d98d4  # v3.0.23
+        uses: zgosalvez/github-actions-ensure-sha-pinned-actions@60e3a74c7b74a319e8e53e46bc455205f7173e1a  # v5.0.8
         with:
           # Allow local actions referenced via relative paths (./path/to/action).
           # These are implicitly pinned to the repository's executing commit.
