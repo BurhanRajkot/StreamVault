@@ -92,6 +92,29 @@ router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => 
 
     const plan = SUBSCRIPTION_PLANS[planId]
 
+    // The intro plan is redeemable once per account — block it if this user
+    // already has a pending or approved request for it (not just an approved
+    // one, so someone can't queue up two intro requests before either clears).
+    if ('firstTimeOnly' in plan && plan.firstTimeOnly) {
+      if (!userId) {
+        return res.status(401).json({ error: 'Sign in required to redeem the new member offer' })
+      }
+
+      const { data: priorIntroRequests } = await supabaseAdmin
+        .from('subscription_requests')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('plan_id', planId)
+        .in('status', ['pending', 'approved'])
+        .limit(1)
+
+      if (priorIntroRequests && priorIntroRequests.length > 0) {
+        return res.status(400).json({
+          error: 'You have already used the new member offer. Please choose the monthly plan instead.',
+        })
+      }
+    }
+
     // Check if transaction ID already exists
     const { data: existing } = await supabaseAdmin
       .from('subscription_requests')

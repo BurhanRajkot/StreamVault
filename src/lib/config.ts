@@ -298,6 +298,25 @@ export const CONFIG = {
 /* ONLY REQUIRED MODES */
 export type MediaMode = 'home' | 'movie' | 'tv' | 'downloads' | 'documentary'
 
+/**
+ * Server id for playback from the user's own TorBox library, handled entirely
+ * client-side (see TorboxPlayerPane) rather than via an embed-provider iframe.
+ * Kept out of STREAM_PROVIDER_LIST since it has no tv/movie URL template.
+ */
+export const TORBOX_SERVER_ID = 'torbox'
+
+/**
+ * Server dropdown options for a given mode. TorBox is offered for movies and
+ * TV — search is matched by IMDb id (+ season/episode for TV, via Comet)
+ * rather than fuzzy title text, so season packs vs per-episode releases
+ * aren't the reliability problem they'd be with title matching alone.
+ */
+export function serverOptions(mode: MediaMode): Array<{ id: string; name: string }> {
+  const providers = Object.entries(CONFIG.PROVIDER_NAMES).map(([id, name]) => ({ id, name }))
+  if (mode !== 'movie' && mode !== 'tv') return providers
+  return [{ id: TORBOX_SERVER_ID, name: '⚡ TorBox Debrid (4K/1080p)' }, ...providers]
+}
+
 export interface Genre {
   id: number
   name: string
@@ -335,6 +354,9 @@ export interface Media {
   tagline?: string
   number_of_seasons?: number
   episode_run_time?: number[]
+  /** Present on movie detail responses directly; TV needs `external_ids` appended. */
+  imdb_id?: string | null
+  external_ids?: { imdb_id?: string | null }
   /** Full genre objects — returned by the detail endpoints. */
   genres?: Genre[]
   /** Bare genre ids — what the list endpoints (discover/search/trending) return instead. */

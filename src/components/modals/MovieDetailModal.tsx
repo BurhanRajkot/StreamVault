@@ -2,7 +2,8 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Play, ChevronLeft, Share2, Heart, Server, SkipForward, SkipBack, Check, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { Media, MediaMode, CONFIG } from '@/lib/config'
+import { Media, MediaMode, CONFIG, TORBOX_SERVER_ID, serverOptions } from '@/lib/config'
+import { TorboxPlayerPane } from '@/components/media/TorboxPlayerPane'
 import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -209,20 +210,32 @@ export function MovieDetailModal({
 
   useEffect(() => {
     if (isPlaying) {
-      const url = buildEmbedUrl(mode, server, media.id, { season, episode, media })
-      setEmbedUrl(url)
+      // TorBox plays from a native <video> (see TorboxPlayerPane) rather than
+      // an embed-provider iframe — it manages its own loading/error state, so
+      // none of the iframe stall-detection below applies to it.
+      if (server === TORBOX_SERVER_ID) {
+        setEmbedUrl('')
+        setIframeLoaded(false)
+        playbackStartedRef.current = false
+        setPlaybackStarted(false)
+        setShowStallPrompt(false)
+        if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
+      } else {
+        const url = buildEmbedUrl(mode, server, media.id, { season, episode, media })
+        setEmbedUrl(url)
 
-      // Reset the loading/stall UI for the new server or episode, and start
-      // a fresh stall timer — cross-origin iframes never report load errors,
-      // so a timeout is the only signal we have that a provider is slow/dead.
-      setIframeLoaded(false)
-      playbackStartedRef.current = false
-      setPlaybackStarted(false)
-      setShowStallPrompt(false)
-      if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
-      stallTimerRef.current = setTimeout(() => {
-        setShowStallPrompt(true)
-      }, 7_000)
+        // Reset the loading/stall UI for the new server or episode, and start
+        // a fresh stall timer — cross-origin iframes never report load errors,
+        // so a timeout is the only signal we have that a provider is slow/dead.
+        setIframeLoaded(false)
+        playbackStartedRef.current = false
+        setPlaybackStarted(false)
+        setShowStallPrompt(false)
+        if (stallTimerRef.current) clearTimeout(stallTimerRef.current)
+        stallTimerRef.current = setTimeout(() => {
+          setShowStallPrompt(true)
+        }, 7_000)
+      }
 
       // Log the watch event once when playback starts
       if (!hasLoggedWatch.current) {
@@ -586,7 +599,17 @@ export function MovieDetailModal({
                     </div>
 
                     <div className="player-frame">
-                    {embedUrl ? (
+                    {server === TORBOX_SERVER_ID ? (
+                      <TorboxPlayerPane
+                        title={title}
+                        year={display.year}
+                        imdbId={media.imdb_id ?? media.external_ids?.imdb_id}
+                        mediaType={mode === 'tv' ? 'tv' : 'movie'}
+                        season={mode === 'tv' ? season : undefined}
+                        episode={mode === 'tv' ? episode : undefined}
+                        onSwitchServer={openServerPicker}
+                      />
+                    ) : embedUrl ? (
                       <>
                         <iframe
                           ref={iframeRef}
@@ -685,8 +708,8 @@ export function MovieDetailModal({
                           </div>
                         </SelectTrigger>
                         <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-                          {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
-                            <SelectItem key={key} value={key} className="py-3 text-[15px]">{name}</SelectItem>
+                          {serverOptions(mode).map(({ id, name }) => (
+                            <SelectItem key={id} value={id} className="py-3 text-[15px]">{name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -745,8 +768,8 @@ export function MovieDetailModal({
                               <SelectValue placeholder="Select Server" />
                             </SelectTrigger>
                             <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl">
-                              {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
-                                <SelectItem key={key} value={key} className="cursor-pointer focus:bg-white/10 py-3 text-base">{name}</SelectItem>
+                              {serverOptions(mode).map(({ id, name }) => (
+                                <SelectItem key={id} value={id} className="cursor-pointer focus:bg-white/10 py-3 text-base">{name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>

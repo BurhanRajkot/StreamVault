@@ -13,28 +13,32 @@ export const UPI_CONFIG = {
 
 
 export const SUBSCRIPTION_PLANS = {
+  intro: {
+    name: 'New Member Offer — 3 Months',
+    price: 100, // ₹100
+    currency: 'INR',
+    period: 'quarterly',
+    durationDays: 90,
+    // Only redeemable once per account — enforced in routes/subscriptions.ts.
+    firstTimeOnly: true,
+    features: [
+        'HD Streaming',
+        'Download Movies & TV',
+        '4K Ultra HD Support',
+        'One-time offer for new members'
+    ],
+  },
   monthly: {
     name: '1 Month Premium',
-    price: 70, // ₹70
+    price: 175, // ₹175
     currency: 'INR',
     period: 'monthly',
+    durationDays: 30,
     features: [
         'HD Streaming',
         'Download Movies & TV',
         'Highest Quality Available',
         'Smooth Ad-free Experience'
-    ],
-  },
-  quarterly: {
-    name: '3 Months Premium',
-    price: 150, // ₹150
-    currency: 'INR',
-    period: 'quarterly',
-    features: [
-        'All Monthly Features',
-        'Save ₹60 (Best Value)',
-        '4K Ultra HD Support',
-        'Priority Customer Support'
     ],
   },
 } as const

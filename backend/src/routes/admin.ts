@@ -2,6 +2,7 @@ import express from 'express'
 import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
 import { requireAdminAuth } from '../admin/middleware'
+import { SUBSCRIPTION_PLANS } from '../lib/upi'
 
 const router = express.Router()
 
@@ -62,9 +63,28 @@ router.post('/approve', async (req, res) => {
     //    pending and retryable, instead of marking it approved while the
     //    user still has no access.
     if (request.user_id) {
+      const plan = SUBSCRIPTION_PLANS[request.plan_id as keyof typeof SUBSCRIPTION_PLANS] as
+        | (typeof SUBSCRIPTION_PLANS)[keyof typeof SUBSCRIPTION_PLANS]
+        | undefined
+      const durationDays = plan?.durationDays ?? 30
+
+      // Renewing before the current period ends extends it instead of
+      // resetting the clock and discarding the days the user already paid for.
+      const { data: existingUser } = await supabaseAdmin
+        .from('User')
+        .select('subscriptionExpiresAt')
+        .eq('id', request.user_id)
+        .single()
+
+      const currentExpiry = existingUser?.subscriptionExpiresAt
+        ? new Date(existingUser.subscriptionExpiresAt).getTime()
+        : 0
+      const base = Math.max(currentExpiry, Date.now())
+      const subscriptionExpiresAt = new Date(base + durationDays * 24 * 60 * 60 * 1000).toISOString()
+
       const { error: userUpdateError } = await supabaseAdmin
         .from('User')
-        .update({ subscriptionStatus: 'active' })
+        .update({ subscriptionStatus: 'active', subscriptionExpiresAt })
         .eq('id', request.user_id)
 
       if (userUpdateError) {

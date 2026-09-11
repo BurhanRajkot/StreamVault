@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { Play, Server, ThumbsUp, ThumbsDown, Calendar, Clock } from 'lucide-react'
 import { CircularRating } from '@/components/media/CircularRating'
-import { CONFIG } from '@/lib/config'
+import { serverOptions } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
 import {
@@ -210,8 +210,8 @@ export function DetailPanel({
                     </div>
                   </SelectTrigger>
                   <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                    {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
-                      <SelectItem key={key} value={key} className="cursor-pointer focus:bg-white/10 py-2.5 text-sm">{name}</SelectItem>
+                    {serverOptions(mode).map(({ id, name }) => (
+                      <SelectItem key={id} value={id} className="cursor-pointer focus:bg-white/10 py-2.5 text-sm">{name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
