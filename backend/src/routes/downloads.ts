@@ -4,6 +4,7 @@ import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
 import { getUserId } from '../utils/auth'
+import { isPaidUser } from '../lib/subscription'
 import path from 'path'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
@@ -33,16 +34,6 @@ function sanitizeFilename(filename: string): string {
   // Only allow alphanumeric, dots, hyphens, and underscores
   const sanitized = basename.replace(/[^a-zA-Z0-9._-]/g, '_')
   return sanitized
-}
-
-async function isPaidUser(userId: string): Promise<boolean> {
-  const { data: user } = await supabaseAdmin
-    .from('User')
-    .select('subscriptionStatus')
-    .eq('id', userId)
-    .single()
-
-  return user?.subscriptionStatus === 'active'
 }
 
 // ---------------------------------------------------------

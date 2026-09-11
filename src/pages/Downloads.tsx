@@ -1,13 +1,18 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { fetchDownloads, downloadFile, DownloadItem, getAdminToken } from '@/lib/api'
 import { getImageUrl } from '@/lib/api'
-import { Search, Download, Crown, ShieldCheck, X } from 'lucide-react'
+import { Search, Download, Crown, ShieldCheck, X, Cloud, Loader2 } from 'lucide-react'
 import { cn, errorMessage } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import AdminLoginModal from '@/components/modals/AdminLoginModal'
 import { PageMeta } from '@/seo/PageMeta'
+
+// Lazy-load TorboxLibrary so the TorBox bundle only loads when the tab is opened
+const TorboxLibrary = lazy(() => import('@/components/media/TorboxLibrary'))
+// Lazy-load TorboxSearch
+const TorboxSearch = lazy(() => import('@/components/media/TorboxSearch'))
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -53,6 +58,8 @@ async function fetchPoster(title: string): Promise<string | null> {
   }
 }
 
+type Tab = 'downloads' | 'torbox' | 'search'
+
 const Downloads = () => {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [items, setItems] = useState<EnrichedDownload[]>([])
@@ -61,6 +68,9 @@ const Downloads = () => {
   const [needsUpgrade, setNeedsUpgrade] = useState(false)
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('downloads')
+  /** Auth token stored so TorboxLibrary can use it without re-fetching */
+  const [authToken, setAuthToken] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -70,6 +80,7 @@ const Downloads = () => {
       const adminToken = getAdminToken()
       if (adminToken) {
         setIsAdmin(true)
+        setAuthToken(adminToken)
         try {
           // Fetch downloads with admin token
           const raw = await fetchDownloads(adminToken)
@@ -105,6 +116,7 @@ const Downloads = () => {
 
       try {
         const token = await getAccessTokenSilently()
+        setAuthToken(token)
         const raw = await fetchDownloads(token)
 
         const enriched = await Promise.all(
@@ -141,6 +153,8 @@ const Downloads = () => {
       setLoading(false)
       return
     }
+
+    setAuthToken(adminToken)
 
     try {
       const raw = await fetchDownloads(adminToken)
@@ -239,21 +253,103 @@ const Downloads = () => {
     )
   }
 
-  if (!items.length) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-        <Download className="mb-3 h-8 w-8 opacity-60" />
-        <p>No downloads available.</p>
-      </div>
-    )
-  }
 
   return (
     <>
       <PageMeta title="Downloads" noindex />
       <div className="space-y-6">
+
+      {/* ── Tab bar ── */}
+      <div className="flex gap-1 rounded-xl border border-border/50 bg-secondary/30 p-1 w-fit">
+        <button
+          id="tab-downloads"
+          onClick={() => setActiveTab('downloads')}
+          className={cn(
+            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200',
+            activeTab === 'downloads'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Download className="h-4 w-4" />
+          Downloads
+        </button>
+        {(isAdmin || (!needsUpgrade && isAuthenticated)) && (
+          <button
+            id="tab-torbox"
+            onClick={() => setActiveTab('torbox')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200',
+              activeTab === 'torbox'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Cloud className="h-4 w-4" />
+            TorBox Cloud
+            <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-violet-400">
+              ⚡
+            </span>
+          </button>
+        )}
+        {(isAdmin || (!needsUpgrade && isAuthenticated)) && (
+          <button
+            id="tab-torbox-search"
+            onClick={() => setActiveTab('search')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200',
+              activeTab === 'search'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Search className="h-4 w-4" />
+            Search
+            <span className="rounded-full bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400">
+              NEW
+            </span>
+          </button>
+        )}
+      </div>
+
+      {/* ── TorBox Search tab ── */}
+      {activeTab === 'search' && authToken && (
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-sm">Loading TorBox Search…</span>
+            </div>
+          }
+        >
+          <TorboxSearch token={authToken} />
+        </Suspense>
+      )}
+
+      {/* ── TorBox Cloud Library tab ── */}
+      {activeTab === 'torbox' && authToken && (
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-sm">Loading TorBox…</span>
+            </div>
+          }
+        >
+          <TorboxLibrary token={authToken} />
+        </Suspense>
+      )}
+
+      {/* ── Downloads tab ── */}
+      {activeTab === 'downloads' && (
+        !items.length ? (
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <Download className="mb-3 h-8 w-8 opacity-60" />
+            <p>No downloads available.</p>
+          </div>
+        ) : (
+        <div className="space-y-6">
       {/* Search Bar */}
-      {/* Search Bar (Updated match Header) */}
       <div className="relative max-w-md group">
         <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-all duration-300 group-focus-within:scale-110" />
         <input
@@ -352,6 +448,9 @@ const Downloads = () => {
           No downloads match your search.
         </p>
       )}
+    </div>
+        )
+    )}
     </div>
     </>
   )

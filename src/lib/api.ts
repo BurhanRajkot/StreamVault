@@ -277,7 +277,7 @@ export async function searchMedia(
 export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Media | null> {
   if (mode === 'downloads' || !id) return null
 
-  const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar,images,release_dates,content_ratings&include_image_language=en,null`
+  const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar,images,release_dates,content_ratings,external_ids&include_image_language=en,null`
   const res = await fetch(url)
   if (!res.ok) {
     // Sanitize before logging — mode and id are trusted internal values, but we

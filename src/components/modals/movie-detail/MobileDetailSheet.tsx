@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Play, Server, Heart, Share2, Check } from 'lucide-react'
-import { CONFIG } from '@/lib/config'
+import { serverOptions } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
 import {
@@ -140,8 +140,8 @@ export function MobileDetailSheet({
             </div>
           </SelectTrigger>
           <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-            {Object.entries(CONFIG.PROVIDER_NAMES).map(([key, name]) => (
-              <SelectItem key={key} value={key} className="py-3 text-[15px]">{name}</SelectItem>
+            {serverOptions(mode).map(({ id, name }) => (
+              <SelectItem key={id} value={id} className="py-3 text-[15px]">{name}</SelectItem>
             ))}
           </SelectContent>
         </Select>

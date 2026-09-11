@@ -1,0 +1,637 @@
+/**
+ * TorboxPlayerPane — Automatic Comet-style Debrid Streaming Player
+ *
+ * Flow:
+ *   1. User selects TorBox server on any movie or TV episode.
+ *   2. Automatically searches for releases via Comet (many indexers, matched
+ *      by IMDb id + season/episode) and, for movies, apibay too.
+ *   3. If a cached release is found, it automatically mounts it and streams via
+ *      TorBox's high-speed CDN in native 1080p/4K.
+ *   4. If nothing is cached yet, the best uncached release is added to TorBox
+ *      and polled until ready, then played automatically.
+ *   5. Allows switching between different cached releases (4K UHD, 1080p, HDR).
+ *   6. If nothing is found at all, provides an instant 1-click fallback to
+ *      standard servers.
+ */
+
+import { useCallback, useEffect, useState, useRef } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
+import { Link } from 'react-router-dom'
+import {
+  Loader2,
+  AlertTriangle,
+  Cloud,
+  Crown,
+  ExternalLink,
+  ChevronDown,
+  RefreshCw,
+} from 'lucide-react'
+import {
+  fetchTorboxList,
+  getTorboxStreamUrl,
+  searchTorboxMedia,
+  addTorboxByHash,
+  parseTorrentQuality,
+  parseTorrentHDR,
+  formatBytes,
+  type TorboxSearchResult,
+  findTorrentForTitle,
+  pickPlaybackFile,
+} from '@/lib/torboxApi'
+import { getAdminToken } from '@/lib/api'
+import { cn } from '@/lib/utils'
+
+interface TorboxPlayerPaneProps {
+  title: string
+  year?: string | number
+  /** IMDb id, e.g. "tt1375666" — drives the Comet lookup. Omit to fall back to title-only apibay search (movies only). */
+  imdbId?: string | null
+  mediaType?: 'movie' | 'tv'
+  /** Required (with `episode`) when mediaType is 'tv' — Comet matches per-episode, not by season pack alone. */
+  season?: number
+  episode?: number
+  onSwitchServer: () => void
+}
+
+type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'upgrade-required'
+
+/**
+ * True for the 403 the backend sends when the account has no active
+ * subscription, or the 401 it sends when there is no account at all —
+ * both mean "this needs premium access", just at different login states.
+ */
+function isUpgradeError(err: unknown): boolean {
+  return err instanceof Error && /premium|unauthorized/i.test(err.message)
+}
+
+interface DownloadProgress {
+  /** 0-1 or 0-100 depending on TorBox API version — normalized before display */
+  progress: number
+  seeds: number
+  downloadSpeed: number
+  eta: number
+}
+
+/** Rank releases by quality first, then by seeder count. */
+function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
+  const rank = (q: string) => (q === '1080p' ? 4 : q === '4K' ? 3 : q === '720p' ? 2 : 1)
+  const rankDiff = rank(parseTorrentQuality(b.name)) - rank(parseTorrentQuality(a.name))
+  if (rankDiff !== 0) return rankDiff
+  return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
+}
+
+function formatEta(seconds: number): string {
+  if (!seconds || seconds <= 0) return '—'
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return `${m}m ${s}s`
+}
+
+export function TorboxPlayerPane({
+  title,
+  year,
+  imdbId,
+  mediaType = 'movie',
+  season,
+  episode,
+  onSwitchServer,
+}: TorboxPlayerPaneProps) {
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+  const [status, setStatus] = useState<Status>('searching')
+  const [statusMessage, setStatusMessage] = useState('Searching TorBox debrid...')
+  const [streamUrl, setStreamUrl] = useState<string | null>(null)
+  const [cachedReleases, setCachedReleases] = useState<TorboxSearchResult[]>([])
+  const [activeRelease, setActiveRelease] = useState<TorboxSearchResult | null>(null)
+  const [playbackFailed, setPlaybackFailed] = useState(false)
+  const [showReleasesDropdown, setShowReleasesDropdown] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  /** Bumped on every new search/poll so stale polling loops know to stop. */
+  const pollGenerationRef = useRef(0)
+
+  const getToken = useCallback(async () => {
+    try {
+      const adminToken = getAdminToken()
+      if (adminToken) return adminToken
+      if (isAuthenticated) {
+        return await getAccessTokenSilently()
+      }
+    } catch {
+      // Guest or silent token error
+    }
+    return undefined
+  }, [isAuthenticated, getAccessTokenSilently])
+
+  const streamTorrent = useCallback(
+    async (release: TorboxSearchResult, token?: string) => {
+      setStatus('loading-stream')
+      setStatusMessage(`Preparing ${parseTorrentQuality(release.name)} stream...`)
+      setPlaybackFailed(false)
+      setActiveRelease(release)
+
+      try {
+        const addRes = await addTorboxByHash(release.info_hash, release.name, token)
+
+        // Always fetch the file listing — a "release" can be a season pack,
+        // so we need its files to pick the exact episode requested rather
+        // than assuming file 0 is it.
+        const list = await fetchTorboxList(token)
+        const match = list.data?.find(
+          (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
+        )
+        const torrentId = addRes.data?.torrent_id ?? match?.id
+
+        if (!torrentId) {
+          throw new Error('Could not initialize TorBox stream')
+        }
+
+        const file = match?.files ? pickPlaybackFile(match.files, mediaType, season, episode) : null
+        const fileId = file?.id ?? 0
+
+        const streamRes = await getTorboxStreamUrl(torrentId, fileId, token)
+        if (!streamRes.url) {
+          throw new Error('No stream URL returned')
+        }
+
+        setStreamUrl(streamRes.url)
+        setStatus('ready')
+      } catch (err: unknown) {
+        console.error('TorBox stream error:', err)
+        setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
+        setStatusMessage(err instanceof Error ? err.message : 'Failed to load TorBox stream')
+      }
+    },
+    [mediaType, season, episode]
+  )
+
+  /**
+   * Poll an already-added torrent until TorBox finishes downloading it, then
+   * fetch a stream URL and start playback. Used for releases that weren't
+   * instantly cached — most releases, in practice, since TorBox's cache is
+   * only warm for titles someone already streamed recently.
+   */
+  const pollTorrentUntilReady = useCallback(
+    async (torrentId: number, token: string | undefined, releaseName: string) => {
+      const myGeneration = ++pollGenerationRef.current
+      const startedAt = Date.now()
+      const timeoutMs = 5 * 60 * 1000
+      const pollIntervalMs = 4000
+
+      while (pollGenerationRef.current === myGeneration && Date.now() - startedAt < timeoutMs) {
+        try {
+          const list = await fetchTorboxList(token)
+          const torrent = list.data?.find((t) => t.id === torrentId)
+
+          if (torrent) {
+            const file = pickPlaybackFile(torrent.files, mediaType, season, episode)
+            if ((torrent.download_finished || torrent.cached) && file) {
+              const { url } = await getTorboxStreamUrl(torrentId, file.id, token)
+              if (pollGenerationRef.current === myGeneration) {
+                setStreamUrl(url)
+                setStatus('ready')
+              }
+              return
+            }
+
+            if (pollGenerationRef.current === myGeneration) {
+              setDownloadProgress({
+                progress: torrent.progress,
+                seeds: torrent.seeds,
+                downloadSpeed: torrent.download_speed,
+                eta: torrent.eta,
+              })
+              setStatusMessage(`Downloading "${releaseName}"...`)
+            }
+          }
+        } catch {
+          // Transient network hiccup — keep polling rather than bailing out.
+        }
+
+        await new Promise((r) => setTimeout(r, pollIntervalMs))
+      }
+
+      if (pollGenerationRef.current === myGeneration) {
+        setStatus('not-found')
+        setStatusMessage(
+          `"${releaseName}" is still downloading in TorBox. Check the TorBox Cloud tab in a few minutes, or switch to a standard server now.`
+        )
+      }
+    },
+    [mediaType, season, episode]
+  )
+
+  /** Add an uncached release to TorBox and stream it once the download finishes. */
+  const downloadAndPlay = useCallback(
+    async (release: TorboxSearchResult, token?: string) => {
+      setStatus('downloading')
+      setStatusMessage(`Adding "${parseTorrentQuality(release.name)}" release to TorBox...`)
+      setPlaybackFailed(false)
+      setActiveRelease(release)
+      setDownloadProgress(null)
+
+      try {
+        const addRes = await addTorboxByHash(release.info_hash, release.name, token)
+        let torrentId = addRes.data?.torrent_id
+
+        if (!torrentId) {
+          const list = await fetchTorboxList(token)
+          const match = list.data?.find(
+            (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
+          )
+          torrentId = match?.id
+        }
+
+        if (!torrentId) {
+          throw new Error('Could not add torrent to TorBox')
+        }
+
+        await pollTorrentUntilReady(torrentId, token, release.name)
+      } catch (err: unknown) {
+        console.error('TorBox download error:', err)
+        setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
+        setStatusMessage(err instanceof Error ? err.message : 'Failed to download TorBox release')
+      }
+    },
+    [pollTorrentUntilReady]
+  )
+
+  const searchAndPlay = useCallback(async () => {
+    // Cancel any poll loop left over from a previous title/retry.
+    pollGenerationRef.current++
+
+    setStatus('searching')
+    setStatusMessage(`Searching TorBox debrid for "${title}"...`)
+    setPlaybackFailed(false)
+    setStreamUrl(null)
+    setCachedReleases([])
+    setActiveRelease(null)
+    setDownloadProgress(null)
+
+    const token = await getToken()
+
+    try {
+      // 1. Search Comet (matched by IMDb id + season/episode) and, for
+      // movies, apibay too — combined and de-duped by the backend.
+      const cleanTitle = title.replace(/[^a-zA-Z0-9\s]/g, ' ').trim()
+      const queryTitle = year ? `${cleanTitle} ${year}` : cleanTitle
+
+      const searchRes = await searchTorboxMedia(queryTitle, imdbId ?? undefined, mediaType, token, {
+        season,
+        episode,
+        limit: 15,
+      })
+      const allResults = searchRes.data || []
+
+      const cached = allResults.filter((r) => r.torbox_cached).sort(compareReleases)
+
+      // Prefer an already-cached release — instant playback, no wait.
+      if (cached.length > 0) {
+        setCachedReleases(cached)
+        await streamTorrent(cached[0], token)
+        return
+      }
+
+      // 3. Check the personal TorBox library — reuse a copy already added
+      // instead of adding a duplicate, whether it's ready or still downloading.
+      // Movies only: this matches by title text, and for TV that can't tell
+      // a season pack (or a different episode of the same show) apart from
+      // the exact episode wanted — better to search fresh via Comet below.
+      if (mediaType === 'movie') {
+        try {
+          const list = await fetchTorboxList(token)
+          if (list.success && list.data) {
+            const torrent = findTorrentForTitle(list.data, title)
+            if (torrent) {
+              const file = pickPlaybackFile(torrent.files, 'movie')
+              if ((torrent.download_finished || torrent.cached) && file) {
+                const { url } = await getTorboxStreamUrl(torrent.id, file.id, token)
+                setStreamUrl(url)
+                setStatus('ready')
+                return
+              }
+
+              setStatus('downloading')
+              setStatusMessage(`Resuming download of "${torrent.name}"...`)
+              await pollTorrentUntilReady(torrent.id, token, torrent.name)
+              return
+            }
+          }
+        } catch {
+          // Ignore library check failure
+        }
+      }
+
+      // 4. Nothing cached and nothing already in the library — download the
+      // best uncached release and stream it once TorBox finishes fetching it.
+      // Comet-sourced results (backend tags them via `username`) are trusted
+      // even with an unparsed/zero seeder count — apibay's need a positive
+      // count to filter out dead torrents.
+      const candidates = allResults
+        .filter((r) => r.info_hash && (r.username === 'comet' || parseInt(r.seeders, 10) > 0))
+        .sort(compareReleases)
+
+      if (candidates.length > 0) {
+        await downloadAndPlay(candidates[0], token)
+        return
+      }
+
+      // 5. No torrents found for this title at all
+      setStatus('not-found')
+      setStatusMessage(`No torrents found for "${title}".`)
+    } catch (err: unknown) {
+      console.error('TorBox search failed:', err)
+      setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
+      setStatusMessage(err instanceof Error ? err.message : 'TorBox search failed')
+    }
+  }, [title, year, imdbId, mediaType, season, episode, getToken, streamTorrent, pollTorrentUntilReady, downloadAndPlay])
+
+  useEffect(() => {
+    void searchAndPlay()
+    return () => {
+      // Intentionally read the live ref, not a snapshot — this bumps whatever
+      // generation is current at unmount/re-run time so any in-flight poll
+      // loop (see pollTorrentUntilReady) sees the mismatch and stops.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      pollGenerationRef.current++
+    }
+  }, [searchAndPlay])
+
+  // --- Loading / Searching state ---
+  if (status === 'searching' || status === 'loading-stream') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <Loader2 className="h-6 w-6 animate-spin text-white/50" />
+        <p className="max-w-xs text-sm text-white/70">{statusMessage}</p>
+        <button
+          onClick={onSwitchServer}
+          className="text-xs text-white/40 underline underline-offset-4 transition-colors hover:text-white/70"
+        >
+          Switch to standard server
+        </button>
+      </div>
+    )
+  }
+
+  // --- Downloading state: release added to TorBox, waiting for it to finish ---
+  if (status === 'downloading') {
+    const rawProgress = downloadProgress?.progress ?? 0
+    const pct = Math.min(100, Math.round(rawProgress > 1 ? rawProgress : rawProgress * 100))
+
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <Loader2 className="h-6 w-6 animate-spin text-white/50" />
+        <div className="w-full max-w-xs space-y-2">
+          <p className="text-sm text-white/70">
+            {activeRelease
+              ? `Downloading ${parseTorrentQuality(activeRelease.name)} release...`
+              : statusMessage}
+          </p>
+          {downloadProgress && (
+            <>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-white/40">
+                {pct}% · {formatBytes(downloadProgress.downloadSpeed)}/s · {downloadProgress.seeds} seeds · ETA {formatEta(downloadProgress.eta)}
+              </p>
+            </>
+          )}
+        </div>
+        <button
+          onClick={onSwitchServer}
+          className="text-xs text-white/40 underline underline-offset-4 transition-colors hover:text-white/70"
+        >
+          Switch to standard server
+        </button>
+      </div>
+    )
+  }
+
+  // --- Upgrade required: guest or non-premium account hit the paywall ---
+  if (status === 'upgrade-required') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-yellow-500/30 bg-yellow-500/10">
+          <Crown className="h-5 w-5 text-yellow-500" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-white">TorBox is a premium feature</p>
+          <p className="max-w-xs text-xs text-white/50">
+            {isAuthenticated
+              ? 'Upgrade your account to stream instantly via TorBox debrid.'
+              : 'Sign in and upgrade to stream instantly via TorBox debrid.'}
+          </p>
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <Link
+            to={isAuthenticated ? '/pricing' : '/login'}
+            className="rounded-full bg-white px-5 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+          >
+            {isAuthenticated ? 'Upgrade to Premium' : 'Sign In'}
+          </Link>
+          <button
+            onClick={onSwitchServer}
+            className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
+          >
+            Switch to Standard Server
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // --- Not found state ---
+  if (status === 'not-found') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5">
+          <Cloud className="h-5 w-5 text-white/40" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-white">No TorBox stream available</p>
+          <p className="max-w-xs text-xs text-white/50">
+            {statusMessage || `No torrents found for "${title}".`}
+          </p>
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            onClick={onSwitchServer}
+            className="rounded-full bg-white px-5 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+          >
+            Switch to Standard Server
+          </button>
+          <button
+            onClick={() => void searchAndPlay()}
+            title="Retry TorBox search"
+            className="flex items-center justify-center rounded-full border border-white/10 p-2 text-white/50 transition-colors hover:border-white/30 hover:text-white"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // --- Error state ---
+  if (status === 'error') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <AlertTriangle className="h-6 w-6 text-destructive" />
+        <p className="max-w-xs text-sm text-white/70">{statusMessage}</p>
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            onClick={onSwitchServer}
+            className="rounded-full bg-white px-5 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+          >
+            Switch to Standard Server
+          </button>
+          <button
+            onClick={() => void searchAndPlay()}
+            className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // --- Codec / inline playback error state ---
+  if (playbackFailed) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <AlertTriangle className="h-6 w-6 text-destructive" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-white">Playback not supported</p>
+          <p className="max-w-sm text-xs text-white/50">
+            This release uses a container or audio codec (e.g. MKV TrueHD/DTS) your browser can&apos;t decode inline.
+          </p>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+          {streamUrl && (
+            <a
+              href={streamUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open in VLC / browser
+            </a>
+          )}
+          {cachedReleases.length > 1 && (
+            <button
+              onClick={() => {
+                const next = cachedReleases.find((r) => r.info_hash !== activeRelease?.info_hash)
+                if (next) void streamTorrent(next)
+              }}
+              className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
+            >
+              Try another release
+            </button>
+          )}
+          <button
+            onClick={onSwitchServer}
+            className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
+          >
+            Switch server
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // --- Ready state: native video playback with a minimal hover-in overlay ---
+  const activeQuality = activeRelease ? parseTorrentQuality(activeRelease.name) : 'HD'
+  const activeHDR = activeRelease ? parseTorrentHDR(activeRelease.name) : null
+
+  return (
+    <div className="group relative h-full w-full select-none overflow-hidden bg-black">
+      <video
+        ref={videoRef}
+        key={streamUrl}
+        src={streamUrl ?? undefined}
+        controls
+        autoPlay
+        playsInline
+        className="absolute inset-0 h-full w-full bg-black object-contain"
+        onError={() => setPlaybackFailed(true)}
+      />
+
+      <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/70">
+            {activeQuality}
+          </span>
+          {activeHDR && (
+            <span className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/70">
+              {activeHDR}
+            </span>
+          )}
+          {activeRelease && (
+            <span className="hidden max-w-[260px] truncate text-xs text-white/50 sm:inline">
+              {activeRelease.name}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {cachedReleases.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowReleasesDropdown(!showReleasesDropdown)}
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-xs text-white/70 transition-colors hover:text-white"
+              >
+                <span>{cachedReleases.length} releases</span>
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </button>
+
+              {showReleasesDropdown && (
+                <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-white/10 bg-zinc-900/95 p-1.5 shadow-xl backdrop-blur-xl">
+                  <div className="max-h-48 space-y-0.5 overflow-y-auto custom-scrollbar">
+                    {cachedReleases.map((rel) => {
+                      const isSelected = rel.info_hash === activeRelease?.info_hash
+                      const q = parseTorrentQuality(rel.name)
+                      return (
+                        <button
+                          key={rel.info_hash}
+                          onClick={() => {
+                            setShowReleasesDropdown(false)
+                            void streamTorrent(rel)
+                          }}
+                          className={cn(
+                            'flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
+                            isSelected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                          )}
+                        >
+                          <span className="flex-1 truncate">{rel.name}</span>
+                          <span className="shrink-0 text-[10px] font-medium opacity-70">{q}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {streamUrl && (
+            <a
+              href={streamUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open stream URL"
+              className="rounded-full border border-white/10 bg-black/40 p-1.5 text-white/60 transition-colors hover:text-white"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
