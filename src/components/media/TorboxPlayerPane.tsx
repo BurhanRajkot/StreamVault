@@ -704,7 +704,7 @@ export function TorboxPlayerPane({
             <button
               onClick={() => {
                 const next = cachedReleases.find((r) => r.info_hash !== activeRelease?.info_hash)
-                if (next) void streamTorrent(next)
+                if (next) void getToken().then((token) => streamTorrent(next, token))
               }}
               className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
             >
@@ -793,7 +793,7 @@ export function TorboxPlayerPane({
                           key={rel.info_hash}
                           onClick={() => {
                             setShowReleasesDropdown(false)
-                            void streamTorrent(rel)
+                            void getToken().then((token) => streamTorrent(rel, token))
                           }}
                           className={cn(
                             'flex w-full flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
