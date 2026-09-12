@@ -534,8 +534,39 @@ export async function adminLogin(code: string): Promise<AdminLoginResponse> {
   return res.json()
 }
 
+/**
+ * True when a JWT's `exp` claim is in the past. No signature verification —
+ * this only decides local UI state (whether to show the admin login modal);
+ * the backend independently verifies the signature on every request and is
+ * the actual security boundary.
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = token.split('.')[1]
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number }
+    if (!decoded.exp) return false
+    return decoded.exp * 1000 < Date.now()
+  } catch {
+    // Malformed token — treat as expired rather than trusting it.
+    return true
+  }
+}
+
+/**
+ * Reads the stored admin token, clearing and returning `null` if it's
+ * missing or expired. Admin pages guard themselves with this (see
+ * `isAdminAuthenticated`) rather than a route wrapper specifically so an
+ * expired token re-renders the login modal in place — see CLAUDE.md's
+ * "Protected Routes" section.
+ */
 export function getAdminToken(): string | null {
-  return localStorage.getItem('adminToken')
+  const token = localStorage.getItem('adminToken')
+  if (!token) return null
+  if (isTokenExpired(token)) {
+    localStorage.removeItem('adminToken')
+    return null
+  }
+  return token
 }
 
 export function setAdminToken(token: string): void {
