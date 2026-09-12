@@ -7,6 +7,7 @@ import { cn, errorMessage } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import AdminLoginModal from '@/components/modals/AdminLoginModal'
+import { AdminModeBadge } from '@/components/effects/AdminModeBadge'
 import { PageMeta } from '@/seo/PageMeta'
 
 // Lazy-load TorboxLibrary so the TorBox bundle only loads when the tab is opened
@@ -258,6 +259,12 @@ const Downloads = () => {
     <>
       <PageMeta title="Downloads" noindex />
       <div className="space-y-6">
+
+      {isAdmin && (
+        <div>
+          <AdminModeBadge />
+        </div>
+      )}
 
       {/* ── Tab bar ── */}
       <div className="flex gap-1 rounded-xl border border-border/50 bg-secondary/30 p-1 w-fit">

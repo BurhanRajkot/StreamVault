@@ -3,6 +3,7 @@ import '../lib/loadEnv'
 import { auth } from 'express-oauth2-jwt-bearer'
 import type { AuthResult } from 'express-oauth2-jwt-bearer'
 import { Request, Response, NextFunction, RequestHandler } from 'express'
+import jwt from 'jsonwebtoken'
 
 let checkJwt: RequestHandler | ((...args: unknown[]) => Promise<void>)
 
@@ -105,6 +106,21 @@ export async function checkAuth(req: Request, res: Response, next: NextFunction)
     if (adminPayload) {
       req.admin = adminPayload
       return next()
+    }
+
+    // Admin tokens are always HS256. If this token was signed with a
+    // symmetric algorithm but failed verification above (expired, wrong
+    // secret, wrong role), it can never be a valid Auth0 access token —
+    // Auth0's JWKS-based verifier only supports asymmetric algorithms and
+    // throws an "Unsupported algorithm" error rather than a clean 401 if we
+    // hand it one. Reject it here instead of falling through to checkJwt.
+    const decoded = jwt.decode(token, { complete: true })
+    const alg = decoded?.header?.alg
+    if (alg && /^HS(256|384|512)$/.test(alg)) {
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Invalid or expired admin token',
+      })
     }
   }
 

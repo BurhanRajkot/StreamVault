@@ -246,7 +246,11 @@ export async function addTorboxByHash(
   hash: string,
   name: string,
   token?: string
-): Promise<{ success: boolean; data: { torrent_id: number; hash: string; name: string } | null; detail: string }> {
+): Promise<{
+  success: boolean
+  data: { torrent_id: number; hash: string; name: string; files?: TorboxFile[] } | null
+  detail: string
+}> {
   const res = await fetch(`${API_BASE}/torbox/add-hash`, {
     method: 'POST',
     headers: authHeaders(token),

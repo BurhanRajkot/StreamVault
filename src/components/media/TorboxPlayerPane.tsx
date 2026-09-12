@@ -72,9 +72,14 @@ interface DownloadProgress {
   eta: number
 }
 
-/** Rank releases by quality first, then by seeder count. */
+/**
+ * Rank releases by quality first, then by seeder count.
+ * The backend already caps release size (see MAX_RELEASE_SIZE_BYTES in
+ * backend/src/lib/torbox.ts), so a 4K result here is never a 100GB+ remux —
+ * just a normal encode that's fine to prefer over 1080p.
+ */
 function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
-  const rank = (q: string) => (q === '1080p' ? 4 : q === '4K' ? 3 : q === '720p' ? 2 : 1)
+  const rank = (q: string) => (q === '4K' ? 4 : q === '1080p' ? 3 : q === '720p' ? 2 : 1)
   const rankDiff = rank(parseTorrentQuality(b.name)) - rank(parseTorrentQuality(a.name))
   if (rankDiff !== 0) return rankDiff
   return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
@@ -133,20 +138,30 @@ export function TorboxPlayerPane({
       try {
         const addRes = await addTorboxByHash(release.info_hash, release.name, token)
 
-        // Always fetch the file listing — a "release" can be a season pack,
-        // so we need its files to pick the exact episode requested rather
-        // than assuming file 0 is it.
-        const list = await fetchTorboxList(token)
-        const match = list.data?.find(
-          (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
-        )
-        const torrentId = addRes.data?.torrent_id ?? match?.id
+        // TorBox sometimes returns the full file listing inline for an
+        // already-cached hash — when it does, skip the full-library
+        // `mylist` fetch entirely (it's a shared account's whole torrent
+        // list, which is slow) and go straight to requesting a stream URL.
+        // A "release" can be a season pack, so we still need *some* file
+        // listing to pick the exact episode requested, not just file 0 —
+        // fall back to `mylist` when the add response doesn't include one.
+        let torrentId = addRes.data?.torrent_id
+        let files = addRes.data?.files
+
+        if (!torrentId || !files || files.length === 0) {
+          const list = await fetchTorboxList(token)
+          const match = list.data?.find(
+            (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
+          )
+          torrentId = torrentId ?? match?.id
+          files = files && files.length > 0 ? files : match?.files
+        }
 
         if (!torrentId) {
           throw new Error('Could not initialize TorBox stream')
         }
 
-        const file = match?.files ? pickPlaybackFile(match.files, mediaType, season, episode) : null
+        const file = files ? pickPlaybackFile(files, mediaType, season, episode) : null
         const fileId = file?.id ?? 0
 
         const streamRes = await getTorboxStreamUrl(torrentId, fileId, token)
@@ -591,11 +606,12 @@ export function TorboxPlayerPane({
               </button>
 
               {showReleasesDropdown && (
-                <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-white/10 bg-zinc-900/95 p-1.5 shadow-xl backdrop-blur-xl">
-                  <div className="max-h-48 space-y-0.5 overflow-y-auto custom-scrollbar">
+                <div className="absolute right-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-white/10 bg-zinc-900/95 p-1.5 shadow-xl backdrop-blur-xl">
+                  <div className="max-h-56 space-y-0.5 overflow-y-auto custom-scrollbar">
                     {cachedReleases.map((rel) => {
                       const isSelected = rel.info_hash === activeRelease?.info_hash
                       const q = parseTorrentQuality(rel.name)
+                      const sizeBytes = parseInt(rel.size, 10)
                       return (
                         <button
                           key={rel.info_hash}
@@ -604,12 +620,20 @@ export function TorboxPlayerPane({
                             void streamTorrent(rel)
                           }}
                           className={cn(
-                            'flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
+                            'flex w-full flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
                             isSelected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
                           )}
                         >
-                          <span className="flex-1 truncate">{rel.name}</span>
-                          <span className="shrink-0 text-[10px] font-medium opacity-70">{q}</span>
+                          <span className="w-full truncate">{rel.name}</span>
+                          <span className="flex items-center gap-1.5 text-[10px] font-medium opacity-70">
+                            <span>{q}</span>
+                            {Number.isFinite(sizeBytes) && sizeBytes > 0 && (
+                              <>
+                                <span className="opacity-50">·</span>
+                                <span>{formatBytes(sizeBytes)}</span>
+                              </>
+                            )}
+                          </span>
                         </button>
                       )
                     })}

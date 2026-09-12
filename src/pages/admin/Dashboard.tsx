@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { getAdminToken, isAdminAuthenticated } from '@/lib/api'
 import AdminLoginModal from '@/components/modals/AdminLoginModal'
+import { AdminModeBadge } from '@/components/effects/AdminModeBadge'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -166,9 +167,12 @@ export default function AdminDashboard() {
       <PageMeta title="Admin Dashboard" noindex />
 
       <div className="min-h-screen flex flex-col bg-background">
-        <header className="border-b border-border/40 bg-background/80 backdrop-blur-xl">
-          <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
-            <h1 className="text-xl font-bold">Admin Dashboard</h1>
+        <header className="border-b border-golden-amber/25 bg-background/80 shadow-[inset_0_-1px_0_rgba(245,197,90,0.15)] backdrop-blur-xl">
+          <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold">Admin Dashboard</h1>
+              <AdminModeBadge />
+            </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -257,7 +261,7 @@ export default function AdminDashboard() {
                               </Button>
                               <Button
                                 size="sm"
-                                className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700"
+                                className="h-8 w-8 p-0 bg-gradient-to-br from-golden-amber to-violet-500 shadow-[0_0_14px_rgba(245,197,90,0.35)] transition-shadow hover:shadow-[0_0_20px_rgba(245,197,90,0.5)]"
                                 aria-label="Approve"
                                 onClick={() => handleAction(request.id, 'approve')}
                                 disabled={processingId === request.id}

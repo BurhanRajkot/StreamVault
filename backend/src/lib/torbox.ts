@@ -246,13 +246,18 @@ interface ApibayResult {
  * Fetch raw torrent index results from apibay.org (Pirate Bay mirror) for a
  * title query — no TorBox cache check, just the index lookup.
  *
- * @param query  - Movie / TV show title (e.g. "Inception 2010")
- * @param limit  - Max results to return
- * @param cat    - apibay category: 0=all, 207=HD movies, 205=movies, 208=TV
+ * @param query    - Movie / TV show title (e.g. "Inception 2010")
+ * @param poolSize - Max raw results to return. Callers that post-filter
+ *                   (size caps, dedup against another source) should pass a
+ *                   pool larger than their final desired count, since
+ *                   filtering happens after this — otherwise a candidate
+ *                   that would've survived filtering can get truncated away
+ *                   before it's even considered.
+ * @param cat      - apibay category: 0=all, 207=HD movies, 205=movies, 208=TV
  */
 async function fetchApibayResults(
   query: string,
-  limit: number,
+  poolSize: number,
   cat: number
 ): Promise<ApibayResult[]> {
   const apiUrl = `${APIBAY_BASE}/q.php?q=${encodeURIComponent(query)}&cat=${cat}`
@@ -272,7 +277,7 @@ async function fetchApibayResults(
     ? raw.filter((r) => r.id !== '0' && r.info_hash && r.info_hash.length === 40)
     : []
 
-  return results.slice(0, limit)
+  return results.slice(0, poolSize)
 }
 
 /**
@@ -334,6 +339,22 @@ export async function searchTorrents(
 }
 
 /**
+ * Upper bound on release size for the auto-play search (searchMediaTorrents
+ * only). Excludes 100GB+ IMAX/UHD remuxes — great quality, but too large to
+ * be a sane default stream — while still allowing normal 4K WEB-DL/BluRay
+ * encodes (typically 8-25GB) through.
+ */
+const MAX_RELEASE_SIZE_BYTES = 40 * 1024 * 1024 * 1024 // 40 GiB
+
+/** Quality rank for sorting — higher is preferred once a release is cached (equal streaming speed, so quality wins). */
+function releaseQualityRank(name: string): number {
+  if (/\b(2160p|4K|UHD)\b/i.test(name)) return 4
+  if (/\b1080p\b/i.test(name)) return 3
+  if (/\b720p\b/i.test(name)) return 2
+  return 1
+}
+
+/**
  * Search for a specific movie/episode by TMDB-derived identity (title +
  * IMDb id, + season/episode for TV) across every source we have: Comet
  * (many indexers, matched by IMDb id — reliable for TV episodes) and, for
@@ -341,8 +362,8 @@ export async function searchTorrents(
  * vs per-episode releases, which is why TorBox wasn't offered for TV before).
  *
  * Results from both sources are merged (de-duped by info-hash, Comet wins
- * ties since it's the more precisely-matched source), then checked against
- * TorBox's cache in a single batched call.
+ * ties since it's the more precisely-matched source), filtered to a sane
+ * size cap, then checked against TorBox's cache in a single batched call.
  */
 export async function searchMediaTorrents(params: {
   title: string
@@ -356,8 +377,12 @@ export async function searchMediaTorrents(params: {
   const useApibay = mediaType === 'movie'
 
   const [apibaySettled, cometSettled] = await Promise.allSettled([
+    // Fetch a larger pool than `limit` — the size cap + Comet dedup below
+    // filter this down, so slicing to `limit` here first could throw away
+    // a smaller, well-seeded 4K release in favor of one that gets excluded
+    // for being oversized.
     useApibay
-      ? fetchApibayResults(title, limit, 207)
+      ? fetchApibayResults(title, Math.max(limit * 3, 60), 207)
       : Promise.resolve([] as ApibayResult[]),
     imdbId
       ? searchComet(imdbId, mediaType === 'tv' ? 'series' : 'movie', season, episode)
@@ -406,7 +431,12 @@ export async function searchMediaTorrents(params: {
     })
   }
 
-  const candidates = [...merged.values()]
+  // Drop anything over the size cap outright — a 110GB IMAX remux should
+  // never surface here, cached or not. Keep unknown sizes (0): Comet doesn't
+  // always report `videoSize`, and an unknown size shouldn't be punished.
+  const candidates = [...merged.values()].filter(
+    (c) => c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES
+  )
 
   if (candidates.length === 0) {
     return { success: true, error: null, detail: 'No results found', data: [] }
@@ -443,6 +473,11 @@ export async function searchMediaTorrents(params: {
 
   annotated.sort((a, b) => {
     if (a.torbox_cached !== b.torbox_cached) return b.torbox_cached ? 1 : -1
+    // Once cached, TorBox's CDN serves it either way — quality matters more
+    // than seeders at that point, so a capped 4K release outranks a 1080p
+    // one instead of losing purely on seeder count.
+    const rankDiff = releaseQualityRank(b.name) - releaseQualityRank(a.name)
+    if (rankDiff !== 0) return rankDiff
     return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
   })
 
@@ -462,7 +497,9 @@ export async function searchMediaTorrents(params: {
 export async function createTorrent(
   magnet: string,
   name?: string
-): Promise<TorboxEnvelope<{ torrent_id: number; hash: string; name: string }>> {
+): Promise<
+  TorboxEnvelope<{ torrent_id: number; hash: string; name: string; files?: TorboxFile[] }>
+> {
   const formData = new FormData()
   formData.append('magnet', magnet)
   if (name) formData.append('name', name)

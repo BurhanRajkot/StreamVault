@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express'
 
 // Mock the env vars BEFORE any imports
 const originalEnv = { ...process.env }
-process.env.ADMIN_SECRET = 'test-secret'
+process.env.ADMIN_TOTP_SECRET = 'test-secret'
 process.env.ADMIN_JWT_SECRET = 'test-jwt-secret'
 
 // Mock the auth module

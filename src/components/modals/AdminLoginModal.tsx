@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Loader2, ShieldCheck, Hash } from 'lucide-react'
 import { adminLogin, setAdminToken } from '@/lib/api'
 import { cn, errorMessage } from '@/lib/utils'
+import { AdminActivationEffect } from '@/components/effects/AdminActivationEffect'
 
 interface AdminLoginModalProps {
   isOpen: boolean
@@ -13,6 +14,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [activating, setActivating] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,12 +22,12 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
 
     // Client-side validation
     if (!code) {
-      setError('Please enter the admin code')
+      setError('Please enter your authenticator code')
       return
     }
 
-    if (code.length < 4) {
-      setError('Code must be at least 4 digits')
+    if (code.length !== 6) {
+      setError('Code must be 6 digits')
       return
     }
 
@@ -40,11 +42,9 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
       // Clear form
       setCode('')
 
-      // Call success callback
-      onSuccess()
-
-      // Close modal
-      onClose()
+      // Play the activation effect before handing control back — onSuccess/
+      // onClose fire once it completes, in handleActivationComplete.
+      setActivating(true)
     } catch (err: unknown) {
       console.error('Admin login error:', err)
       setError(errorMessage(err, 'Invalid code. Please try again.'))
@@ -53,8 +53,14 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
     }
   }
 
+  const handleActivationComplete = () => {
+    setActivating(false)
+    onSuccess()
+    onClose()
+  }
+
   const handleClose = () => {
-    if (!loading) {
+    if (!loading && !activating) {
       setCode('')
       setError('')
       onClose()
@@ -65,6 +71,8 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <AdminActivationEffect active={activating} onComplete={handleActivationComplete} />
+
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -84,11 +92,11 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
         {/* Close Button */}
         <button
           onClick={handleClose}
-          disabled={loading}
+          disabled={loading || activating}
           className={cn(
             'absolute right-4 top-4 rounded-lg p-2 text-muted-foreground transition-colors',
             'hover:bg-secondary hover:text-foreground',
-            loading && 'cursor-not-allowed opacity-50'
+            (loading || activating) && 'cursor-not-allowed opacity-50'
           )}
         >
           <X className="h-5 w-5" />
@@ -101,7 +109,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
           </div>
           <h2 className="text-2xl font-bold text-foreground">Admin Access</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Enter today's admin code to access downloads
+            Enter the 6-digit code from your authenticator app
           </p>
         </div>
 
@@ -110,42 +118,35 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
           {/* Code Field */}
           <div>
             <label htmlFor="admin-code" className="mb-2 block text-sm font-medium text-foreground">
-              Admin Code
+              Authenticator Code
             </label>
             <div className="relative">
               <Hash className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <input
                 id="admin-code"
                 type="password"
+                inputMode="numeric"
                 value={code}
                 onChange={(e) => {
-                  // Allow hex characters (0-9 a-f) — HMAC codes are hex-encoded
-                  const val = e.target.value.replace(/[^0-9a-fA-F]/g, '')
-
-                  // If user pastes/types a long number (likely the full calculation),
-                  // take the last 6 digits automatically
-                     if (val.length > 64) {
-                     setCode(val.slice(0, 64))
-                  } else {
-                     setCode(val)
-                  }
+                  const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 6)
+                  setCode(val)
                 }}
                 disabled={loading}
-                placeholder="Enter daily code"
-                maxLength={64}
+                placeholder="000000"
+                maxLength={6}
                 className={cn(
-                  'h-12 w-full rounded-lg border bg-secondary/50 pl-11 pr-4 text-sm text-center tracking-widest text-lg font-mono',
-                  'placeholder:text-muted-foreground/50 placeholder:tracking-normal placeholder:font-sans',
+                  'h-12 w-full rounded-lg border bg-secondary/50 pl-11 pr-4 text-sm text-center tracking-[0.5em] text-lg font-mono',
+                  'placeholder:text-muted-foreground/50 placeholder:tracking-[0.5em] placeholder:font-mono',
                   'focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20',
                   'disabled:cursor-not-allowed disabled:opacity-50',
                   'transition-all duration-200'
                 )}
-                autoComplete="off"
+                autoComplete="one-time-code"
                 autoFocus
               />
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Enter specific admin authorization code.
+              From Google Authenticator, Authy, 1Password, etc.
             </p>
           </div>
 
@@ -182,7 +183,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
         {/* Security Notice */}
         <div className="mt-6 rounded-lg bg-secondary/30 p-3 text-center">
           <p className="text-xs text-muted-foreground">
-            🔒 Code changes daily. Rate-limited to 3 attempts per 15 minutes.
+            🔒 Code refreshes every 30 seconds. Rate-limited to 3 attempts per 15 minutes.
           </p>
         </div>
       </div>
