@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useState, useRef } from 'react'
+import Hls from 'hls.js'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Link } from 'react-router-dom'
 import {
@@ -28,11 +29,13 @@ import {
 } from 'lucide-react'
 import {
   fetchTorboxList,
-  getTorboxStreamUrl,
+  startTorboxHls,
+  resolveTorboxHlsUrl,
   searchTorboxMedia,
   addTorboxByHash,
   parseTorrentQuality,
   parseTorrentHDR,
+  hasIncompatibleAudio,
   formatBytes,
   type TorboxSearchResult,
   findTorrentForTitle,
@@ -73,16 +76,37 @@ interface DownloadProgress {
 }
 
 /**
- * Rank releases by quality first, then by seeder count.
- * The backend already caps release size (see MAX_RELEASE_SIZE_BYTES in
- * backend/src/lib/torbox.ts), so a 4K result here is never a 100GB+ remux —
- * just a normal encode that's fine to prefer over 1080p.
+ * Rank releases by audio compatibility first, then quality, then seeders.
+ * Silent 4K is worse than audible 1080p, so a release with DTS/TrueHD/Atmos
+ * audio (BluRay remux staples, which browsers can't decode) never outranks
+ * one without that tag regardless of resolution. The backend already caps
+ * release size (see MAX_RELEASE_SIZE_BYTES in backend/src/lib/torbox.ts), so
+ * a 4K result here is never a 100GB+ remux — just a normal encode that's
+ * fine to prefer over 1080p once audio compatibility is equal.
  */
 function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
+  const audioDiff = Number(hasIncompatibleAudio(a.name)) - Number(hasIncompatibleAudio(b.name))
+  if (audioDiff !== 0) return audioDiff
   const rank = (q: string) => (q === '4K' ? 4 : q === '1080p' ? 3 : q === '720p' ? 2 : 1)
   const rankDiff = rank(parseTorrentQuality(b.name)) - rank(parseTorrentQuality(a.name))
   if (rankDiff !== 0) return rankDiff
   return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
+}
+
+/**
+ * Turn a `startTorboxHls` response into a playable URL + the mode the
+ * `<video>` element needs to be driven in. Throws when neither a direct URL
+ * nor a playlist URL came back, since that means the backend couldn't
+ * resolve a stream at all.
+ */
+function resolvePlaybackUrl(res: {
+  mode: 'direct' | 'hls'
+  url?: string
+  playlistUrl?: string
+}): { url: string; mode: 'direct' | 'hls' } {
+  const url = res.mode === 'hls' ? res.playlistUrl && resolveTorboxHlsUrl(res.playlistUrl) : res.url
+  if (!url) throw new Error('No stream URL returned')
+  return { url, mode: res.mode }
 }
 
 function formatEta(seconds: number): string {
@@ -106,6 +130,8 @@ export function TorboxPlayerPane({
   const [status, setStatus] = useState<Status>('searching')
   const [statusMessage, setStatusMessage] = useState('Searching TorBox debrid...')
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
+  /** 'hls' when the backend is transcoding audio on the fly (see startTorboxHls) — drives whether hls.js attaches to the <video> element. */
+  const [playbackMode, setPlaybackMode] = useState<'direct' | 'hls'>('direct')
   const [cachedReleases, setCachedReleases] = useState<TorboxSearchResult[]>([])
   const [activeRelease, setActiveRelease] = useState<TorboxSearchResult | null>(null)
   const [playbackFailed, setPlaybackFailed] = useState(false)
@@ -164,12 +190,11 @@ export function TorboxPlayerPane({
         const file = files ? pickPlaybackFile(files, mediaType, season, episode) : null
         const fileId = file?.id ?? 0
 
-        const streamRes = await getTorboxStreamUrl(torrentId, fileId, token)
-        if (!streamRes.url) {
-          throw new Error('No stream URL returned')
-        }
+        const hlsRes = await startTorboxHls(torrentId, fileId, token)
+        const { url, mode } = resolvePlaybackUrl(hlsRes)
 
-        setStreamUrl(streamRes.url)
+        setPlaybackMode(mode)
+        setStreamUrl(url)
         setStatus('ready')
       } catch (err: unknown) {
         console.error('TorBox stream error:', err)
@@ -201,8 +226,10 @@ export function TorboxPlayerPane({
           if (torrent) {
             const file = pickPlaybackFile(torrent.files, mediaType, season, episode)
             if ((torrent.download_finished || torrent.cached) && file) {
-              const { url } = await getTorboxStreamUrl(torrentId, file.id, token)
+              const hlsRes = await startTorboxHls(torrentId, file.id, token)
+              const { url, mode } = resolvePlaybackUrl(hlsRes)
               if (pollGenerationRef.current === myGeneration) {
+                setPlaybackMode(mode)
                 setStreamUrl(url)
                 setStatus('ready')
               }
@@ -320,7 +347,9 @@ export function TorboxPlayerPane({
             if (torrent) {
               const file = pickPlaybackFile(torrent.files, 'movie')
               if ((torrent.download_finished || torrent.cached) && file) {
-                const { url } = await getTorboxStreamUrl(torrent.id, file.id, token)
+                const hlsRes = await startTorboxHls(torrent.id, file.id, token)
+                const { url, mode } = resolvePlaybackUrl(hlsRes)
+                setPlaybackMode(mode)
                 setStreamUrl(url)
                 setStatus('ready')
                 return
@@ -371,6 +400,119 @@ export function TorboxPlayerPane({
       pollGenerationRef.current++
     }
   }, [searchAndPlay])
+
+  // Fixed 10s seek on left/right arrow — the browser's native video controls
+  // seek by an inconsistent amount (often a % of duration when focus lands on
+  // the scrubber, which reads as minutes-long jumps on a 2h movie instead of
+  // seconds). Handled globally while a stream is up, not just when the
+  // <video> itself has focus, since this view is dedicated to playback.
+  useEffect(() => {
+    if (status !== 'ready') return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+
+      const target = e.target as HTMLElement | null
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+
+      const video = videoRef.current
+      if (!video) return
+
+      e.preventDefault()
+      const delta = e.key === 'ArrowRight' ? 10 : -10
+      const next = video.currentTime + delta
+      video.currentTime = Number.isFinite(video.duration)
+        ? Math.min(Math.max(next, 0), video.duration)
+        : Math.max(next, 0)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [status])
+
+  /**
+   * Attach the stream to the <video> element. Direct mode just needs the
+   * `src` attribute (set in JSX below); HLS mode needs hls.js to demux the
+   * playlist/segments into MSE — no browser except Safari understands
+   * `.m3u8` natively. This is the other half of the audio-transcode fix:
+   * the backend only produces HLS when the source's audio codec needed
+   * transcoding, so this path is exactly what makes that playable.
+   */
+  useEffect(() => {
+    if (status !== 'ready' || !streamUrl || playbackMode !== 'hls') return
+    const video = videoRef.current
+    if (!video) return
+
+    if (Hls.isSupported()) {
+      const hls = new Hls()
+      hls.loadSource(streamUrl)
+      hls.attachMedia(video)
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          console.error('TorBox HLS playback error:', data)
+          setPlaybackFailed(true)
+        }
+      })
+      return () => hls.destroy()
+    }
+
+    // Safari has no MSE-based hls.js support but plays .m3u8 natively.
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = streamUrl
+      return () => {
+        video.removeAttribute('src')
+      }
+    }
+
+    setPlaybackFailed(true)
+  }, [status, streamUrl, playbackMode])
+
+  /**
+   * Detect "plays fine, no sound" — the common outcome when a release's
+   * audio track (DTS/TrueHD/Atmos, near-universal on BluRay remuxes, which
+   * 4K releases skew heavily toward) can't be decoded by the browser. This
+   * does NOT fire the <video> `error` event: the video track decodes and
+   * plays normally, so from the element's perspective playback succeeded.
+   * `webkitAudioDecodedByteCount` (Chromium/WebKit) staying at 0 while the
+   * video is actively advancing is the standard way to catch this — treat it
+   * the same as a hard playback failure so the existing fallback UI (open
+   * externally in VLC, or try another cached release) kicks in instead of
+   * silently looping a mute video. No equivalent API exists on Firefox, so
+   * this is best-effort there rather than a guarantee.
+   */
+  useEffect(() => {
+    if (status !== 'ready' || !streamUrl) return
+    const video = videoRef.current
+    if (!video) return
+
+    const el = video as HTMLVideoElement & { webkitAudioDecodedByteCount?: number }
+    if (typeof el.webkitAudioDecodedByteCount !== 'number') return
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const checkAudio = () => {
+      if (cancelled) return
+      if (!video.paused && video.currentTime > 0 && el.webkitAudioDecodedByteCount === 0) {
+        setPlaybackFailed(true)
+      }
+    }
+
+    const handlePlaying = () => {
+      if (timer) clearTimeout(timer)
+      // Give decoding a few seconds to ramp up before judging it silent.
+      timer = setTimeout(checkAudio, 3000)
+    }
+
+    video.addEventListener('playing', handlePlaying)
+    if (!video.paused) handlePlaying()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      video.removeEventListener('playing', handlePlaying)
+    }
+  }, [status, streamUrl])
 
   // --- Loading / Searching state ---
   if (status === 'searching' || status === 'loading-stream') {
@@ -569,7 +711,7 @@ export function TorboxPlayerPane({
       <video
         ref={videoRef}
         key={streamUrl}
-        src={streamUrl ?? undefined}
+        src={playbackMode === 'direct' ? streamUrl ?? undefined : undefined}
         controls
         autoPlay
         playsInline

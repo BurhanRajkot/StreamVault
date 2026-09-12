@@ -355,6 +355,20 @@ function releaseQualityRank(name: string): number {
 }
 
 /**
+ * True when the release name explicitly declares an audio codec no
+ * mainstream browser can decode natively — DTS (incl. DTS-HD/-X) and Dolby
+ * TrueHD/Atmos. These are the default audio tracks on BluRay-sourced remuxes,
+ * which UHD/4K releases are disproportionately sourced from, and the
+ * `<video>` element plays the picture fine while silently dropping audio
+ * instead of erroring — no exception, no onError. AC3/E-AC3/DD+ are left
+ * untagged since browser support for those is inconsistent rather than
+ * universally absent, so penalizing them would cause false positives.
+ */
+function hasIncompatibleAudio(name: string): boolean {
+  return /\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b/i.test(name)
+}
+
+/**
  * Search for a specific movie/episode by TMDB-derived identity (title +
  * IMDb id, + season/episode for TV) across every source we have: Comet
  * (many indexers, matched by IMDb id — reliable for TV episodes) and, for
@@ -471,13 +485,22 @@ export async function searchMediaTorrents(params: {
     torbox_cached: cachedSet.has(c.info_hash),
   }))
 
+  // Audio compatibility first — silent 4K beats no one, so a release that
+  // explicitly declares DTS/TrueHD/Atmos audio never outranks one that
+  // doesn't, regardless of resolution. Then quality, ABOVE cached status: a
+  // title's shared-account cache tends to fill up with whichever quality
+  // gets streamed most (usually 1080p), so sorting cached-first can bury the
+  // one 4K release that exists behind a dozen cached 1080p duplicates and
+  // see it fall off the `limit` slice below entirely. Ranking quality first
+  // guarantees a capped 4K release (when one exists at all) always survives
+  // into the returned list — cached or not, it'll just take the
+  // download-and-play path if uncached.
   annotated.sort((a, b) => {
-    if (a.torbox_cached !== b.torbox_cached) return b.torbox_cached ? 1 : -1
-    // Once cached, TorBox's CDN serves it either way — quality matters more
-    // than seeders at that point, so a capped 4K release outranks a 1080p
-    // one instead of losing purely on seeder count.
+    const audioDiff = Number(hasIncompatibleAudio(a.name)) - Number(hasIncompatibleAudio(b.name))
+    if (audioDiff !== 0) return audioDiff
     const rankDiff = releaseQualityRank(b.name) - releaseQualityRank(a.name)
     if (rankDiff !== 0) return rankDiff
+    if (a.torbox_cached !== b.torbox_cached) return b.torbox_cached ? 1 : -1
     return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
   })
 

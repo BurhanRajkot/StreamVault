@@ -140,6 +140,47 @@ export async function getTorboxStreamUrl(
   return handleResponse(res)
 }
 
+export interface TorboxHlsStartResult {
+  /**
+   * 'direct' — the file's audio is already browser-safe (AAC/MP3/Opus/...),
+   * `url` is the plain TorBox CDN link, play it as before.
+   * 'hls' — the audio needed transcoding (DTS/TrueHD/Atmos/AC3/...); `playlistUrl`
+   * points at a growing HLS playlist the backend is remuxing on the fly
+   * (video copied through untouched, audio re-encoded to AAC).
+   */
+  mode: 'direct' | 'hls'
+  url?: string
+  sessionId?: string
+  playlistUrl?: string
+}
+
+/**
+ * Start playback for a torrent file: the backend probes the file's audio
+ * codec and only spins up a transcode when the browser genuinely can't
+ * decode it natively, so most releases still stream at zero extra cost.
+ *
+ * @param torrentId - Torrent `id` from `fetchTorboxList()` / `addTorboxByHash()`
+ * @param fileId    - File `id` from `torrent.files[]`
+ * @param token     - Auth0 access token or admin token
+ */
+export async function startTorboxHls(
+  torrentId: number,
+  fileId: number,
+  token?: string
+): Promise<TorboxHlsStartResult> {
+  const res = await fetch(`${API_BASE}/torbox/hls/start`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ torrentId, fileId }),
+  })
+  return handleResponse(res)
+}
+
+/** Resolve a `playlistUrl` returned by `startTorboxHls` to an absolute URL. */
+export function resolveTorboxHlsUrl(playlistUrl: string): string {
+  return `${API_BASE}${playlistUrl}`
+}
+
 /**
  * Format bytes into a human-readable size string.
  */
@@ -300,6 +341,19 @@ export function parseTorrentHDR(name: string): string | null {
   if (/\bHDR10\+/i.test(name)) return 'HDR10+'
   if (/\bHDR\b/i.test(name)) return 'HDR'
   return null
+}
+
+/**
+ * True when the release name explicitly declares an audio codec no
+ * mainstream browser can decode natively — DTS (incl. DTS-HD/-X) and Dolby
+ * TrueHD/Atmos. These are the default tracks on BluRay-sourced remuxes (the
+ * usual source for 4K/UHD releases); the video plays fine while the browser
+ * silently drops the audio instead of erroring. AC3/E-AC3/DD+ are left
+ * untagged since browser support for those is inconsistent rather than
+ * universally absent.
+ */
+export function hasIncompatibleAudio(name: string): boolean {
+  return /\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b/i.test(name)
 }
 
 function normalizeTitle(s: string): string {

@@ -14,15 +14,20 @@
  *   GET  /torbox/search           — Search torrents (premium or admin)
  *   GET  /torbox/media-search     — Search by IMDb id (premium or admin)
  *   POST /torbox/add-hash         — Add a torrent by info-hash (premium or admin)
+ *   POST /torbox/hls/start        — Start (or skip) audio-transcode for a file (premium or admin)
+ *   GET  /torbox/hls/:sid/playlist.m3u8 — Serve the growing HLS playlist for a session
+ *   GET  /torbox/hls/:sid/:segment      — Serve one HLS segment for a session
  */
 
 import { Router, Request, Response } from 'express'
+import path from 'path'
 import { checkAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
 import { getUserId } from '../utils/auth'
 import { isPaidUser } from '../lib/subscription'
 import * as torbox from '../lib/torbox'
+import * as transcode from '../lib/transcode'
 
 
 const router = Router()
@@ -209,6 +214,153 @@ router.get(
     }
   }
 )
+
+// ---------------------------------------------------------------------------
+// POST /torbox/hls/start — any logged-in user, rate-limited
+// Body: { torrentId: number, fileId: number }
+//
+// Resolves the TorBox direct link (same call /stream makes) and probes its
+// audio codec. When the codec is browser-safe, hands back the direct URL
+// unchanged — no reason to pay for a transcode when native playback works.
+// Otherwise spins up an ffmpeg session that copies the video stream through
+// untouched and re-encodes just the audio to AAC, muxed as HLS so playback
+// can start from the first segment instead of waiting for the whole file.
+// ---------------------------------------------------------------------------
+
+router.post(
+  '/hls/start',
+  checkAuth,
+  downloadRateLimiter,
+  async (req: Request, res: Response) => {
+    const denied = await authorizeTorboxAccess(req)
+    if (denied) return res.status(denied.status).json(denied.body)
+
+    const { torrentId, fileId } = req.body as { torrentId?: number; fileId?: number }
+
+    if (!Number.isInteger(torrentId) || !Number.isInteger(fileId)) {
+      return res.status(400).json({ error: 'torrentId and fileId must be integers' })
+    }
+
+    const userIp =
+      (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
+      req.socket.remoteAddress
+
+    try {
+      const result = await torbox.requestDownloadLink(torrentId as number, fileId as number, {
+        userIp,
+      })
+
+      const url =
+        typeof result.data === 'string'
+          ? result.data
+          : (result.data as { url?: string } | null)?.url
+
+      if (!result.success || !url) {
+        logger.warn('TorBox returned no URL for HLS start', { torrentId, fileId, detail: result.detail })
+        return res.status(404).json({ error: result.detail || 'No stream URL available' })
+      }
+
+      let audioCodec: string | null = null
+      try {
+        const probed = await transcode.probeStream(url)
+        audioCodec = probed.audioCodec
+      } catch (probeErr: unknown) {
+        // Can't tell what's in the container — fall through to direct
+        // playback rather than blocking the stream on a probe failure.
+        logger.warn('TorBox HLS probe failed, falling back to direct URL', {
+          torrentId,
+          fileId,
+          error: probeErr instanceof Error ? probeErr.message : String(probeErr),
+        })
+      }
+
+      if (!transcode.needsAudioTranscode(audioCodec)) {
+        return res.json({ mode: 'direct', url })
+      }
+
+      const session = transcode.createHlsSession(url)
+      logger.info('Started TorBox HLS audio-transcode session', {
+        torrentId,
+        fileId,
+        sessionId: session.id,
+        audioCodec,
+      })
+
+      return res.json({
+        mode: 'hls',
+        sessionId: session.id,
+        playlistUrl: `/torbox/hls/${session.id}/playlist.m3u8`,
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      logger.error('TorBox HLS start failed', { torrentId, fileId, error: message })
+      return res.status(502).json({ error: 'Failed to start stream', detail: message })
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// GET /torbox/hls/:sessionId/playlist.m3u8 — same trust tier as /mylist
+// (opaque, unguessable session id stands in for auth, same as a TorBox CDN
+// link) — kept header-free so both hls.js and native Safari HLS can fetch it
+// directly without custom request headers.
+// ---------------------------------------------------------------------------
+
+const SESSION_ID_RE = /^[0-9a-f-]{36}$/i
+const SEGMENT_NAME_RE = /^seg_\d{5}\.ts$/
+
+router.get('/hls/:sessionId/playlist.m3u8', async (req: Request, res: Response) => {
+  const { sessionId } = req.params
+  if (!SESSION_ID_RE.test(sessionId)) {
+    return res.status(400).json({ error: 'Invalid session id' })
+  }
+
+  const session = transcode.getSession(sessionId)
+  if (!session) {
+    return res.status(404).json({ error: 'Stream session not found or expired' })
+  }
+  if (session.error) {
+    return res.status(500).json({ error: 'Transcode failed', detail: session.error })
+  }
+
+  const ready = await transcode.waitForPlaylistReady(session.dir)
+  if (!ready) {
+    return res.status(504).json({ error: 'Timed out waiting for stream to start' })
+  }
+
+  res.set('Content-Type', 'application/vnd.apple.mpegurl')
+  res.set('Cache-Control', 'no-store')
+  return res.sendFile(path.join(session.dir, 'playlist.m3u8'))
+})
+
+// ---------------------------------------------------------------------------
+// GET /torbox/hls/:sessionId/:segment — one .ts segment for a session
+// ---------------------------------------------------------------------------
+
+router.get('/hls/:sessionId/:segment', async (req: Request, res: Response) => {
+  const { sessionId, segment } = req.params
+  if (!SESSION_ID_RE.test(sessionId) || !SEGMENT_NAME_RE.test(segment)) {
+    return res.status(400).json({ error: 'Invalid session or segment id' })
+  }
+
+  const session = transcode.getSession(sessionId)
+  if (!session) {
+    return res.status(404).json({ error: 'Stream session not found or expired' })
+  }
+  if (session.error) {
+    return res.status(500).json({ error: 'Transcode failed', detail: session.error })
+  }
+
+  const segmentPath = path.join(session.dir, segment)
+  const ready = await transcode.waitForFile(segmentPath)
+  if (!ready) {
+    return res.status(404).json({ error: 'Segment not available' })
+  }
+
+  res.set('Content-Type', 'video/mp2t')
+  res.set('Cache-Control', 'no-store')
+  return res.sendFile(segmentPath)
+})
 
 // ---------------------------------------------------------------------------
 // POST /torbox/control — admin only
