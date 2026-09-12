@@ -155,23 +155,29 @@ export interface TorboxHlsStartResult {
 }
 
 /**
- * Start playback for a torrent file: the backend probes the file's audio
- * codec and only spins up a transcode when the browser genuinely can't
- * decode it natively, so most releases still stream at zero extra cost.
+ * Start playback for a torrent file: the backend decides whether the audio
+ * needs transcoding — instantly from `releaseName` when it declares an
+ * incompatible codec (DTS/TrueHD/Atmos), otherwise via a codec probe — and
+ * only spins up a transcode when the browser genuinely can't decode the
+ * audio natively, so most releases still stream at zero extra cost.
  *
- * @param torrentId - Torrent `id` from `fetchTorboxList()` / `addTorboxByHash()`
- * @param fileId    - File `id` from `torrent.files[]`
- * @param token     - Auth0 access token or admin token
+ * @param torrentId   - Torrent `id` from `fetchTorboxList()` / `addTorboxByHash()`
+ * @param fileId      - File `id` from `torrent.files[]`
+ * @param token       - Auth0 access token or admin token
+ * @param releaseName - The release's display name, when known — lets the
+ *                       backend skip the codec probe entirely for the common
+ *                       case where the name already declares the audio codec.
  */
 export async function startTorboxHls(
   torrentId: number,
   fileId: number,
-  token?: string
+  token?: string,
+  releaseName?: string
 ): Promise<TorboxHlsStartResult> {
   const res = await fetch(`${API_BASE}/torbox/hls/start`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ torrentId, fileId }),
+    body: JSON.stringify({ torrentId, fileId, releaseName }),
   })
   return handleResponse(res)
 }
@@ -341,6 +347,11 @@ export function parseTorrentHDR(name: string): string | null {
   if (/\bHDR10\+/i.test(name)) return 'HDR10+'
   if (/\bHDR\b/i.test(name)) return 'HDR'
   return null
+}
+
+/** True when the release name declares an IMAX (theatrical or "Enhanced") cut. */
+export function isImaxRelease(name: string): boolean {
+  return /\bIMAX\b/i.test(name)
 }
 
 /**

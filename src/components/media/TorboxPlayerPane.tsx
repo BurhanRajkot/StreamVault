@@ -36,6 +36,7 @@ import {
   parseTorrentQuality,
   parseTorrentHDR,
   hasIncompatibleAudio,
+  isImaxRelease,
   formatBytes,
   type TorboxSearchResult,
   findTorrentForTitle,
@@ -76,13 +77,16 @@ interface DownloadProgress {
 }
 
 /**
- * Rank releases by audio compatibility first, then quality, then seeders.
- * Silent 4K is worse than audible 1080p, so a release with DTS/TrueHD/Atmos
- * audio (BluRay remux staples, which browsers can't decode) never outranks
- * one without that tag regardless of resolution. The backend already caps
- * release size (see MAX_RELEASE_SIZE_BYTES in backend/src/lib/torbox.ts), so
- * a 4K result here is never a 100GB+ remux — just a normal encode that's
- * fine to prefer over 1080p once audio compatibility is equal.
+ * Rank releases by audio compatibility first, then quality, then IMAX cut,
+ * then seeders. The backend now transcodes DTS/TrueHD/Atmos audio to AAC on
+ * the fly (see startTorboxHls), so a release with incompatible audio isn't
+ * silent anymore — but it does mean a brief transcode window before the
+ * player has a full seekable timeline, so a release that's already
+ * browser-safe is still preferred when quality is otherwise equal. The
+ * backend already caps release size (see MAX_RELEASE_SIZE_BYTES in
+ * backend/src/lib/torbox.ts), so a 4K result here is never a 100GB+ remux —
+ * just a normal encode that's fine to prefer over 1080p once audio
+ * compatibility is equal.
  */
 function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
   const audioDiff = Number(hasIncompatibleAudio(a.name)) - Number(hasIncompatibleAudio(b.name))
@@ -90,6 +94,8 @@ function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
   const rank = (q: string) => (q === '4K' ? 4 : q === '1080p' ? 3 : q === '720p' ? 2 : 1)
   const rankDiff = rank(parseTorrentQuality(b.name)) - rank(parseTorrentQuality(a.name))
   if (rankDiff !== 0) return rankDiff
+  const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
+  if (imaxDiff !== 0) return imaxDiff
   return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
 }
 
@@ -132,6 +138,8 @@ export function TorboxPlayerPane({
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   /** 'hls' when the backend is transcoding audio on the fly (see startTorboxHls) — drives whether hls.js attaches to the <video> element. */
   const [playbackMode, setPlaybackMode] = useState<'direct' | 'hls'>('direct')
+  /** True while the backend is still remuxing the file — the timeline behaves like a live stream until this flips (see the hls.js attach effect below). */
+  const [isTranscodingLive, setIsTranscodingLive] = useState(false)
   const [cachedReleases, setCachedReleases] = useState<TorboxSearchResult[]>([])
   const [activeRelease, setActiveRelease] = useState<TorboxSearchResult | null>(null)
   const [playbackFailed, setPlaybackFailed] = useState(false)
@@ -190,7 +198,7 @@ export function TorboxPlayerPane({
         const file = files ? pickPlaybackFile(files, mediaType, season, episode) : null
         const fileId = file?.id ?? 0
 
-        const hlsRes = await startTorboxHls(torrentId, fileId, token)
+        const hlsRes = await startTorboxHls(torrentId, fileId, token, release.name)
         const { url, mode } = resolvePlaybackUrl(hlsRes)
 
         setPlaybackMode(mode)
@@ -226,7 +234,7 @@ export function TorboxPlayerPane({
           if (torrent) {
             const file = pickPlaybackFile(torrent.files, mediaType, season, episode)
             if ((torrent.download_finished || torrent.cached) && file) {
-              const hlsRes = await startTorboxHls(torrentId, file.id, token)
+              const hlsRes = await startTorboxHls(torrentId, file.id, token, releaseName)
               const { url, mode } = resolvePlaybackUrl(hlsRes)
               if (pollGenerationRef.current === myGeneration) {
                 setPlaybackMode(mode)
@@ -347,7 +355,7 @@ export function TorboxPlayerPane({
             if (torrent) {
               const file = pickPlaybackFile(torrent.files, 'movie')
               if ((torrent.download_finished || torrent.cached) && file) {
-                const hlsRes = await startTorboxHls(torrent.id, file.id, token)
+                const hlsRes = await startTorboxHls(torrent.id, file.id, token, torrent.name)
                 const { url, mode } = resolvePlaybackUrl(hlsRes)
                 setPlaybackMode(mode)
                 setStreamUrl(url)
@@ -444,16 +452,28 @@ export function TorboxPlayerPane({
     if (!video) return
 
     if (Hls.isSupported()) {
+      setIsTranscodingLive(true)
       const hls = new Hls()
       hls.loadSource(streamUrl)
       hls.attachMedia(video)
+      // The backend writes the HLS playlist progressively while ffmpeg works
+      // through the file — hls.js (correctly) treats that as a live stream
+      // until #EXT-X-ENDLIST shows up, which is why the timeline looks
+      // live-like at first. Track that so the UI can explain it instead of
+      // looking broken; it flips once the whole file's been remuxed.
+      hls.on(Hls.Events.LEVEL_UPDATED, (_event, data) => {
+        setIsTranscodingLive(!!data.details?.live)
+      })
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           console.error('TorBox HLS playback error:', data)
           setPlaybackFailed(true)
         }
       })
-      return () => hls.destroy()
+      return () => {
+        hls.destroy()
+        setIsTranscodingLive(false)
+      }
     }
 
     // Safari has no MSE-based hls.js support but plays .m3u8 natively.
@@ -705,6 +725,7 @@ export function TorboxPlayerPane({
   // --- Ready state: native video playback with a minimal hover-in overlay ---
   const activeQuality = activeRelease ? parseTorrentQuality(activeRelease.name) : 'HD'
   const activeHDR = activeRelease ? parseTorrentHDR(activeRelease.name) : null
+  const activeIMAX = activeRelease ? isImaxRelease(activeRelease.name) : false
 
   return (
     <div className="group relative h-full w-full select-none overflow-hidden bg-black">
@@ -719,6 +740,13 @@ export function TorboxPlayerPane({
         onError={() => setPlaybackFailed(true)}
       />
 
+      {isTranscodingLive && (
+        <div className="absolute left-3 top-3 z-30 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/60 px-3 py-1.5 text-[11px] text-white/70 backdrop-blur-sm">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Optimizing audio — full seeking available shortly</span>
+        </div>
+      )}
+
       <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
         <div className="flex min-w-0 items-center gap-2">
           <span className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/70">
@@ -727,6 +755,11 @@ export function TorboxPlayerPane({
           {activeHDR && (
             <span className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/70">
               {activeHDR}
+            </span>
+          )}
+          {activeIMAX && (
+            <span className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/70">
+              IMAX
             </span>
           )}
           {activeRelease && (
@@ -753,6 +786,7 @@ export function TorboxPlayerPane({
                     {cachedReleases.map((rel) => {
                       const isSelected = rel.info_hash === activeRelease?.info_hash
                       const q = parseTorrentQuality(rel.name)
+                      const isImax = isImaxRelease(rel.name)
                       const sizeBytes = parseInt(rel.size, 10)
                       return (
                         <button
@@ -769,6 +803,12 @@ export function TorboxPlayerPane({
                           <span className="w-full truncate">{rel.name}</span>
                           <span className="flex items-center gap-1.5 text-[10px] font-medium opacity-70">
                             <span>{q}</span>
+                            {isImax && (
+                              <>
+                                <span className="opacity-50">·</span>
+                                <span>IMAX</span>
+                              </>
+                            )}
                             {Number.isFinite(sizeBytes) && sizeBytes > 0 && (
                               <>
                                 <span className="opacity-50">·</span>

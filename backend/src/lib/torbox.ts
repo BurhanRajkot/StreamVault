@@ -364,8 +364,13 @@ function releaseQualityRank(name: string): number {
  * untagged since browser support for those is inconsistent rather than
  * universally absent, so penalizing them would cause false positives.
  */
-function hasIncompatibleAudio(name: string): boolean {
+export function hasIncompatibleAudio(name: string): boolean {
   return /\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b/i.test(name)
+}
+
+/** True when the release name declares an IMAX (theatrical or "Enhanced") cut. */
+export function isImaxRelease(name: string): boolean {
+  return /\bIMAX\b/i.test(name)
 }
 
 /**
@@ -500,6 +505,10 @@ export async function searchMediaTorrents(params: {
     if (audioDiff !== 0) return audioDiff
     const rankDiff = releaseQualityRank(b.name) - releaseQualityRank(a.name)
     if (rankDiff !== 0) return rankDiff
+    // Same quality/audio tier — prefer the IMAX cut when one exists, since
+    // that's a strictly better presentation of the same release.
+    const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
+    if (imaxDiff !== 0) return imaxDiff
     if (a.torbox_cached !== b.torbox_cached) return b.torbox_cached ? 1 : -1
     return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
   })

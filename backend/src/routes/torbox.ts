@@ -217,14 +217,22 @@ router.get(
 
 // ---------------------------------------------------------------------------
 // POST /torbox/hls/start — any logged-in user, rate-limited
-// Body: { torrentId: number, fileId: number }
+// Body: { torrentId: number, fileId: number, releaseName?: string }
 //
-// Resolves the TorBox direct link (same call /stream makes) and probes its
-// audio codec. When the codec is browser-safe, hands back the direct URL
-// unchanged — no reason to pay for a transcode when native playback works.
-// Otherwise spins up an ffmpeg session that copies the video stream through
-// untouched and re-encodes just the audio to AAC, muxed as HLS so playback
-// can start from the first segment instead of waiting for the whole file.
+// Resolves the TorBox direct link (same call /stream makes) and decides
+// whether the audio needs transcoding:
+//
+//   1. If the release name declares an incompatible codec (DTS/TrueHD/Atmos —
+//      see hasIncompatibleAudio), go straight to the HLS transcode path. No
+//      ffprobe round-trip needed — this covers the overwhelming majority of
+//      4K remuxes and is instant.
+//   2. Otherwise probe the file's actual audio codec as a safety net (catches
+//      releases that don't declare their codec in the name). A multi-GB file
+//      whose index sits near the end can make this legitimately slow, so on
+//      a probe failure/timeout we default to transcoding rather than direct
+//      playback — silently losing audio is worse than an unnecessary remux.
+//
+// Video is never re-encoded either way (`-c:v copy`) — only ever the audio.
 // ---------------------------------------------------------------------------
 
 router.post(
@@ -235,7 +243,11 @@ router.post(
     const denied = await authorizeTorboxAccess(req)
     if (denied) return res.status(denied.status).json(denied.body)
 
-    const { torrentId, fileId } = req.body as { torrentId?: number; fileId?: number }
+    const { torrentId, fileId, releaseName } = req.body as {
+      torrentId?: number
+      fileId?: number
+      releaseName?: string
+    }
 
     if (!Number.isInteger(torrentId) || !Number.isInteger(fileId)) {
       return res.status(400).json({ error: 'torrentId and fileId must be integers' })
@@ -260,21 +272,31 @@ router.post(
         return res.status(404).json({ error: result.detail || 'No stream URL available' })
       }
 
-      let audioCodec: string | null = null
-      try {
-        const probed = await transcode.probeStream(url)
-        audioCodec = probed.audioCodec
-      } catch (probeErr: unknown) {
-        // Can't tell what's in the container — fall through to direct
-        // playback rather than blocking the stream on a probe failure.
-        logger.warn('TorBox HLS probe failed, falling back to direct URL', {
-          torrentId,
-          fileId,
-          error: probeErr instanceof Error ? probeErr.message : String(probeErr),
-        })
+      let needsTranscode: boolean
+      let reason: string
+
+      if (releaseName && torbox.hasIncompatibleAudio(releaseName)) {
+        needsTranscode = true
+        reason = 'release name declares incompatible audio'
+      } else {
+        try {
+          const probed = await transcode.probeStream(url)
+          needsTranscode = transcode.needsAudioTranscode(probed.audioCodec)
+          reason = `probed codec: ${probed.audioCodec ?? 'unknown'}`
+        } catch (probeErr: unknown) {
+          // Can't tell what's in the container — default to the safe
+          // outcome (transcode) rather than risking silent audio loss.
+          needsTranscode = true
+          reason = 'probe failed'
+          logger.warn('TorBox HLS probe failed, defaulting to audio transcode', {
+            torrentId,
+            fileId,
+            error: probeErr instanceof Error ? probeErr.message : String(probeErr),
+          })
+        }
       }
 
-      if (!transcode.needsAudioTranscode(audioCodec)) {
+      if (!needsTranscode) {
         return res.json({ mode: 'direct', url })
       }
 
@@ -283,7 +305,7 @@ router.post(
         torrentId,
         fileId,
         sessionId: session.id,
-        audioCodec,
+        reason,
       })
 
       return res.json({
