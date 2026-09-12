@@ -13,7 +13,17 @@ if (!process.env.ADMIN_JWT_SECRET) {
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET
 
-const TOKEN_EXPIRATION = '30m'
+// 30m made sense for a "verify a code, do one admin task" session, but the
+// site owner uses this token as their everyday logged-in state — browsing,
+// watching, streaming — where the frontend has no refresh flow. Once it
+// expired mid-session, the token stayed in localStorage (still "present", so
+// isAdminAuthenticated() kept reporting true) while every actual API call
+// silently fell through to the regular Auth0/guest path and got hit with
+// consumer-facing "sign in" / "upgrade to premium" errors — confusing for
+// someone who should have unrestricted access. A long-lived token here still
+// requires the TOTP secret to obtain in the first place; this just makes the
+// resulting session actually last as long as normal usage does.
+export const TOKEN_EXPIRATION = '30d'
 
 // Tolerate one 30s step of clock drift on either side of the current one.
 authenticator.options = { window: 1 }

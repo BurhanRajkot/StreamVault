@@ -26,7 +26,6 @@ import { randomUUID } from 'crypto'
 import { logger } from './logger'
 
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg'
-const FFPROBE_PATH = process.env.FFPROBE_PATH || 'ffprobe'
 
 // The Dockerfile pre-creates /tmp/hls with the right ownership for the
 // production runtime user; fall back to the OS temp dir for local dev.
@@ -49,100 +48,6 @@ export interface HlsSession {
 }
 
 const sessions = new Map<string, HlsSession>()
-
-// ---------------------------------------------------------------------------
-// Codec probing
-// ---------------------------------------------------------------------------
-
-export interface ProbedStreams {
-  videoCodec: string | null
-  audioCodec: string | null
-  durationSeconds: number | null
-}
-
-interface FfprobeStream {
-  codec_type: string
-  codec_name: string
-}
-
-interface FfprobeOutput {
-  streams?: FfprobeStream[]
-  format?: { duration?: string }
-}
-
-/**
- * Probe a remote stream URL's codecs via ffprobe. TorBox's CDN already
- * supports HTTP range requests (native <video> seeking on it works today),
- * which is what lets ffprobe read container metadata without downloading the
- * whole file — but for a multi-GB 4K remux whose index sits near the end of
- * the file, that can still legitimately take a few seconds, so callers on a
- * latency budget should pass a smaller `timeoutMs` and treat a timeout as
- * "unknown" (fail toward transcoding) rather than "safe".
- */
-export async function probeStream(url: string, timeoutMs = 12_000): Promise<ProbedStreams> {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '-v', 'error',
-      '-print_format', 'json',
-      '-show_entries', 'stream=codec_type,codec_name:format=duration',
-      // Belt-and-suspenders network timeout on top of the JS-level kill
-      // below, in case a stalled connection doesn't otherwise error out.
-      '-rw_timeout', String(timeoutMs * 1000),
-      url,
-    ]
-
-    const proc = spawn(FFPROBE_PATH, args)
-    let out = ''
-    let err = ''
-
-    const timer = setTimeout(() => {
-      proc.kill('SIGKILL')
-      reject(new Error('ffprobe timed out'))
-    }, timeoutMs)
-
-    proc.stdout.on('data', (chunk: Buffer) => (out += chunk.toString()))
-    proc.stderr.on('data', (chunk: Buffer) => (err += chunk.toString()))
-
-    proc.on('error', (spawnErr) => {
-      clearTimeout(timer)
-      reject(spawnErr)
-    })
-
-    proc.on('close', (code) => {
-      clearTimeout(timer)
-      if (code !== 0) {
-        reject(new Error(`ffprobe exited with code ${code}: ${err.slice(0, 500)}`))
-        return
-      }
-      try {
-        const parsed = JSON.parse(out) as FfprobeOutput
-        const video = parsed.streams?.find((s) => s.codec_type === 'video')
-        const audio = parsed.streams?.find((s) => s.codec_type === 'audio')
-        resolve({
-          videoCodec: video?.codec_name ?? null,
-          audioCodec: audio?.codec_name ?? null,
-          durationSeconds: parsed.format?.duration ? parseFloat(parsed.format.duration) : null,
-        })
-      } catch {
-        reject(new Error('Failed to parse ffprobe output'))
-      }
-    })
-  })
-}
-
-/** Audio codecs every mainstream browser can decode natively without help. */
-const BROWSER_SAFE_AUDIO_CODECS = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac'])
-
-/**
- * True when the probed audio codec needs to go through the HLS transcode
- * path instead of being played directly. Unknown codec (probe failed / no
- * audio stream detected) resolves to false — better to let native playback
- * try first than to unconditionally pay for a transcode session.
- */
-export function needsAudioTranscode(audioCodec: string | null): boolean {
-  if (!audioCodec) return false
-  return !BROWSER_SAFE_AUDIO_CODECS.has(audioCodec.toLowerCase())
-}
 
 // ---------------------------------------------------------------------------
 // HLS session lifecycle

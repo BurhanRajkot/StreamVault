@@ -220,17 +220,18 @@ router.get(
 // Body: { torrentId: number, fileId: number, releaseName?: string }
 //
 // Resolves the TorBox direct link (same call /stream makes) and decides
-// whether the audio needs transcoding:
+// whether the audio needs transcoding purely from the release name (see
+// hasIncompatibleAudio) — no ffprobe round-trip against the actual file.
 //
-//   1. If the release name declares an incompatible codec (DTS/TrueHD/Atmos —
-//      see hasIncompatibleAudio), go straight to the HLS transcode path. No
-//      ffprobe round-trip needed — this covers the overwhelming majority of
-//      4K remuxes and is instant.
-//   2. Otherwise probe the file's actual audio codec as a safety net (catches
-//      releases that don't declare their codec in the name). A multi-GB file
-//      whose index sits near the end can make this legitimately slow, so on
-//      a probe failure/timeout we default to transcoding rather than direct
-//      playback — silently losing audio is worse than an unnecessary remux.
+// This used to also fall back to probing the file directly when the name
+// was ambiguous, defaulting to "transcode" on a probe failure/timeout. That
+// turned out to be too aggressive against real TorBox links (probing a
+// multi-GB remote file is unreliable — slow index near EOF, network hiccups,
+// etc.), and a failed probe defaulting to "transcode" was dragging otherwise
+// fine 1080p streams into the transcode path and breaking them too. Deciding
+// from the name alone is a network-free, instant, deterministic check with
+// no failure mode of its own — anything not explicitly declaring DTS/TrueHD/
+// Atmos plays exactly as it always did, direct from TorBox's CDN.
 //
 // Video is never re-encoded either way (`-c:v copy`) — only ever the audio.
 // ---------------------------------------------------------------------------
@@ -272,29 +273,7 @@ router.post(
         return res.status(404).json({ error: result.detail || 'No stream URL available' })
       }
 
-      let needsTranscode: boolean
-      let reason: string
-
-      if (releaseName && torbox.hasIncompatibleAudio(releaseName)) {
-        needsTranscode = true
-        reason = 'release name declares incompatible audio'
-      } else {
-        try {
-          const probed = await transcode.probeStream(url)
-          needsTranscode = transcode.needsAudioTranscode(probed.audioCodec)
-          reason = `probed codec: ${probed.audioCodec ?? 'unknown'}`
-        } catch (probeErr: unknown) {
-          // Can't tell what's in the container — default to the safe
-          // outcome (transcode) rather than risking silent audio loss.
-          needsTranscode = true
-          reason = 'probe failed'
-          logger.warn('TorBox HLS probe failed, defaulting to audio transcode', {
-            torrentId,
-            fileId,
-            error: probeErr instanceof Error ? probeErr.message : String(probeErr),
-          })
-        }
-      }
+      const needsTranscode = !!releaseName && torbox.hasIncompatibleAudio(releaseName)
 
       if (!needsTranscode) {
         return res.json({ mode: 'direct', url })
@@ -305,7 +284,7 @@ router.post(
         torrentId,
         fileId,
         sessionId: session.id,
-        reason,
+        releaseName,
       })
 
       return res.json({
