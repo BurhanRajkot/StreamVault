@@ -11,7 +11,11 @@
 import { CONFIG } from '../src/lib/config'
 
 // Hosts that aren't stream providers but still need to be framable.
-const EXTRA_FRAME_SRC = ['https://vercel.live', 'https://*.vercel.live']
+// *.auth0.com covers the hidden /authorize?prompt=none iframe the SDK falls
+// back to when a rotated/revoked refresh token makes getAccessTokenSilently()
+// fail (see the useRefreshTokensFallback comment in src/auth/AuthProvider.tsx)
+// — including custom domains like stream-vault.jp.auth0.com.
+const EXTRA_FRAME_SRC = ['https://vercel.live', 'https://*.vercel.live', 'https://*.auth0.com']
 
 const frameSrc = ["'self'", CONFIG.CSP_FRAME_SRC, ...EXTRA_FRAME_SRC].join(' ')
 
