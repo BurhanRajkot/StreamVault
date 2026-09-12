@@ -80,7 +80,7 @@ router.post('/login', adminLoginRateLimiter, async (req: Request, res: Response)
     if (!code) {
       return res.status(400).json({
         error: 'Invalid request',
-        message: 'Admin code is required',
+        message: 'Authenticator code is required',
       })
     }
 
@@ -100,7 +100,7 @@ router.post('/login', adminLoginRateLimiter, async (req: Request, res: Response)
 
       return res.status(401).json({
         error: 'Authentication failed',
-        message: 'Invalid admin code',
+        message: 'Invalid authenticator code',
       })
     }
 

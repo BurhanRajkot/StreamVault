@@ -75,7 +75,10 @@ export async function searchComet(
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'StreamVault/1.0' },
-    signal: AbortSignal.timeout(20000),
+    // searchMediaTorrents waits on this via Promise.allSettled alongside
+    // apibay (8s timeout) — a slow/loaded public Comet instance shouldn't
+    // stall the whole search for anywhere near 20s.
+    signal: AbortSignal.timeout(9000),
   })
 
   if (!res.ok) {
