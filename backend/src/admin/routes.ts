@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import rateLimit from 'express-rate-limit'
-import { validateAdminCode, generateAdminToken, isAdminConfigured } from './auth'
+import { validateAdminCode, generateAdminToken, isAdminConfigured, TOKEN_EXPIRATION } from './auth'
 import { requireAdminAuth } from './middleware'
 
 const router = Router()
@@ -111,7 +111,7 @@ router.post('/login', adminLoginRateLimiter, async (req: Request, res: Response)
     return res.status(200).json({
       success: true,
       token,
-      expiresIn: '30m',
+      expiresIn: TOKEN_EXPIRATION,
     })
   } catch (_error) {
     return res.status(500).json({
