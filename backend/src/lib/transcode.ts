@@ -74,14 +74,20 @@ interface FfprobeOutput {
  * Probe a remote stream URL's codecs via ffprobe. TorBox's CDN already
  * supports HTTP range requests (native <video> seeking on it works today),
  * which is what lets ffprobe read container metadata without downloading the
- * whole file.
+ * whole file — but for a multi-GB 4K remux whose index sits near the end of
+ * the file, that can still legitimately take a few seconds, so callers on a
+ * latency budget should pass a smaller `timeoutMs` and treat a timeout as
+ * "unknown" (fail toward transcoding) rather than "safe".
  */
-export async function probeStream(url: string): Promise<ProbedStreams> {
+export async function probeStream(url: string, timeoutMs = 12_000): Promise<ProbedStreams> {
   return new Promise((resolve, reject) => {
     const args = [
       '-v', 'error',
       '-print_format', 'json',
       '-show_entries', 'stream=codec_type,codec_name:format=duration',
+      // Belt-and-suspenders network timeout on top of the JS-level kill
+      // below, in case a stalled connection doesn't otherwise error out.
+      '-rw_timeout', String(timeoutMs * 1000),
       url,
     ]
 
@@ -92,7 +98,7 @@ export async function probeStream(url: string): Promise<ProbedStreams> {
     const timer = setTimeout(() => {
       proc.kill('SIGKILL')
       reject(new Error('ffprobe timed out'))
-    }, SEGMENT_WAIT_TIMEOUT_MS)
+    }, timeoutMs)
 
     proc.stdout.on('data', (chunk: Buffer) => (out += chunk.toString()))
     proc.stderr.on('data', (chunk: Buffer) => (err += chunk.toString()))
@@ -169,6 +175,7 @@ export function createHlsSession(sourceUrl: string): HlsSession {
     '-f', 'hls',
     '-hls_time', '6',
     '-hls_list_size', '0',
+    '-hls_playlist_type', 'vod',
     '-hls_flags', 'independent_segments',
     '-hls_segment_filename', path.join(dir, 'seg_%05d.ts'),
     path.join(dir, 'playlist.m3u8'),
