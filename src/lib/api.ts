@@ -518,7 +518,7 @@ export type AdminLoginResponse = {
   expiresIn: string
 }
 
-/** Admin login with daily code. Returns a JWT token on success. */
+/** Admin login with a TOTP authenticator code. Returns a JWT token on success. */
 export async function adminLogin(code: string): Promise<AdminLoginResponse> {
   const res = await fetch(`${API_BASE}/admin/login`, {
     method: 'POST',

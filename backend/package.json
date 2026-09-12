@@ -9,7 +9,8 @@
     "start": "bun dist/index.js",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src --ext .ts",
     "test": "bun test",
-    "test:ci": "bun test --reporter=junit --reporter-outfile=test-results.xml"
+    "test:ci": "bun test --reporter=junit --reporter-outfile=test-results.xml",
+    "admin:setup-totp": "bun scripts/setup-admin-totp.ts"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +29,7 @@
     "jsonwebtoken": "^9.0.3",
     "lru-cache": "^11.5.1",
     "node-cache": "^5.1.2",
+    "otplib": "12.0.1",
     "qrcode": "^1.5.4",
     "redis": "^5.12.1",
     "uuid": "^14.0.1"

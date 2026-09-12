@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clapperboard, Crown, Heart, LogOut, Search, X } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Crown, Heart, LogOut, Search, Shield, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
@@ -382,6 +382,14 @@ export function Header({
               </Button>
             </Link>
 
+            <Link
+              to="/admin/dashboard"
+              className="hidden h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:text-foreground sm:inline-flex"
+              aria-label="Admin login"
+            >
+              <Shield className="h-5 w-5" />
+            </Link>
+
             <ThemeToggle />
 
             {isAuthenticated ? (
@@ -480,6 +488,14 @@ export function Header({
                       <Search className="h-[22px] w-[22px]" />
                     </button>
                   )}
+
+                  <Link
+                    to="/admin/dashboard"
+                    aria-label="Admin login"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground tap-scale"
+                  >
+                    <Shield className="h-[20px] w-[20px]" />
+                  </Link>
 
                   <ThemeToggle compact />
 
