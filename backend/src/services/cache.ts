@@ -146,6 +146,14 @@ export const userData = {
 export const seasons = createNamespace('season', 3600)
 
 /**
+ * TorBox indexer search results (Comet / apibay): 6 hours default.
+ * Release lists for a title change slowly, while the lookups behind them take
+ * seconds (Comet's public instance routinely 3-16s). Cache-status checks are
+ * NOT stored here — those are cheap and change constantly.
+ */
+export const torbox = createNamespace('torbox', 6 * 60 * 60)
+
+/**
  * Clear all caches completely
  */
 export async function clearAllCaches(): Promise<void> {

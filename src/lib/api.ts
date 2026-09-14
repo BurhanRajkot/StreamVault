@@ -695,6 +695,8 @@ export interface RecommendationResult {
   sections: RecoSection[]
   computedAt: string
   isPersonalized: boolean
+  /** Served from an out-of-date cache while the backend rebuilds — refetch shortly for the fresh result. */
+  isStale?: boolean
 }
 
 /** Fetch personalized recommendations for an authenticated user. */

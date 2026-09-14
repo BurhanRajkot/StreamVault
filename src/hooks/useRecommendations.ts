@@ -5,14 +5,20 @@
 // and change slowly; no need to re-fetch on every page visit.
 // ============================================================
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
 import {
   fetchRecommendations,
   fetchGuestRecommendations,
   RecoSection,
+  RecommendationResult,
 } from '../lib/api'
+import { readSnapshot, writeSnapshot } from '../lib/querySnapshot'
+
+/** Delay before re-requesting after the backend served stale recommendations (its rebuild takes ~1-4s). */
+const STALE_REFETCH_DELAY_MS = 5000
+const STALE_REFETCH_MAX_ATTEMPTS = 4
 
 interface UseRecommendationsReturn {
   sections: RecoSection[]
@@ -32,7 +38,9 @@ export function useRecommendations(enabled = true): UseRecommendationsReturn {
     [isAuthenticated, user?.sub]
   )
 
-  const { data, isLoading, error } = useQuery({
+  const snapshotKey = `recommendations:${queryKey[1]}`
+
+  const { data, isLoading, isPlaceholderData, error } = useQuery<RecommendationResult>({
     queryKey,
     queryFn: async ({ signal }) => {
       if (isAuthenticated) {
@@ -42,6 +50,10 @@ export function useRecommendations(enabled = true): UseRecommendationsReturn {
       }
       return fetchGuestRecommendations()
     },
+    // Last visit's rows, shown instantly while the real request runs. Waits
+    // for Auth0 so a signed-in user never flashes the guest snapshot.
+    placeholderData: () =>
+      authLoading ? undefined : readSnapshot<RecommendationResult>(snapshotKey),
     enabled: enabled && !authLoading,
     staleTime: 10 * 60 * 1000,  // 10 min — recommendations change slowly
     gcTime: 15 * 60 * 1000,     // keep 15 min after unmount
@@ -49,7 +61,24 @@ export function useRecommendations(enabled = true): UseRecommendationsReturn {
     retryDelay: 0,               // retry immediately — no exponential backoff delay
     refetchOnMount: false,       // don't re-fetch if data already in cache from eager load
     refetchOnWindowFocus: false, // don't re-trigger the expensive pipeline on tab switch
+    // The backend answers instantly from an out-of-date cache while it
+    // rebuilds in the background — come back for the rebuilt result. Capped
+    // so a rebuild that keeps failing can't turn into endless polling.
+    refetchInterval: (query) =>
+      query.state.data?.isStale && query.state.dataUpdateCount < STALE_REFETCH_MAX_ATTEMPTS
+        ? STALE_REFETCH_DELAY_MS
+        : false,
   })
+
+  // Written from an effect rather than inside queryFn because the eager
+  // prefetch in App.tsx fills this same cache entry without going through it.
+  useEffect(() => {
+    if (!data || isPlaceholderData) return
+    writeSnapshot<RecommendationResult>(snapshotKey, {
+      ...data,
+      items: [], // the rows only render `sections`; keep the snapshot small
+    })
+  }, [data, isPlaceholderData, snapshotKey])
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey })
