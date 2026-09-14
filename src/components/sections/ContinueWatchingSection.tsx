@@ -13,6 +13,7 @@ import { Media } from '@/lib/config'
 import { ContinueWatchingCard } from '@/components/media/ContinueWatchingCard'
 import { toast } from 'sonner'
 import { useScrollArrows } from '@/hooks/useScrollArrows'
+import { readSnapshot, writeSnapshot } from '@/lib/querySnapshot'
 
 import { ContinueWatchingItem } from '@/lib/api'
 
@@ -32,7 +33,9 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
 
   // Include the user's unique ID in the key so each account gets its own isolated
   // cache entry. Without this, User B logging in would see User A's cached data.
-  const queryKey = ['continueWatching', isAuthenticated ? (user?.sub ?? 'user') : 'guest', refreshKey]
+  const accountKey = isAuthenticated ? (user?.sub ?? 'user') : 'guest'
+  const queryKey = ['continueWatching', accountKey, refreshKey]
+  const snapshotKey = `continueWatching:${accountKey}`
 
   const [isHovered, setIsHovered] = useState(false)
 
@@ -60,12 +63,19 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
       // Hide almost-finished items (Netflix behavior) and cap max items
       const filtered = data.filter((i) => i.progress < 0.95).slice(0, 10)
 
-      if (filtered.length === 0) return []
-
       // This completely eliminates the old N+1 fetching bottleneck
-      const resolved = await fetchAggregatedContinueWatching(filtered)
-      return resolved as ContinueWatchingEntry[]
+      const resolved = filtered.length === 0
+        ? []
+        : (await fetchAggregatedContinueWatching(filtered)) as ContinueWatchingEntry[]
+
+      writeSnapshot(snapshotKey, resolved)
+      return resolved
     },
+    // Paint last visit's row immediately while the real fetch runs. Held back
+    // until Auth0 has resolved who the user is, so a signed-in user never
+    // flashes the guest snapshot first.
+    placeholderData: () =>
+      authLoading ? undefined : readSnapshot<ContinueWatchingEntry[]>(snapshotKey),
     // Don't run while Auth0 is still restoring session from localStorage —
     // otherwise the query fires as 'guest' first, caches guest data, and then
     // the user-key query fires too late (stale cache wins).

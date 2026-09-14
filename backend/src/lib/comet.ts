@@ -31,6 +31,8 @@ export interface CometStream {
   behaviorHints?: {
     filename?: string
     videoSize?: number
+    /** "comet|<debrid service>|<info-hash>" */
+    bingeGroup?: string
   }
 }
 
@@ -75,10 +77,12 @@ export async function searchComet(
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'StreamVault/1.0' },
-    // searchMediaTorrents waits on this via Promise.allSettled alongside
-    // apibay (8s timeout) — a slow/loaded public Comet instance shouldn't
-    // stall the whole search for anywhere near 20s.
-    signal: AbortSignal.timeout(9000),
+    // Deliberately generous: this is how long the lookup may *run*, not how
+    // long a user waits on it. searchMediaTorrents bounds the wait separately
+    // and lets a slow lookup finish in the background so its result is cached
+    // for the next request. (The public instance measured 3-16s uncached, so
+    // the old 9s abort meant slow titles could never complete, let alone cache.)
+    signal: AbortSignal.timeout(25_000),
   })
 
   if (!res.ok) {
@@ -101,24 +105,56 @@ export interface CometTorrentCandidate {
   name: string
   size: number
   seeders: number
+  /** Comet tagged this stream as already cached on the debrid service (⚡). A hint only — TorBox's own cache check is authoritative. */
+  cachedHint: boolean
+}
+
+const INFO_HASH_RE = /^[a-fA-F0-9]{40}$/
+const BINGE_GROUP_HASH_RE = /\|([a-fA-F0-9]{40})$/
+
+/**
+ * The torrent info-hash behind a Comet stream.
+ *
+ * With a debrid service configured, the public instance returns resolved
+ * playback streams with no top-level `infoHash` at all (0 of 2,085 streams
+ * for a popular movie, as of Sept 2026) — the hash only survives in
+ * `behaviorHints.bingeGroup` as "comet|<service>|<hash>". Reading just
+ * `infoHash` silently turned every Comet search into zero candidates.
+ */
+function streamInfoHash(stream: CometStream): string | null {
+  if (typeof stream.infoHash === 'string' && INFO_HASH_RE.test(stream.infoHash)) {
+    return stream.infoHash
+  }
+  return stream.behaviorHints?.bingeGroup?.match(BINGE_GROUP_HASH_RE)?.[1] ?? null
+}
+
+/** Release name for display and quality/audio parsing — the actual filename, not Comet's multi-line emoji description. */
+function streamReleaseName(stream: CometStream): string {
+  const firstDescriptionLine = (stream.description || stream.title || '')
+    .split('\n')[0]
+    .replace(/^📄\s*/u, '')
+    .trim()
+  return stream.behaviorHints?.filename || firstDescriptionLine || stream.name || 'Unknown release'
 }
 
 /**
- * The subset of Comet's results we can drive ourselves — anything exposing a
- * raw info-hash. (Resolved debrid stream objects without one are skipped: we
- * have no way to poll their download progress, and TorBox's own cache-check
- * already tells us what's instantly playable.)
+ * The subset of Comet's results we can drive ourselves — anything we can
+ * recover a torrent info-hash for (see streamInfoHash). Those get fed through
+ * TorBox's own add / cache-check / poll pipeline rather than Comet's opaque
+ * playback URLs.
  */
 export function cometTorrentCandidates(streams: CometStream[]): CometTorrentCandidate[] {
-  return streams
-    .filter(
-      (s): s is CometStream & { infoHash: string } =>
-        typeof s.infoHash === 'string' && /^[a-fA-F0-9]{40}$/.test(s.infoHash)
-    )
-    .map((s) => ({
-      infoHash: s.infoHash.toUpperCase(),
-      name: s.description || s.title || s.name || 'Unknown release',
-      size: s.behaviorHints?.videoSize || 0,
-      seeders: parseSeeders(s),
-    }))
+  const candidates: CometTorrentCandidate[] = []
+  for (const stream of streams) {
+    const infoHash = streamInfoHash(stream)
+    if (!infoHash) continue
+    candidates.push({
+      infoHash: infoHash.toUpperCase(),
+      name: streamReleaseName(stream),
+      size: stream.behaviorHints?.videoSize || 0,
+      seeders: parseSeeders(stream),
+      cachedHint: (stream.name || '').includes('⚡'),
+    })
+  }
+  return candidates
 }
