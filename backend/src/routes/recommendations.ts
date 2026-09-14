@@ -117,10 +117,19 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     // directly from Supabase pgvector using the matched ML embedding.
     const result = await getRecommendations(userId, { limit, forceRefresh, useVectorML: tryMlVector })
 
-    await cache.userData.set(cacheKey, result, 300)
     res.setHeader('X-Cache', 'MISS')
     res.setHeader('X-CineMatch-Pipeline', result.pipelineMs !== undefined ? `live-${result.pipelineMs}ms` : 'live')
     if (tryMlVector) res.setHeader('X-CineMatch-Engine', 'two-tower-ann')
+
+    // A stale result is a stopgap while a background rebuild runs — caching
+    // it here (or letting the browser cache it) would hand the client's
+    // follow-up refetch the same stale payload instead of the rebuilt one.
+    if (result.isStale) {
+      res.setHeader('Cache-Control', 'no-store')
+      return res.json(result)
+    }
+
+    await cache.userData.set(cacheKey, result, 300)
     res.setHeader('Cache-Control', 'private, max-age=300')
     return res.json(result)
   } catch (err: unknown) {

@@ -3,3 +3,4 @@
 -- NULL means no expiry (e.g. pre-existing lifetime grants).
 ALTER TABLE "User"
   ADD COLUMN IF NOT EXISTS "subscriptionExpiresAt" TIMESTAMPTZ;
+its 

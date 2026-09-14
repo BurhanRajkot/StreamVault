@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import {
   fetchTorboxList,
+  fetchTorboxTorrent,
   startTorboxHls,
   resolveTorboxHlsUrl,
   searchTorboxMedia,
@@ -170,24 +171,27 @@ export function TorboxPlayerPane({
       setActiveRelease(release)
 
       try {
-        const addRes = await addTorboxByHash(release.info_hash, release.name, token)
-
-        // TorBox sometimes returns the full file listing inline for an
-        // already-cached hash — when it does, skip the full-library
-        // `mylist` fetch entirely (it's a shared account's whole torrent
-        // list, which is slow) and go straight to requesting a stream URL.
-        // A "release" can be a season pack, so we still need *some* file
-        // listing to pick the exact episode requested, not just file 0 —
-        // fall back to `mylist` when the add response doesn't include one.
+        // The backend attaches the file list (looked up by torrent id) so we
+        // can go straight to requesting a stream URL. A "release" can be a
+        // season pack, so we need *some* file listing to pick the exact
+        // episode requested, not just file 0.
+        const addRes = await addTorboxByHash(release.info_hash, release.name, token, {
+          includeFiles: true,
+        })
         let torrentId = addRes.data?.torrent_id
         let files = addRes.data?.files
 
-        if (!torrentId || !files || files.length === 0) {
-          const list = await fetchTorboxList(token)
+        if (torrentId && (!files || files.length === 0)) {
+          files = (await fetchTorboxTorrent(torrentId, token))?.files
+        } else if (!torrentId) {
+          // No id back from the add (e.g. already in the account) — find it
+          // by hash. TorBox's cached listing is fine for that and ~6x faster
+          // than a fresh one.
+          const list = await fetchTorboxList(token, { fresh: false })
           const match = list.data?.find(
             (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
           )
-          torrentId = torrentId ?? match?.id
+          torrentId = match?.id
           files = files && files.length > 0 ? files : match?.files
         }
 
@@ -228,8 +232,9 @@ export function TorboxPlayerPane({
 
       while (pollGenerationRef.current === myGeneration && Date.now() - startedAt < timeoutMs) {
         try {
-          const list = await fetchTorboxList(token)
-          const torrent = list.data?.find((t) => t.id === torrentId)
+          // Just this torrent — polling the whole shared library every few
+          // seconds took longer (~6.7s) than the poll interval itself.
+          const torrent = await fetchTorboxTorrent(torrentId, token)
 
           if (torrent) {
             const file = pickPlaybackFile(torrent.files, mediaType, season, episode)
@@ -285,7 +290,7 @@ export function TorboxPlayerPane({
         let torrentId = addRes.data?.torrent_id
 
         if (!torrentId) {
-          const list = await fetchTorboxList(token)
+          const list = await fetchTorboxList(token, { fresh: false })
           const match = list.data?.find(
             (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
           )
@@ -349,7 +354,9 @@ export function TorboxPlayerPane({
       // the exact episode wanted — better to search fresh via Comet below.
       if (mediaType === 'movie') {
         try {
-          const list = await fetchTorboxList(token)
+          // Cached listing: this is a name match, and a torrent found here
+          // that isn't finished yet gets polled live by id below anyway.
+          const list = await fetchTorboxList(token, { fresh: false })
           if (list.success && list.data) {
             const torrent = findTorrentForTitle(list.data, title)
             if (torrent) {

@@ -101,11 +101,28 @@ router.get('/status', async (_req, res) => {
 // /add-hash and /stream below, which are already unauthenticated. The
 // automatic player pane (TorboxPlayerPane) needs this for guests too, to
 // look up a torrent's file list and pick the right episode.
+//
+// Query:
+//   ?id=<torrentId> — just that torrent (still returned as a one-item array).
+//                     ~0.4s vs ~6.7s for the full shared-account listing.
+//   ?fresh=false    — full listing from TorBox's own cache (~1s); download
+//                     state may lag by a little.
 // ---------------------------------------------------------------------------
 
-router.get('/mylist', async (_req: Request, res: Response) => {
+router.get('/mylist', async (req: Request, res: Response) => {
+  const rawId = req.query.id as string | undefined
+  const torrentId = rawId !== undefined ? Number(rawId) : undefined
+  if (torrentId !== undefined && (!Number.isInteger(torrentId) || torrentId <= 0)) {
+    return res.status(400).json({ error: 'id must be a positive integer' })
+  }
+
   try {
-    const result = await torbox.myList()
+    if (torrentId !== undefined) {
+      const single = await torbox.getTorrent(torrentId)
+      return res.json({ ...single, data: single.data ? [single.data] : [] })
+    }
+
+    const result = await torbox.myList(req.query.fresh !== 'false')
     return res.json(result)
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
@@ -463,17 +480,26 @@ router.get('/media-search', checkAuth, async (req: Request, res: Response) => {
 
 // ---------------------------------------------------------------------------
 // POST /torbox/add-hash — auth + premium
-// Body: { hash: string, name: string }
+// Body: { hash: string, name: string, includeFiles?: boolean }
 //
 // Adds a torrent to TorBox by its info-hash (constructs the magnet URI).
 // Used by the Search UI "Add to TorBox" button for uncached results.
+//
+// `includeFiles` — TorBox's create call usually omits the file list, which
+// the player needs to pick the right file. When set, it's looked up here by
+// torrent id (one ~0.4s call) so the client doesn't need a separate round
+// trip, let alone the full-library `mylist`.
 // ---------------------------------------------------------------------------
 
 router.post('/add-hash', checkAuth, async (req: Request, res: Response) => {
   const denied = await authorizeTorboxAccess(req)
   if (denied) return res.status(denied.status).json(denied.body)
 
-  const { hash, name } = req.body as { hash?: string; name?: string }
+  const { hash, name, includeFiles } = req.body as {
+    hash?: string
+    name?: string
+    includeFiles?: boolean
+  }
 
   if (!hash || typeof hash !== 'string' || !/^[a-fA-F0-9]{40}$/i.test(hash)) {
     return res.status(400).json({ error: 'A valid 40-char hex info-hash is required' })
@@ -484,6 +510,23 @@ router.post('/add-hash', checkAuth, async (req: Request, res: Response) => {
   try {
     const result = await torbox.createTorrent(magnet, name)
     logger.info('TorBox torrent added via hash', { hash, name })
+
+    const torrentId = result.data?.torrent_id
+    if (includeFiles === true && torrentId && !result.data.files?.length) {
+      try {
+        const torrent = await torbox.getTorrent(torrentId)
+        if (torrent.data?.files?.length) {
+          return res.json({ ...result, data: { ...result.data, files: torrent.data.files } })
+        }
+      } catch (lookupErr: unknown) {
+        // Non-fatal — the client falls back to looking the torrent up itself.
+        logger.warn('TorBox file lookup after add failed', {
+          torrentId,
+          error: lookupErr instanceof Error ? lookupErr.message : String(lookupErr),
+        })
+      }
+    }
+
     return res.json(result)
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)

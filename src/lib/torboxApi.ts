@@ -84,17 +84,42 @@ export async function fetchTorboxStatus(): Promise<{
 
 /**
  * List the authenticated user's active TorBox torrents.
- * @param token - Auth0 access token or admin token
+ *
+ * The full listing is slow on a large shared account (~6.7s fresh). When the
+ * torrent id is already known, use `fetchTorboxTorrent` instead.
+ *
+ * @param token      - Auth0 access token or admin token
+ * @param opts.fresh - `false` reads TorBox's cached listing (~1s) — fine for
+ *                     finding a torrent by name/hash, not for live progress.
  */
-export async function fetchTorboxList(token?: string): Promise<{
+export async function fetchTorboxList(
+  token?: string,
+  opts: { fresh?: boolean } = {}
+): Promise<{
   success: boolean
   data: TorboxTorrent[]
   detail: string
 }> {
-  const res = await fetch(`${API_BASE}/torbox/mylist`, {
+  const query = opts.fresh === false ? '?fresh=false' : ''
+  const res = await fetch(`${API_BASE}/torbox/mylist${query}`, {
     headers: authHeaders(token),
   })
   return handleResponse(res)
+}
+
+/**
+ * Fetch one torrent (live download state + file list) by id.
+ * @returns The torrent, or `null` when TorBox doesn't know that id.
+ */
+export async function fetchTorboxTorrent(
+  torrentId: number,
+  token?: string
+): Promise<TorboxTorrent | null> {
+  const res = await fetch(`${API_BASE}/torbox/mylist?id=${torrentId}`, {
+    headers: authHeaders(token),
+  })
+  const body = await handleResponse<{ data: TorboxTorrent[] }>(res)
+  return body.data?.[0] ?? null
 }
 
 /**
@@ -288,11 +313,14 @@ export async function searchTorboxMedia(
  * @param hash  - 40-char hex info-hash
  * @param name  - Display name (from search result)
  * @param token - Auth0/admin token
+ * @param opts.includeFiles - Have the backend attach the torrent's file list
+ *                            (saves a separate lookup before playback)
  */
 export async function addTorboxByHash(
   hash: string,
   name: string,
-  token?: string
+  token?: string,
+  opts: { includeFiles?: boolean } = {}
 ): Promise<{
   success: boolean
   data: { torrent_id: number; hash: string; name: string; files?: TorboxFile[] } | null
@@ -301,7 +329,7 @@ export async function addTorboxByHash(
   const res = await fetch(`${API_BASE}/torbox/add-hash`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ hash, name }),
+    body: JSON.stringify({ hash, name, includeFiles: opts.includeFiles }),
   })
   return handleResponse(res)
 }

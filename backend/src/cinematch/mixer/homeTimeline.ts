@@ -25,6 +25,7 @@ import {
   CandidateSource,
 } from '../types'
 import { buildSections } from './sectionBuilder'
+import { logger } from '../../lib/logger'
 
 /** Check source membership using the multi-source array produced by RRF,
  *  with a fallback to the legacy single-source field for older cached entries. */
@@ -36,8 +37,13 @@ function hasSource(c: ScoredCandidate, source: CandidateSource): boolean {
 const recCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
 const TOP_K = 150           // Total candidates to rank and return
-const CACHE_TTL_DB = 300    // Seconds to persist in Supabase RecommendationCache
-const STALE_WHILE_REVALIDATE_TTL = 600  // Serve stale cache up to 10 min, recompute in bg
+const CACHE_TTL_DB = 300    // Seconds before a Supabase RecommendationCache row counts as stale
+// How long a stale row may still be served (instantly) while a rebuild runs in
+// the background. This used to be 10 minutes, which on a low-traffic site
+// meant nearly every first visit of a session found the row "hard-expired"
+// and blocked on the full multi-second pipeline. Yesterday's recommendations
+// shown immediately and refreshed a few seconds later beat a blank row.
+const STALE_WHILE_REVALIDATE_TTL = 7 * 24 * 60 * 60
 const SOURCE_TIMEOUT_MS = Number(process.env.CINEMATCH_SOURCE_TIMEOUT_MS || 2500)
 
 // ── In-Flight Request Deduplication ───────────────────────
@@ -85,7 +91,9 @@ async function computeAndCacheRecommendations(
 // ── Supabase Cache Persistence ────────────────────────────
 async function persistToDb(userId: string, ranked: ScoredCandidate[]): Promise<void> {
   try {
-    await supabaseAdmin
+    // supabase-js reports failures via `error`, not by throwing — without
+    // checking it, a broken write here fails silently forever.
+    const { error } = await supabaseAdmin
       .from('RecommendationCache')
       .upsert({
         userId,
@@ -93,6 +101,9 @@ async function persistToDb(userId: string, ranked: ScoredCandidate[]): Promise<v
         computedAt: new Date().toISOString(),
         ttlSeconds: CACHE_TTL_DB,
       }, { onConflict: 'userId' })
+    if (error) {
+      logger.warn('[CineMatch] RecommendationCache write failed', { error: error.message })
+    }
   } catch {
     // Non-critical — in-memory cache still works
   }
@@ -206,10 +217,14 @@ export async function getRecommendations(
   if (!options.forceRefresh) {
     const dbResult = await readFromDb(userId)
     if (dbResult) {
-      recCache.set(userId, dbResult.candidates)  // promote to L1
       const isPersonalized = inferIsPersonalized(dbResult.candidates)
 
-      if (dbResult.isStale) {
+      // Only promote fresh rows to L1 — a stale row promoted there would be
+      // served to follow-up requests without its `isStale` flag, so the
+      // client would stop waiting for the rebuild that's still running.
+      if (!dbResult.isStale) {
+        recCache.set(userId, dbResult.candidates)
+      } else {
         // Fire-and-forget recompute so next request hits fresh L1/L2
         // Deduplicated background task!
         computeAndCacheRecommendations(userId, options.useVectorML).catch((err) => {
@@ -219,7 +234,10 @@ export async function getRecommendations(
         })
       }
 
-      return buildCachedResponse(userId, dbResult.candidates, limit, isPersonalized)
+      return {
+        ...buildCachedResponse(userId, dbResult.candidates, limit, isPersonalized),
+        isStale: dbResult.isStale,
+      }
     }
   }
 
@@ -315,12 +333,14 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
 export function invalidateRecommendationCache(userId: string): void {
   recCache.del(userId)
   invalidateUserProfile(userId)
-  // Also delete stale Supabase cache (async, non-blocking)
+  // Mark the Supabase row stale rather than deleting it: the next feed load
+  // then serves it instantly and rebuilds in the background, instead of
+  // blocking a blank row on the full pipeline (async, non-blocking).
   void (async () => {
     try {
       await supabaseAdmin
         .from('RecommendationCache')
-        .delete()
+        .update({ ttlSeconds: 0 })
         .eq('userId', userId)
     } catch {
       // Non-critical side-effect

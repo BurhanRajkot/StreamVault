@@ -18,7 +18,9 @@
  *   uncached hashes are shown with an "Add to TorBox" option.
  */
 
-import { searchComet, cometTorrentCandidates } from './comet'
+import { searchComet, cometTorrentCandidates, type CometTorrentCandidate } from './comet'
+import * as cache from '../services/cache'
+import { logger } from './logger'
 
 const TORBOX_BASE = 'https://api.torbox.app/v1/api'
 const TORBOX_KEY = process.env.TORBOX_API_KEY
@@ -193,9 +195,25 @@ export async function getUpStatus(): Promise<TorboxEnvelope<TorboxUpStatus>> {
 
 /**
  * List all active torrents in the user's TorBox account.
+ *
+ * @param bypassCache - Force TorBox to rebuild the listing. Accurate to the
+ *   second, but measured ~6.7s (vs ~1s) on a 145-torrent shared account, since
+ *   it returns every torrent's full file list. Pass `false` when slightly
+ *   stale download state is acceptable (e.g. finding a torrent by name).
  */
-export async function myList(): Promise<TorboxEnvelope<TorboxTorrent[]>> {
-  return torboxFetch<TorboxTorrent[]>('/torrents/mylist?bypass_cache=true')
+export async function myList(bypassCache = true): Promise<TorboxEnvelope<TorboxTorrent[]>> {
+  return torboxFetch<TorboxTorrent[]>(`/torrents/mylist${bypassCache ? '?bypass_cache=true' : ''}`)
+}
+
+/**
+ * Fetch a single torrent (with its file list and live download state) by id.
+ * ~0.4s regardless of library size — use this instead of `myList()` whenever
+ * the torrent id is already known.
+ */
+export async function getTorrent(torrentId: number): Promise<TorboxEnvelope<TorboxTorrent | null>> {
+  return torboxFetch<TorboxTorrent | null>(
+    `/torrents/mylist?bypass_cache=true&id=${encodeURIComponent(String(torrentId))}`
+  )
 }
 
 /**
@@ -373,6 +391,76 @@ export function isImaxRelease(name: string): boolean {
   return /\bIMAX\b/i.test(name)
 }
 
+// ---------------------------------------------------------------------------
+// Indexer lookup caching (searchMediaTorrents only)
+// ---------------------------------------------------------------------------
+
+/** apibay never returns more than 100 rows; cache the whole page and slice per request. */
+const APIBAY_MAX_RESULTS = 100
+
+/** How long a movie search waits for Comet (from search start) once apibay already has results. */
+const MOVIE_COMET_GRACE_MS = 2500
+
+/** How long a search waits for Comet when it's the only source with results (TV, obscure movies). */
+const COMET_ONLY_WAIT_MS = 12_000
+
+/**
+ * Comet returns every release it knows (2,000+ for a popular movie). Only the
+ * best-seeded few hundred ever reach the cache check below, so that's all
+ * worth caching.
+ */
+const COMET_CACHED_CANDIDATES_MAX = 300
+
+const inflightIndexLookups = new Map<string, Promise<unknown[]>>()
+
+/**
+ * Serve an indexer lookup from cache, sharing one in-flight request between
+ * concurrent callers for the same key. Non-empty results are cached; empty
+ * ones aren't, since those are as likely to be a transient indexer failure
+ * as a genuine "no releases", and a retry should get a real second chance.
+ */
+async function cachedIndexLookup<T>(key: string, fetcher: () => Promise<T[]>): Promise<T[]> {
+  const hit = await cache.torbox.get<T[]>(key)
+  if (hit) return hit
+
+  const inflight = inflightIndexLookups.get(key) as Promise<T[]> | undefined
+  if (inflight) return inflight
+
+  const lookup = fetcher()
+    .then(async (results) => {
+      if (results.length > 0) await cache.torbox.set(key, results)
+      return results
+    })
+    .finally(() => inflightIndexLookups.delete(key))
+
+  inflightIndexLookups.set(key, lookup)
+  return lookup
+}
+
+/** Resolve with `promise`'s value if it settles within `ms`, otherwise `undefined` (the promise keeps running). */
+function resolveWithin<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(undefined)
+      }
+    )
+  })
+}
+
+function trimCometCandidates(candidates: CometTorrentCandidate[]): CometTorrentCandidate[] {
+  return candidates
+    .filter((c) => c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES)
+    .sort((a, b) => Number(b.cachedHint) - Number(a.cachedHint) || b.seeders - a.seeders)
+    .slice(0, COMET_CACHED_CANDIDATES_MAX)
+}
+
 /**
  * Search for a specific movie/episode by TMDB-derived identity (title +
  * IMDb id, + season/episode for TV) across every source we have: Comet
@@ -383,6 +471,9 @@ export function isImaxRelease(name: string): boolean {
  * Results from both sources are merged (de-duped by info-hash, Comet wins
  * ties since it's the more precisely-matched source), filtered to a sane
  * size cap, then checked against TorBox's cache in a single batched call.
+ *
+ * Indexer results are cached per title/episode (see cachedIndexLookup); only
+ * the cache-status check runs fresh on every call.
  */
 export async function searchMediaTorrents(params: {
   title: string
@@ -394,23 +485,44 @@ export async function searchMediaTorrents(params: {
 }): Promise<TorboxEnvelope<TorboxSearchResult[]>> {
   const { title, imdbId, mediaType, season, episode, limit = 20 } = params
   const useApibay = mediaType === 'movie'
+  const startedAt = Date.now()
 
-  const [apibaySettled, cometSettled] = await Promise.allSettled([
-    // Fetch a larger pool than `limit` — the size cap + Comet dedup below
-    // filter this down, so slicing to `limit` here first could throw away
-    // a smaller, well-seeded 4K release in favor of one that gets excluded
-    // for being oversized.
-    useApibay
-      ? fetchApibayResults(title, Math.max(limit * 3, 60), 207)
-      : Promise.resolve([] as ApibayResult[]),
-    imdbId
-      ? searchComet(imdbId, mediaType === 'tv' ? 'series' : 'movie', season, episode)
-      : Promise.resolve([]),
-  ])
+  // Both lookups start immediately and are cached per title/episode, with the
+  // `.catch` attached up front so a source failing while we're still awaiting
+  // the other can't surface as an unhandled rejection.
+  const cometPromise: Promise<CometTorrentCandidate[]> = imdbId
+    ? cachedIndexLookup(`comet:${mediaType}:${imdbId}:${season ?? ''}:${episode ?? ''}`, async () =>
+        trimCometCandidates(
+          cometTorrentCandidates(
+            await searchComet(imdbId, mediaType === 'tv' ? 'series' : 'movie', season, episode)
+          )
+        )
+      ).catch(() => [])
+    : Promise.resolve([])
 
-  const apibayResults = apibaySettled.status === 'fulfilled' ? apibaySettled.value : []
-  const cometCandidates =
-    cometSettled.status === 'fulfilled' ? cometTorrentCandidates(cometSettled.value) : []
+  const apibayPromise: Promise<ApibayResult[]> = useApibay
+    ? cachedIndexLookup(`apibay:207:${title.toLowerCase()}`, () =>
+        fetchApibayResults(title, APIBAY_MAX_RESULTS, 207)
+      ).catch(() => [])
+    : Promise.resolve([])
+
+  // Fetch a larger pool than `limit` — the size cap + Comet dedup below
+  // filter this down, so slicing to `limit` here first could throw away
+  // a smaller, well-seeded 4K release in favor of one that gets excluded
+  // for being oversized.
+  const apibayResults = (await apibayPromise).slice(0, Math.max(limit * 3, 60))
+
+  // Don't let Comet hold a movie search hostage: once apibay has produced
+  // releases, give Comet only what's left of a short grace window. If it
+  // misses that, it keeps running in the background and lands in the cache,
+  // so the next search for this title gets both sources instantly. With no
+  // apibay results (TV, or an obscure movie) Comet is the only source, so
+  // it's worth waiting on longer.
+  const cometWaitMs =
+    apibayResults.length > 0
+      ? Math.max(0, MOVIE_COMET_GRACE_MS - (Date.now() - startedAt))
+      : COMET_ONLY_WAIT_MS
+  const cometCandidates = (await resolveWithin(cometPromise, cometWaitMs)) ?? []
 
   interface Candidate {
     name: string
@@ -420,6 +532,8 @@ export async function searchMediaTorrents(params: {
     leechers: number
     num_files: number
     source: 'comet' | 'apibay'
+    /** Source already believes it's cached on TorBox (Comet's ⚡ tag) — used to prioritize the cache check. */
+    cachedHint: boolean
   }
 
   const merged = new Map<string, Candidate>()
@@ -433,6 +547,7 @@ export async function searchMediaTorrents(params: {
       leechers: 0,
       num_files: 1,
       source: 'comet',
+      cachedHint: c.cachedHint,
     })
   }
 
@@ -447,6 +562,7 @@ export async function searchMediaTorrents(params: {
       leechers: parseInt(r.leechers, 10) || 0,
       num_files: parseInt(r.num_files, 10) || 1,
       source: 'apibay',
+      cachedHint: false,
     })
   }
 
@@ -462,17 +578,32 @@ export async function searchMediaTorrents(params: {
   }
 
   const cachedSet = new Set<string>()
-  try {
-    // Cap the batch — no point cache-checking more than we'll ever show.
-    const toCheck = candidates
-      .sort((a, b) => b.seeders - a.seeders)
-      .slice(0, Math.max(limit * 3, 30))
-    const cacheRes = await checkCachedBatch(toCheck.map((c) => c.info_hash))
-    if (cacheRes.success && Array.isArray(cacheRes.data)) {
-      for (const entry of cacheRes.data) cachedSet.add(entry.hash.toUpperCase())
+  // Cap the batch — no point cache-checking more than we'll ever show.
+  // Comet no longer reports seeders, so its releases would all sort behind
+  // apibay's and fall off this cap; check the ones it flags as cached first.
+  const toCheck = candidates
+    .sort((a, b) => Number(b.cachedHint) - Number(a.cachedHint) || b.seeders - a.seeders)
+    .slice(0, Math.max(limit * 3, 30))
+    .map((c) => c.info_hash)
+
+  // A failed check isn't just cosmetic: with nothing marked cached, the player
+  // skips straight to the slow add-and-download path. Retry a transient
+  // failure (e.g. a TorBox rate limit) once before giving up.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const cacheRes = await checkCachedBatch(toCheck)
+      if (cacheRes.success && Array.isArray(cacheRes.data)) {
+        for (const entry of cacheRes.data) cachedSet.add(entry.hash.toUpperCase())
+        break
+      }
+      throw new Error(cacheRes.detail || 'checkcached returned success=false')
+    } catch (err: unknown) {
+      logger.warn('TorBox cache check failed', {
+        attempt,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 400))
     }
-  } catch {
-    // Cache check failure is non-fatal — results just won't show instant badges
   }
 
   const annotated: TorboxSearchResult[] = candidates.map((c) => ({

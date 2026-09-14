@@ -115,6 +115,7 @@ export interface RecommendationResult {
   computedAt: string
   isPersonalized: boolean
   pipelineMs?: number  // Pipeline execution time in ms (for debug)
+  isStale?: boolean    // Served from an out-of-date cache while a rebuild runs — client should refetch shortly
 }
 
 // UI section like "Because you watched Game of Thrones"
