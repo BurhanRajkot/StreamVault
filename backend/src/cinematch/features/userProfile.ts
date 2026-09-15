@@ -129,10 +129,15 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   if (cached) return cached
 
   // Fetch recent interaction events in one query to avoid a second round trip.
+  // Excludes 'click'/'search' — those are weak curiosity/intent signals (browsing,
+  // not taste) that would otherwise crowd real watch/favorite/rate/dislike signal
+  // out of the FEATURE_BATCH_SIZE window below, since clicks happen far more often
+  // than completed watches. See [[feedback-cinematch-signal-noise]].
   const { data: interactions, error } = await supabaseAdmin
     .from('UserInteractions')
     .select('tmdbId, mediaType, eventType, weight, createdAt, progress')
     .eq('userId', userId)
+    .in('eventType', ['watch', 'favorite', 'rate', 'dislike'])
     .order('createdAt', { ascending: false })
     .limit(MAX_INTERACTIONS_FETCH)
 
