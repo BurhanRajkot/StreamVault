@@ -149,18 +149,31 @@ export async function logInteraction(event: {
     invalidateUserProfile(event.userId)
   }
 
-  // Update UserGenreProfile incrementally (async, non-blocking).
-  // If genreIds were supplied by the frontend, skip the extra getMovieFeatures() call.
-  updateGenreProfileIncremental(event.userId, event.tmdbId, event.mediaType, weight, event.genreIds)
-    .catch(() => {})
+  // Update UserGenreProfile incrementally (async, non-blocking) — skip for
+  // 'click'/'search' for the same reason as the cache invalidation above, but
+  // more importantly here: this EMA-blends straight into the PERSISTED,
+  // long-term taste profile that seedFromPersistedProfile() re-seeds into
+  // genreVector on every getUserProfile() call. Browsing clicks happen far
+  // more often than completed watches, so letting them write here let casual
+  // curiosity permanently drag the profile toward "whatever was clicked on"
+  // instead of "what was actually watched/liked" — recommendations drifting
+  // generic and taste-blind over time. If genreIds were supplied by the
+  // frontend, skip the extra getMovieFeatures() call.
+  if (event.eventType !== 'click' && event.eventType !== 'search') {
+    updateGenreProfileIncremental(event.userId, event.tmdbId, event.mediaType, weight, event.genreIds)
+      .catch(() => {})
+  }
 }
 
 // ── Incremental genre profile update ─────────────────────
-// FIXED: Previously wrote {} as a stub. Now fetches the actual movie's
-// genres and merges them into the persisted genreMap using an EMA blend:
-//   new_weight = 0.9 * existing + 0.1 * interaction_this_event
-// This means the profile stays fresh after each interaction without
-// a full rebuild from all 200 historical interactions.
+// Merges this movie's genres into the persisted genreMap: every existing
+// genre decays a little (GENRE_DECAY_PER_EVENT), then the genres this item
+// actually has get EMA-blended toward the interaction's weight
+// (new = 0.85 * decayed_existing + 0.15 * interaction_this_event). This means
+// the profile stays fresh after each interaction without a full rebuild from
+// all 200 historical interactions, and — critically — genres the user stops
+// engaging with actually fade instead of sitting frozen at whatever they last
+// reached.
 //
 // OPTIMISED: If genreIds are supplied (from the frontend watch payload),
 // the extra getMovieFeatures() Supabase lookup is skipped entirely.
@@ -200,10 +213,31 @@ async function updateGenreProfileIncremental(
         ? existing.genreMap as Record<string, number>
         : {}
 
+    // Decay EVERY existing genre a touch on each event, not just the ones this
+    // item touches — without this, any genre that shows up in even ~5% of
+    // watched titles converges to the ±1 clamp within a few hundred events,
+    // because a genre absent from the current item never loses ground; it
+    // just sits wherever it last landed forever. That's what was happening in
+    // production: real profiles had nearly every genre saturated at 0.9-1.0
+    // (verified against live data), so the ranker's genre-affinity term
+    // stopped discriminating anything and recommendations collapsed to
+    // popularity/freshness — generic and taste-blind regardless of what was
+    // actually watched. 0.98 settles into a stable, well-separated
+    // equilibrium within ~50-100 events for any occurrence rate (simulated),
+    // rather than everything eventually pinning at the ceiling.
+    const GENRE_DECAY_PER_EVENT = 0.98
+    const updatedMap: Record<string, number> = {}
+    for (const [key, val] of Object.entries(existingMap)) {
+      if (key === '_meta') continue // nested keyword/cast/director/decade maps — copied through untouched below
+      updatedMap[key] = val * GENRE_DECAY_PER_EVENT
+    }
+    if ('_meta' in existingMap) {
+      (updatedMap as Record<string, unknown>)._meta = (existingMap as Record<string, unknown>)._meta
+    }
+
     // Exponential moving average blend for each genre this movie belongs to.
     // Negative weights (dislike / low rating) push genre scores DOWN.
     // Clamped to [-1, 1] to prevent unbounded drift.
-    const updatedMap = { ...existingMap }
     for (const genreId of resolvedGenreIds) {
       const key = String(genreId)
       const current = updatedMap[key] ?? 0
