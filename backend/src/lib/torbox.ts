@@ -374,16 +374,25 @@ function releaseQualityRank(name: string): number {
 
 /**
  * True when the release name explicitly declares an audio codec no
- * mainstream browser can decode natively — DTS (incl. DTS-HD/-X) and Dolby
- * TrueHD/Atmos. These are the default audio tracks on BluRay-sourced remuxes,
- * which UHD/4K releases are disproportionately sourced from, and the
- * `<video>` element plays the picture fine while silently dropping audio
- * instead of erroring — no exception, no onError. AC3/E-AC3/DD+ are left
- * untagged since browser support for those is inconsistent rather than
- * universally absent, so penalizing them would cause false positives.
+ * mainstream browser can decode natively — DTS (incl. DTS-HD/-X), Dolby
+ * TrueHD/Atmos, and Dolby Digital/Digital Plus (AC3/E-AC3/DD+/DDP). The video
+ * plays fine while the `<video>` element silently drops the audio instead of
+ * erroring — no exception, no onError.
+ *
+ * AC3/E-AC3 used to be left untagged on the theory that browser support was
+ * "inconsistent rather than universally absent" — it isn't: Chrome and
+ * Firefox ship no AC3/E-AC3 decoder at all (unlike AAC, which is licensed).
+ * That gap was the actual cause of silent 4K playback: BluRay remuxes (the
+ * source of DTS/TrueHD releases) mostly get filtered out by
+ * MAX_RELEASE_SIZE_BYTES, so the 2160p releases that actually make it through
+ * are WEB-DL/WEBRip — and those are sourced from streaming services, which
+ * deliver Dolby Digital/Digital Plus, never DTS/TrueHD. Untagging AC3/E-AC3
+ * meant almost every real 4K release skipped the transcode path entirely.
  */
 export function hasIncompatibleAudio(name: string): boolean {
-  return /\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b/i.test(name)
+  return /\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b|\bE-?AC-?3\b|\bAC-?3\b|\bDD[P+]?(?:\d(?:\.\d)?)?\b/i.test(
+    name
+  )
 }
 
 /** True when the release name declares an IMAX (theatrical or "Enhanced") cut. */
