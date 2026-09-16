@@ -395,6 +395,23 @@ export function hasIncompatibleAudio(name: string): boolean {
   )
 }
 
+/**
+ * True when the release name marks it as a non-English-only release — a
+ * foreign dub tag (ITA, FRENCH, RUS, ...) or a title in a non-Latin script
+ * (Начало.2010..., [我们的星球]...) — with no sign of an English track
+ * alongside (ENG, MULTi, Dual). Only a tiebreaker within a quality tier: the
+ * stream probe already picks the English track out of multi-audio files, but
+ * it can't conjure one that isn't there. Mirrored in src/lib/torboxApi.ts.
+ */
+export function isLikelyNonEnglishRelease(name: string): boolean {
+  if (/\b(ENG|English|MULTi|Dual)\b/i.test(name)) return false
+  return (
+    // Greek/Cyrillic/Arabic/Indic/.../CJK letters; punctuation and emoji fall outside.
+    /[\u0370-\u1FFF\u3000-\uFFEF]/u.test(name) ||
+    /\b(ITA|iTALiAN|FRENCH|TRUEFRENCH|VFF|VFQ|VF2|GERMAN|SPANISH|ESP|Castellano|Latino|RUS|UKR|POL|Hindi|Tamil|Telugu|Dubbed|KOR|JAP)\b/i.test(name)
+  )
+}
+
 /** True when the release name declares an IMAX (theatrical or "Enhanced") cut. */
 export function isImaxRelease(name: string): boolean {
   return /\bIMAX\b/i.test(name)
@@ -587,13 +604,18 @@ export async function searchMediaTorrents(params: {
   }
 
   const cachedSet = new Set<string>()
-  // Cap the batch — no point cache-checking more than we'll ever show.
-  // Comet no longer reports seeders, so its releases would all sort behind
-  // apibay's and fall off this cap; check the ones it flags as cached first.
-  const toCheck = candidates
-    .sort((a, b) => Number(b.cachedHint) - Number(a.cachedHint) || b.seeders - a.seeders)
-    .slice(0, Math.max(limit * 3, 30))
-    .map((c) => c.info_hash)
+  // Cap the batch — no point cache-checking more than we'll ever show — but
+  // cap it per quality tier. A single global cap sorted by seeders spent the
+  // whole budget on one tier for popular titles, so e.g. every 1080p release
+  // went unchecked and looked uncached. Comet no longer reports seeders, so
+  // within a tier the ones it flags as cached go first.
+  const perTierCheck = Math.max(limit * 2, 30)
+  const toCheck = groupByQualityTier(candidates).flatMap((tier) =>
+    tier
+      .sort((a, b) => Number(b.cachedHint) - Number(a.cachedHint) || b.seeders - a.seeders)
+      .slice(0, perTierCheck)
+      .map((c) => c.info_hash)
+  )
 
   // A failed check isn't just cosmetic: with nothing marked cached, the player
   // skips straight to the slow add-and-download path. Retry a transient
@@ -630,35 +652,71 @@ export async function searchMediaTorrents(params: {
     torbox_cached: cachedSet.has(c.info_hash),
   }))
 
-  // Audio compatibility first — silent 4K beats no one, so a release that
-  // explicitly declares DTS/TrueHD/Atmos audio never outranks one that
-  // doesn't, regardless of resolution. Then quality, ABOVE cached status: a
-  // title's shared-account cache tends to fill up with whichever quality
-  // gets streamed most (usually 1080p), so sorting cached-first can bury the
-  // one 4K release that exists behind a dozen cached 1080p duplicates and
-  // see it fall off the `limit` slice below entirely. Ranking quality first
-  // guarantees a capped 4K release (when one exists at all) always survives
-  // into the returned list — cached or not, it'll just take the
-  // download-and-play path if uncached.
-  annotated.sort((a, b) => {
-    const audioDiff = Number(hasIncompatibleAudio(a.name)) - Number(hasIncompatibleAudio(b.name))
-    if (audioDiff !== 0) return audioDiff
-    const rankDiff = releaseQualityRank(b.name) - releaseQualityRank(a.name)
-    if (rankDiff !== 0) return rankDiff
-    // Same quality/audio tier — prefer the IMAX cut when one exists, since
-    // that's a strictly better presentation of the same release.
-    const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
-    if (imaxDiff !== 0) return imaxDiff
-    if (a.torbox_cached !== b.torbox_cached) return b.torbox_cached ? 1 : -1
-    return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
-  })
-
   return {
     success: true,
     error: null,
     detail: `Found ${annotated.length} results`,
-    data: annotated.slice(0, limit),
+    data: selectBalancedReleases(annotated, limit),
   }
+}
+
+/** Min share of the returned list reserved for each of the 4K and 1080p tiers (when they have that many releases). */
+const RESERVED_TIER_SHARE = 0.4
+
+function groupByQualityTier<T extends { name: string }>(items: T[]): T[][] {
+  const tiers = new Map<number, T[]>()
+  for (const item of items) {
+    const rank = releaseQualityRank(item.name)
+    const tier = tiers.get(rank)
+    if (tier) tier.push(item)
+    else tiers.set(rank, [item])
+  }
+  return [...tiers.entries()].sort((a, b) => b[0] - a[0]).map(([, tier]) => tier)
+}
+
+/**
+ * Order releases best-first and cut them to `limit` without letting one
+ * quality tier crowd out the others.
+ *
+ * Sorting purely by quality and slicing meant a popular title with 15+ 4K
+ * releases returned nothing but 4K (seen for Dune: Part Two, Oppenheimer,
+ * Shōgun, Breaking Bad) — no 1080p fallback for devices that can't decode
+ * 10-bit HEVC, and nothing 1080p in the player's release picker. Now 4K and
+ * 1080p each get a reserved share of the list, and the remainder is filled
+ * best-first from whatever's left.
+ *
+ * Within a tier: cached first (instant playback), then releases likely to
+ * have English audio, then the IMAX cut, then seeders. Audio codec is deliberately not a factor anymore — the player's
+ * /hls/start probes each file and transcodes audio the browser can't decode,
+ * so a "DDP5.1" release is no longer worse than one that just doesn't say.
+ */
+export function selectBalancedReleases(releases: TorboxSearchResult[], limit: number): TorboxSearchResult[] {
+  const withinTier = (a: TorboxSearchResult, b: TorboxSearchResult) => {
+    if (a.torbox_cached !== b.torbox_cached) return b.torbox_cached ? 1 : -1
+    const langDiff = Number(isLikelyNonEnglishRelease(a.name)) - Number(isLikelyNonEnglishRelease(b.name))
+    if (langDiff !== 0) return langDiff
+    const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
+    if (imaxDiff !== 0) return imaxDiff
+    return (parseInt(b.seeders, 10) || 0) - (parseInt(a.seeders, 10) || 0)
+  }
+  const byQuality = (a: TorboxSearchResult, b: TorboxSearchResult) =>
+    releaseQualityRank(b.name) - releaseQualityRank(a.name) || withinTier(a, b)
+
+  const reserved = Math.ceil(limit * RESERVED_TIER_SHARE)
+  const picked = new Set<TorboxSearchResult>()
+  for (const rank of [4, 3]) {
+    releases
+      .filter((r) => releaseQualityRank(r.name) === rank)
+      .sort(withinTier)
+      .slice(0, reserved)
+      .forEach((r) => picked.add(r))
+  }
+  for (const r of [...releases].sort(byQuality)) {
+    if (picked.size >= limit) break
+    picked.add(r)
+  }
+
+  return [...picked].sort(byQuality).slice(0, limit)
 }
 
 /**

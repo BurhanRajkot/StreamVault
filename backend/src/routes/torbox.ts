@@ -17,6 +17,7 @@
  *   POST /torbox/hls/start        — Start (or skip) audio-transcode for a file (premium or admin)
  *   GET  /torbox/hls/:sid/playlist.m3u8 — Serve the growing HLS playlist for a session
  *   GET  /torbox/hls/:sid/:segment      — Serve one HLS segment for a session
+ *   DELETE /torbox/hls/:sid             — Stop a session early
  */
 
 import { Router, Request, Response } from 'express'
@@ -234,21 +235,21 @@ router.get(
 
 // ---------------------------------------------------------------------------
 // POST /torbox/hls/start — any logged-in user, rate-limited
-// Body: { torrentId: number, fileId: number, releaseName?: string }
+// Body: { torrentId: number, fileId: number, releaseName?: string, forceTranscode?: boolean }
 //
-// Resolves the TorBox direct link (same call /stream makes) and decides
-// whether the audio needs transcoding purely from the release name (see
-// hasIncompatibleAudio) — no ffprobe round-trip against the actual file.
+// Resolves the TorBox direct link (same call /stream makes), then probes the
+// file's actual streams (see transcode.planPlayback) to decide between
+// handing the browser the CDN link as-is and remuxing it with the audio
+// re-encoded to AAC.
 //
-// This used to also fall back to probing the file directly when the name
-// was ambiguous, defaulting to "transcode" on a probe failure/timeout. That
-// turned out to be too aggressive against real TorBox links (probing a
-// multi-GB remote file is unreliable — slow index near EOF, network hiccups,
-// etc.), and a failed probe defaulting to "transcode" was dragging otherwise
-// fine 1080p streams into the transcode path and breaking them too. Deciding
-// from the name alone is a network-free, instant, deterministic check with
-// no failure mode of its own — anything not explicitly declaring DTS/TrueHD/
-// Atmos plays exactly as it always did, direct from TorBox's CDN.
+// Deciding from the release name alone (the previous approach) left most
+// streams silent: probing the files in the shared account showed that
+// releases like "S01E02.1080p.WEB.h264-EDITH" or "2160p.WEB-DL.DV.HDR10"
+// carry E-AC3/AC3 without saying so, and multi-audio releases often put a
+// dub first. The name is now only a fallback for when the probe fails.
+//
+// `forceTranscode` skips the decision entirely — the player sends it when a
+// direct stream turned out to be silent anyway.
 //
 // Video is never re-encoded either way (`-c:v copy`) — only ever the audio.
 // ---------------------------------------------------------------------------
@@ -261,10 +262,11 @@ router.post(
     const denied = await authorizeTorboxAccess(req)
     if (denied) return res.status(denied.status).json(denied.body)
 
-    const { torrentId, fileId, releaseName } = req.body as {
+    const { torrentId, fileId, releaseName, forceTranscode } = req.body as {
       torrentId?: number
       fileId?: number
       releaseName?: string
+      forceTranscode?: boolean
     }
 
     if (!Number.isInteger(torrentId) || !Number.isInteger(fileId)) {
@@ -290,18 +292,31 @@ router.post(
         return res.status(404).json({ error: result.detail || 'No stream URL available' })
       }
 
-      const needsTranscode = !!releaseName && torbox.hasIncompatibleAudio(releaseName)
+      const streams = await transcode.probeStreams(url, `${torrentId}:${fileId}`)
+      let plan: transcode.PlaybackPlan
+      if (streams) {
+        plan = transcode.planPlayback(streams)
+      } else {
+        const nameFlagsAudio = typeof releaseName === 'string' && torbox.hasIncompatibleAudio(releaseName)
+        plan = {
+          direct: !nameFlagsAudio,
+          videoIndex: null,
+          audioIndex: null,
+          reason: nameFlagsAudio ? 'probe failed; name declares incompatible audio' : 'probe failed; assuming browser-safe',
+        }
+      }
 
-      if (!needsTranscode) {
+      if (plan.direct && forceTranscode !== true) {
         return res.json({ mode: 'direct', url })
       }
 
-      const session = transcode.createHlsSession(url)
+      const session = transcode.createHlsSession(url, plan)
       logger.info('Started TorBox HLS audio-transcode session', {
         torrentId,
         fileId,
         sessionId: session.id,
         releaseName,
+        reason: forceTranscode === true ? 'forced by player (silent direct playback)' : plan.reason,
       })
 
       return res.json({
@@ -349,6 +364,20 @@ router.get('/hls/:sessionId/playlist.m3u8', async (req: Request, res: Response) 
   res.set('Content-Type', 'application/vnd.apple.mpegurl')
   res.set('Cache-Control', 'no-store')
   return res.sendFile(path.join(session.dir, 'playlist.m3u8'))
+})
+
+// ---------------------------------------------------------------------------
+// DELETE /torbox/hls/:sessionId — stop a session's ffmpeg and free its disk
+// space as soon as the viewer leaves, rather than waiting for the idle sweep.
+// Same trust tier as the playlist: the unguessable session id is the auth.
+// ---------------------------------------------------------------------------
+
+router.delete('/hls/:sessionId', (req: Request, res: Response) => {
+  const { sessionId } = req.params
+  if (!SESSION_ID_RE.test(sessionId)) {
+    return res.status(400).json({ error: 'Invalid session id' })
+  }
+  return res.status(transcode.stopSession(sessionId) ? 204 : 404).end()
 })
 
 // ---------------------------------------------------------------------------
