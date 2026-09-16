@@ -36,6 +36,8 @@ export const corsMiddleware = cors({
       process.env.FRONTEND_URL,
       'https://stream-vault-7u6q.vercel.app', // Vercel production
       'https://streamvault-backend-bq9p.onrender.com', // Render backend (for admin panel)
+      'https://streamvaults.in', // Custom domain
+      'https://www.streamvaults.in', // Custom domain (www)
       // Add any preview/staging URLs as needed
     ].filter(Boolean) // Remove undefined values
 
