@@ -31,15 +31,17 @@ import {
   fetchTorboxList,
   fetchTorboxTorrent,
   startTorboxHls,
+  stopTorboxHls,
   resolveTorboxHlsUrl,
   searchTorboxMedia,
   addTorboxByHash,
   parseTorrentQuality,
   parseTorrentHDR,
-  hasIncompatibleAudio,
   isImaxRelease,
+  isLikelyNonEnglishRelease,
   formatBytes,
   type TorboxSearchResult,
+  type TorboxHlsStartResult,
   findTorrentForTitle,
   pickPlaybackFile,
 } from '@/lib/torboxApi'
@@ -78,26 +80,30 @@ interface DownloadProgress {
 }
 
 /**
- * Rank releases by audio compatibility first, then quality, then IMAX cut,
- * then seeders. The backend now transcodes DTS/TrueHD/Atmos audio to AAC on
- * the fly (see startTorboxHls), so a release with incompatible audio isn't
- * silent anymore — but it does mean a brief transcode window before the
- * player has a full seekable timeline, so a release that's already
- * browser-safe is still preferred when quality is otherwise equal. The
- * backend already caps release size (see MAX_RELEASE_SIZE_BYTES in
- * backend/src/lib/torbox.ts), so a 4K result here is never a 100GB+ remux —
- * just a normal encode that's fine to prefer over 1080p once audio
- * compatibility is equal.
+ * Rank releases by quality, then likely-English audio, then IMAX cut, then
+ * seeders — the same order the backend returns them in (see
+ * selectBalancedReleases in backend/src/lib/torbox.ts). The audio codec is no
+ * longer a factor: /hls/start probes the actual file and transcodes whatever
+ * the browser can't decode, so a "DDP5.1" release isn't silent anymore. The
+ * backend also caps release size (MAX_RELEASE_SIZE_BYTES), so a 4K result
+ * here is never a 100GB+ remux.
  */
 function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
-  const audioDiff = Number(hasIncompatibleAudio(a.name)) - Number(hasIncompatibleAudio(b.name))
-  if (audioDiff !== 0) return audioDiff
   const rank = (q: string) => (q === '4K' ? 4 : q === '1080p' ? 3 : q === '720p' ? 2 : 1)
   const rankDiff = rank(parseTorrentQuality(b.name)) - rank(parseTorrentQuality(a.name))
   if (rankDiff !== 0) return rankDiff
+  const langDiff = Number(isLikelyNonEnglishRelease(a.name)) - Number(isLikelyNonEnglishRelease(b.name))
+  if (langDiff !== 0) return langDiff
   const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
   if (imaxDiff !== 0) return imaxDiff
   return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
+}
+
+/** The file currently playing — kept so a silent direct stream can be restarted through the transcoder. */
+interface PlaybackTarget {
+  torrentId: number
+  fileId: number
+  releaseName: string
 }
 
 /**
@@ -106,14 +112,14 @@ function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
  * nor a playlist URL came back, since that means the backend couldn't
  * resolve a stream at all.
  */
-function resolvePlaybackUrl(res: {
+function resolvePlaybackUrl(res: TorboxHlsStartResult): {
+  url: string
   mode: 'direct' | 'hls'
-  url?: string
-  playlistUrl?: string
-}): { url: string; mode: 'direct' | 'hls' } {
+  sessionId: string | null
+} {
   const url = res.mode === 'hls' ? res.playlistUrl && resolveTorboxHlsUrl(res.playlistUrl) : res.url
   if (!url) throw new Error('No stream URL returned')
-  return { url, mode: res.mode }
+  return { url, mode: res.mode, sessionId: res.mode === 'hls' ? res.sessionId ?? null : null }
 }
 
 function formatEta(seconds: number): string {
@@ -141,6 +147,11 @@ export function TorboxPlayerPane({
   const [playbackMode, setPlaybackMode] = useState<'direct' | 'hls'>('direct')
   /** True while the backend is still remuxing the file — the timeline behaves like a live stream until this flips (see the hls.js attach effect below). */
   const [isTranscodingLive, setIsTranscodingLive] = useState(false)
+  /** Backend transcode session behind the current HLS stream, stopped when playback moves on. */
+  const [hlsSessionId, setHlsSessionId] = useState<string | null>(null)
+  const [playbackTarget, setPlaybackTarget] = useState<PlaybackTarget | null>(null)
+  /** True once a silent direct stream has been restarted through the transcoder, so it's only tried once. */
+  const [isAudioFallback, setIsAudioFallback] = useState(false)
   const [cachedReleases, setCachedReleases] = useState<TorboxSearchResult[]>([])
   const [activeRelease, setActiveRelease] = useState<TorboxSearchResult | null>(null)
   const [playbackFailed, setPlaybackFailed] = useState(false)
@@ -162,6 +173,28 @@ export function TorboxPlayerPane({
     }
     return undefined
   }, [isAuthenticated, getAccessTokenSilently])
+
+  /**
+   * Resolve a playable stream for one file. Returns a function that commits
+   * it to the player, so a caller can drop a result that arrived after the
+   * user moved on. Throws on failure; callers own their own error UI.
+   */
+  const startPlayback = useCallback(
+    async (target: PlaybackTarget, token: string | undefined, opts: { forceTranscode?: boolean } = {}) => {
+      const hlsRes = await startTorboxHls(target.torrentId, target.fileId, token, target.releaseName, opts)
+      const { url, mode, sessionId } = resolvePlaybackUrl(hlsRes)
+      return () => {
+        setPlaybackTarget(target)
+        setIsAudioFallback(opts.forceTranscode === true)
+        setHlsSessionId(sessionId)
+        setPlaybackMode(mode)
+        setStreamUrl(url)
+        setPlaybackFailed(false)
+        setStatus('ready')
+      }
+    },
+    []
+  )
 
   const streamTorrent = useCallback(
     async (release: TorboxSearchResult, token?: string) => {
@@ -202,19 +235,15 @@ export function TorboxPlayerPane({
         const file = files ? pickPlaybackFile(files, mediaType, season, episode) : null
         const fileId = file?.id ?? 0
 
-        const hlsRes = await startTorboxHls(torrentId, fileId, token, release.name)
-        const { url, mode } = resolvePlaybackUrl(hlsRes)
-
-        setPlaybackMode(mode)
-        setStreamUrl(url)
-        setStatus('ready')
+        const show = await startPlayback({ torrentId, fileId, releaseName: release.name }, token)
+        show()
       } catch (err: unknown) {
         console.error('TorBox stream error:', err)
         setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
         setStatusMessage(err instanceof Error ? err.message : 'Failed to load TorBox stream')
       }
     },
-    [mediaType, season, episode]
+    [mediaType, season, episode, startPlayback]
   )
 
   /**
@@ -239,13 +268,8 @@ export function TorboxPlayerPane({
           if (torrent) {
             const file = pickPlaybackFile(torrent.files, mediaType, season, episode)
             if ((torrent.download_finished || torrent.cached) && file) {
-              const hlsRes = await startTorboxHls(torrentId, file.id, token, releaseName)
-              const { url, mode } = resolvePlaybackUrl(hlsRes)
-              if (pollGenerationRef.current === myGeneration) {
-                setPlaybackMode(mode)
-                setStreamUrl(url)
-                setStatus('ready')
-              }
+              const show = await startPlayback({ torrentId, fileId: file.id, releaseName }, token)
+              if (pollGenerationRef.current === myGeneration) show()
               return
             }
 
@@ -273,7 +297,7 @@ export function TorboxPlayerPane({
         )
       }
     },
-    [mediaType, season, episode]
+    [mediaType, season, episode, startPlayback]
   )
 
   /** Add an uncached release to TorBox and stream it once the download finishes. */
@@ -319,6 +343,8 @@ export function TorboxPlayerPane({
     setStatusMessage(`Searching TorBox debrid for "${title}"...`)
     setPlaybackFailed(false)
     setStreamUrl(null)
+    setHlsSessionId(null)
+    setPlaybackTarget(null)
     setCachedReleases([])
     setActiveRelease(null)
     setDownloadProgress(null)
@@ -362,11 +388,11 @@ export function TorboxPlayerPane({
             if (torrent) {
               const file = pickPlaybackFile(torrent.files, 'movie')
               if ((torrent.download_finished || torrent.cached) && file) {
-                const hlsRes = await startTorboxHls(torrent.id, file.id, token, torrent.name)
-                const { url, mode } = resolvePlaybackUrl(hlsRes)
-                setPlaybackMode(mode)
-                setStreamUrl(url)
-                setStatus('ready')
+                const show = await startPlayback(
+                  { torrentId: torrent.id, fileId: file.id, releaseName: torrent.name },
+                  token
+                )
+                show()
                 return
               }
 
@@ -403,7 +429,7 @@ export function TorboxPlayerPane({
       setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
       setStatusMessage(err instanceof Error ? err.message : 'TorBox search failed')
     }
-  }, [title, year, imdbId, mediaType, season, episode, getToken, streamTorrent, pollTorrentUntilReady, downloadAndPlay])
+  }, [title, year, imdbId, mediaType, season, episode, getToken, streamTorrent, pollTorrentUntilReady, downloadAndPlay, startPlayback])
 
   useEffect(() => {
     void searchAndPlay()
@@ -415,6 +441,14 @@ export function TorboxPlayerPane({
       pollGenerationRef.current++
     }
   }, [searchAndPlay])
+
+  // Stop the backend's ffmpeg as soon as this stream is replaced (another
+  // release, the audio fallback, a retry) or the player closes — otherwise a
+  // 4K remux keeps downloading and filling disk until the idle sweep.
+  useEffect(() => {
+    if (!hlsSessionId) return
+    return () => stopTorboxHls(hlsSessionId)
+  }, [hlsSessionId])
 
   // Fixed 10s seek on left/right arrow — the browser's native video controls
   // seek by an inconsistent amount (often a % of duration when focus lands on
@@ -460,7 +494,10 @@ export function TorboxPlayerPane({
 
     if (Hls.isSupported()) {
       setIsTranscodingLive(true)
-      const hls = new Hls()
+      // Start from the beginning: while ffmpeg is still working the playlist
+      // has no #EXT-X-ENDLIST, and hls.js would otherwise treat it as live
+      // and join at the "live edge" — minutes into the movie.
+      const hls = new Hls({ startPosition: 0 })
       hls.loadSource(streamUrl)
       hls.attachMedia(video)
       // The backend writes the HLS playlist progressively while ffmpeg works
@@ -495,17 +532,19 @@ export function TorboxPlayerPane({
   }, [status, streamUrl, playbackMode])
 
   /**
-   * Detect "plays fine, no sound" — the common outcome when a release's
-   * audio track (DTS/TrueHD/Atmos, near-universal on BluRay remuxes, which
-   * 4K releases skew heavily toward) can't be decoded by the browser. This
-   * does NOT fire the <video> `error` event: the video track decodes and
-   * plays normally, so from the element's perspective playback succeeded.
-   * `webkitAudioDecodedByteCount` (Chromium/WebKit) staying at 0 while the
-   * video is actively advancing is the standard way to catch this — treat it
-   * the same as a hard playback failure so the existing fallback UI (open
-   * externally in VLC, or try another cached release) kicks in instead of
-   * silently looping a mute video. No equivalent API exists on Firefox, so
-   * this is best-effort there rather than a guarantee.
+   * Detect "plays fine, no sound" — what happens when a file's audio track
+   * can't be decoded by the browser. It does NOT fire the <video> `error`
+   * event: the video track decodes and plays normally, so from the element's
+   * perspective playback succeeded. `webkitAudioDecodedByteCount`
+   * (Chromium/WebKit) staying at 0 while the video is actively advancing is
+   * the standard way to catch this.
+   *
+   * The backend's stream probe should already have routed such files through
+   * the audio transcoder, but the probe can fail or time out (it then falls
+   * back to guessing from the release name). So a silent direct stream is
+   * restarted once with a forced transcode; only a silent transcoded stream
+   * is treated as a hard failure. No equivalent API exists on Firefox, so
+   * there this safety net is unavailable and the probe is all there is.
    */
   useEffect(() => {
     if (status !== 'ready' || !streamUrl) return
@@ -520,9 +559,24 @@ export function TorboxPlayerPane({
 
     const checkAudio = () => {
       if (cancelled) return
-      if (!video.paused && video.currentTime > 0 && el.webkitAudioDecodedByteCount === 0) {
-        setPlaybackFailed(true)
+      if (video.paused || video.currentTime <= 0 || el.webkitAudioDecodedByteCount !== 0) return
+
+      if (playbackMode === 'direct' && playbackTarget && !isAudioFallback) {
+        cancelled = true
+        setStatus('loading-stream')
+        setStatusMessage('No audio detected — converting audio for your browser...')
+        void getToken()
+          .then((token) => startPlayback(playbackTarget, token, { forceTranscode: true }))
+          .then((show) => show())
+          .catch((err: unknown) => {
+            console.error('TorBox audio fallback failed:', err)
+            setStatus('ready')
+            setPlaybackFailed(true)
+          })
+        return
       }
+
+      setPlaybackFailed(true)
     }
 
     const handlePlaying = () => {
@@ -539,7 +593,7 @@ export function TorboxPlayerPane({
       if (timer) clearTimeout(timer)
       video.removeEventListener('playing', handlePlaying)
     }
-  }, [status, streamUrl])
+  }, [status, streamUrl, playbackMode, playbackTarget, isAudioFallback, getToken, startPlayback])
 
   // --- Loading / Searching state ---
   if (status === 'searching' || status === 'loading-stream') {

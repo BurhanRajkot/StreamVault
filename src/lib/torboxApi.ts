@@ -167,11 +167,13 @@ export async function getTorboxStreamUrl(
 
 export interface TorboxHlsStartResult {
   /**
-   * 'direct' — the file's audio is already browser-safe (AAC/MP3/Opus/...),
-   * `url` is the plain TorBox CDN link, play it as before.
-   * 'hls' — the audio needed transcoding (DTS/TrueHD/Atmos/AC3/...); `playlistUrl`
-   * points at a growing HLS playlist the backend is remuxing on the fly
-   * (video copied through untouched, audio re-encoded to AAC).
+   * 'direct' — the file's chosen audio track is already browser-safe
+   * (AAC/MP3/Opus/...) and first in the file; `url` is the plain TorBox CDN
+   * link, play it as-is.
+   * 'hls' — the audio needed transcoding (AC3/E-AC3/DTS/TrueHD/...) or the
+   * English track isn't the first one; `playlistUrl` points at a growing HLS
+   * playlist the backend is remuxing on the fly (video copied through
+   * untouched, the chosen audio track re-encoded to AAC).
    */
   mode: 'direct' | 'hls'
   url?: string
@@ -180,31 +182,46 @@ export interface TorboxHlsStartResult {
 }
 
 /**
- * Start playback for a torrent file: the backend decides whether the audio
- * needs transcoding — instantly from `releaseName` when it declares an
- * incompatible codec (DTS/TrueHD/Atmos), otherwise via a codec probe — and
- * only spins up a transcode when the browser genuinely can't decode the
- * audio natively, so most releases still stream at zero extra cost.
+ * Start playback for a torrent file. The backend probes the file's actual
+ * streams and only spins up a transcode when the browser genuinely can't
+ * play its audio (or the preferred-language track isn't the first one), so
+ * browser-safe files still stream straight from TorBox's CDN.
  *
  * @param torrentId   - Torrent `id` from `fetchTorboxList()` / `addTorboxByHash()`
  * @param fileId      - File `id` from `torrent.files[]`
  * @param token       - Auth0 access token or admin token
- * @param releaseName - The release's display name, when known — lets the
- *                       backend skip the codec probe entirely for the common
- *                       case where the name already declares the audio codec.
+ * @param releaseName - The release's display name, when known — only used
+ *                       as a fallback heuristic if the stream probe fails.
+ * @param opts.forceTranscode - Skip the probe's verdict and always transcode;
+ *                       used when a direct stream played silent anyway.
  */
 export async function startTorboxHls(
   torrentId: number,
   fileId: number,
   token?: string,
-  releaseName?: string
+  releaseName?: string,
+  opts: { forceTranscode?: boolean } = {}
 ): Promise<TorboxHlsStartResult> {
   const res = await fetch(`${API_BASE}/torbox/hls/start`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ torrentId, fileId, releaseName }),
+    body: JSON.stringify({ torrentId, fileId, releaseName, forceTranscode: opts.forceTranscode }),
   })
   return handleResponse(res)
+}
+
+/**
+ * Stop a transcode session so its ffmpeg process and scratch segments are
+ * freed right away. Fire-and-forget (`keepalive` lets it outlive an unmount
+ * or page close); the backend reaps idle sessions on its own regardless.
+ */
+export function stopTorboxHls(sessionId: string): void {
+  void fetch(`${API_BASE}/torbox/hls/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+    keepalive: true,
+  }).catch(() => {
+    // Best-effort — the idle sweep cleans up anything missed
+  })
 }
 
 /** Resolve a `playlistUrl` returned by `startTorboxHls` to an absolute URL. */
@@ -383,16 +400,18 @@ export function isImaxRelease(name: string): boolean {
 }
 
 /**
- * True when the release name explicitly declares an audio codec no
- * mainstream browser can decode natively — DTS (incl. DTS-HD/-X) and Dolby
- * TrueHD/Atmos. These are the default tracks on BluRay-sourced remuxes (the
- * usual source for 4K/UHD releases); the video plays fine while the browser
- * silently drops the audio instead of erroring. AC3/E-AC3/DD+ are left
- * untagged since browser support for those is inconsistent rather than
- * universally absent.
+ * True when the release name marks it as non-English-only (a foreign dub tag
+ * or a non-Latin-script title) with no sign of an English track alongside.
+ * Mirrors `isLikelyNonEnglishRelease` in backend/src/lib/torbox.ts — keep
+ * both in sync.
  */
-export function hasIncompatibleAudio(name: string): boolean {
-  return /\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b/i.test(name)
+export function isLikelyNonEnglishRelease(name: string): boolean {
+  if (/\b(ENG|English|MULTi|Dual)\b/i.test(name)) return false
+  return (
+    // Greek/Cyrillic/Arabic/Indic/.../CJK letters; punctuation and emoji fall outside.
+    /[\u0370-\u1FFF\u3000-\uFFEF]/u.test(name) ||
+    /\b(ITA|iTALiAN|FRENCH|TRUEFRENCH|VFF|VFQ|VF2|GERMAN|SPANISH|ESP|Castellano|Latino|RUS|UKR|POL|Hindi|Tamil|Telugu|Dubbed|KOR|JAP)\b/i.test(name)
+  )
 }
 
 function normalizeTitle(s: string): string {
