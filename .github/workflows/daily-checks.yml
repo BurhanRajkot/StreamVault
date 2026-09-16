@@ -1,0 +1,292 @@
+# StreamVault — Daily Checks
+#
+# The existing scheduled workflows are all weekly or monthly, which means a
+# vulnerability disclosed on a Tuesday can sit unseen until the following
+# Monday sweep, and a production outage can go unnoticed for days. This runs
+# every day to close that gap:
+#
+#   vuln-audit    — npm + bun dependency audit (HIGH and above) and an OSV
+#                   scan of the lockfiles. Newly-disclosed CVEs affecting a
+#                   package we already ship surface within ~24h instead of up
+#                   to a week later. Findings open a single, de-duplicated
+#                   GitHub issue that is auto-closed once the audit is clean
+#                   again (self-healing — at most one open issue at a time).
+#                   OSV results are also pushed to the Security tab as SARIF,
+#                   matching ci.yml's osv-scan.
+#
+#   health-check  — pings the deployed backend /health endpoint. Because the
+#                   backend runs on Render's free tier (which spins down when
+#                   idle), the check retries generously so a cold start is not
+#                   mistaken for an outage. A genuine, sustained failure opens
+#                   the same kind of de-duplicated, auto-closing issue.
+#
+# This workflow only reads code and files issues — it never writes to the repo
+# or deploys, so it is safe to run unattended every day.
+#
+# Schedule: daily at 07:00 UTC (clear of the Mon–Wed 02:00–04:27 cluster used
+#           by the weekly workflows).
+# Manual trigger: workflow_dispatch.
+
+name: "Daily Checks"
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # Every day 07:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: daily-checks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  BUN_VERSION: "1.3.14" # Match the pin used across the other workflows.
+  # Deployed backend health endpoint (Render). Override via repo variable
+  # BACKEND_HEALTH_URL if the deployment moves.
+  DEFAULT_BACKEND_HEALTH_URL: "https://streamvault-backend-bq9p.onrender.com/health"
+
+jobs:
+  # ──────────────────────────────────────────────────────────────
+  #  DAILY VULNERABILITY AUDIT
+  # ──────────────────────────────────────────────────────────────
+  vuln-audit:
+    name: "Dependency Vulnerability Audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write # upload OSV SARIF to the Security tab
+      issues: write # open/close the de-duplicated findings issue
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false # zizmor hardening
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      # ── Frontend: audit prod deps at HIGH and above. npm audit reads
+      #    package-lock.json directly, so no install is needed here.
+      - name: Frontend — npm audit (HIGH+)
+        id: fe
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high > npm-audit.txt 2>&1
+          CODE=$?
+          set -e
+          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "── npm audit (frontend prod deps, HIGH+) ─────────────"
+          cat npm-audit.txt
+          [ "$CODE" -eq 0 ] && echo "✓ clean" || echo "::warning title=Daily Audit::Frontend has HIGH+ vulnerabilities."
+
+      # ── Backend: bun audit needs an installed tree; frozen install is fast.
+      - name: Backend — bun audit (HIGH+)
+        id: be
+        working-directory: ./backend
+        run: |
+          bun install --frozen-lockfile
+          set +e
+          bun audit --audit-level=high > ../bun-audit.txt 2>&1
+          CODE=$?
+          set -e
+          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "── bun audit (backend, HIGH+) ────────────────────────"
+          cat ../bun-audit.txt
+          [ "$CODE" -eq 0 ] && echo "✓ clean" || echo "::warning title=Daily Audit::Backend has HIGH+ vulnerabilities."
+
+      # ── OSV: cross-ecosystem scan of both lockfiles → Security tab.
+      - name: Run OSV Scanner
+        id: osv
+        continue-on-error: true # advisory — SARIF is uploaded regardless
+        uses: google/osv-scanner-action/osv-scanner-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+        with:
+          scan-args: |-
+            --lockfile=package-lock.json
+            --lockfile=backend/bun.lock
+            --format=sarif
+            --output=osv-results.sarif
+
+      - name: Upload OSV SARIF results
+        if: always() && hashFiles('osv-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        continue-on-error: true
+        with:
+          sarif_file: osv-results.sarif
+          category: osv-scanner-daily
+
+      # ── Open / update / close a single findings issue.
+      - name: File or resolve the findings issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FE_CODE: ${{ steps.fe.outputs.code }}
+          BE_CODE: ${{ steps.be.outputs.code }}
+          OSV_OUTCOME: ${{ steps.osv.outcome }}
+        run: |
+          TITLE="🔒 Daily dependency audit — vulnerabilities found"
+          DATE=$(date -u +'%Y-%m-%d %H:%M UTC')
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          FE_STATUS="✅ clean"; [ "${FE_CODE:-0}" != "0" ] && FE_STATUS="❌ HIGH+ found"
+          BE_STATUS="✅ clean"; [ "${BE_CODE:-0}" != "0" ] && BE_STATUS="❌ HIGH+ found"
+          OSV_STATUS="✅ clean"; [ "${OSV_OUTCOME}" = "failure" ] && OSV_STATUS="⚠️ findings (see Security tab)"
+
+          # npm/bun exit codes are the gate for issue open/close. OSV is
+          # advisory-only (its SARIF already lands in the Security tab) so a
+          # transient OSV failure never opens or holds an issue open by itself.
+          FAILED=false
+          [ "${FE_CODE:-0}" != "0" ] && FAILED=true
+          [ "${BE_CODE:-0}" != "0" ] && FAILED=true
+
+          find_open() {
+            gh issue list --state open --search "in:title \"$TITLE\"" \
+              --json number --jq '.[0].number // empty'
+          }
+
+          BODY="## Daily dependency audit — ${DATE}
+
+          | Check | Result |
+          |-------|--------|
+          | Frontend \`npm audit\` (prod, HIGH+) | ${FE_STATUS} |
+          | Backend \`bun audit\` (HIGH+) | ${BE_STATUS} |
+          | OSV lockfile scan | ${OSV_STATUS} |
+
+          <details><summary>npm audit output</summary>
+
+          \`\`\`
+          $(cat npm-audit.txt 2>/dev/null | head -200)
+          \`\`\`
+          </details>
+
+          <details><summary>bun audit output</summary>
+
+          \`\`\`
+          $(cat bun-audit.txt 2>/dev/null | head -200)
+          \`\`\`
+          </details>
+
+          [View full run](${RUN_URL})
+
+          ---
+          _This issue is managed automatically by \`.github/workflows/daily-checks.yml\` and will close itself once the audit is clean again._"
+
+          EXISTING=$(find_open)
+
+          if [ "$FAILED" = "true" ]; then
+            if [ -n "$EXISTING" ]; then
+              echo "Updating existing issue #${EXISTING}."
+              gh issue comment "$EXISTING" --body "$BODY"
+            else
+              echo "Opening a new findings issue."
+              gh issue create --title "$TITLE" --body "$BODY" --label "automated,security" \
+                || gh issue create --title "$TITLE" --body "$BODY"
+            fi
+          else
+            echo "Audit is clean."
+            if [ -n "$EXISTING" ]; then
+              echo "Closing stale issue #${EXISTING}."
+              gh issue comment "$EXISTING" --body "✅ Dependency audit is clean again as of ${DATE}. Closing automatically. [Run](${RUN_URL})"
+              gh issue close "$EXISTING"
+            fi
+          fi
+
+  # ──────────────────────────────────────────────────────────────
+  #  DAILY PRODUCTION HEALTH CHECK
+  # ──────────────────────────────────────────────────────────────
+  health-check:
+    name: "Production Health Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2
+        with:
+          egress-policy: audit # must reach the external health endpoint
+          disable-sudo: true
+
+      - name: Ping backend /health (with cold-start retries)
+        id: ping
+        env:
+          # Repo variable BACKEND_HEALTH_URL wins if set, else the env default.
+          HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL || env.DEFAULT_BACKEND_HEALTH_URL }}
+        run: |
+          echo "Checking ${HEALTH_URL}"
+          OK=false
+          # 6 attempts × up to 30s, 20s apart — comfortably covers a Render
+          # free-tier cold start without crying wolf.
+          for i in $(seq 1 6); do
+            CODE=$(curl -s -o /tmp/health_body -w '%{http_code}' --max-time 30 "$HEALTH_URL" || echo "000")
+            echo "Attempt ${i}: HTTP ${CODE}"
+            if [ "$CODE" = "200" ]; then
+              OK=true
+              break
+            fi
+            sleep 20
+          done
+          echo "ok=${OK}" >> "$GITHUB_OUTPUT"
+          echo "last_code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "── /health response body ─────────────────────────────"
+          cat /tmp/health_body 2>/dev/null || true
+          echo ""
+          if [ "$OK" != "true" ]; then
+            echo "::warning title=Health Check::Backend health check failed after 6 attempts (last HTTP ${CODE})."
+          fi
+
+      - name: File or resolve the health issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OK: ${{ steps.ping.outputs.ok }}
+          LAST_CODE: ${{ steps.ping.outputs.last_code }}
+          HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL || env.DEFAULT_BACKEND_HEALTH_URL }}
+        run: |
+          TITLE="🚨 Production health check failing"
+          DATE=$(date -u +'%Y-%m-%d %H:%M UTC')
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          find_open() {
+            gh issue list --state open --search "in:title \"$TITLE\"" \
+              --json number --jq '.[0].number // empty'
+          }
+          EXISTING=$(find_open)
+
+          if [ "${OK}" != "true" ]; then
+            BODY="## Backend health check failed — ${DATE}
+
+            \`${HEALTH_URL}\` did not return HTTP 200 after 6 attempts (last status: \`${LAST_CODE}\`).
+
+            This may be a genuine outage, or a deploy/config problem. Check the backend host and the [workflow run](${RUN_URL}).
+
+            ---
+            _Managed automatically by \`.github/workflows/daily-checks.yml\`; closes itself once /health is healthy again._"
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" --body "$BODY"
+            else
+              gh issue create --title "$TITLE" --body "$BODY" --label "automated,incident" \
+                || gh issue create --title "$TITLE" --body "$BODY"
+            fi
+          else
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" --body "✅ Backend /health is responding (HTTP 200) again as of ${DATE}. Closing automatically. [Run](${RUN_URL})"
+              gh issue close "$EXISTING"
+            fi
+            echo "Backend healthy."
+          fi
