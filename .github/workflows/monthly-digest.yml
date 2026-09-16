@@ -62,6 +62,7 @@ jobs:
 
           : > digest_rows.md
           row "Secret Scan Sweep"        "ci.yml"
+          row "Daily Checks"             "daily-checks.yml"
           row "Code Health"              "code-health.yml"
           row "OpenSSF Scorecard"        "scorecard.yml"
           row "Scheduled Image Rescan"   "image-rescan.yml"

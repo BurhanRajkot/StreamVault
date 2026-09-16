@@ -8,26 +8,46 @@
 #
 # HANDS-OFF BY DESIGN: after bumping, each area's job runs the same
 # type-check/lint/build/test steps its normal CI job runs, using the updated
-# dependencies. Only if that validation passes does this workflow commit
-# directly to `main` and push — no PR, no manual click. If validation fails,
-# or if the direct push is rejected (e.g. branch protection), it falls back
-# to opening a PR instead, so a human reviews what actually broke rather than
-# a broken upgrade landing on `main` unreviewed.
+# dependencies. The result is then landed as an auto-merging pull request:
+# the workflow opens a PR (never pushes to `main` directly) and enables
+# GitHub's native auto-merge, so the change merges on its own once the
+# required checks are green — no manual click for the happy path.
 #
-# This is safe to run unattended because a push to `main` re-triggers the
-# FULL ci.yml pipeline (type-check/lint/build/test/e2e/CodeQL/security scans),
-# and publish-images (what GitOps/ArgoCD deploys from) only runs after
-# status-check succeeds there too. A bad auto-push can reach `main`, but it
-# can't reach production undetected.
+# WHY A PR AND NOT A DIRECT PUSH (this is the important bit):
+#   GitHub deliberately does NOT re-trigger workflows for pushes or PRs made
+#   with the built-in GITHUB_TOKEN — it's the anti-recursion rule. The old
+#   version of this workflow pushed straight to `main` with GITHUB_TOKEN,
+#   which meant the full ci.yml pipeline (e2e / CodeQL / Trivy / OSV) never
+#   ran on the upgrade and GitOps never deployed it. Routing through a PR is
+#   the fix, but only fully closes the gap when the PR is opened by a token
+#   that CAN trigger workflows:
+#
+#     • DEPS_BOT_PAT set  → the PR triggers the FULL ci.yml, and auto-merge
+#                           waits for those required checks before merging.
+#                           This is the recommended, fully-gated setup.
+#     • no PAT (default)  → the PR is opened with GITHUB_TOKEN, so ci.yml
+#                           will NOT run on it. The in-job validation above
+#                           (type-check/lint/build/test) is then the only
+#                           gate, and auto-merge lands the PR once it is
+#                           mergeable. Still strictly safer than the old
+#                           direct-push: there's a reviewable PR and a diff.
+#
+#   To upgrade to full gating: create a repo/least-privilege PAT (or GitHub
+#   App token) with `contents:write` + `pull-requests:write`, save it as the
+#   DEPS_BOT_PAT secret. Nothing else changes.
+#
+# Also required once, in repo settings: Settings → General → "Allow
+# auto-merge" must be enabled, otherwise the auto-merge step is a no-op
+# (the workflow logs a notice and leaves the PR open for a manual merge).
 #
 # Schedule: Every Tuesday at 03:00 UTC (one day after Dependabot's Monday sweep,
 #           so both sets of PRs don't pile up on the same day).
 #
 # Manual trigger: workflow_dispatch (run it any time from the Actions tab).
 #
-# Required secret / permission:
-#   - GITHUB_TOKEN (built-in) — used to push directly and, on fallback, to
-#     open a PR via gh CLI.
+# Token / permissions:
+#   - DEPS_BOT_PAT (optional) or GITHUB_TOKEN (built-in) — opens the PR and
+#     enables auto-merge via the gh CLI.
 #   - The workflow needs `contents: write` + `pull-requests: write`.
 
 name: Dependency Update
@@ -91,11 +111,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          # Use a PAT or GITHUB_TOKEN — PAT preferred so a fallback PR
-          # triggers CI. With GITHUB_TOKEN, GitHub blocks re-triggering to
-          # prevent recursive workflows. If you have a bot PAT, set it here:
-          #   token: ${{ secrets.DEPS_BOT_PAT }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # DEPS_BOT_PAT if present (so the PR opened in land-changes triggers
+          # the full ci.yml), else the built-in token. See the header comment
+          # for the trade-off.
+          token: ${{ secrets.DEPS_BOT_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -323,7 +342,7 @@ jobs:
           retention-days: 1
 
   # ──────────────────────────────────────────────────────────────
-  #  LAND CHANGES — direct push to main when validated, PR fallback otherwise
+  #  LAND CHANGES — open an auto-merging PR (never a direct push to main)
   # ──────────────────────────────────────────────────────────────
   land-changes:
     name: "Land Dependency Changes"
@@ -350,7 +369,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # DEPS_BOT_PAT (if set) so the PR opened below triggers ci.yml and
+          # auto-merge gates on those checks; otherwise the built-in token.
+          token: ${{ secrets.DEPS_BOT_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Download updated frontend manifests
         if: needs.update-frontend.outputs.changed == 'true'
@@ -373,7 +394,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Stage, commit, and push (direct, with PR fallback)
+      - name: Stage, commit & push branch
         id: stage
         env:
           FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
@@ -394,47 +415,38 @@ jobs:
           if git diff --cached --quiet; then
             echo "Nothing to commit — manifests unchanged after restore."
             echo "committed=false" >> "$GITHUB_OUTPUT"
-            echo "mode=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          # Did every changed area pass its in-job validation? This decides
+          # whether we let auto-merge land the PR or hold it for a human.
           VALIDATED=true
           if [ "$FRONTEND_CHANGED" = "true" ] && [ "$FRONTEND_VALIDATED" != "true" ]; then VALIDATED=false; fi
           if [ "$BACKEND_CHANGED" = "true" ] && [ "$BACKEND_VALIDATED" != "true" ]; then VALIDATED=false; fi
+          echo "validated=${VALIDATED}" >> "$GITHUB_OUTPUT"
 
+          # One branch per day: a manual re-run on the same day updates the
+          # existing PR instead of piling up new ones.
+          BRANCH="chore/dep-update-$(date +'%Y-%m-%d')"
+          git checkout -B "${BRANCH}"
           git commit -m "chore(deps): automated dependency update $(date +'%Y-%m-%d')
 
           $([ "$FRONTEND_CHANGED" = "true" ] && echo "$FRONTEND_SUMMARY")
           $([ "$BACKEND_CHANGED" = "true" ] && echo "$BACKEND_SUMMARY")
 
           Automated by: .github/workflows/dependency-update.yml"
+          # Force-push is safe: this is a throwaway bot branch we fully own.
+          git push --force origin "${BRANCH}"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
           echo "committed=true" >> "$GITHUB_OUTPUT"
 
-          if [ "$VALIDATED" = "true" ]; then
-            echo "In-job validation passed — pushing directly to main."
-            if git push origin main; then
-              echo "mode=direct_push" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "::warning title=Dependency Update::Direct push to main was rejected (branch protection?) — opening a PR with the same commit instead."
-            REASON="push_rejected"
-          else
-            REASON="validation_failed"
-          fi
-          echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
-
-          BRANCH="chore/dep-update-$(date +'%Y-%m-%d-%H%M')"
-          git checkout -b "${BRANCH}"
-          git push origin "${BRANCH}"
-          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
-          echo "mode=pr_needed" >> "$GITHUB_OUTPUT"
-
-      - name: Open Pull Request (fallback only)
-        if: steps.stage.outputs.mode == 'pr_needed'
+      - name: Open PR & enable auto-merge
+        if: steps.stage.outputs.committed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPS_BOT_PAT || secrets.GITHUB_TOKEN }}
           BRANCH: ${{ steps.stage.outputs.branch }}
-          REASON: ${{ steps.stage.outputs.reason }}
+          VALIDATED: ${{ steps.stage.outputs.validated }}
+          HAS_PAT: ${{ secrets.DEPS_BOT_PAT != '' }}
           FRONTEND_SUMMARY: ${{ needs.update-frontend.outputs.summary }}
           BACKEND_SUMMARY: ${{ needs.update-backend.outputs.summary }}
           FRONTEND_CHANGED: ${{ needs.update-frontend.outputs.changed }}
@@ -442,27 +454,32 @@ jobs:
         run: |
           DATE=$(date +'%Y-%m-%d')
 
-          if [ "$REASON" = "validation_failed" ]; then
-            REASON_LINE="⚠️ **Why this is a PR, not a direct push:** the in-job validation (type-check/lint/build/test) failed against the upgraded dependencies. Review before merging."
+          if [ "$VALIDATED" = "true" ]; then
+            GATE_LINE="✅ **In-job validation passed** (type-check / lint / build / test against the upgraded deps). Auto-merge is enabled."
           else
-            REASON_LINE="⚠️ **Why this is a PR, not a direct push:** validation passed, but pushing directly to \`main\` was rejected (branch protection or similar). Merge normally once reviewed."
+            GATE_LINE="⚠️ **In-job validation FAILED** (type-check / lint / build / test). Auto-merge is intentionally **not** enabled — review before merging."
+          fi
+
+          if [ "$HAS_PAT" = "true" ]; then
+            CI_LINE="This PR was opened with a bot PAT, so the **full ci.yml** (e2e / CodeQL / Trivy / OSV) runs on it and auto-merge waits for those required checks."
+          else
+            CI_LINE="⚠️ Opened with the built-in \`GITHUB_TOKEN\`, so **ci.yml does not run on this PR** (GitHub's anti-recursion rule). The in-job validation above is the only gate. Add a \`DEPS_BOT_PAT\` secret to enable full-CI gating — see the workflow header."
           fi
 
           BODY="## Automated Dependency Update — ${DATE}
 
-          This PR was opened automatically by the \`dependency-update\` workflow.
-          Targets are bumped to **latest**, including majors.
+          Opened automatically by the \`dependency-update\` workflow. Targets are bumped to **latest**, including majors.
 
-          ${REASON_LINE}
+          ${GATE_LINE}
 
-          ### Changes
-          "
+          ${CI_LINE}
+
+          ### Changes"
 
           if [ "$FRONTEND_CHANGED" = "true" ]; then
             BODY="${BODY}
           - 🎨 **Frontend**: ${FRONTEND_SUMMARY}"
           fi
-
           if [ "$BACKEND_CHANGED" = "true" ]; then
             BODY="${BODY}
           - ⚙️ **Backend**: ${BACKEND_SUMMARY}"
@@ -470,21 +487,35 @@ jobs:
 
           BODY="${BODY}
 
-          ### Checklist
-          - [ ] CI passes (type-check, lint, build, tests, E2E)
-          - [ ] Bundle size not significantly increased
-          - [ ] No breaking API changes in upgraded packages
-          - [ ] Security scan clean
+          > _If something breaks, close this PR and investigate; the next run reopens a fresh one._"
 
-          > _Merge when CI is green. If something breaks, close this PR and investigate._"
+          # Reuse the PR for today's branch if it already exists, else create it.
+          PR_URL=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // empty')
+          if [ -z "$PR_URL" ]; then
+            PR_URL=$(gh pr create \
+              --title "chore(deps): automated dependency update ${DATE}" \
+              --body  "${BODY}" \
+              --base  main \
+              --head  "${BRANCH}" \
+              --label "dependencies,automated" 2>/dev/null) \
+              || PR_URL=$(gh pr create \
+                   --title "chore(deps): automated dependency update ${DATE}" \
+                   --body "${BODY}" --base main --head "${BRANCH}")
+          else
+            echo "Reusing existing PR ${PR_URL}."
+            gh pr edit "$PR_URL" --body "${BODY}" || true
+          fi
+          echo "PR: ${PR_URL}"
 
-          gh pr create \
-            --title "chore(deps): automated dependency update ${DATE}" \
-            --body  "${BODY}" \
-            --base  main \
-            --head  "${BRANCH}" \
-            --label "dependencies,automated" \
-            || echo "PR may already exist for this branch — skipping."
+          # Enable auto-merge only for validated upgrades. Requires "Allow
+          # auto-merge" in repo settings; if it's off, gh errors and we just
+          # leave the PR open for a manual merge.
+          if [ "$VALIDATED" = "true" ]; then
+            gh pr merge --auto --squash "$PR_URL" \
+              || echo "::notice title=Dependency Update::Could not enable auto-merge — enable Settings → General → 'Allow auto-merge'. PR left open for manual merge."
+          else
+            gh pr comment "$PR_URL" --body "Auto-merge was **not** enabled because the in-job validation failed. Please review." || true
+          fi
 
   # ──────────────────────────────────────────────────────────────
   #  REPORT — summary even when nothing changed
@@ -514,7 +545,7 @@ jobs:
           echo "| Backend  | ${BACKEND_CHANGED:-false}  | ${BACKEND_VALIDATED:-n/a}  | ${BACKEND_SUMMARY:-no changes}  |"
           echo ""
           if [ "$LAND_RESULT" = "success" ]; then
-            echo "✅ Changes landed — check main's history or the Pull Requests tab."
+            echo "✅ Update PR opened — see the Pull Requests tab. It auto-merges once its checks are green (validated upgrades only)."
           elif [ "$LAND_RESULT" = "skipped" ]; then
             echo "✅ No packages to upgrade this week — all up to date."
           else
