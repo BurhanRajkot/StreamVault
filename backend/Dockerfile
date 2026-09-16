@@ -48,6 +48,18 @@ RUN bun install --production
 # ── Stage 4: Production Runtime ─────────────────────────────────
 FROM base AS production
 
+# Security Hardening: patch OS packages inherited from the base image.
+# The oven/bun:*-slim base ships Debian packages (perl, sqlite, pcre2, gzip,
+# libperl/Storable/IO-Compress, …) whose security fixes Debian has released
+# but oven hasn't re-baked into the tag yet. Trivy scans this image with
+# `ignore-unfixed: true`, so anything it flags HAS an available fix — pulling
+# it here at build time is what clears those CVEs from the Security tab. Runs
+# as root, before we drop to the unprivileged user below.
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Security Hardening: Create unprivileged user (UID/GID 1001)
 RUN groupadd --gid 1001 media-app && \
     useradd --uid 1001 --gid media-app --shell /bin/false --create-home media-app

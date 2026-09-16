@@ -46,6 +46,12 @@ RUN npm run build
 # ── Stage 4: Serve with nginx (Production) ──────────────────────────
 FROM nginx:1.31-alpine AS production
 
+# Security Hardening: patch OS packages inherited from the Alpine base.
+# Same rationale as the backend image — Trivy scans with `ignore-unfixed:
+# true`, so pulling the already-released apk security updates here clears
+# those fixable CVEs from the published frontend image.
+RUN apk upgrade --no-cache
+
 # Create non-root user
 RUN addgroup -g 1001 -S app && \
     adduser  -u 1001 -S app -G app
