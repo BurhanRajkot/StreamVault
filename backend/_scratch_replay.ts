@@ -25,7 +25,7 @@ console.log(`Fetched ${allRows.length} total rows`)
 const { getMovieFeatures } = await import('./src/cinematch/features/movieFeatures')
 
 const GENRE_DECAY_PER_EVENT = 0.98
-let map: Record<string, number> = {}
+const map: Record<string, number> = {}
 let processed = 0
 
 for (const row of allRows) {
