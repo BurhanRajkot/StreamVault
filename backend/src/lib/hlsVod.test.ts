@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { buildSegmentStarts, buildPlaylist } from './hlsVod'
+import { buildSegmentStarts, buildPlaylist, shouldJoin } from './hlsVod'
 
 describe('buildSegmentStarts', () => {
   it('groups keyframes into segments of at least the target length', () => {
@@ -36,5 +36,30 @@ describe('buildPlaylist', () => {
     const playlist = buildPlaylist({ starts: [0.084, 6.1], duration: 10 })
     const durations = [...playlist.matchAll(/#EXTINF:([\d.]+),/g)].map((m) => Number(m[1]))
     expect(durations).toEqual([6.1, 3.9])
+  })
+})
+
+describe('shouldJoin', () => {
+  // Ten 10s segments; the job started at segment 2 and has finished segment 3.
+  const session = { starts: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90], duration: 100, restartCostS: 5, produceRate: 2 }
+  const job = { start: 2, produced: 3, exited: false }
+
+  it('waits for the segment the job is producing right now', () => {
+    expect(shouldJoin(session, job, 4)).toBe(true)
+  })
+
+  it('waits when the job will get there sooner than a restart would', () => {
+    // Segment 5 ends 20s of media past the job's position: 10s at 2x vs a 5s restart.
+    expect(shouldJoin({ ...session, produceRate: 5 }, job, 5)).toBe(true)
+    expect(shouldJoin(session, job, 5)).toBe(false)
+  })
+
+  it('restarts for segments behind the job, which were already cleaned up', () => {
+    expect(shouldJoin(session, job, 3)).toBe(false)
+    expect(shouldJoin(session, job, 1)).toBe(false)
+  })
+
+  it('restarts when the job has exited', () => {
+    expect(shouldJoin(session, { ...job, exited: true }, 4)).toBe(false)
   })
 })

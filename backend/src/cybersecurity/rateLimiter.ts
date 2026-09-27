@@ -21,6 +21,9 @@
 
 import rateLimit from 'express-rate-limit'
 
+/** GET /torbox/hls/:sessionId/playlist.m3u8 and /torbox/hls/:sessionId/seg_NNNNN.ts */
+export const HLS_MEDIA_PATH = /^\/torbox\/hls\/[0-9a-f-]{36}\/(playlist\.m3u8|seg_\d{5}\.ts)$/i
+
 /**
  * General API rate limiter
  * 300 requests per 15 minutes per IP
@@ -56,9 +59,17 @@ export const apiRateLimiter = rateLimit({
   // throttling just by suffixing a path with `.png`. /cache-stats is likewise
   // no longer exempt — it is admin-authenticated, which is precisely the kind
   // of endpoint that needs a brute-force ceiling.
+  //
+  // TorBox HLS playlist/segment fetches are exempt too: the player makes one
+  // every few seconds of video (~20 a minute), so a single movie used to
+  // exhaust the budget mid-playback and every segment after that 429'd —
+  // endless buffering. The pattern is exact (a session UUID plus a playlist
+  // or segment name), so it can't be used to smuggle other paths past the
+  // limiter, and the route answers anything else with a cheap 400/404.
   skip: (req: import('express').Request) => {
     const path = req.path
-    return path === '/' || path === '/health' || path === '/ping'
+    if (path === '/' || path === '/health' || path === '/ping') return true
+    return req.method === 'GET' && HLS_MEDIA_PATH.test(path)
   },
 
   // Disable validation warnings (we handle trust proxy correctly)
