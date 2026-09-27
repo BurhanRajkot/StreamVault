@@ -8,6 +8,7 @@
  */
 
 import { logger } from './logger'
+import { fetchChunk, UpstreamStatusError } from './rangeProxy'
 
 export interface KeyframeIndex {
   /** Presentation times (seconds) of the first video track's keyframes, ascending. */
@@ -19,38 +20,38 @@ export interface KeyframeIndex {
 
 const HEAD_BYTES = 256 * 1024
 const MAX_INDEX_BYTES = 64 * 1024 * 1024
-const FETCH_TIMEOUT_MS = 8000
+/** Whole-index budget. Individual reads retry stalls on their own (see fetchChunk). */
+const FETCH_TIMEOUT_MS = 20_000
 
 class RangeReader {
   size: number | null = null
   constructor(private url: string, private signal: AbortSignal) {}
 
   async read(offset: number, length: number): Promise<Buffer> {
-    const res = await fetch(this.url, {
-      headers: { Range: `bytes=${offset}-${offset + length - 1}` },
-      signal: this.signal,
-    })
-    if (res.status !== 206 && !(res.status === 200 && offset === 0)) {
-      await res.body?.cancel()
-      throw new Error(`range request returned HTTP ${res.status}`)
+    // Through the range proxy's chunk fetcher, which re-requests a read whose
+    // CDN connection stalls — a single stalled connection used to eat the
+    // whole budget, and the session then fell back to a live playlist.
+    try {
+      const { data, total } = await fetchChunk({ getUrl: () => this.url }, offset, offset + length - 1, this.signal)
+      if (total !== null) this.size = total
+      return data
+    } catch (err: unknown) {
+      if (!(err instanceof UpstreamStatusError && err.status === 200 && offset === 0)) throw err
     }
-    const total = res.headers.get('content-range')?.match(/\/(\d+)$/)?.[1]
-    if (total) this.size = Number(total)
-    if (res.status === 200) {
-      // Server ignored the Range header; read only what we asked for.
-      const reader = res.body!.getReader()
-      const chunks: Buffer[] = []
-      let got = 0
-      while (got < length) {
-        const { done, value } = await reader.read()
-        if (done) break
-        chunks.push(Buffer.from(value))
-        got += value.length
-      }
-      await reader.cancel()
-      return Buffer.concat(chunks).subarray(0, length)
+
+    // Server ignored the Range header; read only what we asked for.
+    const res = await fetch(this.url, { signal: this.signal })
+    const reader = res.body!.getReader()
+    const chunks: Buffer[] = []
+    let got = 0
+    while (got < length) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(Buffer.from(value))
+      got += value.length
     }
-    return Buffer.from(await res.arrayBuffer())
+    await reader.cancel()
+    return Buffer.concat(chunks).subarray(0, length)
   }
 }
 
