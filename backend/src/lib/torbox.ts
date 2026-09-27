@@ -417,6 +417,56 @@ export function isImaxRelease(name: string): boolean {
   return /\bIMAX\b/i.test(name)
 }
 
+const SEQUEL_MARKERS: Record<string, number> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10,
+}
+const SEQUEL_MARKER_RE = Object.keys(SEQUEL_MARKERS).join('|')
+
+function normalizeForTitleMatch(s: string): string {
+  return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * True when the release is plainly a *different* entry of the same franchise
+ * — "Planet Earth III" for Planet Earth II, "Toy Story 2" for Toy Story.
+ * Comet matches by IMDb id but its indexers are fuzzy, and this was coming
+ * back cached and ranked right alongside the real thing (seen for Planet
+ * Earth II S01E02). Only a sequel marker right after the title counts, so
+ * alternate titles, foreign names and missing titles all still pass.
+ *
+ * @param title - The wanted title; a trailing year (as the player appends
+ *   for movies) is ignored.
+ */
+export function isDifferentSequel(name: string, title: string): boolean {
+  const wanted = normalizeForTitleMatch(title).replace(/\s(19|20)\d{2}$/, '')
+  const titleMatch = wanted.match(new RegExp(`^(.+?)\\s(${SEQUEL_MARKER_RE})$`))
+  const base = titleMatch ? titleMatch[1] : wanted
+  const wantedNumber = titleMatch ? SEQUEL_MARKERS[titleMatch[2]] : 1
+  if (!base) return false
+
+  const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const found = normalizeForTitleMatch(name).match(
+    new RegExp(`(?:^|\\s)${escaped}(?:\\s(${SEQUEL_MARKER_RE}))?(?:\\s|$)`)
+  )
+  if (!found) return false
+  const releaseNumber = found[1] ? SEQUEL_MARKERS[found[1]] : 1
+  // An unnumbered release for a numbered title ("Planet Earth S01E02" when
+  // asking for II) is ambiguous rather than wrong — keep it.
+  return found[1] !== undefined && releaseNumber !== wantedNumber
+}
+
+/**
+ * Below this, a release claiming 2160p is a fake, a sample, or a mislabeled
+ * low-bitrate encode — e.g. a 300MB "2160p REMUX" that was ranking as a
+ * cached 4K pick for a 50-minute documentary episode.
+ */
+const MIN_4K_RELEASE_BYTES = 400 * 1024 * 1024
+
+function isImplausibleRelease(name: string, size: number): boolean {
+  return size > 0 && size < MIN_4K_RELEASE_BYTES && releaseQualityRank(name) === 4
+}
+
 // ---------------------------------------------------------------------------
 // Indexer lookup caching (searchMediaTorrents only)
 // ---------------------------------------------------------------------------
@@ -595,8 +645,13 @@ export async function searchMediaTorrents(params: {
   // Drop anything over the size cap outright — a 110GB IMAX remux should
   // never surface here, cached or not. Keep unknown sizes (0): Comet doesn't
   // always report `videoSize`, and an unknown size shouldn't be punished.
+  // Wrong-sequel matches and implausibly small "4K" files go too — both
+  // were being auto-picked as cached releases for documentary series.
   const candidates = [...merged.values()].filter(
-    (c) => c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES
+    (c) =>
+      (c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES) &&
+      !isImplausibleRelease(c.name, c.size) &&
+      !isDifferentSequel(c.name, title)
   )
 
   if (candidates.length === 0) {

@@ -12,6 +12,12 @@
  *   5. Allows switching between different cached releases (4K UHD, 1080p, HDR).
  *   6. If nothing is found at all, provides an instant 1-click fallback to
  *      standard servers.
+ *
+ * Releases are ranked for what this browser can decode and stream smoothly
+ * (see lib/releasePlayback.ts), not raw quality. A release that fails before
+ * the viewer is really watching (codec refused by the backend probe, element
+ * error, no video track, no first frame in time) is skipped for the next one
+ * automatically, a few times, before any error is shown.
  */
 
 import { useCallback, useEffect, useState, useRef } from 'react'
@@ -38,13 +44,19 @@ import {
   parseTorrentQuality,
   parseTorrentHDR,
   isImaxRelease,
-  isLikelyNonEnglishRelease,
   formatBytes,
+  TorboxRequestError,
   type TorboxSearchResult,
   type TorboxHlsStartResult,
   findTorrentForTitle,
   pickPlaybackFile,
 } from '@/lib/torboxApi'
+import {
+  detectBrowserVideoSupport,
+  isBrowserPlayable,
+  rankReleasesForPlayback,
+  supportedFfprobeCodecs,
+} from '@/lib/releasePlayback'
 import { getAdminToken } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -79,24 +91,19 @@ interface DownloadProgress {
   eta: number
 }
 
-/**
- * Rank releases by quality, then likely-English audio, then IMAX cut, then
- * seeders — the same order the backend returns them in (see
- * selectBalancedReleases in backend/src/lib/torbox.ts). The audio codec is no
- * longer a factor: /hls/start probes the actual file and transcodes whatever
- * the browser can't decode, so a "DDP5.1" release isn't silent anymore. The
- * backend also caps release size (MAX_RELEASE_SIZE_BYTES), so a 4K result
- * here is never a 100GB+ remux.
- */
-function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
-  const rank = (q: string) => (q === '4K' ? 4 : q === '1080p' ? 3 : q === '720p' ? 2 : 1)
-  const rankDiff = rank(parseTorrentQuality(b.name)) - rank(parseTorrentQuality(a.name))
-  if (rankDiff !== 0) return rankDiff
-  const langDiff = Number(isLikelyNonEnglishRelease(a.name)) - Number(isLikelyNonEnglishRelease(b.name))
-  if (langDiff !== 0) return langDiff
-  const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
-  if (imaxDiff !== 0) return imaxDiff
-  return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
+/** Releases the player tries on its own before showing an error — each refused one costs a probe (~1-2s). */
+const MAX_AUTO_RELEASE_ATTEMPTS = 4
+
+/** How long a mounted stream may take to load before the next release is tried. HLS waits on the first transcoded segment. */
+const DIRECT_STARTUP_TIMEOUT_MS = 30_000
+const HLS_STARTUP_TIMEOUT_MS = 60_000
+
+/** Past this much playback, a failure is shown rather than silently restarting the viewer on another release. */
+const AUTO_SWITCH_MAX_POSITION_S = 30
+
+/** 4xx from the backend (other than rate limiting) won't fix itself on the next poll. */
+function isPermanentRequestError(err: unknown): boolean {
+  return err instanceof TorboxRequestError && err.status >= 400 && err.status < 500 && err.status !== 429
 }
 
 /** Fatal hls.js errors to recover from in a row (no segment loading in between) before showing the stream as failed. */
@@ -161,8 +168,14 @@ export function TorboxPlayerPane({
   const [showReleasesDropdown, setShowReleasesDropdown] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
-  /** Bumped on every new search/poll so stale polling loops know to stop. */
+  /** Bumped on every new search/poll/release attempt so stale loops know to stop. */
   const pollGenerationRef = useRef(0)
+  /** Cached releases in the order they'll be tried automatically. */
+  const releaseQueueRef = useRef<TorboxSearchResult[]>([])
+  const triedReleasesRef = useRef(new Set<string>())
+  const autoAttemptsRef = useRef(0)
+  /** Best browser-playable uncached release — downloaded if every cached one fails. */
+  const uncachedFallbackRef = useRef<TorboxSearchResult | null>(null)
 
   const getToken = useCallback(async () => {
     try {
@@ -184,7 +197,10 @@ export function TorboxPlayerPane({
    */
   const startPlayback = useCallback(
     async (target: PlaybackTarget, token: string | undefined, opts: { forceTranscode?: boolean } = {}) => {
-      const hlsRes = await startTorboxHls(target.torrentId, target.fileId, token, target.releaseName, opts)
+      const hlsRes = await startTorboxHls(target.torrentId, target.fileId, token, target.releaseName, {
+        ...opts,
+        supportedVideoCodecs: supportedFfprobeCodecs(detectBrowserVideoSupport()),
+      })
       const { url, mode, sessionId } = resolvePlaybackUrl(hlsRes)
       return () => {
         setPlaybackTarget(target)
@@ -199,52 +215,41 @@ export function TorboxPlayerPane({
     []
   )
 
-  const streamTorrent = useCallback(
-    async (release: TorboxSearchResult, token?: string) => {
-      setStatus('loading-stream')
-      setStatusMessage(`Preparing ${parseTorrentQuality(release.name)} stream...`)
-      setPlaybackFailed(false)
-      setActiveRelease(release)
+  /**
+   * Add a cached release to the account (a no-op if it's already there), pick
+   * the right file — a "release" can be a whole season pack — and resolve a
+   * playable stream. Returns the commit function from `startPlayback`.
+   */
+  const prepareRelease = useCallback(
+    async (release: TorboxSearchResult, token: string | undefined) => {
+      // The backend attaches the file list (looked up by torrent id) so we
+      // can go straight to requesting a stream URL.
+      const addRes = await addTorboxByHash(release.info_hash, release.name, token, {
+        includeFiles: true,
+      })
+      let torrentId = addRes.data?.torrent_id
+      let files = addRes.data?.files
 
-      try {
-        // The backend attaches the file list (looked up by torrent id) so we
-        // can go straight to requesting a stream URL. A "release" can be a
-        // season pack, so we need *some* file listing to pick the exact
-        // episode requested, not just file 0.
-        const addRes = await addTorboxByHash(release.info_hash, release.name, token, {
-          includeFiles: true,
-        })
-        let torrentId = addRes.data?.torrent_id
-        let files = addRes.data?.files
-
-        if (torrentId && (!files || files.length === 0)) {
-          files = (await fetchTorboxTorrent(torrentId, token))?.files
-        } else if (!torrentId) {
-          // No id back from the add (e.g. already in the account) — find it
-          // by hash. TorBox's cached listing is fine for that and ~6x faster
-          // than a fresh one.
-          const list = await fetchTorboxList(token, { fresh: false })
-          const match = list.data?.find(
-            (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
-          )
-          torrentId = match?.id
-          files = files && files.length > 0 ? files : match?.files
-        }
-
-        if (!torrentId) {
-          throw new Error('Could not initialize TorBox stream')
-        }
-
-        const file = files ? pickPlaybackFile(files, mediaType, season, episode) : null
-        const fileId = file?.id ?? 0
-
-        const show = await startPlayback({ torrentId, fileId, releaseName: release.name }, token)
-        show()
-      } catch (err: unknown) {
-        console.error('TorBox stream error:', err)
-        setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
-        setStatusMessage(err instanceof Error ? err.message : 'Failed to load TorBox stream')
+      if (torrentId && (!files || files.length === 0)) {
+        files = (await fetchTorboxTorrent(torrentId, token))?.files
+      } else if (!torrentId) {
+        // No id back from the add (e.g. already in the account) — find it
+        // by hash. TorBox's cached listing is fine for that and ~6x faster
+        // than a fresh one.
+        const list = await fetchTorboxList(token, { fresh: false })
+        const match = list.data?.find(
+          (t) => t.hash.toUpperCase() === release.info_hash.toUpperCase()
+        )
+        torrentId = match?.id
+        files = files && files.length > 0 ? files : match?.files
       }
+
+      if (!torrentId) {
+        throw new Error('Could not initialize TorBox stream')
+      }
+
+      const file = files ? pickPlaybackFile(files, mediaType, season, episode) : null
+      return startPlayback({ torrentId, fileId: file?.id ?? 0, releaseName: release.name }, token)
     },
     [mediaType, season, episode, startPlayback]
   )
@@ -286,8 +291,10 @@ export function TorboxPlayerPane({
               setStatusMessage(`Downloading "${releaseName}"...`)
             }
           }
-        } catch {
-          // Transient network hiccup — keep polling rather than bailing out.
+        } catch (err: unknown) {
+          // e.g. the file's video codec was refused — polling won't change that.
+          if (isPermanentRequestError(err)) throw err
+          // Otherwise a transient network hiccup — keep polling rather than bailing out.
         }
 
         await new Promise((r) => setTimeout(r, pollIntervalMs))
@@ -338,6 +345,91 @@ export function TorboxPlayerPane({
     [pollTorrentUntilReady]
   )
 
+  /**
+   * Play a cached release, moving on to the next one in the queue when it
+   * can't be started (codec refused, file missing, ...). Once the queue or
+   * the attempt budget runs out, falls back to downloading the best
+   * playable uncached release, and only then shows an error.
+   */
+  const streamTorrent = useCallback(
+    async (release: TorboxSearchResult, token?: string) => {
+      const generation = ++pollGenerationRef.current
+      let current: TorboxSearchResult | null = release
+
+      while (current) {
+        triedReleasesRef.current.add(current.info_hash)
+        autoAttemptsRef.current++
+        const isRetry = autoAttemptsRef.current > 1
+        setStatus('loading-stream')
+        setStatusMessage(
+          isRetry
+            ? `Trying another release — preparing ${parseTorrentQuality(current.name)} stream...`
+            : `Preparing ${parseTorrentQuality(current.name)} stream...`
+        )
+        setPlaybackFailed(false)
+        setActiveRelease(current)
+
+        try {
+          const show = await prepareRelease(current, token)
+          if (pollGenerationRef.current === generation) show()
+          return
+        } catch (err: unknown) {
+          if (pollGenerationRef.current !== generation) return
+          if (isUpgradeError(err)) {
+            setStatus('upgrade-required')
+            setStatusMessage(err instanceof Error ? err.message : 'Premium required')
+            return
+          }
+          console.warn('TorBox release could not start, trying another:', current.name, err)
+
+          current =
+            autoAttemptsRef.current < MAX_AUTO_RELEASE_ATTEMPTS
+              ? releaseQueueRef.current.find((r) => !triedReleasesRef.current.has(r.info_hash)) ?? null
+              : null
+          if (current) continue
+
+          const fallback = uncachedFallbackRef.current
+          if (fallback) {
+            uncachedFallbackRef.current = null
+            await downloadAndPlay(fallback, token)
+            return
+          }
+          setStatus('error')
+          setStatusMessage(err instanceof Error ? err.message : 'Failed to load TorBox stream')
+        }
+      }
+    },
+    [prepareRelease, downloadAndPlay]
+  )
+
+  /**
+   * A mounted stream failed (element error, fatal hls.js error, no decodable
+   * video, nothing loaded in time). Early on, quietly move to the next
+   * release; once the viewer is actually watching, show the error instead of
+   * restarting them on a different file.
+   */
+  const handlePlaybackFailure = useCallback(
+    (reason: string) => {
+      const position = videoRef.current?.currentTime ?? 0
+      if (position < AUTO_SWITCH_MAX_POSITION_S && autoAttemptsRef.current < MAX_AUTO_RELEASE_ATTEMPTS) {
+        const next = releaseQueueRef.current.find((r) => !triedReleasesRef.current.has(r.info_hash))
+        if (next) {
+          console.warn(`TorBox stream failed (${reason}), trying another release:`, next.name)
+          void getToken().then((token) => streamTorrent(next, token))
+          return
+        }
+      }
+      console.error(`TorBox stream failed (${reason})`)
+      setPlaybackFailed(true)
+    },
+    [getToken, streamTorrent]
+  )
+  /** Latest handler for effects that shouldn't re-subscribe (and rebuild hls.js) when it changes. */
+  const handlePlaybackFailureRef = useRef(handlePlaybackFailure)
+  useEffect(() => {
+    handlePlaybackFailureRef.current = handlePlaybackFailure
+  }, [handlePlaybackFailure])
+
   const searchAndPlay = useCallback(async () => {
     // Cancel any poll loop left over from a previous title/retry.
     pollGenerationRef.current++
@@ -351,6 +443,10 @@ export function TorboxPlayerPane({
     setCachedReleases([])
     setActiveRelease(null)
     setDownloadProgress(null)
+    releaseQueueRef.current = []
+    triedReleasesRef.current = new Set()
+    autoAttemptsRef.current = 0
+    uncachedFallbackRef.current = null
 
     const token = await getToken()
 
@@ -363,15 +459,24 @@ export function TorboxPlayerPane({
       const searchRes = await searchTorboxMedia(queryTitle, imdbId ?? undefined, mediaType, token, {
         season,
         episode,
-        limit: 15,
+        limit: 25,
       })
-      const allResults = searchRes.data || []
+      const support = detectBrowserVideoSupport()
+      const ranked = rankReleasesForPlayback(searchRes.data || [], support)
+      const cached = ranked.filter((r) => r.torbox_cached)
 
-      const cached = allResults.filter((r) => r.torbox_cached).sort(compareReleases)
+      // Comet-sourced results (backend tags them via `username`) are trusted
+      // even with an unparsed/zero seeder count — apibay's need a positive
+      // count to filter out dead torrents.
+      const uncached = ranked.filter(
+        (r) => !r.torbox_cached && r.info_hash && (r.username === 'comet' || parseInt(r.seeders, 10) > 0)
+      )
+      uncachedFallbackRef.current = uncached.find((r) => isBrowserPlayable(r.name, support)) ?? null
 
       // Prefer an already-cached release — instant playback, no wait.
       if (cached.length > 0) {
         setCachedReleases(cached)
+        releaseQueueRef.current = cached
         await streamTorrent(cached[0], token)
         return
       }
@@ -412,15 +517,8 @@ export function TorboxPlayerPane({
 
       // 4. Nothing cached and nothing already in the library — download the
       // best uncached release and stream it once TorBox finishes fetching it.
-      // Comet-sourced results (backend tags them via `username`) are trusted
-      // even with an unparsed/zero seeder count — apibay's need a positive
-      // count to filter out dead torrents.
-      const candidates = allResults
-        .filter((r) => r.info_hash && (r.username === 'comet' || parseInt(r.seeders, 10) > 0))
-        .sort(compareReleases)
-
-      if (candidates.length > 0) {
-        await downloadAndPlay(candidates[0], token)
+      if (uncached.length > 0) {
+        await downloadAndPlay(uncached[0], token)
         return
       }
 
@@ -539,6 +637,14 @@ export function TorboxPlayerPane({
       })
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return
+        // The browser can't decode this track at all — no recovery will help.
+        if (
+          data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR ||
+          data.details === Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR
+        ) {
+          handlePlaybackFailureRef.current(`hls ${data.details}`)
+          return
+        }
         if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           recoveriesLeft--
           console.warn('TorBox HLS network error, retrying:', data.details)
@@ -552,7 +658,7 @@ export function TorboxPlayerPane({
           return
         }
         console.error('TorBox HLS playback error:', data)
-        setPlaybackFailed(true)
+        handlePlaybackFailureRef.current(`hls ${data.details}`)
       })
       return () => {
         if (retryTimer) clearTimeout(retryTimer)
@@ -570,6 +676,40 @@ export function TorboxPlayerPane({
     }
 
     setPlaybackFailed(true)
+  }, [status, streamUrl, playbackMode])
+
+  /**
+   * Catch a stream that will never show a picture, so the next release gets
+   * a turn instead of the viewer staring at a spinner:
+   * - metadata loaded but no video track — the browser dropped a video codec
+   *   it can't decode (HEVC/AV1) and would play sound over a black frame;
+   * - nothing loaded in time — a dead CDN link, or a bitrate this connection
+   *   can't start. A paused player that already has metadata is just waiting
+   *   on autoplay permission, not stuck, so that doesn't count.
+   */
+  useEffect(() => {
+    if (status !== 'ready' || !streamUrl) return
+    const video = videoRef.current
+    if (!video) return
+
+    const handleLoadedMetadata = () => {
+      if (video.videoWidth === 0) handlePlaybackFailureRef.current('no decodable video track')
+    }
+    const timer = setTimeout(
+      () => {
+        const stuck =
+          video.readyState < HTMLMediaElement.HAVE_METADATA ||
+          (!video.paused && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
+        if (stuck) handlePlaybackFailureRef.current('nothing loaded before the startup timeout')
+      },
+      playbackMode === 'hls' ? HLS_STARTUP_TIMEOUT_MS : DIRECT_STARTUP_TIMEOUT_MS
+    )
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata)
+    return () => {
+      clearTimeout(timer)
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+    }
   }, [status, streamUrl, playbackMode])
 
   /**
@@ -617,7 +757,7 @@ export function TorboxPlayerPane({
         return
       }
 
-      setPlaybackFailed(true)
+      handlePlaybackFailureRef.current('no audio after transcoding')
     }
 
     const handlePlaying = () => {
@@ -806,7 +946,10 @@ export function TorboxPlayerPane({
             <button
               onClick={() => {
                 const next = cachedReleases.find((r) => r.info_hash !== activeRelease?.info_hash)
-                if (next) void getToken().then((token) => streamTorrent(next, token))
+                if (next) {
+                  autoAttemptsRef.current = 0
+                  void getToken().then((token) => streamTorrent(next, token))
+                }
               }}
               className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
             >
@@ -839,7 +982,7 @@ export function TorboxPlayerPane({
         autoPlay
         playsInline
         className="absolute inset-0 h-full w-full bg-black object-contain"
-        onError={() => setPlaybackFailed(true)}
+        onError={() => handlePlaybackFailure('video element error')}
       />
 
       {isTranscodingLive && (
@@ -895,6 +1038,7 @@ export function TorboxPlayerPane({
                           key={rel.info_hash}
                           onClick={() => {
                             setShowReleasesDropdown(false)
+                            autoAttemptsRef.current = 0
                             void getToken().then((token) => streamTorrent(rel, token))
                           }}
                           className={cn(

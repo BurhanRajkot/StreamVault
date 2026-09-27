@@ -58,10 +58,22 @@ function authHeaders(token?: string): HeadersInit {
   return headers
 }
 
+/** A failed backend call, carrying the HTTP status and the backend's machine-readable `code` when it sent one. */
+export class TorboxRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string
+  ) {
+    super(message)
+    this.name = 'TorboxRequestError'
+  }
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string }
-    throw new Error(body?.error || `Request failed: ${res.status}`)
+    const body = await res.json().catch(() => ({ error: res.statusText })) as { error?: string; code?: string }
+    throw new TorboxRequestError(body?.error || `Request failed: ${res.status}`, res.status, body?.code)
   }
   return res.json() as Promise<T>
 }
@@ -179,6 +191,8 @@ export interface TorboxHlsStartResult {
   url?: string
   sessionId?: string
   playlistUrl?: string
+  /** ffprobe's name for the file's video codec (e.g. "h264", "hevc"), or null when the probe failed. */
+  videoCodec?: string | null
 }
 
 /**
@@ -194,18 +208,28 @@ export interface TorboxHlsStartResult {
  *                       as a fallback heuristic if the stream probe fails.
  * @param opts.forceTranscode - Skip the probe's verdict and always transcode;
  *                       used when a direct stream played silent anyway.
+ * @param opts.supportedVideoCodecs - ffprobe codec names this browser can
+ *                       decode. A file in any other codec is refused with a
+ *                       415 `unsupported-video` TorboxRequestError before any
+ *                       transcode session starts.
  */
 export async function startTorboxHls(
   torrentId: number,
   fileId: number,
   token?: string,
   releaseName?: string,
-  opts: { forceTranscode?: boolean } = {}
+  opts: { forceTranscode?: boolean; supportedVideoCodecs?: string[] } = {}
 ): Promise<TorboxHlsStartResult> {
   const res = await fetch(`${API_BASE}/torbox/hls/start`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ torrentId, fileId, releaseName, forceTranscode: opts.forceTranscode }),
+    body: JSON.stringify({
+      torrentId,
+      fileId,
+      releaseName,
+      forceTranscode: opts.forceTranscode,
+      supportedVideoCodecs: opts.supportedVideoCodecs,
+    }),
   })
   return handleResponse(res)
 }
@@ -482,9 +506,9 @@ export function findEpisodeFile(
   if (pool.length === 1) return pool[0]
 
   const patterns = [
-    new RegExp(`s0*${season}[._\\s-]*e0*${episode}(?!\\d)`, 'i'), // S05E03, S5.E3, S05 E03
+    new RegExp(`s0*${season}[._\\s-]*ep?0*${episode}(?!\\d)`, 'i'), // S05E03, S5.E3, S05 E03, S01.EP03
     new RegExp(`\\b${season}x0*${episode}(?!\\d)`, 'i'), // 5x03
-    new RegExp(`\\be0*${episode}(?!\\d)`, 'i'), // per-season torrent named just "E03"
+    new RegExp(`\\bep?0*${episode}(?!\\d)`, 'i'), // per-season torrent named just "E03" / "EP03"
   ]
 
   for (const pattern of patterns) {
