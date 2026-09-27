@@ -13,6 +13,10 @@
  * packaged as HLS so it can be served progressively while ffmpeg is still
  * working through the file.
  *
+ * The growing (EVENT) playlist here is only the fallback for files whose
+ * keyframe index can't be read; normally hlsVod.ts serves a full-length VOD
+ * playlist instead, which is what makes the duration and seeking work.
+ *
  * Sessions live in memory only (Map + child process + a scratch dir under
  * /tmp/hls). A process restart drops them, which is fine — the frontend just
  * calls /torbox/hls/start again and gets a new session.
@@ -34,7 +38,7 @@ const FFPROBE_PATH =
 
 // The Dockerfile pre-creates /tmp/hls with the right ownership for the
 // production runtime user; fall back to the OS temp dir for local dev.
-const HLS_ROOT = fs.existsSync('/tmp/hls') ? '/tmp/hls' : path.join(os.tmpdir(), 'streamvault-hls')
+export const HLS_ROOT = fs.existsSync('/tmp/hls') ? '/tmp/hls' : path.join(os.tmpdir(), 'streamvault-hls')
 
 // Generous enough to survive a paused player: once the playlist is complete
 // hls.js stops polling it, and a paused <video> fetches nothing at all. The
