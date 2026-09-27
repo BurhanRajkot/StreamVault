@@ -335,6 +335,7 @@ router.post(
             hlsRoot: transcode.HLS_ROOT,
             url: serverUrl,
             resolveUrl: resolveServerUrl,
+            cacheKey,
             keyframes: index.keyframes,
             duration: index.duration,
             tracks: plan,

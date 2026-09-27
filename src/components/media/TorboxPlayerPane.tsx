@@ -99,6 +99,9 @@ function compareReleases(a: TorboxSearchResult, b: TorboxSearchResult): number {
   return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
 }
 
+/** Fatal hls.js errors to recover from in a row (no segment loading in between) before showing the stream as failed. */
+const MAX_HLS_RECOVERIES = 5
+
 /** The file currently playing — kept so a silent direct stream can be restarted through the transcoder. */
 interface PlaybackTarget {
   torrentId: number
@@ -522,13 +525,37 @@ export function TorboxPlayerPane({
       hls.on(Hls.Events.LEVEL_UPDATED, (_event, data) => {
         setIsTranscodingLive(!!data.details?.live)
       })
+      // A fatal error stops hls.js loading for good, which on screen is an
+      // endless spinner — e.g. the first segment after a long seek outlasting
+      // the retries while the backend restarts ffmpeg over a slow CDN link.
+      // Recover the way hls.js documents instead of giving up: restart
+      // loading at the current position for network errors, rebuild the
+      // MediaSource for media errors. The budget refills whenever a segment
+      // lands, so only a stream that's genuinely stuck is marked failed.
+      let recoveriesLeft = MAX_HLS_RECOVERIES
+      let retryTimer: ReturnType<typeof setTimeout> | null = null
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        recoveriesLeft = MAX_HLS_RECOVERIES
+      })
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          console.error('TorBox HLS playback error:', data)
-          setPlaybackFailed(true)
+        if (!data.fatal) return
+        if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          recoveriesLeft--
+          console.warn('TorBox HLS network error, retrying:', data.details)
+          retryTimer = setTimeout(() => hls.startLoad(video.currentTime), 2000)
+          return
         }
+        if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          recoveriesLeft--
+          console.warn('TorBox HLS media error, recovering:', data.details)
+          hls.recoverMediaError()
+          return
+        }
+        console.error('TorBox HLS playback error:', data)
+        setPlaybackFailed(true)
       })
       return () => {
+        if (retryTimer) clearTimeout(retryTimer)
         hls.destroy()
         setIsTranscodingLive(false)
       }
