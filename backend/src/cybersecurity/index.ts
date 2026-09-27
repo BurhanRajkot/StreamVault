@@ -27,7 +27,7 @@
  */
 
 // HTTP Security Headers
-export { helmetMiddleware } from './helmet'
+export { helmetMiddleware, xssProtectionHeader } from './helmet'
 
 // CORS Configuration
 export { corsMiddleware, corsPreflightHandler } from './cors'

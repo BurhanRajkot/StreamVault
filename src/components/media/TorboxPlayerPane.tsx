@@ -493,18 +493,32 @@ export function TorboxPlayerPane({
     if (!video) return
 
     if (Hls.isSupported()) {
-      setIsTranscodingLive(true)
-      // Start from the beginning: while ffmpeg is still working the playlist
-      // has no #EXT-X-ENDLIST, and hls.js would otherwise treat it as live
-      // and join at the "live edge" — minutes into the movie.
-      const hls = new Hls({ startPosition: 0 })
+      // The backend normally serves a complete VOD playlist and transcodes
+      // each segment on request, so a segment (especially the first one after
+      // a seek, which restarts ffmpeg) can take several seconds to arrive —
+      // well past hls.js's default 10s time-to-first-byte on slow CDN starts.
+      // The deeper buffer rides out TorBox CDN hiccups mid-movie.
+      const segmentLoadPolicy = {
+        default: {
+          maxTimeToFirstByteMs: 50_000,
+          maxLoadTimeMs: 120_000,
+          timeoutRetry: { maxNumRetry: 3, retryDelayMs: 0, maxRetryDelayMs: 0 },
+          errorRetry: { maxNumRetry: 6, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+        },
+      }
+      const hls = new Hls({
+        // Start from the beginning even when the backend falls back to a
+        // growing playlist, which hls.js would otherwise join at the "live edge".
+        startPosition: 0,
+        maxBufferLength: 90,
+        maxMaxBufferLength: 180,
+        fragLoadPolicy: segmentLoadPolicy,
+      })
       hls.loadSource(streamUrl)
       hls.attachMedia(video)
-      // The backend writes the HLS playlist progressively while ffmpeg works
-      // through the file — hls.js (correctly) treats that as a live stream
-      // until #EXT-X-ENDLIST shows up, which is why the timeline looks
-      // live-like at first. Track that so the UI can explain it instead of
-      // looking broken; it flips once the whole file's been remuxed.
+      // Only the fallback path (no keyframe index) serves a growing playlist
+      // that hls.js treats as live; flag it so the UI can explain the
+      // live-like timeline instead of looking broken.
       hls.on(Hls.Events.LEVEL_UPDATED, (_event, data) => {
         setIsTranscodingLive(!!data.details?.live)
       })

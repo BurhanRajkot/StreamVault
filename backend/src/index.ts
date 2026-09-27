@@ -10,6 +10,7 @@ import { startWeightsRefreshLoop } from './cinematch/ranking/weightsRefreshJob'
 // CYBERSECURITY MIDDLEWARE (see ./cybersecurity for detailed documentation)
 import {
   helmetMiddleware,
+  xssProtectionHeader,
   corsMiddleware,
   corsPreflightHandler,
   apiRateLimiter
@@ -41,6 +42,7 @@ app.use(httpsEnforcement)
 
 // 2. Helmet - HTTP security headers
 app.use(helmetMiddleware)
+app.use(xssProtectionHeader)
 
 // 3. Compression - Apply BEFORE rate limiting for better performance
 app.use(compression())

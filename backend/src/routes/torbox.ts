@@ -15,7 +15,7 @@
  *   GET  /torbox/media-search     — Search by IMDb id (premium or admin)
  *   POST /torbox/add-hash         — Add a torrent by info-hash (premium or admin)
  *   POST /torbox/hls/start        — Start (or skip) audio-transcode for a file (premium or admin)
- *   GET  /torbox/hls/:sid/playlist.m3u8 — Serve the growing HLS playlist for a session
+ *   GET  /torbox/hls/:sid/playlist.m3u8 — Serve a session's HLS playlist (full-length VOD)
  *   GET  /torbox/hls/:sid/:segment      — Serve one HLS segment for a session
  *   DELETE /torbox/hls/:sid             — Stop a session early
  */
@@ -29,6 +29,8 @@ import { getUserId } from '../utils/auth'
 import { isPaidUser } from '../lib/subscription'
 import * as torbox from '../lib/torbox'
 import * as transcode from '../lib/transcode'
+import * as hlsVod from '../lib/hlsVod'
+import { fetchKeyframeIndex } from '../lib/keyframeIndex'
 
 
 const router = Router()
@@ -277,10 +279,23 @@ router.post(
       (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
       req.socket.remoteAddress
 
+    // TorBox picks a CDN node near the IP a link is requested for. The
+    // viewer's browser downloads the direct link, but this server downloads
+    // for the probe and any transcode, so those get a link requested without
+    // the viewer's IP (a node near us). A node near the viewer can be far from
+    // the server — measured 8s vs 2.5s per seek-restart.
+    const resolveServerUrl = async () => {
+      const fresh = await torbox.requestDownloadLink(torrentId as number, fileId as number, {})
+      const freshUrl = typeof fresh.data === 'string' ? fresh.data : (fresh.data as { url?: string } | null)?.url
+      if (!fresh.success || !freshUrl) throw new Error(fresh.detail || 'No stream URL available')
+      return freshUrl
+    }
+
     try {
-      const result = await torbox.requestDownloadLink(torrentId as number, fileId as number, {
-        userIp,
-      })
+      const [result, serverLink] = await Promise.all([
+        torbox.requestDownloadLink(torrentId as number, fileId as number, { userIp }),
+        resolveServerUrl().catch(() => null),
+      ])
 
       const url =
         typeof result.data === 'string'
@@ -291,8 +306,12 @@ router.post(
         logger.warn('TorBox returned no URL for HLS start', { torrentId, fileId, detail: result.detail })
         return res.status(404).json({ error: result.detail || 'No stream URL available' })
       }
+      const serverUrl = serverLink ?? url
 
-      const streams = await transcode.probeStreams(url, `${torrentId}:${fileId}`)
+      const cacheKey = `${torrentId}:${fileId}`
+      // Started alongside the probe but only awaited if we end up transcoding.
+      const indexPromise = fetchKeyframeIndex(serverUrl, cacheKey)
+      const streams = await transcode.probeStreams(serverUrl, cacheKey)
       let plan: transcode.PlaybackPlan
       if (streams) {
         plan = transcode.planPlayback(streams)
@@ -310,12 +329,23 @@ router.post(
         return res.json({ mode: 'direct', url })
       }
 
-      const session = transcode.createHlsSession(url, plan)
+      const index = await indexPromise
+      const session = index
+        ? hlsVod.createVodSession({
+            hlsRoot: transcode.HLS_ROOT,
+            url: serverUrl,
+            resolveUrl: resolveServerUrl,
+            keyframes: index.keyframes,
+            duration: index.duration,
+            tracks: plan,
+          })
+        : transcode.createHlsSession(serverUrl, plan)
       logger.info('Started TorBox HLS audio-transcode session', {
         torrentId,
         fileId,
         sessionId: session.id,
         releaseName,
+        playlist: index ? `vod (${index.container}, ${Math.round(index.duration)}s)` : 'event (no keyframe index)',
         reason: forceTranscode === true ? 'forced by player (silent direct playback)' : plan.reason,
       })
 
@@ -348,6 +378,13 @@ router.get('/hls/:sessionId/playlist.m3u8', async (req: Request, res: Response) 
     return res.status(400).json({ error: 'Invalid session id' })
   }
 
+  const vod = hlsVod.getVodSession(sessionId)
+  if (vod) {
+    res.set('Content-Type', 'application/vnd.apple.mpegurl')
+    res.set('Cache-Control', 'no-store')
+    return res.send(hlsVod.buildPlaylist(vod))
+  }
+
   const session = transcode.getSession(sessionId)
   if (!session) {
     return res.status(404).json({ error: 'Stream session not found or expired' })
@@ -377,7 +414,8 @@ router.delete('/hls/:sessionId', (req: Request, res: Response) => {
   if (!SESSION_ID_RE.test(sessionId)) {
     return res.status(400).json({ error: 'Invalid session id' })
   }
-  return res.status(transcode.stopSession(sessionId) ? 204 : 404).end()
+  const stopped = hlsVod.stopVodSession(sessionId) || transcode.stopSession(sessionId)
+  return res.status(stopped ? 204 : 404).end()
 })
 
 // ---------------------------------------------------------------------------
@@ -388,6 +426,22 @@ router.get('/hls/:sessionId/:segment', async (req: Request, res: Response) => {
   const { sessionId, segment } = req.params
   if (!SESSION_ID_RE.test(sessionId) || !SEGMENT_NAME_RE.test(segment)) {
     return res.status(400).json({ error: 'Invalid session or segment id' })
+  }
+
+  const vod = hlsVod.getVodSession(sessionId)
+  if (vod) {
+    let clientGone = false
+    res.on('close', () => {
+      if (!res.writableFinished) clientGone = true
+    })
+    const result = await hlsVod.ensureSegment(vod, Number(segment.slice(4, 9)), () => clientGone)
+    if ('error' in result) {
+      if (clientGone) return
+      return res.status(result.status).json({ error: result.error })
+    }
+    res.set('Content-Type', 'video/mp2t')
+    res.set('Cache-Control', 'no-store')
+    return res.sendFile(result.path)
   }
 
   const session = transcode.getSession(sessionId)
