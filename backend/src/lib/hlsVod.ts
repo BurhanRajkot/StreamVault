@@ -21,6 +21,9 @@
  *
  * The job pauses (SIGSTOP) once it is BUFFER_AHEAD_S ahead of the player and
  * segments far behind the player are deleted, bounding disk use per session.
+ *
+ * ffmpeg reads through rangeProxy.ts rather than straight from the CDN, so a
+ * restart doesn't re-download the file's header and index each time.
  */
 
 import { spawn, type ChildProcess } from 'child_process'
@@ -28,10 +31,15 @@ import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { logger } from './logger'
+import * as rangeProxy from './rangeProxy'
 
 const FFMPEG_PATH = process.env.FFMPEG_PATH || 'ffmpeg'
 
-const TARGET_SEGMENT_S = 6
+/**
+ * Short, so the first segment after a seek — the one the viewer waits on —
+ * is a small download. Segments still span at least one GOP.
+ */
+const TARGET_SEGMENT_S = 3
 /**
  * fftools seeks `-ss` minus 3/23s (~0.13s) for streams with B-frames, then
  * the demuxer lands on the keyframe at or before that. Seeking this far past
@@ -40,8 +48,14 @@ const TARGET_SEGMENT_S = 6
 const SEEK_PAST_KEYFRAME_S = 0.16
 /** A keyframe followed by another this soon can't be seeked to reliably, so it's never a boundary. */
 const MIN_KEYFRAME_GAP_S = 0.3
-/** Wait for the running job rather than restarting it when it's at most this far (media time) from the request. */
-const JOIN_WINDOW_S = 45
+/**
+ * Starting guesses until a session has measured its own: how long a job
+ * takes to deliver its first segment, and how fast (media seconds per
+ * second) it produces after that. The rate is bounded by the link to the
+ * CDN — only ~2x realtime for a high-bitrate remux on a 40 Mbit/s line.
+ */
+const DEFAULT_RESTART_COST_S = 5
+const DEFAULT_PRODUCE_RATE = 2
 const BUFFER_AHEAD_S = Number(process.env.TORBOX_HLS_BUFFER_AHEAD_S) || 300
 const RESUME_BELOW_S = BUFFER_AHEAD_S * 0.6
 const KEEP_BEHIND_S = Number(process.env.TORBOX_HLS_KEEP_BEHIND_S) || 180
@@ -64,6 +78,9 @@ interface Job {
   start: number
   /** Highest segment index this job has finished (start - 1 before the first). */
   produced: number
+  spawnedAt: number
+  /** When `produced` last advanced (or the job was resumed); null before the first segment. */
+  progressAt: number | null
   listLinesSeen: number
   paused: boolean
   exited: boolean
@@ -90,6 +107,10 @@ export interface VodSession {
   playhead: number
   requestSeq: number
   failures: number
+  /** Measured seconds from job spawn to its first segment (moving average). */
+  restartCostS: number
+  /** Measured media seconds produced per wall-clock second (moving average). */
+  produceRate: number
   createdAt: number
   lastAccess: number
   error: string | null
@@ -137,6 +158,8 @@ export function createVodSession(opts: {
   hlsRoot: string
   url: string
   resolveUrl: () => Promise<string>
+  /** Stable identity of the file (torrent + file id), for the range proxy's cache. */
+  cacheKey: string
   keyframes: number[]
   duration: number
   tracks: VodTracks
@@ -161,6 +184,8 @@ export function createVodSession(opts: {
     playhead: 0,
     requestSeq: 0,
     failures: 0,
+    restartCostS: DEFAULT_RESTART_COST_S,
+    produceRate: DEFAULT_PRODUCE_RATE,
     createdAt: Date.now(),
     lastAccess: Date.now(),
     error: null,
@@ -168,6 +193,7 @@ export function createVodSession(opts: {
   }
   session.throttleTimer.unref()
   sessions.set(id, session)
+  rangeProxy.registerSource(id, { key: opts.cacheKey, getUrl: () => session.url })
   // Get the first segments going while the player is still fetching the playlist.
   void startJob(session, 0)
   return session
@@ -181,6 +207,7 @@ export function getVodSession(id: string): VodSession | undefined {
 
 export function destroyVodSession(session: VodSession) {
   sessions.delete(session.id)
+  rangeProxy.unregisterSource(session.id)
   clearInterval(session.throttleTimer)
   if (session.job) killJob(session, session.job)
   fs.rm(session.dir, { recursive: true, force: true }, () => {})
@@ -209,6 +236,16 @@ async function startJob(session: VodSession, start: number): Promise<void> {
     if (session.job || !sessions.has(session.id)) return
   }
 
+  let input = session.url
+  try {
+    input = await rangeProxy.localUrl(session.id)
+  } catch (err: unknown) {
+    logger.warn('TorBox range proxy unavailable; reading the CDN directly', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+  if (session.job || !sessions.has(session.id)) return
+
   const jobId = ++session.jobSeq
   const dir = path.join(session.dir, `job_${jobId}`)
   fs.mkdirSync(dir, { recursive: true })
@@ -228,7 +265,7 @@ async function startJob(session: VodSession, start: number): Promise<void> {
     '-reconnect_delay_max', '5',
     ...(start > 0 ? ['-ss', (origin + SEEK_PAST_KEYFRAME_S).toFixed(3)] : []),
     '-copyts',
-    '-i', session.url,
+    '-i', input,
     '-map', tracks.videoIndex != null ? `0:${tracks.videoIndex}` : '0:v:0',
     '-map', tracks.audioIndex != null ? `0:${tracks.audioIndex}` : '0:a:0?',
     '-c:v', 'copy',
@@ -256,6 +293,8 @@ async function startJob(session: VodSession, start: number): Promise<void> {
     listPath,
     start,
     produced: start - 1,
+    spawnedAt: Date.now(),
+    progressAt: null,
     listLinesSeen: 0,
     paused: false,
     exited: false,
@@ -309,6 +348,7 @@ function collectFinished(session: VodSession, job: Job) {
   }
   // The last element is '' or a line ffmpeg is still writing.
   const complete = content.split('\n').slice(0, -1)
+  const before = job.produced
   for (let i = job.listLinesSeen; i < complete.length; i++) {
     const match = /^(seg_(\d{5})\.ts),/.exec(complete[i])
     if (!match) continue
@@ -322,6 +362,45 @@ function collectFinished(session: VodSession, job: Job) {
     }
   }
   job.listLinesSeen = complete.length
+  if (job.produced > before) recordProgress(session, job, before)
+}
+
+/** Update the session's restart-cost and production-rate estimates from a job's progress. */
+function recordProgress(session: VodSession, job: Job, before: number) {
+  const now = Date.now()
+  if (job.progressAt === null) {
+    session.restartCostS = ewma(session.restartCostS, (now - job.spawnedAt) / 1000)
+  } else if (now > job.progressAt) {
+    const media = segmentEnd(session, job.produced) - segmentEnd(session, before)
+    session.produceRate = ewma(session.produceRate, media / ((now - job.progressAt) / 1000))
+  }
+  job.progressAt = now
+}
+
+function ewma(previous: number, sample: number): number {
+  return previous * 0.6 + sample * 0.4
+}
+
+function segmentEnd(session: Pick<VodSession, 'starts' | 'duration'>, index: number): number {
+  return index + 1 < session.starts.length ? session.starts[index + 1] : session.duration
+}
+
+/**
+ * Whether to wait for the running job to reach segment `index` rather than
+ * restart it there: only when that's expected to be quicker than a restart.
+ */
+export function shouldJoin(
+  session: Pick<VodSession, 'starts' | 'duration' | 'restartCostS' | 'produceRate'>,
+  job: Pick<Job, 'start' | 'produced' | 'exited'>,
+  index: number
+): boolean {
+  // Behind the job: already produced, so if it isn't on disk it was cleaned up.
+  if (job.exited || index < job.start || index <= job.produced) return false
+  // The segment the job is working on right now.
+  if (index === job.produced + 1) return true
+  const reached = job.produced >= job.start ? segmentEnd(session, job.produced) : session.starts[job.start]
+  const gap = segmentEnd(session, index) - reached
+  return gap / session.produceRate <= session.restartCostS
 }
 
 function signal(job: Job, sig: 'SIGSTOP' | 'SIGCONT') {
@@ -329,6 +408,8 @@ function signal(job: Job, sig: 'SIGSTOP' | 'SIGCONT') {
   try {
     job.proc.kill(sig)
     job.paused = sig === 'SIGSTOP'
+    // Time spent stopped isn't production time.
+    if (sig === 'SIGCONT' && job.progressAt !== null) job.progressAt = Date.now()
   } catch {
     // Already gone
   }
@@ -386,13 +467,7 @@ export async function ensureSegment(
       return { path: segPath }
     }
 
-    const joinable =
-      job !== null &&
-      !job.exited &&
-      index >= job.start &&
-      session.starts[index] - session.starts[Math.max(job.produced, job.start)] <= JOIN_WINDOW_S
-
-    if (joinable) {
+    if (job && shouldJoin(session, job, index)) {
       if (job.paused) signal(job, 'SIGCONT')
     } else if (requestId === session.requestSeq && !session.starting) {
       if (job?.exited && job.exitCode === 0 && index > job.produced && index >= job.start) {
