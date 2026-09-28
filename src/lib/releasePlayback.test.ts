@@ -17,7 +17,7 @@ const release = (name: string, opts: { cached?: boolean; size?: number; seeders?
   leechers: '0',
   size: String(opts.size ?? 0),
   num_files: '1',
-  username: 'comet',
+  username: 'torrentio',
   added: '0',
   category: '208',
   torbox_cached: opts.cached ?? true,

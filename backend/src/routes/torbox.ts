@@ -553,9 +553,9 @@ router.get('/search', checkAuth, async (req: Request, res: Response) => {
 // GET /torbox/media-search?imdb=tt...&type=movie|tv&title=...[&season=&episode=][&limit=20]
 //
 // Like /search, but matches a specific title by IMDb id (+ season/episode
-// for TV) across Comet (many indexers, reliable per-episode matching) and,
-// for movies, apibay too. Used by the automatic TorBox player pane instead
-// of the free-text /search endpoint.
+// for TV) across Torrentio (many indexers, reliable per-episode matching)
+// and, for movies, apibay too. Used by the automatic TorBox player pane
+// instead of the free-text /search endpoint.
 // ---------------------------------------------------------------------------
 
 router.get('/media-search', checkAuth, async (req: Request, res: Response) => {

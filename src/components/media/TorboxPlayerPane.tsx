@@ -1,10 +1,10 @@
 /**
- * TorboxPlayerPane — Automatic Comet-style Debrid Streaming Player
+ * TorboxPlayerPane — Automatic Stremio-style Debrid Streaming Player
  *
  * Flow:
  *   1. User selects TorBox server on any movie or TV episode.
- *   2. Automatically searches for releases via Comet (many indexers, matched
- *      by IMDb id + season/episode) and, for movies, apibay too.
+ *   2. Automatically searches for releases via Torrentio (many indexers,
+ *      matched by IMDb id + season/episode) and, for movies, apibay too.
  *   3. If a cached release is found, it automatically mounts it and streams via
  *      TorBox's high-speed CDN in native 1080p/4K.
  *   4. If nothing is cached yet, the best uncached release is added to TorBox
@@ -63,10 +63,10 @@ import { cn } from '@/lib/utils'
 interface TorboxPlayerPaneProps {
   title: string
   year?: string | number
-  /** IMDb id, e.g. "tt1375666" — drives the Comet lookup. Omit to fall back to title-only apibay search (movies only). */
+  /** IMDb id, e.g. "tt1375666" — drives the Torrentio lookup. Omit to fall back to title-only apibay search (movies only). */
   imdbId?: string | null
   mediaType?: 'movie' | 'tv'
-  /** Required (with `episode`) when mediaType is 'tv' — Comet matches per-episode, not by season pack alone. */
+  /** Required (with `episode`) when mediaType is 'tv' — Torrentio matches per-episode, not by season pack alone. */
   season?: number
   episode?: number
   onSwitchServer: () => void
@@ -451,7 +451,7 @@ export function TorboxPlayerPane({
     const token = await getToken()
 
     try {
-      // 1. Search Comet (matched by IMDb id + season/episode) and, for
+      // 1. Search Torrentio (matched by IMDb id + season/episode) and, for
       // movies, apibay too — combined and de-duped by the backend.
       const cleanTitle = title.replace(/[^a-zA-Z0-9\s]/g, ' ').trim()
       const queryTitle = year ? `${cleanTitle} ${year}` : cleanTitle
@@ -465,11 +465,11 @@ export function TorboxPlayerPane({
       const ranked = rankReleasesForPlayback(searchRes.data || [], support)
       const cached = ranked.filter((r) => r.torbox_cached)
 
-      // Comet-sourced results (backend tags them via `username`) are trusted
-      // even with an unparsed/zero seeder count — apibay's need a positive
-      // count to filter out dead torrents.
+      // Both sources (Torrentio and apibay) report a real seeder count, so an
+      // uncached release needs a positive one — filters out dead torrents
+      // that would just hang in TorBox's download queue forever.
       const uncached = ranked.filter(
-        (r) => !r.torbox_cached && r.info_hash && (r.username === 'comet' || parseInt(r.seeders, 10) > 0)
+        (r) => !r.torbox_cached && r.info_hash && parseInt(r.seeders, 10) > 0
       )
       uncachedFallbackRef.current = uncached.find((r) => isBrowserPlayable(r.name, support)) ?? null
 
@@ -485,7 +485,7 @@ export function TorboxPlayerPane({
       // instead of adding a duplicate, whether it's ready or still downloading.
       // Movies only: this matches by title text, and for TV that can't tell
       // a season pack (or a different episode of the same show) apart from
-      // the exact episode wanted — better to search fresh via Comet below.
+      // the exact episode wanted — better to search fresh via Torrentio below.
       if (mediaType === 'movie') {
         try {
           // Cached listing: this is a name match, and a torrent found here

@@ -55,27 +55,6 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
     reportsPlayback: true,
   },
   {
-    id: 'autoembed',
-    name: 'Source 1 (autoembed)',
-    tv: 'https://autoembed.co/tv/tmdb/{tmdbId}-{season}-{episode}',
-    movie: 'https://autoembed.co/movie/tmdb/{tmdbId}',
-    quality: '👑 Industry Standard',
-    seekSupport: 'excellent',
-    description: 'AutoEmbed — massive library, highly reliable',
-    messageOrigins: ['https://autoembed.co'],
-  },
-  {
-    id: 'vidlink_pro',
-    name: 'Source 13 (vidlink_pro)',
-    tv: 'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true',
-    movie: 'https://vidlink.pro/movie/{tmdbId}?primaryColor=ff4747&autoplay=true',
-    quality: '⚡ Instant',
-    seekSupport: 'excellent',
-    description: 'Prism HD Stream',
-    messageOrigins: ['https://vidlink.pro'],
-    reportsPlayback: true,
-  },
-  {
     id: 'vidfast_pro',
     name: 'Source 14 (vidfast_pro)',
     tv: 'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
@@ -112,8 +91,8 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   {
     id: 'obsidian',
     name: 'Source 20 (obsidian)',
-    tv: 'https://vidrock.ru/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://vidrock.ru/movie/{tmdbId}',
+    tv: 'https://vidrock.to/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://vidrock.to/movie/{tmdbId}',
     quality: '⚡ Elite Quality',
     seekSupport: 'excellent',
     description: 'Obsidian Premium Stream',
@@ -319,7 +298,7 @@ export const TORBOX_SERVER_ID = 'torbox'
 
 /**
  * Server dropdown options for a given mode. TorBox is offered for movies and
- * TV — search is matched by IMDb id (+ season/episode for TV, via Comet)
+ * TV — search is matched by IMDb id (+ season/episode for TV, via Torrentio)
  * rather than fuzzy title text, so season packs vs per-episode releases
  * aren't the reliability problem they'd be with title matching alone.
  */

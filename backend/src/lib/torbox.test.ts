@@ -9,7 +9,7 @@ const release = (name: string, cached = true, seeders = 0): TorboxSearchResult =
   leechers: '0',
   size: '0',
   num_files: '1',
-  username: 'comet',
+  username: 'torrentio',
   added: '0',
   category: '207',
   torbox_cached: cached,

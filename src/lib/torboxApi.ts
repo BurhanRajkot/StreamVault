@@ -315,15 +315,15 @@ export async function searchTorbox(
 
 /**
  * Search for a specific movie/episode by IMDb id (+ season/episode for TV)
- * across every indexer source the backend knows about (Comet + apibay for
- * movies). Unlike `searchTorbox`, this is matched by identity, not free text,
- * so it reliably distinguishes a TV season pack from a single episode.
+ * across every indexer source the backend knows about (Torrentio + apibay
+ * for movies). Unlike `searchTorbox`, this is matched by identity, not free
+ * text, so it reliably distinguishes a TV season pack from a single episode.
  *
  * @param title    - Title, used as the apibay fallback query (movies only)
- * @param imdbId   - IMDb id, e.g. "tt1375666" — omit to skip Comet entirely
+ * @param imdbId   - IMDb id, e.g. "tt1375666" — omit to skip Torrentio entirely
  * @param mediaType - 'movie' | 'tv'
  * @param token    - Auth0/admin token
- * @param opts.season/episode - Required for 'tv' to match Comet's per-episode search
+ * @param opts.season/episode - Required for 'tv' to match Torrentio's per-episode search
  * @param opts.limit - Max results (default 20)
  */
 export async function searchTorboxMedia(
