@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
-import { registerSource, unregisterSource, localUrl, findChunk } from './rangeProxy'
+import { registerSource, unregisterSource, localUrl, findChunk, fetchChunk, UpstreamStatusError } from './rangeProxy'
 
 const FILE = Buffer.alloc(8 * 1024 * 1024)
 for (let i = 0; i < FILE.length; i++) FILE[i] = i % 251
@@ -60,6 +60,48 @@ describe('range proxy', () => {
   it('404s unknown sources', async () => {
     const res = await fetch((await localUrl('test')).replace(/test$/, 'nope'))
     expect(res.status).toBe(404)
+  })
+
+  it('reassembles a multi-chunk read in order (exercises pumpChunks)', async () => {
+    // Bigger than MAX_CHUNK_BYTES (4MB), so this spans several parallel chunks.
+    const { body } = await read('bytes=0-')
+    expect(body.length).toBe(FILE.length)
+    expect(body.equals(FILE)).toBe(true)
+  })
+})
+
+describe('fetchChunk', () => {
+  it('retries a failing connection on a fresh attempt and succeeds', async () => {
+    let calls = 0
+    const source = {
+      getUrl: () => {
+        calls++
+        return calls < 3 ? 'http://127.0.0.1:1/closed-port' : `http://127.0.0.1:${upstream.port}/f`
+      },
+    }
+    const { data, total } = await fetchChunk(source, 0, 99, new AbortController().signal)
+    expect(calls).toBe(3)
+    expect(data.equals(FILE.subarray(0, 100))).toBe(true)
+    expect(total).toBe(FILE.length)
+  })
+
+  it('gives up after MAX_CHUNK_ATTEMPTS failures', async () => {
+    const source = { getUrl: () => 'http://127.0.0.1:1/closed-port' }
+    await expect(fetchChunk(source, 0, 99, new AbortController().signal)).rejects.toBeTruthy()
+  })
+
+  it('does not retry a 4xx from upstream (a permanent refusal)', async () => {
+    let calls = 0
+    const errServer = Bun.serve({ port: 0, fetch: () => { calls++; return new Response('no', { status: 403 }) } })
+    try {
+      const source = { getUrl: () => `http://127.0.0.1:${errServer.port}/f` }
+      const err = await fetchChunk(source, 0, 99, new AbortController().signal).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(UpstreamStatusError)
+      expect((err as UpstreamStatusError).status).toBe(403)
+      expect(calls).toBe(1)
+    } finally {
+      errServer.stop(true)
+    }
   })
 })
 

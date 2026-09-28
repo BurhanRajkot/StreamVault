@@ -55,26 +55,6 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
     reportsPlayback: true,
   },
   {
-    id: 'vidsrc_me',
-    name: 'Source 1 (vidsrc_me)',
-    tv: 'https://vidsrc.me/embed/tv?tmdb={tmdbId}&season={season}&episode={episode}',
-    movie: 'https://vidsrc.me/embed/movie?tmdb={tmdbId}',
-    quality: '👑 Industry Standard',
-    seekSupport: 'excellent',
-    description: 'Massive library, highly reliable',
-  },
-  {
-    id: 'vidlink_pro',
-    name: 'Source 13 (vidlink_pro)',
-    tv: 'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?primaryColor=ff4747&autoplay=true',
-    movie: 'https://vidlink.pro/movie/{tmdbId}?primaryColor=ff4747&autoplay=true',
-    quality: '⚡ Instant',
-    seekSupport: 'excellent',
-    description: 'Prism HD Stream',
-    messageOrigins: ['https://vidlink.pro'],
-    reportsPlayback: true,
-  },
-  {
     id: 'vidfast_pro',
     name: 'Source 14 (vidfast_pro)',
     tv: 'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
@@ -111,8 +91,8 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   {
     id: 'obsidian',
     name: 'Source 20 (obsidian)',
-    tv: 'https://vidrock.ru/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://vidrock.ru/movie/{tmdbId}',
+    tv: 'https://vidrock.to/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://vidrock.to/movie/{tmdbId}',
     quality: '⚡ Elite Quality',
     seekSupport: 'excellent',
     description: 'Obsidian Premium Stream',
@@ -127,13 +107,24 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
     description: 'VidSrc PM failover',
   },
   {
-    id: 'extra_4',
-    name: 'Extra 4 (flicky)',
-    tv: 'https://flicky.host/embed/tv/?id={tmdbId}/{season}/{episode}',
-    movie: 'https://flicky.host/embed/movie/?id={tmdbId}',
+    id: 'nontongo',
+    name: 'Extra 4 (nontongo)',
+    tv: 'https://nontongo.win/embed/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://nontongo.win/embed/movie/{tmdbId}',
     quality: '⚡ Fast',
     seekSupport: 'excellent',
-    description: 'Flicky host stream',
+    description: 'Nontongo fast stream',
+    messageOrigins: ['https://nontongo.win'],
+  },
+  {
+    id: 'vidcore',
+    name: 'Extra 7 (vidcore)',
+    tv: 'https://vidcore.org/embed/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://vidcore.org/embed/movie/{tmdbId}',
+    quality: '⚡ Premium',
+    seekSupport: 'excellent',
+    description: 'VidCore premium stream',
+    messageOrigins: ['https://vidcore.org', 'https://www.vidcore.org'],
   },
 ] as const
 
@@ -307,7 +298,7 @@ export const TORBOX_SERVER_ID = 'torbox'
 
 /**
  * Server dropdown options for a given mode. TorBox is offered for movies and
- * TV — search is matched by IMDb id (+ season/episode for TV, via Comet)
+ * TV — search is matched by IMDb id (+ season/episode for TV, via Torrentio)
  * rather than fuzzy title text, so season packs vs per-episode releases
  * aren't the reliability problem they'd be with title matching alone.
  */

@@ -73,7 +73,14 @@ export function MovieDetailModal({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
-    return initialServer || CONFIG.DEFAULT_PROVIDER
+    // A saved server id can outlive the provider it named (renamed/removed in
+    // STREAM_PROVIDER_LIST — see config.ts), which otherwise leaves the player
+    // silently blank with no matching dropdown entry. Fall back rather than
+    // trust a stale id.
+    if (initialServer === TORBOX_SERVER_ID || (initialServer && initialServer in CONFIG.PROVIDER_NAMES)) {
+      return initialServer
+    }
+    return CONFIG.DEFAULT_PROVIDER
   })
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [playbackStarted, setPlaybackStarted] = useState(false)

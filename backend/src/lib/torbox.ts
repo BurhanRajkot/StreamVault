@@ -18,7 +18,7 @@
  *   uncached hashes are shown with an "Add to TorBox" option.
  */
 
-import { searchComet, cometTorrentCandidates, type CometTorrentCandidate } from './comet'
+import { searchTorrentio, torrentioTorrentCandidates, type TorrentioTorrentCandidate } from './torrentio'
 import * as cache from '../services/cache'
 import { logger } from './logger'
 
@@ -417,6 +417,56 @@ export function isImaxRelease(name: string): boolean {
   return /\bIMAX\b/i.test(name)
 }
 
+const SEQUEL_MARKERS: Record<string, number> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10,
+}
+const SEQUEL_MARKER_RE = Object.keys(SEQUEL_MARKERS).join('|')
+
+function normalizeForTitleMatch(s: string): string {
+  return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * True when the release is plainly a *different* entry of the same franchise
+ * — "Planet Earth III" for Planet Earth II, "Toy Story 2" for Toy Story.
+ * Torrentio matches by IMDb id but its indexers are fuzzy, and this was coming
+ * back cached and ranked right alongside the real thing (seen for Planet
+ * Earth II S01E02). Only a sequel marker right after the title counts, so
+ * alternate titles, foreign names and missing titles all still pass.
+ *
+ * @param title - The wanted title; a trailing year (as the player appends
+ *   for movies) is ignored.
+ */
+export function isDifferentSequel(name: string, title: string): boolean {
+  const wanted = normalizeForTitleMatch(title).replace(/\s(19|20)\d{2}$/, '')
+  const titleMatch = wanted.match(new RegExp(`^(.+?)\\s(${SEQUEL_MARKER_RE})$`))
+  const base = titleMatch ? titleMatch[1] : wanted
+  const wantedNumber = titleMatch ? SEQUEL_MARKERS[titleMatch[2]] : 1
+  if (!base) return false
+
+  const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const found = normalizeForTitleMatch(name).match(
+    new RegExp(`(?:^|\\s)${escaped}(?:\\s(${SEQUEL_MARKER_RE}))?(?:\\s|$)`)
+  )
+  if (!found) return false
+  const releaseNumber = found[1] ? SEQUEL_MARKERS[found[1]] : 1
+  // An unnumbered release for a numbered title ("Planet Earth S01E02" when
+  // asking for II) is ambiguous rather than wrong — keep it.
+  return found[1] !== undefined && releaseNumber !== wantedNumber
+}
+
+/**
+ * Below this, a release claiming 2160p is a fake, a sample, or a mislabeled
+ * low-bitrate encode — e.g. a 300MB "2160p REMUX" that was ranking as a
+ * cached 4K pick for a 50-minute documentary episode.
+ */
+const MIN_4K_RELEASE_BYTES = 400 * 1024 * 1024
+
+function isImplausibleRelease(name: string, size: number): boolean {
+  return size > 0 && size < MIN_4K_RELEASE_BYTES && releaseQualityRank(name) === 4
+}
+
 // ---------------------------------------------------------------------------
 // Indexer lookup caching (searchMediaTorrents only)
 // ---------------------------------------------------------------------------
@@ -424,18 +474,18 @@ export function isImaxRelease(name: string): boolean {
 /** apibay never returns more than 100 rows; cache the whole page and slice per request. */
 const APIBAY_MAX_RESULTS = 100
 
-/** How long a movie search waits for Comet (from search start) once apibay already has results. */
-const MOVIE_COMET_GRACE_MS = 2500
+/** How long a movie search waits for Torrentio (from search start) once apibay already has results. */
+const MOVIE_TORRENTIO_GRACE_MS = 2500
 
-/** How long a search waits for Comet when it's the only source with results (TV, obscure movies). */
-const COMET_ONLY_WAIT_MS = 12_000
+/** How long a search waits for Torrentio when it's the only source with results (TV, obscure movies). */
+const TORRENTIO_ONLY_WAIT_MS = 12_000
 
 /**
- * Comet returns every release it knows (2,000+ for a popular movie). Only the
- * best-seeded few hundred ever reach the cache check below, so that's all
- * worth caching.
+ * Torrentio returns every release it knows (2,000+ for a popular movie).
+ * Only the best-seeded few hundred ever reach the cache check below, so
+ * that's all worth caching.
  */
-const COMET_CACHED_CANDIDATES_MAX = 300
+const TORRENTIO_CACHED_CANDIDATES_MAX = 300
 
 const inflightIndexLookups = new Map<string, Promise<unknown[]>>()
 
@@ -480,23 +530,24 @@ function resolveWithin<T>(promise: Promise<T>, ms: number): Promise<T | undefine
   })
 }
 
-function trimCometCandidates(candidates: CometTorrentCandidate[]): CometTorrentCandidate[] {
+function trimTorrentioCandidates(candidates: TorrentioTorrentCandidate[]): TorrentioTorrentCandidate[] {
   return candidates
     .filter((c) => c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES)
-    .sort((a, b) => Number(b.cachedHint) - Number(a.cachedHint) || b.seeders - a.seeders)
-    .slice(0, COMET_CACHED_CANDIDATES_MAX)
+    .sort((a, b) => b.seeders - a.seeders)
+    .slice(0, TORRENTIO_CACHED_CANDIDATES_MAX)
 }
 
 /**
  * Search for a specific movie/episode by TMDB-derived identity (title +
- * IMDb id, + season/episode for TV) across every source we have: Comet
+ * IMDb id, + season/episode for TV) across every source we have: Torrentio
  * (many indexers, matched by IMDb id — reliable for TV episodes) and, for
  * movies only, apibay (title search is too unreliable for TV season packs
  * vs per-episode releases, which is why TorBox wasn't offered for TV before).
  *
- * Results from both sources are merged (de-duped by info-hash, Comet wins
- * ties since it's the more precisely-matched source), filtered to a sane
- * size cap, then checked against TorBox's cache in a single batched call.
+ * Results from both sources are merged (de-duped by info-hash, Torrentio
+ * wins ties since it's the more precisely-matched source), filtered to a
+ * sane size cap, then checked against TorBox's cache in a single batched
+ * call.
  *
  * Indexer results are cached per title/episode (see cachedIndexLookup); only
  * the cache-status check runs fresh on every call.
@@ -516,11 +567,11 @@ export async function searchMediaTorrents(params: {
   // Both lookups start immediately and are cached per title/episode, with the
   // `.catch` attached up front so a source failing while we're still awaiting
   // the other can't surface as an unhandled rejection.
-  const cometPromise: Promise<CometTorrentCandidate[]> = imdbId
-    ? cachedIndexLookup(`comet:${mediaType}:${imdbId}:${season ?? ''}:${episode ?? ''}`, async () =>
-        trimCometCandidates(
-          cometTorrentCandidates(
-            await searchComet(imdbId, mediaType === 'tv' ? 'series' : 'movie', season, episode)
+  const torrentioPromise: Promise<TorrentioTorrentCandidate[]> = imdbId
+    ? cachedIndexLookup(`torrentio:${mediaType}:${imdbId}:${season ?? ''}:${episode ?? ''}`, async () =>
+        trimTorrentioCandidates(
+          torrentioTorrentCandidates(
+            await searchTorrentio(imdbId, mediaType === 'tv' ? 'series' : 'movie', season, episode)
           )
         )
       ).catch(() => [])
@@ -532,23 +583,23 @@ export async function searchMediaTorrents(params: {
       ).catch(() => [])
     : Promise.resolve([])
 
-  // Fetch a larger pool than `limit` — the size cap + Comet dedup below
+  // Fetch a larger pool than `limit` — the size cap + Torrentio dedup below
   // filter this down, so slicing to `limit` here first could throw away
   // a smaller, well-seeded 4K release in favor of one that gets excluded
   // for being oversized.
   const apibayResults = (await apibayPromise).slice(0, Math.max(limit * 3, 60))
 
-  // Don't let Comet hold a movie search hostage: once apibay has produced
-  // releases, give Comet only what's left of a short grace window. If it
+  // Don't let Torrentio hold a movie search hostage: once apibay has produced
+  // releases, give Torrentio only what's left of a short grace window. If it
   // misses that, it keeps running in the background and lands in the cache,
   // so the next search for this title gets both sources instantly. With no
-  // apibay results (TV, or an obscure movie) Comet is the only source, so
+  // apibay results (TV, or an obscure movie) Torrentio is the only source, so
   // it's worth waiting on longer.
-  const cometWaitMs =
+  const torrentioWaitMs =
     apibayResults.length > 0
-      ? Math.max(0, MOVIE_COMET_GRACE_MS - (Date.now() - startedAt))
-      : COMET_ONLY_WAIT_MS
-  const cometCandidates = (await resolveWithin(cometPromise, cometWaitMs)) ?? []
+      ? Math.max(0, MOVIE_TORRENTIO_GRACE_MS - (Date.now() - startedAt))
+      : TORRENTIO_ONLY_WAIT_MS
+  const torrentioCandidates = (await resolveWithin(torrentioPromise, torrentioWaitMs)) ?? []
 
   interface Candidate {
     name: string
@@ -557,14 +608,12 @@ export async function searchMediaTorrents(params: {
     seeders: number
     leechers: number
     num_files: number
-    source: 'comet' | 'apibay'
-    /** Source already believes it's cached on TorBox (Comet's ⚡ tag) — used to prioritize the cache check. */
-    cachedHint: boolean
+    source: 'torrentio' | 'apibay'
   }
 
   const merged = new Map<string, Candidate>()
 
-  for (const c of cometCandidates) {
+  for (const c of torrentioCandidates) {
     merged.set(c.infoHash, {
       name: c.name,
       info_hash: c.infoHash,
@@ -572,8 +621,7 @@ export async function searchMediaTorrents(params: {
       seeders: c.seeders,
       leechers: 0,
       num_files: 1,
-      source: 'comet',
-      cachedHint: c.cachedHint,
+      source: 'torrentio',
     })
   }
 
@@ -588,15 +636,19 @@ export async function searchMediaTorrents(params: {
       leechers: parseInt(r.leechers, 10) || 0,
       num_files: parseInt(r.num_files, 10) || 1,
       source: 'apibay',
-      cachedHint: false,
     })
   }
 
   // Drop anything over the size cap outright — a 110GB IMAX remux should
-  // never surface here, cached or not. Keep unknown sizes (0): Comet doesn't
-  // always report `videoSize`, and an unknown size shouldn't be punished.
+  // never surface here, cached or not. Keep unknown sizes (0): Torrentio
+  // doesn't always report a size, and an unknown size shouldn't be punished.
+  // Wrong-sequel matches and implausibly small "4K" files go too — both
+  // were being auto-picked as cached releases for documentary series.
   const candidates = [...merged.values()].filter(
-    (c) => c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES
+    (c) =>
+      (c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES) &&
+      !isImplausibleRelease(c.name, c.size) &&
+      !isDifferentSequel(c.name, title)
   )
 
   if (candidates.length === 0) {
@@ -607,12 +659,11 @@ export async function searchMediaTorrents(params: {
   // Cap the batch — no point cache-checking more than we'll ever show — but
   // cap it per quality tier. A single global cap sorted by seeders spent the
   // whole budget on one tier for popular titles, so e.g. every 1080p release
-  // went unchecked and looked uncached. Comet no longer reports seeders, so
-  // within a tier the ones it flags as cached go first.
+  // went unchecked and looked uncached.
   const perTierCheck = Math.max(limit * 2, 30)
   const toCheck = groupByQualityTier(candidates).flatMap((tier) =>
     tier
-      .sort((a, b) => Number(b.cachedHint) - Number(a.cachedHint) || b.seeders - a.seeders)
+      .sort((a, b) => b.seeders - a.seeders)
       .slice(0, perTierCheck)
       .map((c) => c.info_hash)
   )

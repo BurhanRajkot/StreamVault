@@ -217,35 +217,54 @@ export function destroyVodSession(session: VodSession) {
 // Jobs
 // ---------------------------------------------------------------------------
 
+/**
+ * Guarded end-to-end by `session.starting`, held from before the first
+ * `await` to after the job is assigned. Without that, two overlapping calls
+ * (the fire-and-forget call from createVodSession racing the player's first
+ * segment request, or a stale request racing a seek's restart) would both
+ * run their async setup — URL refresh, then always `rangeProxy.localUrl`,
+ * which yields even when already resolved — and both spawn an ffmpeg job.
+ * Only the one that assigns `session.job` last is ever tracked or served;
+ * the other leaks as an orphaned process fighting the real one for the same
+ * range-proxy bandwidth, which reads on screen as a stream that never gets
+ * past "buffering" even though the playlist reports the full duration.
+ */
 async function startJob(session: VodSession, start: number): Promise<void> {
-  if (session.job) killJob(session, session.job)
+  if (session.starting) return
+  session.starting = true
+  try {
+    if (session.job) killJob(session, session.job)
 
-  if (Date.now() - session.urlResolvedAt > URL_MAX_AGE_MS || session.failures > 0) {
-    session.starting = true
+    if (Date.now() - session.urlResolvedAt > URL_MAX_AGE_MS || session.failures > 0) {
+      try {
+        session.url = await session.resolveUrl()
+        session.urlResolvedAt = Date.now()
+      } catch (err: unknown) {
+        logger.warn('Could not refresh TorBox link for HLS job', {
+          sessionId: session.id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+      if (!sessions.has(session.id)) return
+    }
+
+    let input = session.url
     try {
-      session.url = await session.resolveUrl()
-      session.urlResolvedAt = Date.now()
+      input = await rangeProxy.localUrl(session.id)
     } catch (err: unknown) {
-      logger.warn('Could not refresh TorBox link for HLS job', {
-        sessionId: session.id,
+      logger.warn('TorBox range proxy unavailable; reading the CDN directly', {
         error: err instanceof Error ? err.message : String(err),
       })
-    } finally {
-      session.starting = false
     }
-    if (session.job || !sessions.has(session.id)) return
-  }
+    if (!sessions.has(session.id)) return
 
-  let input = session.url
-  try {
-    input = await rangeProxy.localUrl(session.id)
-  } catch (err: unknown) {
-    logger.warn('TorBox range proxy unavailable; reading the CDN directly', {
-      error: err instanceof Error ? err.message : String(err),
-    })
+    startFfmpegJob(session, start, input)
+  } finally {
+    session.starting = false
   }
-  if (session.job || !sessions.has(session.id)) return
+}
 
+function startFfmpegJob(session: VodSession, start: number, input: string): void {
   const jobId = ++session.jobSeq
   const dir = path.join(session.dir, `job_${jobId}`)
   fs.mkdirSync(dir, { recursive: true })

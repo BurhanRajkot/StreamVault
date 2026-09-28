@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { selectBalancedReleases, isLikelyNonEnglishRelease, type TorboxSearchResult } from './torbox'
+import { selectBalancedReleases, isLikelyNonEnglishRelease, isDifferentSequel, type TorboxSearchResult } from './torbox'
 
 const release = (name: string, cached = true, seeders = 0): TorboxSearchResult => ({
   id: name,
@@ -9,7 +9,7 @@ const release = (name: string, cached = true, seeders = 0): TorboxSearchResult =
   leechers: '0',
   size: '0',
   num_files: '1',
-  username: 'comet',
+  username: 'torrentio',
   added: '0',
   category: '207',
   torbox_cached: cached,
@@ -65,5 +65,23 @@ describe('isLikelyNonEnglishRelease', () => {
     ['Mirzapur.S02.E010.1080p.WEB-DL.[Hindi + Esub][LV444]✒.mkv', true],
   ])('%s → %p', (name, expected) => {
     expect(isLikelyNonEnglishRelease(name)).toBe(expected)
+  })
+})
+
+describe('isDifferentSequel', () => {
+  it.each([
+    ['Planet.Earth.III.S01E02.Ocean.UHD.BluRay.2160p.TrueHD.Atmos.7.1.HEVC.mkv', 'Planet Earth II', true],
+    ['Planet.Earth.II.S01.EP02.Mountains.2016.2160p.BluRay.REMUX.mkv', 'Planet Earth II', false],
+    ['Planet Earth 2 S01E02 1080p WEB x264', 'Planet Earth II', false],
+    ['Planet Earth S01E02 1080p', 'Planet Earth II', false],
+    ['Planet.Earth.II.S01E01.2160p.mkv', 'Planet Earth', true],
+    ['Toy.Story.2.1999.1080p.BluRay.x264', 'Toy Story 1995', true],
+    ['Toy.Story.1995.1080p.BluRay.x264', 'Toy Story 1995', false],
+    ['Blade.Runner.2049.2017.2160p.WEB-DL.mkv', 'Blade Runner 2049 2017', false],
+    ['Malcolm.X.1992.1080p.BluRay.x264', 'Malcolm X 1992', false],
+    ['Breaking Bad S02E03 Bit by a Dead Bee 2160p NF WEB-DL', 'Breaking Bad', false],
+    ['Во все тяжкие S02E03 1080p', 'Breaking Bad', false],
+  ])('%s for "%s" → %p', (name, title, expected) => {
+    expect(isDifferentSequel(name, title)).toBe(expected)
   })
 })

@@ -155,8 +155,8 @@ export async function registerApiMocks(page: Page, options: {
   // frame content ranges from the real player to a blocked/blank page). Mock
   // them so the iframe always renders identical, non-blank content.
   const STREAMING_DOMAINS = [
-    'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc', 'vidlink.pro',
-    'vidsrc.cc', 'player.videasy.to', 'vidrock.ru', 'player.vidzee.wtf',
+    'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc',
+    'vidsrc.cc', 'player.videasy.to', 'vidrock.to', 'player.vidzee.wtf',
     // 111movies.net redirects to player.vidlove.cc — mock both ends of the hop
     '111movies.net', 'player.vidlove.cc',
   ]

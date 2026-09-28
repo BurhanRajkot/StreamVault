@@ -237,7 +237,8 @@ router.get(
 
 // ---------------------------------------------------------------------------
 // POST /torbox/hls/start — any logged-in user, rate-limited
-// Body: { torrentId: number, fileId: number, releaseName?: string, forceTranscode?: boolean }
+// Body: { torrentId: number, fileId: number, releaseName?: string, forceTranscode?: boolean,
+//         supportedVideoCodecs?: string[] }
 //
 // Resolves the TorBox direct link (same call /stream makes), then probes the
 // file's actual streams (see transcode.planPlayback) to decide between
@@ -264,11 +265,13 @@ router.post(
     const denied = await authorizeTorboxAccess(req)
     if (denied) return res.status(denied.status).json(denied.body)
 
-    const { torrentId, fileId, releaseName, forceTranscode } = req.body as {
+    const { torrentId, fileId, releaseName, forceTranscode, supportedVideoCodecs } = req.body as {
       torrentId?: number
       fileId?: number
       releaseName?: string
       forceTranscode?: boolean
+      /** ffprobe codec names the viewer's browser can decode, e.g. ["h264", "hevc"]. Omitted = don't check. */
+      supportedVideoCodecs?: unknown
     }
 
     if (!Number.isInteger(torrentId) || !Number.isInteger(fileId)) {
@@ -325,8 +328,28 @@ router.post(
         }
       }
 
+      // Video is never re-encoded, so a codec the browser can't decode (HEVC
+      // or AV1 on most desktop Chrome/Firefox) can't be rescued by any
+      // transcode. Refuse it here, before a session starts, so the player
+      // moves straight on to another release instead of mounting a stream
+      // that only ever shows a spinner or a black frame.
+      const videoCodec =
+        streams?.find((s) => s.codec_type === 'video' && s.disposition?.attached_pic !== 1)?.codec_name ?? null
+      if (
+        videoCodec &&
+        Array.isArray(supportedVideoCodecs) &&
+        supportedVideoCodecs.length > 0 &&
+        !supportedVideoCodecs.includes(videoCodec)
+      ) {
+        return res.status(415).json({
+          error: `This browser can't decode ${videoCodec.toUpperCase()} video`,
+          code: 'unsupported-video',
+          videoCodec,
+        })
+      }
+
       if (plan.direct && forceTranscode !== true) {
-        return res.json({ mode: 'direct', url })
+        return res.json({ mode: 'direct', url, videoCodec })
       }
 
       const index = await indexPromise
@@ -354,6 +377,7 @@ router.post(
         mode: 'hls',
         sessionId: session.id,
         playlistUrl: `/torbox/hls/${session.id}/playlist.m3u8`,
+        videoCodec,
       })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
@@ -529,9 +553,9 @@ router.get('/search', checkAuth, async (req: Request, res: Response) => {
 // GET /torbox/media-search?imdb=tt...&type=movie|tv&title=...[&season=&episode=][&limit=20]
 //
 // Like /search, but matches a specific title by IMDb id (+ season/episode
-// for TV) across Comet (many indexers, reliable per-episode matching) and,
-// for movies, apibay too. Used by the automatic TorBox player pane instead
-// of the free-text /search endpoint.
+// for TV) across Torrentio (many indexers, reliable per-episode matching)
+// and, for movies, apibay too. Used by the automatic TorBox player pane
+// instead of the free-text /search endpoint.
 // ---------------------------------------------------------------------------
 
 router.get('/media-search', checkAuth, async (req: Request, res: Response) => {
