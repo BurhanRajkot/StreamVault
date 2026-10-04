@@ -19,8 +19,8 @@ const TMDB_IMG_DOMAIN = 'image.tmdb.org'
 
 const STREAMING_DOMAINS = [
   'peachify.top', 'vidup.to', 'vidfast.pro', '2embed.cc',
-  'vidlink.pro', 'vidsrc.cc', 'player.videasy.net',
-  'player.videasy.to', 'videasy.to', 'vidrock.ru',
+  'vidsrc.cc', 'player.videasy.net',
+  'player.videasy.to', 'videasy.to', 'vidrock.to',
   '111movies.net', 'player.vidlove.cc',
 ]
 

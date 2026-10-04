@@ -26,7 +26,7 @@ import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
 import recommendationsRouter from './routes/recommendations'
 import dislikesRouter from './routes/dislikes'
-import torboxRouter from './routes/torbox'
+import debridRouter from './routes/debrid'
 import { requireAdminAuth } from './admin/middleware'
 import { getCacheStatus } from './services/cache'
 import { closeRedis } from './services/cache/redisPrimary'
@@ -123,7 +123,7 @@ app.use('/subscriptions', subscriptionsRouter)
 app.use('/admin', adminRouter)
 app.use('/recommendations', recommendationsRouter)
 app.use('/dislikes', dislikesRouter)
-app.use('/torbox', torboxRouter)
+app.use('/debrid', debridRouter)
 
 // 404 — must come after every route so it only catches genuinely unknown paths.
 app.use((req, res) => {

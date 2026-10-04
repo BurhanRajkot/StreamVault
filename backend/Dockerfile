@@ -66,24 +66,18 @@ RUN groupadd --gid 1001 media-app && \
 
 WORKDIR /opt/app
 
-# Inject static FFmpeg/FFprobe binaries (saves ~700MB compared to apt-get)
-COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /usr/local/bin/
-COPY --from=mwader/static-ffmpeg:7.1 /ffprobe /usr/local/bin/
-
 # Copy built artifacts and node_modules from builder
 COPY --from=builder /opt/app/dist ./dist
 COPY --from=builder /opt/app/node_modules ./node_modules
 COPY --from=builder /opt/app/package.json ./
 
-# Set up storage directories for raw media and temp HLS streaming segments
-RUN mkdir -p /media /tmp/hls && \
-    chown -R media-app:media-app /opt/app /media /tmp/hls
+# Set up storage directory for raw media
+RUN mkdir -p /media && \
+    chown -R media-app:media-app /opt/app /media
 
 USER media-app
 
 ENV NODE_ENV=production
-ENV FFMPEG_PATH=/usr/local/bin/ffmpeg
-ENV FFPROBE_PATH=/usr/local/bin/ffprobe
 
 EXPOSE 4000
 
