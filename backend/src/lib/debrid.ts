@@ -32,6 +32,15 @@ function debridKey(): string | undefined {
   return process.env.DEBRID_API_KEY
 }
 
+/**
+ * Optional HTTP(S) proxy for Real-Debrid API calls. Real-Debrid refuses most
+ * datacenter IPs (error 22, "IP Address not allowed") — a hosted backend can
+ * route its calls through an address Real-Debrid accepts instead.
+ */
+function debridProxy(): string | undefined {
+  return process.env.DEBRID_PROXY_URL || undefined
+}
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
@@ -137,6 +146,33 @@ export class DebridError extends Error {
   }
 }
 
+/**
+ * Real-Debrid error codes that are about the account or this server, not the
+ * release — every other release would fail the same way, so the player
+ * should stop and say why rather than work through its list.
+ */
+const ACCOUNT_ERROR_MESSAGES: Record<number, string> = {
+  5: 'Real-Debrid is rate-limiting this server. Try again in a minute.',
+  8: "The server's Real-Debrid token is invalid or expired.",
+  9: 'Real-Debrid denied permission (account locked or not premium).',
+  14: 'The Real-Debrid account is locked.',
+  21: 'The Real-Debrid account has too many active downloads.',
+  22: "Real-Debrid is blocking this server's IP address (datacenter IPs are not allowed).",
+  23: 'The Real-Debrid account is out of traffic.',
+  34: 'Real-Debrid is rate-limiting this server. Try again in a minute.',
+  36: "The Real-Debrid account hit its fair-usage limit.",
+  37: 'Real-Debrid has disabled this endpoint.',
+}
+
+/** A viewer-facing reason when `err` is an account/server-wide Real-Debrid failure, else null. */
+export function accountErrorMessage(err: unknown): string | null {
+  if (!(err instanceof DebridError)) return null
+  if (err.code !== undefined && ACCOUNT_ERROR_MESSAGES[err.code]) return ACCOUNT_ERROR_MESSAGES[err.code]
+  if (err.status === 401) return ACCOUNT_ERROR_MESSAGES[8]
+  if (err.status === 403) return ACCOUNT_ERROR_MESSAGES[9]
+  return null
+}
+
 // ---------------------------------------------------------------------------
 // Internal fetch helper
 // ---------------------------------------------------------------------------
@@ -155,12 +191,14 @@ async function debridFetch<T>(
     headers: { Authorization: `Bearer ${key}` },
     body: options.form ? new URLSearchParams(options.form) : undefined,
     signal: AbortSignal.timeout(20_000),
-  })
+    // Bun's fetch takes a proxy URL directly.
+    proxy: debridProxy(),
+  } as RequestInit)
 
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string; error_code?: number } | null
     throw new DebridError(
-      `Real-Debrid API error ${res.status}: ${body?.error ?? res.statusText}`,
+      `Real-Debrid API error ${res.status}${body?.error_code !== undefined ? ` (code ${body.error_code})` : ''}: ${body?.error ?? res.statusText}`,
       res.status,
       body?.error_code
     )

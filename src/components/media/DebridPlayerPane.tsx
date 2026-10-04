@@ -62,6 +62,14 @@ function isUpgradeError(err: unknown): boolean {
   return err instanceof DebridRequestError && (err.status === 401 || err.status === 403)
 }
 
+/**
+ * Real-Debrid refused for a reason every release shares — the server's IP is
+ * blocked, the account is out of traffic, ... — so trying others won't help.
+ */
+function isDebridUnavailable(err: unknown): err is DebridRequestError {
+  return err instanceof DebridRequestError && err.code === 'debrid_unavailable'
+}
+
 /** 4xx from the backend (other than rate limiting) won't fix itself on the next poll. */
 function isPermanentRequestError(err: unknown): boolean {
   return err instanceof DebridRequestError && err.status >= 400 && err.status < 500 && err.status !== 429
@@ -165,7 +173,7 @@ export function DebridPlayerPane({
             setDownloadProgress({ progress: res.progress, seeders: res.seeders, speed: res.speed })
           }
         } catch (err: unknown) {
-          if (isPermanentRequestError(err)) throw err
+          if (isPermanentRequestError(err) || isDebridUnavailable(err)) throw err
           // Otherwise a transient network hiccup — keep polling.
         }
       }
@@ -271,6 +279,11 @@ export function DebridPlayerPane({
           if (isUpgradeError(err)) {
             setStatus('upgrade-required')
             setStatusMessage(err instanceof Error ? err.message : 'Premium required')
+            return
+          }
+          if (isDebridUnavailable(err)) {
+            setStatus('error')
+            setStatusMessage(err.message)
             return
           }
           console.warn('Real-Debrid release could not start, trying another:', current.name, err)
