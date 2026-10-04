@@ -6,6 +6,8 @@ import {
   filesToSelect,
   pickPlaybackFile,
   findEpisodeFile,
+  accountErrorMessage,
+  DebridError,
   type DebridRelease,
   type DebridTorrentFile,
 } from './debrid'
@@ -182,5 +184,19 @@ describe('findEpisodeFile', () => {
 
   it('returns null when nothing matches', () => {
     expect(pick(['/Show.S05E01.mkv', '/Show.S05E02.mkv'], 5, 9)).toBeNull()
+  })
+})
+
+describe('accountErrorMessage', () => {
+  it('flags a blocked server IP and other account-wide failures', () => {
+    expect(accountErrorMessage(new DebridError('x', 400, 22))).toContain('IP address')
+    expect(accountErrorMessage(new DebridError('x', 503, 23))).toContain('traffic')
+    expect(accountErrorMessage(new DebridError('x', 401))).toContain('token')
+  })
+
+  it('leaves release-specific failures alone', () => {
+    expect(accountErrorMessage(new DebridError('x', 451, 35))).toBeNull()
+    expect(accountErrorMessage(new DebridError('x', 400, 30))).toBeNull()
+    expect(accountErrorMessage(new Error('network'))).toBeNull()
   })
 })

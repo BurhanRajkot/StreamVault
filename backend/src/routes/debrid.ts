@@ -75,6 +75,20 @@ function upstreamStatus(err: unknown): number {
   return 502
 }
 
+/**
+ * Send a failed Real-Debrid call back to the browser. Account/server-wide
+ * failures (blocked IP, bad token, traffic exhausted, ...) are a 503 with
+ * `code: 'debrid_unavailable'` and the reason, so the player stops instead of
+ * trying every release; anything else keeps its upstream status.
+ */
+function sendDebridFailure(res: Response, err: unknown, error: string) {
+  const accountReason = debrid.accountErrorMessage(err)
+  if (accountReason) {
+    return res.status(503).json({ error: accountReason, code: 'debrid_unavailable', detail: errorMessage(err) })
+  }
+  return res.status(upstreamStatus(err)).json({ error, detail: errorMessage(err) })
+}
+
 function optionalInt(value: unknown): number | undefined {
   const n = typeof value === 'string' ? parseInt(value, 10) : typeof value === 'number' ? value : NaN
   return Number.isInteger(n) && n >= 0 ? n : undefined
@@ -207,7 +221,7 @@ router.post('/play', checkAuth, downloadRateLimiter, async (req: Request, res: R
     return res.json(result)
   } catch (err: unknown) {
     logger.error('Debrid play failed', { hash: body.hash, error: errorMessage(err) })
-    return res.status(upstreamStatus(err)).json({ error: 'Failed to start stream', detail: errorMessage(err) })
+    return sendDebridFailure(res, err, 'Failed to start stream')
   }
 })
 
@@ -238,7 +252,7 @@ router.get('/play/:torrentId', checkAuth, async (req: Request, res: Response) =>
     return res.json(result)
   } catch (err: unknown) {
     logger.warn('Debrid play poll failed', { torrentId, error: errorMessage(err) })
-    return res.status(upstreamStatus(err)).json({ error: 'Failed to check download', detail: errorMessage(err) })
+    return sendDebridFailure(res, err, 'Failed to check download')
   }
 })
 
@@ -298,7 +312,7 @@ router.get(
       return res.json(await debrid.fileStreams(torrentId, fileId))
     } catch (err: unknown) {
       logger.error('Debrid file stream failed', { torrentId, fileId, error: errorMessage(err) })
-      return res.status(upstreamStatus(err)).json({ error: 'Failed to get stream URL', detail: errorMessage(err) })
+      return sendDebridFailure(res, err, 'Failed to get stream URL')
     }
   }
 )
