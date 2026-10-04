@@ -2,8 +2,8 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Play, ChevronLeft, Share2, Heart, Server, SkipForward, SkipBack, Check, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { Media, MediaMode, CONFIG, TORBOX_SERVER_ID, serverOptions } from '@/lib/config'
-import { TorboxPlayerPane } from '@/components/media/TorboxPlayerPane'
+import { Media, MediaMode, CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, serverOptions } from '@/lib/config'
+import { DebridPlayerPane } from '@/components/media/DebridPlayerPane'
 import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -73,7 +73,15 @@ export function MovieDetailModal({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [embedUrl, setEmbedUrl] = useState('')
   const [server, setServer] = useState(() => {
-    return initialServer || CONFIG.DEFAULT_PROVIDER
+    // A saved server id can outlive the provider it named (renamed/removed in
+    // STREAM_PROVIDER_LIST — see config.ts), which otherwise leaves the player
+    // silently blank with no matching dropdown entry. Fall back rather than
+    // trust a stale id. The debrid server was "torbox" before Real-Debrid.
+    if (initialServer === LEGACY_TORBOX_SERVER_ID) return DEBRID_SERVER_ID
+    if (initialServer === DEBRID_SERVER_ID || (initialServer && initialServer in CONFIG.PROVIDER_NAMES)) {
+      return initialServer
+    }
+    return CONFIG.DEFAULT_PROVIDER
   })
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [playbackStarted, setPlaybackStarted] = useState(false)
@@ -210,10 +218,10 @@ export function MovieDetailModal({
 
   useEffect(() => {
     if (isPlaying) {
-      // TorBox plays from a native <video> (see TorboxPlayerPane) rather than
+      // Real-Debrid plays from a native <video> (see DebridPlayerPane) rather than
       // an embed-provider iframe — it manages its own loading/error state, so
       // none of the iframe stall-detection below applies to it.
-      if (server === TORBOX_SERVER_ID) {
+      if (server === DEBRID_SERVER_ID) {
         setEmbedUrl('')
         setIframeLoaded(false)
         playbackStartedRef.current = false
@@ -599,8 +607,8 @@ export function MovieDetailModal({
                     </div>
 
                     <div className="player-frame">
-                    {server === TORBOX_SERVER_ID ? (
-                      <TorboxPlayerPane
+                    {server === DEBRID_SERVER_ID ? (
+                      <DebridPlayerPane
                         title={title}
                         year={display.year}
                         imdbId={media.imdb_id ?? media.external_ids?.imdb_id}

@@ -146,12 +146,12 @@ export const userData = {
 export const seasons = createNamespace('season', 3600)
 
 /**
- * TorBox indexer search results (Comet / apibay): 6 hours default.
- * Release lists for a title change slowly, while the lookups behind them take
- * seconds (Comet's public instance routinely 3-16s). Cache-status checks are
- * NOT stored here — those are cheap and change constantly.
+ * Debrid indexer search results (Torrentio / apibay): 1 hour default.
+ * The lookups behind a release list take seconds, but Torrentio's
+ * Real-Debrid cache tags ("[RD+]") ride along with them and drift, so this
+ * stays shorter than the release lists themselves would need.
  */
-export const torbox = createNamespace('torbox', 6 * 60 * 60)
+export const debrid = createNamespace('debrid', 60 * 60)
 
 /**
  * Clear all caches completely
