@@ -1,18 +1,23 @@
 /**
- * TorboxLibrary — cloud debrid library panel
+ * DebridLibrary — Real-Debrid cloud library panel
  *
- * Displays the user's TorBox active torrents with per-file stream buttons.
- * Requires either an Auth0 access token or an admin token.
+ * Displays the shared Real-Debrid account's torrents with per-file stream
+ * buttons. File lists are loaded when a card is expanded (Real-Debrid's list
+ * endpoint doesn't include them). Requires either an Auth0 access token or
+ * an admin token.
  */
 
 import { useState, useEffect, useMemo } from 'react'
 import {
-  fetchTorboxList,
+  fetchDebridTorrents,
+  fetchDebridTorrent,
   formatBytes,
-  torboxStateLabel,
-  type TorboxTorrent,
-  type TorboxFile,
-} from '@/lib/torboxApi'
+  debridStatusLabel,
+  fileBaseName,
+  isVideoPath,
+  type DebridTorrent,
+  type DebridTorrentFile,
+} from '@/lib/debridApi'
 import {
   Cloud,
   Play,
@@ -33,16 +38,15 @@ import VideoPlayerModal from '@/components/media/VideoPlayerModal'
 // ---------------------------------------------------------------------------
 
 interface FileBadgeProps {
-  file: TorboxFile
-  torrentId: number
+  file: DebridTorrentFile
+  torrentId: string
   token: string
 }
 
 function FileBadge({ file, torrentId, token }: FileBadgeProps) {
   const [playerOpen, setPlayerOpen] = useState(false)
-
-  const isVideo =
-    file.mimetype.startsWith('video/') || /\.(mp4|mkv|avi|mov|m4v|wmv|webm)$/i.test(file.name)
+  const name = fileBaseName(file.path)
+  const isVideo = isVideoPath(file.path)
 
   return (
     <>
@@ -54,44 +58,44 @@ function FileBadge({ file, torrentId, token }: FileBadgeProps) {
       >
         {/* File icon */}
         <div className="flex-shrink-0 text-muted-foreground">
-          {isVideo ? (
-            <Play className="h-3.5 w-3.5 text-primary" />
-          ) : (
-            <HardDrive className="h-3.5 w-3.5" />
-          )}
+          {isVideo ? <Play className="h-3.5 w-3.5 text-primary" /> : <HardDrive className="h-3.5 w-3.5" />}
         </div>
 
         {/* Name + size */}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-foreground">{file.short_name || file.name}</p>
-          <p className="text-[10px] text-muted-foreground">{formatBytes(file.size)}</p>
+          <p className="truncate text-xs font-medium text-foreground">{name}</p>
+          <p className="text-[10px] text-muted-foreground">{formatBytes(file.bytes)}</p>
         </div>
 
         {/* Stream button */}
-        <button
-          id={`torbox-stream-${torrentId}-${file.id}`}
-          onClick={() => setPlayerOpen(true)}
-          aria-label={`Stream ${file.short_name || file.name}`}
-          className={cn(
-            'flex-shrink-0 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold',
-            'bg-primary/10 text-primary border border-primary/20',
-            'hover:bg-primary hover:text-primary-foreground hover:border-primary',
-            'transition-all duration-200 active:scale-95'
-          )}
-        >
-          <Play className="h-3 w-3" />
-          Stream
-        </button>
+        {isVideo && (
+          <button
+            id={`debrid-stream-${torrentId}-${file.id}`}
+            data-testid="debrid-library-stream"
+            onClick={() => setPlayerOpen(true)}
+            aria-label={`Stream ${name}`}
+            className={cn(
+              'flex-shrink-0 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold',
+              'bg-primary/10 text-primary border border-primary/20',
+              'hover:bg-primary hover:text-primary-foreground hover:border-primary',
+              'transition-all duration-200 active:scale-95'
+            )}
+          >
+            <Play className="h-3 w-3" />
+            Stream
+          </button>
+        )}
       </div>
 
-      <VideoPlayerModal
-        open={playerOpen}
-        onOpenChange={setPlayerOpen}
-        torrentId={torrentId}
-        fileId={file.id}
-        fileName={file.short_name || file.name}
-        token={token}
-      />
+      {playerOpen && (
+        <VideoPlayerModal
+          open={playerOpen}
+          onOpenChange={setPlayerOpen}
+          source={{ kind: 'file', torrentId, fileId: file.id }}
+          fileName={name}
+          token={token}
+        />
+      )}
     </>
   )
 }
@@ -101,21 +105,37 @@ function FileBadge({ file, torrentId, token }: FileBadgeProps) {
 // ---------------------------------------------------------------------------
 
 interface TorrentCardProps {
-  torrent: TorboxTorrent
+  torrent: DebridTorrent
   token: string
 }
 
 function TorrentCard({ torrent, token }: TorrentCardProps) {
   const [expanded, setExpanded] = useState(false)
-  const { label, colorClass } = torboxStateLabel(torrent.download_state)
+  const [files, setFiles] = useState<DebridTorrentFile[] | null>(null)
+  const [filesError, setFilesError] = useState<string | null>(null)
+  const { label, colorClass } = debridStatusLabel(torrent.status)
   const progress = Math.min(100, Math.round(torrent.progress))
-  const isReady = torrent.download_finished || torrent.cached
+  const isReady = torrent.status === 'downloaded'
 
-  // Only show video files by default; reveal all when expanded
-  const videoFiles = torrent.files.filter(
-    (f) => f.mimetype.startsWith('video/') || /\.(mp4|mkv|avi|mov|m4v|wmv|webm)$/i.test(f.name)
-  )
-  const displayFiles = expanded ? torrent.files : (videoFiles.length ? videoFiles : torrent.files.slice(0, 3))
+  // Real-Debrid's list has no file names — fetch them the first time the card opens.
+  useEffect(() => {
+    if (!expanded || files) return
+    let cancelled = false
+    fetchDebridTorrent(torrent.id, token)
+      .then((info) => {
+        if (!cancelled) setFiles(info.files.filter((f) => f.selected === 1))
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setFilesError(err instanceof Error ? err.message : 'Could not load files')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [expanded, files, torrent.id, token])
+
+  const displayFiles = files
+    ? [...files].sort((a, b) => Number(isVideoPath(b.path)) - Number(isVideoPath(a.path)) || a.id - b.id)
+    : []
 
   return (
     <div
@@ -132,7 +152,7 @@ function TorrentCard({ torrent, token }: TorrentCardProps) {
       <div className="p-4">
         {/* Header row */}
         <div className="flex items-start gap-3">
-          {/* Cached / seeding badge */}
+          {/* Ready / downloading badge */}
           <div
             className={cn(
               'mt-0.5 flex-shrink-0 rounded-md p-1.5',
@@ -144,19 +164,19 @@ function TorrentCard({ torrent, token }: TorrentCardProps) {
 
           <div className="min-w-0 flex-1">
             <h3 className="line-clamp-2 text-sm font-semibold text-foreground leading-snug">
-              {torrent.name}
+              {torrent.filename}
             </h3>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
               <span className={cn('font-medium', colorClass)}>{label}</span>
-              <span>{formatBytes(torrent.size)}</span>
-              {torrent.seeds > 0 && <span>{torrent.seeds} seeds</span>}
+              <span>{formatBytes(torrent.bytes)}</span>
+              {!!torrent.seeders && <span>{torrent.seeders} seeds</span>}
             </div>
           </div>
 
           {/* Expand toggle */}
-          {torrent.files.length > 0 && (
+          {isReady && (
             <button
-              id={`torbox-expand-${torrent.id}`}
+              id={`debrid-expand-${torrent.id}`}
               onClick={() => setExpanded((v) => !v)}
               aria-label={expanded ? 'Collapse files' : 'Show files'}
               className="flex-shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
@@ -183,25 +203,18 @@ function TorrentCard({ torrent, token }: TorrentCardProps) {
         )}
 
         {/* Files list */}
-        {(expanded || (isReady && displayFiles.length > 0)) && displayFiles.length > 0 && (
+        {expanded && (
           <div className="mt-3 space-y-1.5">
+            {!files && !filesError && (
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading files…
+              </p>
+            )}
+            {filesError && <p className="text-xs text-destructive">{filesError}</p>}
             {displayFiles.map((file) => (
               <FileBadge key={file.id} file={file} torrentId={torrent.id} token={token} />
             ))}
-            {!expanded && torrent.files.length > displayFiles.length && (
-              <button
-                onClick={() => setExpanded(true)}
-                className="w-full rounded-lg border border-dashed border-border/50 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
-              >
-                +{torrent.files.length - displayFiles.length} more files
-              </button>
-            )}
           </div>
-        )}
-
-        {/* If ready but no files yet fetched, show stream all button */}
-        {isReady && torrent.files.length === 0 && (
-          <p className="mt-2 text-xs text-muted-foreground italic">No file list available yet.</p>
         )}
       </div>
     </div>
@@ -209,15 +222,15 @@ function TorrentCard({ torrent, token }: TorrentCardProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Main TorboxLibrary component
+// Main DebridLibrary component
 // ---------------------------------------------------------------------------
 
-interface TorboxLibraryProps {
+interface DebridLibraryProps {
   token: string
 }
 
-export default function TorboxLibrary({ token }: TorboxLibraryProps) {
-  const [torrents, setTorrents] = useState<TorboxTorrent[]>([])
+export default function DebridLibrary({ token }: DebridLibraryProps) {
+  const [torrents, setTorrents] = useState<DebridTorrent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -227,14 +240,9 @@ export default function TorboxLibrary({ token }: TorboxLibraryProps) {
     setLoading(true)
     setError(null)
     try {
-      const result = await fetchTorboxList(token)
-      if (!result.success) {
-        setError(result.detail || 'Failed to load TorBox library')
-      } else {
-        setTorrents(result.data ?? [])
-      }
+      setTorrents(await fetchDebridTorrents(token, 200))
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load TorBox library')
+      setError(err instanceof Error ? err.message : 'Failed to load Real-Debrid library')
     } finally {
       setLoading(false)
     }
@@ -248,19 +256,19 @@ export default function TorboxLibrary({ token }: TorboxLibraryProps) {
   const filtered = useMemo(() => {
     let list = torrents
     if (filter === 'ready') {
-      list = list.filter((t) => t.download_finished || t.cached)
+      list = list.filter((t) => t.status === 'downloaded')
     } else if (filter === 'downloading') {
-      list = list.filter((t) => !t.download_finished && !t.cached)
+      list = list.filter((t) => t.status !== 'downloaded')
     }
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter((t) => t.name.toLowerCase().includes(q))
+      list = list.filter((t) => t.filename.toLowerCase().includes(q))
     }
     return list
   }, [torrents, filter, search])
 
   // Stats
-  const readyCount = torrents.filter((t) => t.download_finished || t.cached).length
+  const readyCount = torrents.filter((t) => t.status === 'downloaded').length
   const dlCount = torrents.length - readyCount
 
   // ---------------------------------------------------------------------------
@@ -270,7 +278,7 @@ export default function TorboxLibrary({ token }: TorboxLibraryProps) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm">Loading TorBox library…</p>
+        <p className="text-sm">Loading Real-Debrid library…</p>
       </div>
     )
   }
@@ -284,10 +292,10 @@ export default function TorboxLibrary({ token }: TorboxLibraryProps) {
         <div className="rounded-full bg-destructive/10 p-4">
           <AlertCircle className="h-8 w-8 text-destructive" />
         </div>
-        <p className="text-sm font-medium text-foreground">TorBox Library Unavailable</p>
+        <p className="text-sm font-medium text-foreground">Real-Debrid Library Unavailable</p>
         <p className="max-w-sm text-xs text-muted-foreground">{error}</p>
         <button
-          id="torbox-retry"
+          id="debrid-retry"
           onClick={load}
           className="mt-2 flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
         >
@@ -307,18 +315,10 @@ export default function TorboxLibrary({ token }: TorboxLibraryProps) {
         <div className="rounded-full border border-dashed border-border/60 p-6">
           <Cloud className="h-10 w-10 opacity-40" />
         </div>
-        <p className="text-sm font-medium">Your TorBox library is empty</p>
+        <p className="text-sm font-medium">Your Real-Debrid library is empty</p>
         <p className="max-w-xs text-xs opacity-60">
-          Add content to TorBox at{' '}
-          <a
-            href="https://torbox.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            torbox.app
-          </a>{' '}
-          and it will appear here instantly.
+          Play something with the Real-Debrid server, or add it from the Debrid Search tab, and it will appear
+          here.
         </p>
       </div>
     )
@@ -342,7 +342,7 @@ export default function TorboxLibrary({ token }: TorboxLibraryProps) {
           ).map(({ key, label }) => (
             <button
               key={key}
-              id={`torbox-filter-${key}`}
+              id={`debrid-filter-${key}`}
               onClick={() => setFilter(key)}
               className={cn(
                 'rounded-full px-3 py-1 text-xs font-medium transition-all duration-200',
@@ -358,9 +358,9 @@ export default function TorboxLibrary({ token }: TorboxLibraryProps) {
 
         {/* Refresh */}
         <button
-          id="torbox-refresh"
+          id="debrid-refresh"
           onClick={load}
-          aria-label="Refresh TorBox library"
+          aria-label="Refresh Real-Debrid library"
           className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
         >
           <RefreshCw className="h-3.5 w-3.5" />
