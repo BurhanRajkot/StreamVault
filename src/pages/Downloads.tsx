@@ -10,10 +10,10 @@ import AdminLoginModal from '@/components/modals/AdminLoginModal'
 import { AdminModeBadge } from '@/components/effects/AdminModeBadge'
 import { PageMeta } from '@/seo/PageMeta'
 
-// Lazy-load TorboxLibrary so the TorBox bundle only loads when the tab is opened
-const TorboxLibrary = lazy(() => import('@/components/media/TorboxLibrary'))
-// Lazy-load TorboxSearch
-const TorboxSearch = lazy(() => import('@/components/media/TorboxSearch'))
+// Lazy-load DebridLibrary so the Real-Debrid bundle only loads when the tab is opened
+const DebridLibrary = lazy(() => import('@/components/media/DebridLibrary'))
+// Lazy-load DebridSearch
+const DebridSearch = lazy(() => import('@/components/media/DebridSearch'))
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -59,7 +59,7 @@ async function fetchPoster(title: string): Promise<string | null> {
   }
 }
 
-type Tab = 'downloads' | 'torbox' | 'search'
+type Tab = 'downloads' | 'debrid' | 'search'
 
 const Downloads = () => {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
@@ -70,7 +70,7 @@ const Downloads = () => {
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('downloads')
-  /** Auth token stored so TorboxLibrary can use it without re-fetching */
+  /** Auth token stored so DebridLibrary can use it without re-fetching */
   const [authToken, setAuthToken] = useState<string | null>(null)
 
   useEffect(() => {
@@ -283,17 +283,17 @@ const Downloads = () => {
         </button>
         {(isAdmin || (!needsUpgrade && isAuthenticated)) && (
           <button
-            id="tab-torbox"
-            onClick={() => setActiveTab('torbox')}
+            id="tab-debrid"
+            onClick={() => setActiveTab('debrid')}
             className={cn(
               'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200',
-              activeTab === 'torbox'
+              activeTab === 'debrid'
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
             <Cloud className="h-4 w-4" />
-            TorBox Cloud
+            Real-Debrid Cloud
             <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-violet-400">
               ⚡
             </span>
@@ -301,7 +301,7 @@ const Downloads = () => {
         )}
         {(isAdmin || (!needsUpgrade && isAuthenticated)) && (
           <button
-            id="tab-torbox-search"
+            id="tab-debrid-search"
             onClick={() => setActiveTab('search')}
             className={cn(
               'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200',
@@ -319,31 +319,31 @@ const Downloads = () => {
         )}
       </div>
 
-      {/* ── TorBox Search tab ── */}
+      {/* ── Debrid Search tab ── */}
       {activeTab === 'search' && authToken && (
         <Suspense
           fallback={
             <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span className="text-sm">Loading TorBox Search…</span>
+              <span className="text-sm">Loading Debrid Search…</span>
             </div>
           }
         >
-          <TorboxSearch token={authToken} />
+          <DebridSearch token={authToken} />
         </Suspense>
       )}
 
-      {/* ── TorBox Cloud Library tab ── */}
-      {activeTab === 'torbox' && authToken && (
+      {/* ── Real-Debrid Cloud Library tab ── */}
+      {activeTab === 'debrid' && authToken && (
         <Suspense
           fallback={
             <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span className="text-sm">Loading TorBox…</span>
+              <span className="text-sm">Loading Real-Debrid…</span>
             </div>
           }
         >
-          <TorboxLibrary token={authToken} />
+          <DebridLibrary token={authToken} />
         </Suspense>
       )}
 

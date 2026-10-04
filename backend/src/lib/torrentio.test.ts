@@ -31,7 +31,7 @@ describe('torrentioTorrentCandidates', () => {
     expect(candidate.size).toBeCloseTo(70.8 * 1024 ** 3, -3)
   })
 
-  it('uses the filename as the release name, not the multi-line title', () => {
+  it('uses the first title line as the release name, not the multi-line title', () => {
     const [candidate] = torrentioTorrentCandidates([stream])
     expect(candidate.name).toBe(
       'The.Grand.Budapest.Hotel.2014.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEPHiLES.mkv'
@@ -39,11 +39,9 @@ describe('torrentioTorrentCandidates', () => {
     expect(candidate.name).not.toContain('\n')
   })
 
-  it('falls back to the first title line when no filename is present', () => {
-    const [candidate] = torrentioTorrentCandidates([{ ...stream, behaviorHints: undefined }])
-    expect(candidate.name).toBe(
-      'The.Grand.Budapest.Hotel.2014.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.DTS-HD.MA.5.1-CiNEPHiLES.mkv'
-    )
+  it('falls back to the filename when there is no title', () => {
+    const [candidate] = torrentioTorrentCandidates([{ ...stream, title: undefined }])
+    expect(candidate.name).toBe(stream.behaviorHints?.filename ?? '')
   })
 
   it('skips streams with no info-hash', () => {
@@ -52,5 +50,34 @@ describe('torrentioTorrentCandidates', () => {
 
   it('skips streams with a malformed info-hash', () => {
     expect(torrentioTorrentCandidates([{ infoHash: 'not-a-hash' }])).toEqual([])
+  })
+
+  it('reports keyless results as not cached', () => {
+    expect(torrentioTorrentCandidates([stream])[0].cached).toBe(false)
+  })
+})
+
+describe('torrentioTorrentCandidates (Real-Debrid mode)', () => {
+  const rdStream = (cachedTag: string): TorrentioStream => ({
+    name: `${cachedTag} Torrentio\n1080p`,
+    title: 'Inception (2010) 1080p BrRip x264 - 1.85GB - YIFY\n👤 120 💾 1.85 GB ⚙️ YTS',
+    url: `https://torrentio.strem.fun/resolve/realdebrid/SECRETKEY/${HASH}/null/3/Inception.2010.1080p.BrRip.x264.YIFY.mp4`,
+    behaviorHints: { filename: 'Inception.2010.1080p.BrRip.x264.YIFY.mp4' },
+  })
+
+  it('recovers the info-hash and file index from the resolve URL', () => {
+    const [candidate] = torrentioTorrentCandidates([rdStream('[RD+]')])
+    expect(candidate.infoHash).toBe(HASH.toUpperCase())
+    expect(candidate.fileIdx).toBe(3)
+    expect(candidate.fileName).toBe('Inception.2010.1080p.BrRip.x264.YIFY.mp4')
+  })
+
+  it('reads the [RD+] cache tag', () => {
+    expect(torrentioTorrentCandidates([rdStream('[RD+]')])[0].cached).toBe(true)
+    expect(torrentioTorrentCandidates([rdStream('[RD download]')])[0].cached).toBe(false)
+  })
+
+  it('never carries the resolve URL (and its key) into the candidate', () => {
+    expect(JSON.stringify(torrentioTorrentCandidates([rdStream('[RD+]')]))).not.toContain('SECRETKEY')
   })
 })

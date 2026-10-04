@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'bun:test'
-import { selectBalancedReleases, isLikelyNonEnglishRelease, isDifferentSequel, type TorboxSearchResult } from './torbox'
+import {
+  selectBalancedReleases,
+  isLikelyNonEnglishRelease,
+  isDifferentSequel,
+  filesToSelect,
+  pickPlaybackFile,
+  type DebridRelease,
+  type DebridTorrentFile,
+} from './debrid'
 
-const release = (name: string, cached = true, seeders = 0): TorboxSearchResult => ({
+const release = (name: string, cached = true, seeders = 0): DebridRelease => ({
   id: name,
   name,
   info_hash: name,
@@ -12,7 +20,7 @@ const release = (name: string, cached = true, seeders = 0): TorboxSearchResult =
   username: 'torrentio',
   added: '0',
   category: '207',
-  torbox_cached: cached,
+  cached,
 })
 
 describe('selectBalancedReleases', () => {
@@ -83,5 +91,68 @@ describe('isDifferentSequel', () => {
     ['Во все тяжкие S02E03 1080p', 'Breaking Bad', false],
   ])('%s for "%s" → %p', (name, title, expected) => {
     expect(isDifferentSequel(name, title)).toBe(expected)
+  })
+})
+
+const file = (id: number, path: string, bytes = 1_000_000_000, selected = 1): DebridTorrentFile => ({
+  id,
+  path,
+  bytes,
+  selected,
+})
+
+describe('filesToSelect', () => {
+  it('selects every video file except samples', () => {
+    expect(
+      filesToSelect([
+        file(1, '/Inception.2010.1080p.mkv'),
+        file(2, '/Inception.2010.1080p.mkv.nfo', 849),
+        file(3, '/Sample/inception-sample.mkv', 50_000_000),
+        file(4, '/Torrent Downloaded From UIndex.org.txt', 129),
+      ])
+    ).toEqual([1])
+  })
+
+  it('selects every episode of a season pack', () => {
+    expect(
+      filesToSelect([file(1, '/Show.S01/Show.S01E01.mkv'), file(2, '/Show.S01/Show.S01E02.mkv'), file(3, '/Show.S01/info.txt', 10)])
+    ).toEqual([1, 2])
+  })
+
+  it('keeps a sample when it is the only video', () => {
+    expect(filesToSelect([file(1, '/clip-sample.mp4'), file(2, '/readme.txt', 10)])).toEqual([1])
+  })
+})
+
+describe('pickPlaybackFile', () => {
+  const pack = [
+    file(1, '/Show.S01/Show.S01E01.1080p.mkv', 900),
+    file(2, '/Show.S01/Show.S01E02.1080p.mkv', 800),
+    file(3, '/Show.S01/Show.S01E03.1080p.mkv', 1000),
+  ]
+
+  it('picks the requested episode from a season pack', () => {
+    expect(pickPlaybackFile(pack, { season: 1, episode: 2 })?.id).toBe(2)
+  })
+
+  it('prefers the file Torrentio matched by name', () => {
+    expect(pickPlaybackFile(pack, { fileName: 'Show.S01E01.1080p.mkv', season: 1, episode: 3 })?.id).toBe(1)
+  })
+
+  it("maps Torrentio's 0-based file index onto Real-Debrid's 1-based ids", () => {
+    expect(pickPlaybackFile(pack, { fileIdx: 1 })?.id).toBe(2)
+  })
+
+  it('matches "EP02"-style episode numbering in season packs', () => {
+    const planetEarth = [
+      file(1, '/Planet.Earth.II.S01.EP01.Islands.2160p.mkv'),
+      file(2, '/Planet.Earth.II.S01.EP02.Mountains.2160p.mkv'),
+      file(3, '/Planet.Earth.II.S01.EP03.Jungles.2160p.mkv'),
+    ]
+    expect(pickPlaybackFile(planetEarth, { season: 1, episode: 2 })?.id).toBe(2)
+  })
+
+  it('falls back to the largest video', () => {
+    expect(pickPlaybackFile(pack)?.id).toBe(3)
   })
 })

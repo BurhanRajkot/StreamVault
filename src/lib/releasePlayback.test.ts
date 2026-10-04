@@ -5,11 +5,12 @@ import {
   isDolbyVisionOnly,
   isBrowserPlayable,
   rankReleasesForPlayback,
-  supportedFfprobeCodecs,
+  canDecodeVideoCodec,
+  planPlaybackModes,
 } from './releasePlayback'
-import { findEpisodeFile, type TorboxFile, type TorboxSearchResult } from './torboxApi'
+import type { DebridRelease, DebridReadyPlayback, DebridMediaSummary } from './debridApi'
 
-const release = (name: string, opts: { cached?: boolean; size?: number; seeders?: number } = {}): TorboxSearchResult => ({
+const release = (name: string, opts: { cached?: boolean; size?: number; seeders?: number } = {}): DebridRelease => ({
   id: name,
   name,
   info_hash: name,
@@ -20,7 +21,7 @@ const release = (name: string, opts: { cached?: boolean; size?: number; seeders?
   username: 'torrentio',
   added: '0',
   category: '208',
-  torbox_cached: opts.cached ?? true,
+  cached: opts.cached ?? true,
 })
 
 const noHevc = { hevc: false, av1: false }
@@ -64,10 +65,12 @@ describe('isBrowserPlayable', () => {
   })
 })
 
-describe('supportedFfprobeCodecs', () => {
-  it('always includes h264 and adds hevc/av1 only when supported', () => {
-    expect(supportedFfprobeCodecs(noHevc)).toEqual(['h264', 'vp8', 'vp9'])
-    expect(supportedFfprobeCodecs({ hevc: true, av1: true })).toContain('hevc')
+describe('canDecodeVideoCodec', () => {
+  it('always decodes h264 and decodes hevc/av1 only when supported', () => {
+    expect(canDecodeVideoCodec('h264', noHevc)).toBe(true)
+    expect(canDecodeVideoCodec('hevc', noHevc)).toBe(false)
+    expect(canDecodeVideoCodec('hevc', withHevc)).toBe(true)
+    expect(canDecodeVideoCodec('vc1', withHevc)).toBe(false)
   })
 })
 
@@ -102,31 +105,72 @@ describe('rankReleasesForPlayback', () => {
     ])
   })
 
+  it('passes over releases that declare Dolby/DTS audio, since those need the unseekable transcode', () => {
+    const ranked = rankReleasesForPlayback(
+      [release('Show.S01E01.1080p.WEB.DDP5.1.x264'), release('Show.S01E01.720p.WEB.AAC.x264'), release('Show.S01E01.1080p.WEB.x264')],
+      noHevc
+    )
+    expect(ranked.map((r) => r.name)).toEqual([
+      'Show.S01E01.1080p.WEB.x264',
+      'Show.S01E01.720p.WEB.AAC.x264',
+      'Show.S01E01.1080p.WEB.DDP5.1.x264',
+    ])
+  })
+
   it('ranks cached above uncached among playable releases', () => {
     const ranked = rankReleasesForPlayback(breakingBad, noHevc)
-    const uncachedIndex = ranked.findIndex((r) => !r.torbox_cached)
-    const lastCachedPlayable = ranked.filter((r) => r.torbox_cached && isBrowserPlayable(r.name, noHevc)).length - 1
+    const uncachedIndex = ranked.findIndex((r) => !r.cached)
+    const lastCachedPlayable = ranked.filter((r) => r.cached && isBrowserPlayable(r.name, noHevc)).length - 1
     expect(uncachedIndex).toBeGreaterThan(lastCachedPlayable)
   })
 })
 
-describe('findEpisodeFile', () => {
-  const file = (id: number, name: string): TorboxFile => ({
-    id,
-    md5: null,
-    s3_path: name,
-    name,
-    size: 1000 + id,
-    mimetype: 'video/x-matroska',
-    short_name: name,
+describe('planPlaybackModes', () => {
+  const media = (overrides: Partial<DebridMediaSummary> = {}): DebridMediaSummary => ({
+    videoCodec: 'h264',
+    audioTracks: [{ id: 'eng1', lang: 'English', langIso: 'eng', codec: 'aac', channels: 2 }],
+    selectedAudio: 'eng1',
+    duration: 7200,
+    ...overrides,
+  })
+  const playback = (m: DebridMediaSummary | null): DebridReadyPlayback => ({
+    status: 'ready',
+    torrentId: 'ABCDEFGHIJKLM',
+    fileId: 1,
+    fileName: 'Movie.2010.1080p.mkv',
+    fileSize: 2 * GB,
+    mimeType: 'video/x-matroska',
+    directUrl: 'https://x.download.real-debrid.com/d/ID/Movie.mkv',
+    hls: 'https://x.stream.real-debrid.com/t/ID/eng1/none/aac/full.m3u8',
+    media: m,
+  })
+  const kinds = (p: DebridReadyPlayback, support = noHevc) => planPlaybackModes(p, support).map((m) => m.label)
+
+  it('plays H.264 + AAC directly first', () => {
+    expect(kinds(playback(media()))).toEqual(['Direct', 'RD stream'])
   })
 
-  it('matches "EP02"-style episode numbering in season packs', () => {
-    const files = [
-      file(1, 'Planet.Earth.II.S01.EP01.Islands.2160p.mkv'),
-      file(2, 'Planet.Earth.II.S01.EP02.Mountains.2160p.mkv'),
-      file(3, 'Planet.Earth.II.S01.EP03.Jungles.2160p.mkv'),
-    ]
-    expect(findEpisodeFile(files, 1, 2)?.id).toBe(2)
+  it('goes through the RD transcode first for E-AC3 audio', () => {
+    const eac3 = media({ audioTracks: [{ id: 'eng1', lang: 'English', langIso: 'eng', codec: 'eac3', channels: 6 }] })
+    expect(kinds(playback(eac3))).toEqual(['RD stream', 'Direct'])
+  })
+
+  it('goes through the RD transcode first for HEVC only when the browser lacks it', () => {
+    expect(kinds(playback(media({ videoCodec: 'hevc' })))[0]).toBe('RD stream')
+    expect(kinds(playback(media({ videoCodec: 'hevc' })), withHevc)[0]).toBe('Direct')
+  })
+
+  it('uses the transcode when the English track is not the first one', () => {
+    const dubFirst = media({
+      audioTracks: [
+        { id: 'rus1', lang: 'Russian', langIso: 'rus', codec: 'aac', channels: 2 },
+        { id: 'eng1', lang: 'English', langIso: 'eng', codec: 'aac', channels: 2 },
+      ],
+    })
+    expect(kinds(playback(dubFirst))[0]).toBe('RD stream')
+  })
+
+  it('tries direct first when there is no media info', () => {
+    expect(kinds(playback(null))).toEqual(['Direct', 'RD stream'])
   })
 })

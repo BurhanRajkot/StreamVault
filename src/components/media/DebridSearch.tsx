@@ -1,28 +1,32 @@
 /**
- * TorboxSearch — Search movies & TV shows via TorBox
+ * DebridSearch — search movies & TV shows and play them via Real-Debrid
  *
  * Flow:
  *   User types title → backend queries apibay.org for hashes
- *   → batch-checks TorBox cache → returns annotated results
- *   → "⚡ Stream" for cached items (instant CDN link)
- *   → "➕ Add" for uncached items (adds to TorBox account)
+ *   → "Play" adds the release to Real-Debrid: cached ones come back ready
+ *     and open in the player; anything else starts downloading on
+ *     Real-Debrid and shows up in the Real-Debrid Cloud tab when done.
+ *   → "Add" does the same without opening the player.
+ *
+ * Real-Debrid has no cache-check endpoint any more, so there's no
+ * "instant" badge here — the title-matched player (DebridPlayerPane) gets
+ * cache status from Torrentio instead.
  */
 
 import { useState, useRef, useCallback } from 'react'
 import {
-  searchTorbox,
-  addTorboxByHash,
-  fetchTorboxList,
+  searchDebrid,
+  playDebridRelease,
   parseTorrentQuality,
   qualityColorClass,
   parseTorrentSource,
   parseTorrentHDR,
   formatBytes,
-  type TorboxSearchResult,
-} from '@/lib/torboxApi'
+  type DebridRelease,
+  type DebridReadyPlayback,
+} from '@/lib/debridApi'
 import {
   Search,
-  Zap,
   Plus,
   Loader2,
   Play,
@@ -55,10 +59,10 @@ const CATEGORIES: Category[] = [
 // ---------------------------------------------------------------------------
 
 interface ResultCardProps {
-  result: TorboxSearchResult
+  result: DebridRelease
   token: string
   onAdded: (hash: string) => void
-  onPlay: (torrentId: number, fileId: number, fileName: string) => void
+  onPlay: (playback: DebridReadyPlayback) => void
 }
 
 function ResultCard({ result, token, onAdded, onPlay }: ResultCardProps) {
@@ -72,56 +76,28 @@ function ResultCard({ result, token, onAdded, onPlay }: ResultCardProps) {
   const seeders = parseInt(result.seeders, 10)
   const sizeNum = parseInt(result.size, 10)
 
+  /** Add the release to Real-Debrid (or reuse it), and report what happened. */
+  const addToDebrid = async () => {
+    const res = await playDebridRelease(result, token)
+    setAddedHash(result.info_hash)
+    onAdded(result.info_hash)
+    return res
+  }
+
   const handleStream = async () => {
     setStreamLoading(true)
     try {
-      // Find this hash in the user's TorBox list to get the torrent ID
-      let listResult = await fetchTorboxList(token)
-      if (!listResult.success || !listResult.data) {
-        throw new Error('Could not load TorBox library')
-      }
-
-      let match = listResult.data.find(
-        (t) => t.hash.toUpperCase() === result.info_hash.toUpperCase()
-      )
-
-      if (!match) {
-        // Automatically add it to TorBox since it's cached!
-        const addRes = await addTorboxByHash(result.info_hash, result.name, token)
-        if (!addRes.success && !addRes.detail?.toLowerCase().includes('duplicate')) {
-          throw new Error(addRes.detail || 'Could not add torrent to TorBox')
-        }
-        setAddedHash(result.info_hash)
-        onAdded(result.info_hash)
-
-        // Wait a brief moment for TorBox to populate file metadata
-        await new Promise((r) => setTimeout(r, 1200))
-
-        listResult = await fetchTorboxList(token)
-        match = listResult.data?.find(
-          (t) => t.hash.toUpperCase() === result.info_hash.toUpperCase()
+      const res = await addToDebrid()
+      if (res.status === 'ready') {
+        onPlay(res)
+      } else if (res.status === 'downloading') {
+        toast.info(
+          `Not cached — Real-Debrid is downloading it (${Math.round(res.progress)}%). It'll be in the Real-Debrid Cloud tab when done.`,
+          { duration: 6000 }
         )
+      } else {
+        toast.error(res.status === 'failed' ? res.reason : 'Real-Debrid could not add this release')
       }
-
-      if (!match) {
-        toast.info('Added to TorBox! Head to the "TorBox Cloud" tab in a moment to stream.', { duration: 5000 })
-        return
-      }
-
-      // Pick the largest video file
-      const videoFiles = match.files?.filter(
-        (f) => f.mimetype.startsWith('video/') || /\.(mp4|mkv|avi|mov|m4v|wmv|webm)$/i.test(f.name)
-      ) || []
-      const file = videoFiles.length
-        ? videoFiles.reduce((a, b) => (a.size > b.size ? a : b))
-        : match.files?.[0]
-
-      if (!file) {
-        toast.error('No streamable video files found in this torrent')
-        return
-      }
-
-      onPlay(match.id, file.id, file.short_name || file.name)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not get stream URL')
     } finally {
@@ -132,22 +108,17 @@ function ResultCard({ result, token, onAdded, onPlay }: ResultCardProps) {
   const handleAdd = async () => {
     setAddLoading(true)
     try {
-      const res = await addTorboxByHash(result.info_hash, result.name, token)
-      if (res.success) {
-        setAddedHash(result.info_hash)
-        onAdded(result.info_hash)
-        toast.success(`Added "${result.name}" to TorBox!`, { duration: 3000 })
+      const res = await addToDebrid()
+      if (res.status === 'failed') {
+        toast.error(res.reason)
       } else {
-        toast.error(res.detail || 'Failed to add torrent')
+        toast.success(
+          res.status === 'ready' ? `"${result.name}" is ready in Real-Debrid` : `Added "${result.name}" to Real-Debrid`,
+          { duration: 3000 }
+        )
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to add torrent'
-      if (msg.toLowerCase().includes('duplicate')) {
-        toast.info('Already in your TorBox library')
-        setAddedHash(result.info_hash)
-      } else {
-        toast.error(msg)
-      }
+      toast.error(err instanceof Error ? err.message : 'Failed to add torrent')
     } finally {
       setAddLoading(false)
     }
@@ -160,26 +131,13 @@ function ResultCard({ result, token, onAdded, onPlay }: ResultCardProps) {
       className={cn(
         'group relative flex flex-col gap-3 overflow-hidden rounded-xl border p-4',
         'bg-card/60 backdrop-blur-sm transition-all duration-300',
-        result.torbox_cached
-          ? 'border-violet-500/30 hover:border-violet-400/60 hover:shadow-lg hover:shadow-violet-500/10'
-          : 'border-border/50 hover:border-border hover:shadow-md'
+        'border-border/50 hover:border-border hover:shadow-md'
       )}
     >
-      {/* Instant badge gradient top bar */}
-      {result.torbox_cached && (
-        <div className="absolute left-0 top-0 h-0.5 w-full bg-gradient-to-r from-violet-500 via-primary to-cyan-500" />
-      )}
-
-      {/* Header: name + cached badge */}
+      {/* Header: name + badges */}
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
-            {/* Instant badge */}
-            {result.torbox_cached && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-400 border border-violet-500/20">
-                <Zap className="h-2.5 w-2.5" /> INSTANT
-              </span>
-            )}
             {/* Quality */}
             <span className={cn(
               'inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold',
@@ -237,70 +195,44 @@ function ResultCard({ result, token, onAdded, onPlay }: ResultCardProps) {
 
       {/* Action buttons */}
       <div className="flex items-center gap-2">
-        {result.torbox_cached ? (
-          <div className="flex flex-1 items-center gap-2">
-            <button
-              id={`torbox-stream-search-${result.info_hash}`}
-              onClick={handleStream}
-              disabled={streamLoading}
-              className={cn(
-                'flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold',
-                'bg-gradient-to-r from-violet-600 to-primary text-white',
-                'hover:from-violet-500 hover:to-primary/90 hover:shadow-lg hover:shadow-primary/20',
-                'disabled:opacity-60 disabled:cursor-not-allowed',
-                'transition-all duration-200 active:scale-[0.98]'
-              )}
-            >
-              {streamLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4 fill-white" />
-              )}
-              {streamLoading ? 'Preparing…' : '⚡ Stream Now'}
-            </button>
-            <button
-              id={`torbox-add-cached-${result.info_hash}`}
-              onClick={handleAdd}
-              disabled={addLoading || isAdded}
-              title={isAdded ? 'Added to TorBox' : 'Save to TorBox Cloud'}
-              className={cn(
-                'flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium border transition-all duration-200',
-                isAdded
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-secondary/60 text-muted-foreground border-border/40 hover:text-foreground hover:bg-secondary'
-              )}
-            >
-              {addLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isAdded ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        ) : (
+        <div className="flex flex-1 items-center gap-2">
           <button
-            id={`torbox-add-${result.info_hash}`}
-            onClick={handleAdd}
-            disabled={addLoading || isAdded}
+            id={`debrid-stream-search-${result.info_hash}`}
+            data-testid="debrid-search-play"
+            onClick={handleStream}
+            disabled={streamLoading}
             className={cn(
               'flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold',
-              isAdded
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 cursor-default'
-                : 'bg-secondary text-foreground border border-border/50 hover:bg-secondary/80 hover:border-primary/30',
+              'bg-gradient-to-r from-violet-600 to-primary text-white',
+              'hover:from-violet-500 hover:to-primary/90 hover:shadow-lg hover:shadow-primary/20',
               'disabled:opacity-60 disabled:cursor-not-allowed',
               'transition-all duration-200 active:scale-[0.98]'
             )}
           >
-            {addLoading
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : isAdded
-                ? <CheckCircle2 className="h-4 w-4" />
-                : <Plus className="h-4 w-4" />}
-            {addLoading ? 'Adding…' : isAdded ? 'Added to TorBox' : 'Add to TorBox'}
+            {streamLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-white" />}
+            {streamLoading ? 'Preparing…' : 'Play'}
           </button>
-        )}
+          <button
+            id={`debrid-add-${result.info_hash}`}
+            onClick={handleAdd}
+            disabled={addLoading || isAdded}
+            title={isAdded ? 'Added to Real-Debrid' : 'Save to Real-Debrid Cloud'}
+            className={cn(
+              'flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium border transition-all duration-200',
+              isAdded
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                : 'bg-secondary/60 text-muted-foreground border-border/40 hover:text-foreground hover:bg-secondary'
+            )}
+          >
+            {addLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isAdded ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+          </button>
+        </div>
 
         {/* Hash copy */}
         <button
@@ -319,26 +251,22 @@ function ResultCard({ result, token, onAdded, onPlay }: ResultCardProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Main TorboxSearch component
+// Main DebridSearch component
 // ---------------------------------------------------------------------------
 
-interface TorboxSearchProps {
+interface DebridSearchProps {
   token: string
 }
 
-export default function TorboxSearch({ token }: TorboxSearchProps) {
+export default function DebridSearch({ token }: DebridSearchProps) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<TorboxSearchResult[]>([])
+  const [results, setResults] = useState<DebridRelease[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searched, setSearched] = useState(false)
   const [cat, setCat] = useState(0)
   const [addedHashes, setAddedHashes] = useState<Set<string>>(new Set())
-  const [playerModal, setPlayerModal] = useState<{
-    torrentId: number
-    fileId: number
-    fileName: string
-  } | null>(null)
+  const [playerModal, setPlayerModal] = useState<DebridReadyPlayback | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -354,18 +282,8 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
     setSearched(true)
 
     try {
-      const res = await searchTorbox(q.trim(), token, { limit: 20, cat: category })
-      if (!res.success) {
-        setError(res.detail || 'Search failed')
-        setResults([])
-      } else {
-        // Sort: cached first, then by seeders descending
-        const sorted = [...(res.data || [])].sort((a, b) => {
-          if (a.torbox_cached !== b.torbox_cached) return b.torbox_cached ? 1 : -1
-          return parseInt(b.seeders, 10) - parseInt(a.seeders, 10)
-        })
-        setResults(sorted)
-      }
+      const data = await searchDebrid(q.trim(), token, { limit: 20, cat: category })
+      setResults([...data].sort((a, b) => parseInt(b.seeders, 10) - parseInt(a.seeders, 10)))
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
       setError(err instanceof Error ? err.message : 'Search failed')
@@ -386,8 +304,6 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
     }
   }
 
-  const cachedCount = results.filter((r) => r.torbox_cached).length
-
   return (
     <div className="space-y-5">
       {/* Hero search bar */}
@@ -395,16 +311,16 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
         <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 via-transparent to-primary/5" />
 
         <div className="relative">
-          <h2 className="mb-1 text-lg font-bold text-foreground">TorBox Search</h2>
+          <h2 className="mb-1 text-lg font-bold text-foreground">Debrid Search</h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            Search movies & TV shows. ⚡ Instant results stream directly — no wait.
+            Search movies & TV shows. Cached releases play instantly; others download on Real-Debrid first.
           </p>
 
           <form onSubmit={handleSubmit} className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
-                id="torbox-search-input"
+                id="debrid-search-input"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="e.g. Inception 2010, Breaking Bad S05..."
@@ -418,7 +334,7 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
             </div>
             <button
               type="submit"
-              id="torbox-search-submit"
+              id="debrid-search-submit"
               disabled={loading || query.trim().length < 2}
               className={cn(
                 'flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold',
@@ -438,7 +354,7 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
             {CATEGORIES.map((c) => (
               <button
                 key={c.value}
-                id={`torbox-cat-${c.value}`}
+                id={`debrid-cat-${c.value}`}
                 onClick={() => handleCategoryChange(c.value)}
                 className={cn(
                   'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200',
@@ -464,14 +380,11 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
               : (
                 <>
                   <span className="font-semibold text-foreground">{results.length}</span> results
-                  {cachedCount > 0 && (
-                    <> — <span className="font-semibold text-violet-400">{cachedCount} instant ⚡</span></>
-                  )}
                 </>
               )}
           </p>
           {addedHashes.size > 0 && (
-            <span className="text-xs text-emerald-400">{addedHashes.size} added to TorBox</span>
+            <span className="text-xs text-emerald-400">{addedHashes.size} added to Real-Debrid</span>
           )}
         </div>
       )}
@@ -507,7 +420,7 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
           <div className="rounded-2xl border border-dashed border-border/50 p-8">
             <Search className="mx-auto mb-3 h-10 w-10 opacity-30" />
             <p className="text-sm font-medium">Search for any movie or TV show</p>
-            <p className="mt-1 text-xs opacity-60">Results show instantly-streamable content first</p>
+            <p className="mt-1 text-xs opacity-60">Best-seeded releases first</p>
           </div>
           <div className="flex flex-wrap justify-center gap-2 text-xs">
             {['Inception 2010', 'Breaking Bad', 'Dune Part Two', 'The Wire'].map((s) => (
@@ -532,7 +445,7 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
               result={result}
               token={token}
               onAdded={(hash) => setAddedHashes((prev) => new Set([...prev, hash]))}
-              onPlay={(torrentId, fileId, fileName) => setPlayerModal({ torrentId, fileId, fileName })}
+              onPlay={setPlayerModal}
             />
           ))}
         </div>
@@ -545,8 +458,7 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
           onOpenChange={(open) => {
             if (!open) setPlayerModal(null)
           }}
-          torrentId={playerModal.torrentId}
-          fileId={playerModal.fileId}
+          source={{ kind: 'playback', playback: playerModal }}
           fileName={playerModal.fileName}
           token={token}
         />
@@ -556,7 +468,7 @@ export default function TorboxSearch({ token }: TorboxSearchProps) {
       {searched && !loading && results.length > 0 && (
         <p className="text-center text-xs text-muted-foreground/60">
           <Clock className="inline h-3 w-3 mr-1" />
-          Results from Pirate Bay index · TorBox cache status checked in real-time
+          Results from Pirate Bay index · played and stored via Real-Debrid
         </p>
       )}
     </div>

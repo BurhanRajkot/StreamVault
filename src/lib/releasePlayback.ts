@@ -1,5 +1,6 @@
 /**
- * Which TorBox release a *browser* can actually play, and play smoothly.
+ * Which debrid release a *browser* can actually play, and play smoothly —
+ * and, once Real-Debrid has resolved one, how to play it.
  *
  * Debrid addons like AIOStreams hand streams to native players (mpv,
  * ExoPlayer, VLC) that decode anything, so they can rank purely on quality.
@@ -11,7 +12,13 @@
  * constantly.
  */
 
-import { parseTorrentQuality, isImaxRelease, isLikelyNonEnglishRelease, type TorboxSearchResult } from './torboxApi'
+import {
+  parseTorrentQuality,
+  isImaxRelease,
+  isLikelyNonEnglishRelease,
+  type DebridRelease,
+  type DebridReadyPlayback,
+} from './debridApi'
 
 export type ReleaseVideoCodec = 'avc' | 'hevc' | 'av1'
 
@@ -51,9 +58,9 @@ function isRemux(name: string): boolean {
 }
 
 /**
- * 0 = name declares audio every browser decodes (so it can play straight from
- * TorBox's CDN, no server-side transcode), 2 = declares audio that needs one,
- * 1 = doesn't say.
+ * 0 = name declares audio every browser decodes (so the direct link plays
+ * as-is, with instant seeking), 2 = declares audio that needs Real-Debrid's
+ * HLS transcode, 1 = doesn't say.
  */
 function audioRank(name: string): number {
   if (/\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b|\bE-?AC-?3\b|\bAC-?3\b|\bDD[P+]?(?:\d(?:\.\d)?)?\b/i.test(name)) return 2
@@ -96,14 +103,6 @@ export function detectBrowserVideoSupport(): BrowserVideoSupport {
   return cachedSupport
 }
 
-/** ffprobe codec names this browser can decode — sent to /torbox/hls/start so the backend can refuse the rest up front. */
-export function supportedFfprobeCodecs(support: BrowserVideoSupport): string[] {
-  const codecs = ['h264', 'vp8', 'vp9']
-  if (support.hevc) codecs.push('hevc')
-  if (support.av1) codecs.push('av1')
-  return codecs
-}
-
 /** True when this browser should be able to decode the release's video and render it with correct colours. */
 export function isBrowserPlayable(name: string, support: BrowserVideoSupport): boolean {
   if (isDolbyVisionOnly(name)) return false
@@ -113,19 +112,27 @@ export function isBrowserPlayable(name: string, support: BrowserVideoSupport): b
 
 /**
  * Order releases for automatic playback, best first:
- *   decodable by this browser → cached → 1080p over 4K over 720p →
- *   likely English → not a remux → browser-safe audio (direct CDN play) →
- *   IMAX → seeders → smaller file (lower bitrate, less buffering).
+ *   decodable by this browser → cached → audio not declared as
+ *   Dolby/DTS → 1080p over 4K over 720p → likely English → not a remux →
+ *   audio declared browser-safe → IMAX → seeders → smaller file (lower
+ *   bitrate, less buffering).
+ *
+ * Real-Debrid's HLS transcode can rescue an undecodable file (it always
+ * outputs H.264 + AAC), but its seeking is unreliable — a jump ahead takes
+ * 20s or never arrives (measured 2026-10-05) — while a direct link seeks in
+ * ~2s. So a release whose name already says it needs the transcode is
+ * passed over before resolution is even considered.
  */
 export function rankReleasesForPlayback(
-  releases: TorboxSearchResult[],
+  releases: DebridRelease[],
   support: BrowserVideoSupport
-): TorboxSearchResult[] {
-  const key = (r: TorboxSearchResult): number[] => {
+): DebridRelease[] {
+  const key = (r: DebridRelease): number[] => {
     const size = parseInt(r.size, 10)
     return [
       isBrowserPlayable(r.name, support) ? 0 : 1,
-      r.torbox_cached ? 0 : 1,
+      r.cached ? 0 : 1,
+      audioRank(r.name) === 2 ? 1 : 0,
       resolutionRank(r.name),
       isLikelyNonEnglishRelease(r.name) ? 1 : 0,
       isRemux(r.name) ? 1 : 0,
@@ -144,4 +151,64 @@ export function rankReleasesForPlayback(
     }
     return 0
   })
+}
+
+// ---------------------------------------------------------------------------
+// Playing a resolved file
+// ---------------------------------------------------------------------------
+
+/** Audio codecs (Real-Debrid/ffprobe names) every mainstream browser decodes. */
+const BROWSER_AUDIO_CODECS = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac'])
+
+/** Whether this browser decodes a video codec, by Real-Debrid/ffprobe name. */
+export function canDecodeVideoCodec(codec: string, support: BrowserVideoSupport): boolean {
+  switch (codec.toLowerCase()) {
+    case 'h264':
+    case 'vp8':
+    case 'vp9':
+      return true
+    case 'hevc':
+    case 'h265':
+      return support.hevc
+    case 'av1':
+      return support.av1
+    default:
+      return false
+  }
+}
+
+export interface PlaybackMode {
+  kind: 'direct' | 'hls'
+  url: string
+  /** Shown in the player so it's clear when Real-Debrid is converting the stream. */
+  label: 'Direct' | 'RD stream'
+}
+
+/**
+ * The ways to play one resolved file, best first. The player works down the
+ * list when one fails (element error, no picture, no sound, nothing loaded).
+ *
+ * Direct comes first when Real-Debrid's media info says the browser can
+ * decode the video and the first audio track (the one a <video> element
+ * plays) — and that track is the preferred-language one. Otherwise
+ * Real-Debrid's HLS transcode goes first. With no media info, direct is
+ * simply tried first.
+ */
+export function planPlaybackModes(playback: DebridReadyPlayback, support: BrowserVideoSupport): PlaybackMode[] {
+  const direct: PlaybackMode = { kind: 'direct', url: playback.directUrl, label: 'Direct' }
+  const hls: PlaybackMode[] = playback.hls ? [{ kind: 'hls', url: playback.hls, label: 'RD stream' }] : []
+
+  const media = playback.media
+  if (!media) return [direct, ...hls]
+
+  const firstAudio = media.audioTracks[0]
+  const directPlayable =
+    media.videoCodec !== null &&
+    canDecodeVideoCodec(media.videoCodec, support) &&
+    (!firstAudio || (firstAudio.codec !== null && BROWSER_AUDIO_CODECS.has(firstAudio.codec.toLowerCase()))) &&
+    (!firstAudio || media.selectedAudio === null || media.selectedAudio === firstAudio.id)
+
+  // Direct stays as the last resort even when it's expected to fail: picture
+  // without sound beats nothing if Real-Debrid's transcode is down.
+  return directPlayable ? [direct, ...hls] : [...hls, direct]
 }
