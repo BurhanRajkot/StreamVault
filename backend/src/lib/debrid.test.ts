@@ -5,6 +5,7 @@ import {
   isDifferentSequel,
   filesToSelect,
   pickPlaybackFile,
+  findEpisodeFile,
   type DebridRelease,
   type DebridTorrentFile,
 } from './debrid'
@@ -154,5 +155,32 @@ describe('pickPlaybackFile', () => {
 
   it('falls back to the largest video', () => {
     expect(pickPlaybackFile(pack)?.id).toBe(3)
+  })
+})
+
+describe('findEpisodeFile', () => {
+  const pick = (paths: string[], season: number, episode: number) =>
+    findEpisodeFile(paths.map((p, i) => file(i + 1, p)), season, episode)?.id ?? null
+
+  it('reads SxxEyy in its common spellings', () => {
+    expect(pick(['/Show.S05E02.mkv', '/Show.S05E03.mkv'], 5, 3)).toBe(2)
+    expect(pick(['/Show S5 E2.mkv', '/Show S5 E3.mkv'], 5, 3)).toBe(2)
+    expect(pick(['/Show.S05.EP02.mkv', '/Show.S05.EP03.mkv'], 5, 3)).toBe(2)
+  })
+
+  it('does not confuse episode 3 with 13 or season 5 with 15', () => {
+    expect(pick(['/Show.S05E13.mkv', '/Show.S15E03.mkv', '/Show.S05E03.mkv'], 5, 3)).toBe(3)
+  })
+
+  it('reads 5x03 numbering', () => {
+    expect(pick(['/Show 15x03.mkv', '/Show 5x03.mkv'], 5, 3)).toBe(2)
+  })
+
+  it('reads a bare episode number, ignoring years', () => {
+    expect(pick(['/2008 - 01 - Pilot.mkv', '/2008 - 03 - Bee.mkv'], 2, 3)).toBe(2)
+  })
+
+  it('returns null when nothing matches', () => {
+    expect(pick(['/Show.S05E01.mkv', '/Show.S05E02.mkv'], 5, 9)).toBeNull()
   })
 })

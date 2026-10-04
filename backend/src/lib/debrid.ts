@@ -302,18 +302,25 @@ export function pickPlaybackFile(
 /** The file for one episode inside a season pack, or null when nothing matches. */
 export function findEpisodeFile(files: DebridTorrentFile[], season: number, episode: number): DebridTorrentFile | null {
   const basename = (f: DebridTorrentFile) => f.path.split('/').pop() ?? f.path
-  const patterns = [
-    new RegExp(`s0*${season}[._\\s-]*ep?0*${episode}(?!\\d)`, 'i'), // S05E03, S5.E3, S05 E03, S01.EP03
-    new RegExp(`\\b${season}x0*${episode}(?!\\d)`, 'i'), // 5x03
-    new RegExp(`\\bep?0*${episode}(?!\\d)`, 'i'), // per-season torrent named just "E03" / "EP03"
+  // Fixed patterns that capture the numbers, compared numerically — never a
+  // regex built from the request's season/episode.
+  const has = (name: string, pattern: RegExp, wanted: (m: RegExpMatchArray) => boolean) =>
+    [...name.matchAll(pattern)].some(wanted)
+  const matchers: Array<(name: string) => boolean> = [
+    // S05E03, S5.E3, S05 E03, S01.EP03
+    (n) => has(n, /s(\d+)[._\s-]*ep?(\d+)/gi, (m) => Number(m[1]) === season && Number(m[2]) === episode),
+    // 5x03
+    (n) => has(n, /\b(\d+)x(\d+)/gi, (m) => Number(m[1]) === season && Number(m[2]) === episode),
+    // per-season torrent named just "E03" / "EP03"
+    (n) => has(n, /\bep?(\d+)/gi, (m) => Number(m[1]) === episode),
+    // A bare episode number as its own word, e.g. "03 - Title.mkv" (4-digit years stripped first).
+    (n) => has(n.replace(/\d{4}/g, ''), /\d+/g, (m) => Number(m[0]) === episode),
   ]
-  for (const pattern of patterns) {
-    const match = files.find((f) => pattern.test(basename(f)))
+  for (const matches of matchers) {
+    const match = files.find((f) => matches(basename(f)))
     if (match) return match
   }
-  // A bare episode number as its own word, e.g. "03 - Title.mkv" (4-digit years stripped first).
-  const bareNumber = new RegExp(`(?:^|[^\\d])0*${episode}(?:[^\\d]|$)`)
-  return files.find((f) => bareNumber.test(basename(f).replace(/\d{4}/g, ''))) ?? null
+  return null
 }
 
 // ---------------------------------------------------------------------------
