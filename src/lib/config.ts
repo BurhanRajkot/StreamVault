@@ -290,22 +290,25 @@ export const CONFIG = {
 export type MediaMode = 'home' | 'movie' | 'tv' | 'downloads' | 'documentary'
 
 /**
- * Server id for playback from the user's own TorBox library, handled entirely
- * client-side (see TorboxPlayerPane) rather than via an embed-provider iframe.
- * Kept out of STREAM_PROVIDER_LIST since it has no tv/movie URL template.
+ * Server id for Real-Debrid playback, handled entirely client-side (see
+ * DebridPlayerPane) rather than via an embed-provider iframe. Kept out of
+ * STREAM_PROVIDER_LIST since it has no tv/movie URL template.
  */
-export const TORBOX_SERVER_ID = 'torbox'
+export const DEBRID_SERVER_ID = 'debrid'
+
+/** The id Real-Debrid's server had while it was TorBox — still in saved continue-watching rows. */
+export const LEGACY_TORBOX_SERVER_ID = 'torbox'
 
 /**
- * Server dropdown options for a given mode. TorBox is offered for movies and
- * TV — search is matched by IMDb id (+ season/episode for TV, via Torrentio)
- * rather than fuzzy title text, so season packs vs per-episode releases
- * aren't the reliability problem they'd be with title matching alone.
+ * Server dropdown options for a given mode. Real-Debrid is offered for movies
+ * and TV — search is matched by IMDb id (+ season/episode for TV, via
+ * Torrentio) rather than fuzzy title text, so season packs vs per-episode
+ * releases aren't the reliability problem they'd be with title matching alone.
  */
 export function serverOptions(mode: MediaMode): Array<{ id: string; name: string }> {
   const providers = Object.entries(CONFIG.PROVIDER_NAMES).map(([id, name]) => ({ id, name }))
   if (mode !== 'movie' && mode !== 'tv') return providers
-  return [{ id: TORBOX_SERVER_ID, name: '⚡ TorBox Debrid (4K/1080p)' }, ...providers]
+  return [{ id: DEBRID_SERVER_ID, name: '⚡ Real-Debrid (4K/1080p)' }, ...providers]
 }
 
 export interface Genre {

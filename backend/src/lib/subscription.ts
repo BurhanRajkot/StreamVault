@@ -3,7 +3,7 @@ import { supabaseAdmin } from './supabase'
 /**
  * Short-lived memo of users confirmed paid, keyed by userId → expiry epoch ms.
  *
- * Starting one TorBox stream hits 3+ premium-gated endpoints back to back,
+ * Starting one debrid stream hits several premium-gated endpoints back to back,
  * each of which would otherwise re-query Supabase. Only positive results are
  * memoized, so an upgrade takes effect immediately; a cancellation or expiry
  * takes at most PAID_MEMO_TTL_MS to be enforced.
