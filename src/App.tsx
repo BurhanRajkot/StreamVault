@@ -9,7 +9,6 @@ import Index from './pages/Index'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { DislikesProvider } from './context/DislikesContext'
-import { SmoothScrollProvider } from './components/layout/SmoothScrollProvider'
 
 // Helper to handle dynamic import failures (e.g. chunk 404s after new deployment)
 type LazyModule = { default: React.ComponentType<Record<string, never>> }
@@ -140,17 +139,15 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <SmoothScrollProvider>
-        <PrefetchRecommendations />
-        <UserSwitchGuard />
-        <HelmetProvider>
-          <FavoritesProvider>
-            <DislikesProvider>
-              <AppContent />
-            </DislikesProvider>
-          </FavoritesProvider>
-        </HelmetProvider>
-      </SmoothScrollProvider>
+      <PrefetchRecommendations />
+      <UserSwitchGuard />
+      <HelmetProvider>
+        <FavoritesProvider>
+          <DislikesProvider>
+            <AppContent />
+          </DislikesProvider>
+        </FavoritesProvider>
+      </HelmetProvider>
     </ErrorBoundary>
   )
 }
