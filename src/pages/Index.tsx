@@ -23,6 +23,7 @@ import { CineMatchOnboarding } from '@/components/CineMatchOnboarding'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { useContextualRecommendations } from '@/hooks/useContextualRecommendations'
 import { SEOContent } from '@/components/shared/SEOContent'
+import { FreePremiumAnnouncement } from '@/components/shared/FreePremiumAnnouncement'
 
 const Downloads = lazy(() => import('./Downloads'))
 
@@ -292,6 +293,9 @@ const Index = () => {
         </main>
 
         <Footer />
+
+        {/* After the disclaimer, never stacked on top of it or onboarding */}
+        {!showDisclaimer && !shouldShowOnboarding && <FreePremiumAnnouncement />}
 
         <DisclaimerModal
           isOpen={showDisclaimer}

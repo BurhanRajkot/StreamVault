@@ -305,10 +305,14 @@ export const LEGACY_TORBOX_SERVER_ID = 'torbox'
  * Torrentio) rather than fuzzy title text, so season packs vs per-episode
  * releases aren't the reliability problem they'd be with title matching alone.
  */
-export function serverOptions(mode: MediaMode): Array<{ id: string; name: string }> {
+export function serverOptions(
+  mode: MediaMode,
+  { debridFree = false }: { debridFree?: boolean } = {}
+): Array<{ id: string; name: string }> {
   const providers = Object.entries(CONFIG.PROVIDER_NAMES).map(([id, name]) => ({ id, name }))
   if (mode !== 'movie' && mode !== 'tv') return providers
-  return [{ id: DEBRID_SERVER_ID, name: '⚡ Real-Debrid (4K/1080p)' }, ...providers]
+  const debridName = debridFree ? '⚡ Real-Debrid (4K/1080p) · Free' : '⚡ Real-Debrid (4K/1080p)'
+  return [{ id: DEBRID_SERVER_ID, name: debridName }, ...providers]
 }
 
 export interface Genre {

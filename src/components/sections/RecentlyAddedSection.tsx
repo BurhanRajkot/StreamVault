@@ -16,7 +16,6 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
   const [items, setItems] = useState<Media[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
-  const [isHovered, setIsHovered] = useState(false)
   const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([items])
 
   const providerName = providerId
@@ -46,9 +45,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
 
   return (
     <section
-      className="relative mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className="group/row relative mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700"
     >
       {/* Header */}
       <div className="mb-2.5 flex items-center justify-between">
@@ -72,7 +69,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
         className={`absolute left-0 md:-left-4 top-10 bottom-4 z-30 
           flex items-center justify-center
           transition-opacity duration-300 pointer-events-none
-          ${showLeftButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          opacity-0 ${showLeftButton ? 'group-hover/row:opacity-100' : ''}
           hidden md:flex`}
       >
         <button
@@ -89,7 +86,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
         className={`absolute right-0 md:-right-4 top-10 bottom-4 z-30 
           flex items-center justify-center
           transition-opacity duration-300 pointer-events-none
-          ${showRightButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          opacity-0 ${showRightButton ? 'group-hover/row:opacity-100' : ''}
           hidden md:flex`}
       >
         <button

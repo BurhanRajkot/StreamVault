@@ -516,6 +516,24 @@
         100% { transform: translateY(0); }
       }
 
+      .theme-toggle-fade {
+        animation: theme-toggle-fade 0.2s ease-out;
+      }
+
+      @keyframes theme-toggle-fade {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+
+      .provider-shine {
+        animation: provider-shine 3s linear infinite;
+      }
+
+      @keyframes provider-shine {
+        from { transform: translateX(-100%) skewX(12deg); }
+        to   { transform: translateX(100%) skewX(12deg); }
+      }
+
       .animate-scale-in {
         animation: scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
       }
@@ -634,8 +652,10 @@
    */
   .below-fold-section {
     content-visibility: auto;
-    /* Accurate estimated height prevents layout shift and jank when browser skips rendering */
-    contain-intrinsic-size: 0 380px;
+    /* `auto` makes the browser remember each section's real height once it
+       has rendered, so scrolling back past it doesn't resize the page and
+       jump the scrollbar; 380px is only the guess before the first render. */
+    contain-intrinsic-size: auto 380px;
   }
 
   /** Horizontal row skeleton placeholder — avoids CLS while items load */
@@ -644,15 +664,17 @@
   }
 
   /* ── Hero Carousel Progress Bar (CSS-only, zero JS ticking) ──────────── */
+  /* scaleX rather than width: a transform animates on the compositor, a
+     width change re-runs layout every frame. */
   .hero-progress-bar {
-    width: 0%;
-    will-change: width;
+    width: 100%;
+    transform-origin: left center;
     animation: hero-progress-fill 6000ms linear forwards;
   }
 
   @keyframes hero-progress-fill {
-    from { width: 0%; }
-    to   { width: 100%; }
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
   }
 
   /* ── Safe-area insets (notch / home indicator) ──────────────────────── */
@@ -752,6 +774,11 @@
     .player-chrome-top {
       display: flex;
     }
+
+    /* The page's own top chrome already names the title here */
+    .player-shell .player-overlay-title {
+      visibility: hidden;
+    }
   }
 
   @media (max-width: 767.98px) and (orientation: portrait) {
@@ -773,6 +800,44 @@
       height: 100%;
       aspect-ratio: auto;
     }
+  }
+
+  /* ── Video player (PlayerControls) ──────────────────────────────────── */
+  /* Click / key / double-tap feedback: pops in, fades out. Transform +
+     opacity only, so it runs on the compositor. */
+  .player-flash {
+    animation: player-flash 600ms ease-out forwards;
+  }
+
+  @keyframes player-flash {
+    0%   { opacity: 0; scale: 0.8; }
+    20%  { opacity: 1; scale: 1; }
+    100% { opacity: 0; scale: 1.15; }
+  }
+
+  .player-volume {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 9999px;
+    background: linear-gradient(to right, #fff var(--player-volume, 100%), rgb(255 255 255 / 0.25) var(--player-volume, 100%));
+    cursor: pointer;
+  }
+
+  .player-volume::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: #fff;
+  }
+
+  .player-volume::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 9999px;
+    background: #fff;
   }
 
   /* ── Touch feedback ─────────────────────────────────────────────────── */
