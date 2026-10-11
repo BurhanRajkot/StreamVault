@@ -14,13 +14,16 @@
  *      times, before any error is shown.
  *   5. With nothing cached, the best uncached release is added to
  *      Real-Debrid and polled until it's downloaded, then played.
- *   6. Other cached releases (4K, HDR, ...) can be picked from a dropdown.
+ *   6. Other cached releases (4K, HDR, ...) can be picked from the player's
+ *      top bar; switching mid-film carries the position over.
+ *   7. Where the viewer stopped is remembered per title/episode (see
+ *      playbackPosition) and playback resumes there next time.
  */
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Link } from 'react-router-dom'
-import { Loader2, AlertTriangle, Cloud, Crown, ExternalLink, ChevronDown, RefreshCw } from 'lucide-react'
+import { Loader2, AlertTriangle, Check, Cloud, Crown, ExternalLink, ChevronDown, RefreshCw, Zap } from 'lucide-react'
 import {
   playDebridRelease,
   pollDebridPlayback,
@@ -40,7 +43,9 @@ import {
   type PlaybackMode,
 } from '@/lib/releasePlayback'
 import { getAdminToken } from '@/lib/api'
+import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { cn } from '@/lib/utils'
+import { formatPromoDate, useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { DebridVideo } from './DebridVideo'
 
 interface DebridPlayerPaneProps {
@@ -53,6 +58,12 @@ interface DebridPlayerPaneProps {
   season?: number
   episode?: number
   onSwitchServer: () => void
+  /** Artwork behind the loading screens. */
+  backdropUrl?: string | null
+  /** Real playback position, every few seconds and on pause/end/close. */
+  onProgress?: (position: number, duration: number) => void
+  /** Next episode, when there is one. */
+  onNext?: () => void
 }
 
 type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'upgrade-required'
@@ -109,8 +120,12 @@ export function DebridPlayerPane({
   season,
   episode,
   onSwitchServer,
+  backdropUrl,
+  onProgress,
+  onNext,
 }: DebridPlayerPaneProps) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+  const freeUntil = useDebridFreeUntil()
   const [status, setStatus] = useState<Status>('searching')
   const [statusMessage, setStatusMessage] = useState('Searching Real-Debrid...')
   const [playback, setPlayback] = useState<DebridReadyPlayback | null>(null)
@@ -120,6 +135,13 @@ export function DebridPlayerPane({
   const [playbackFailed, setPlaybackFailed] = useState(false)
   const [showReleasesDropdown, setShowReleasesDropdown] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
+  /** Where the current file starts, in seconds. */
+  const [startAt, setStartAt] = useState<number | undefined>(undefined)
+  /** Bumped to remount the video (e.g. "Start over") without changing the file. */
+  const [playNonce, setPlayNonce] = useState(0)
+  const [resumeToast, setResumeToast] = useState(false)
+  /** Latest position reported by the video, in seconds. */
+  const positionRef = useRef(0)
   /** Bumped on every new search/poll/release attempt so stale loops know to stop. */
   const generationRef = useRef(0)
   /** Cached releases in the order they'll be tried automatically. */
@@ -130,6 +152,20 @@ export function DebridPlayerPane({
   const uncachedFallbackRef = useRef<DebridRelease | null>(null)
 
   const episodeOpts = useMemo(() => (mediaType === 'tv' ? { season, episode } : {}), [mediaType, season, episode])
+
+  /** Resume-point key for this title, or this episode. */
+  const storageKey = useMemo(
+    () => resumeKey(imdbId || `${title}:${year ?? ''}`, mediaType === 'tv' ? season : undefined, mediaType === 'tv' ? episode : undefined),
+    [imdbId, title, year, mediaType, season, episode]
+  )
+  const storageKeyRef = useRef(storageKey)
+  storageKeyRef.current = storageKey
+  /**
+   * Key of the file actually playing. Differs from `storageKey` for a moment
+   * after the episode changes: the old video is still mounted (and reports
+   * its final position on unmount) while the new episode is being found.
+   */
+  const playingKeyRef = useRef(storageKey)
 
   const getToken = useCallback(async () => {
     try {
@@ -142,13 +178,51 @@ export function DebridPlayerPane({
     return undefined
   }, [isAuthenticated, getAccessTokenSilently])
 
+  /**
+   * Where a newly resolved file should start: wherever the viewer already is
+   * (switching release mid-film), else the saved resume point.
+   */
+  const startPositionRef = useRef<number | undefined>(undefined)
+
   const showPlayback = useCallback((release: DebridRelease, ready: DebridReadyPlayback) => {
+    const start = startPositionRef.current
+    playingKeyRef.current = storageKeyRef.current
     setActiveRelease(release)
     setPlayback(ready)
+    setStartAt(start)
+    setResumeToast(!!start && start > 0)
     setPlaybackFailed(false)
     setDownloadProgress(null)
     setStatus('ready')
   }, [])
+
+  useEffect(() => {
+    if (!resumeToast) return
+    const timer = setTimeout(() => setResumeToast(false), 8000)
+    return () => clearTimeout(timer)
+  }, [resumeToast])
+
+  const handleProgress = useCallback(
+    (position: number, duration: number) => {
+      const key = playingKeyRef.current
+      saveResumePosition(key, position, duration)
+      // A last report from the previous episode: its resume point is saved
+      // above under its own key, but it says nothing about the current one.
+      if (key !== storageKeyRef.current) return
+      positionRef.current = position
+      onProgress?.(position, duration)
+    },
+    [onProgress]
+  )
+
+  const startOver = () => {
+    startPositionRef.current = undefined
+    positionRef.current = 0
+    saveResumePosition(storageKey, 0, 0)
+    setStartAt(undefined)
+    setResumeToast(false)
+    setPlayNonce((n) => n + 1)
+  }
 
   /** Poll a release Real-Debrid is downloading until it's ready, then play it. */
   const pollUntilReady = useCallback(
@@ -328,6 +402,7 @@ export function DebridPlayerPane({
         const next = releaseQueueRef.current.find((r) => !triedReleasesRef.current.has(r.info_hash))
         if (next) {
           console.warn(`Real-Debrid stream failed (${reason}), trying another release:`, next.name)
+          startPositionRef.current = position > 0 ? position : startPositionRef.current
           void getToken().then((token) => streamRelease(next, token, { preferDirect: true }))
           return
         }
@@ -352,6 +427,8 @@ export function DebridPlayerPane({
     triedReleasesRef.current = new Set()
     autoAttemptsRef.current = 0
     uncachedFallbackRef.current = null
+    positionRef.current = 0
+    startPositionRef.current = readResumePosition(storageKey) ?? undefined
 
     const token = await getToken()
 
@@ -394,7 +471,7 @@ export function DebridPlayerPane({
       setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
       setStatusMessage(err instanceof Error ? err.message : 'Real-Debrid search failed')
     }
-  }, [title, year, imdbId, mediaType, season, episode, getToken, streamRelease, downloadAndPlay])
+  }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease, downloadAndPlay])
 
   useEffect(() => {
     void searchAndPlay()
@@ -410,8 +487,11 @@ export function DebridPlayerPane({
     setShowReleasesDropdown(false)
     autoAttemptsRef.current = 0
     triedReleasesRef.current = new Set()
+    // Pick up where the viewer is in the current file.
+    startPositionRef.current = positionRef.current > 0 ? positionRef.current : startPositionRef.current
     void getToken().then((token) => streamRelease(release, token))
   }
+
 
   const switchServerLink = (
     <button
@@ -422,112 +502,115 @@ export function DebridPlayerPane({
     </button>
   )
 
-  // --- Loading / Searching state ---
-  if (status === 'searching' || status === 'loading-stream') {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center" data-testid="debrid-loading">
-        <Loader2 className="h-6 w-6 animate-spin text-white/50" />
-        <p className="max-w-xs text-sm text-white/70">{statusMessage}</p>
-        {switchServerLink}
-      </div>
-    )
-  }
-
-  // --- Downloading: release added to Real-Debrid, waiting for it to finish ---
-  if (status === 'downloading') {
+  // --- Finding a release / resolving it / waiting on a download ---
+  if (status === 'searching' || status === 'loading-stream' || status === 'downloading') {
     const pct = Math.min(100, Math.round(downloadProgress?.progress ?? 0))
+    const step = status === 'searching' ? 0 : 1
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <Loader2 className="h-6 w-6 animate-spin text-white/50" />
-        <div className="w-full max-w-xs space-y-2">
-          <p className="text-sm text-white/70">
-            {activeRelease
-              ? `Real-Debrid is downloading the ${parseTorrentQuality(activeRelease.name)} release...`
-              : statusMessage}
-          </p>
-          {downloadProgress && (
-            <>
-              <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <p className="text-[11px] text-white/40">
-                {pct}% · {formatBytes(downloadProgress.speed)}/s · {downloadProgress.seeders} seeds
-              </p>
-            </>
-          )}
-        </div>
+      <PaneBackdrop backdropUrl={backdropUrl} testId="debrid-loading">
+        <BrandLine freeUntil={freeUntil} />
+        <Loader2 className="h-9 w-9 animate-spin text-white/70" />
+        <p className="max-w-sm text-sm text-white/80">
+          {status === 'downloading' && activeRelease
+            ? `Real-Debrid is downloading the ${parseTorrentQuality(activeRelease.name)} release...`
+            : statusMessage}
+        </p>
+        {status === 'downloading' && downloadProgress ? (
+          <div className="w-full max-w-xs space-y-2">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="text-[11px] text-white/45">
+              {pct}% · {formatBytes(downloadProgress.speed)}/s · {downloadProgress.seeders} seeds
+            </p>
+          </div>
+        ) : (
+          <ol className="flex items-center gap-2 text-[11px] text-white/45" aria-label="Progress">
+            {['Find release', 'Prepare stream', 'Play'].map((label, i) => (
+              <li key={label} className="flex items-center gap-2">
+                {i > 0 && <span className="h-px w-5 bg-white/15" />}
+                <span className={cn('flex items-center gap-1', i < step && 'text-white/70', i === step && 'font-medium text-white')}>
+                  {i < step ? <Check className="h-3 w-3" /> : <span className={cn('h-1.5 w-1.5 rounded-full', i === step ? 'bg-primary' : 'bg-white/25')} />}
+                  {label}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
         {switchServerLink}
-      </div>
+      </PaneBackdrop>
     )
   }
 
-  // --- Upgrade required: guest or non-premium account hit the paywall ---
+  // --- Sign in (or, outside the free period, subscribe) ---
   if (status === 'upgrade-required') {
+    const free = freeUntil !== null
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-yellow-500/30 bg-yellow-500/10">
-          <Crown className="h-5 w-5 text-yellow-500" />
+      <PaneBackdrop backdropUrl={backdropUrl}>
+        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-yellow-500/30 bg-yellow-500/10">
+          {free ? <Zap className="h-5 w-5 text-yellow-400" /> : <Crown className="h-5 w-5 text-yellow-500" />}
         </div>
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-white">Real-Debrid is a premium feature</p>
-          <p className="max-w-xs text-xs text-white/50">
-            {isAuthenticated
-              ? 'Upgrade your account to stream instantly via Real-Debrid.'
-              : 'Sign in and upgrade to stream instantly via Real-Debrid.'}
+        <div className="space-y-1.5">
+          <p className="text-base font-semibold text-white">
+            {freeUntil ? `Real-Debrid is free until ${formatPromoDate(freeUntil)}` : 'Real-Debrid is a premium feature'}
+          </p>
+          <p className="max-w-sm text-xs text-white/60">
+            {free
+              ? 'Sign in with a free account to stream in 4K and 1080p — no subscription needed.'
+              : isAuthenticated
+                ? 'Upgrade your account to stream instantly via Real-Debrid.'
+                : 'Sign in and upgrade to stream instantly via Real-Debrid.'}
           </p>
         </div>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
           <Link
-            to={isAuthenticated ? '/pricing' : '/login'}
-            className="rounded-full bg-white px-5 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+            to={free || !isAuthenticated ? '/login' : '/pricing'}
+            className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-colors hover:bg-white/90"
           >
-            {isAuthenticated ? 'Upgrade to Premium' : 'Sign In'}
+            {free || !isAuthenticated ? 'Sign in' : 'Upgrade to Premium'}
           </Link>
           <button
             onClick={onSwitchServer}
-            className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
+            className="rounded-full border border-white/15 px-4 py-2 text-xs text-white/75 transition-colors hover:border-white/30 hover:text-white"
           >
-            Switch to Standard Server
+            Switch to standard server
           </button>
         </div>
-      </div>
+      </PaneBackdrop>
     )
   }
 
   // --- Not found / error ---
   if (status === 'not-found' || status === 'error') {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+      <PaneBackdrop backdropUrl={backdropUrl}>
         {status === 'error' ? (
-          <AlertTriangle className="h-6 w-6 text-destructive" />
+          <AlertTriangle className="h-7 w-7 text-destructive" />
         ) : (
-          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5">
-            <Cloud className="h-5 w-5 text-white/40" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5">
+            <Cloud className="h-5 w-5 text-white/45" />
           </div>
         )}
         <div className="space-y-1">
-          {status === 'not-found' && <p className="text-sm font-medium text-white">No Real-Debrid stream available</p>}
-          <p className="max-w-xs text-xs text-white/50">{statusMessage}</p>
+          {status === 'not-found' && <p className="text-sm font-semibold text-white">No Real-Debrid stream available</p>}
+          <p className="max-w-sm text-xs text-white/60">{statusMessage}</p>
         </div>
         <div className="mt-1 flex items-center gap-2">
           <button
             onClick={onSwitchServer}
-            className="rounded-full bg-white px-5 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+            className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-colors hover:bg-white/90"
           >
-            Switch to Standard Server
+            Switch to standard server
           </button>
           <button
             onClick={() => void searchAndPlay()}
-            title="Retry Real-Debrid"
-            className="flex items-center justify-center rounded-full border border-white/10 p-2 text-white/50 transition-colors hover:border-white/30 hover:text-white"
+            className="flex items-center gap-1.5 rounded-full border border-white/15 px-4 py-2 text-xs text-white/75 transition-colors hover:border-white/30 hover:text-white"
           >
             <RefreshCw className="h-3.5 w-3.5" />
+            Retry
           </button>
         </div>
-      </div>
+      </PaneBackdrop>
     )
   }
 
@@ -535,138 +618,232 @@ export function DebridPlayerPane({
   if (playbackFailed || !playback) {
     const nextRelease = instantReleases.find((r) => r.info_hash !== activeRelease?.info_hash)
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <AlertTriangle className="h-6 w-6 text-destructive" />
+      <PaneBackdrop backdropUrl={backdropUrl}>
+        <AlertTriangle className="h-7 w-7 text-destructive" />
         <div className="space-y-1">
-          <p className="text-sm font-medium text-white">Playback stopped</p>
-          <p className="max-w-sm text-xs text-white/50">
-            Neither the direct link nor Real-Debrid&apos;s stream would play in this browser. You can open the file in VLC or try
-            another release.
+          <p className="text-sm font-semibold text-white">Playback stopped</p>
+          <p className="max-w-sm text-xs text-white/60">
+            Neither the direct link nor Real-Debrid&apos;s stream would play in this browser. Try another release, or open
+            the file in VLC.
           </p>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+          {nextRelease && (
+            <button
+              onClick={() => switchRelease(nextRelease)}
+              className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-colors hover:bg-white/90"
+            >
+              Try another release
+            </button>
+          )}
           {playback && (
             <a
               href={playback.directUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+              className="flex items-center gap-1.5 rounded-full border border-white/15 px-4 py-2 text-xs text-white/75 transition-colors hover:border-white/30 hover:text-white"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               Open in VLC / browser
             </a>
           )}
-          {nextRelease && (
-            <button
-              onClick={() => switchRelease(nextRelease)}
-              className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
-            >
-              Try another release
-            </button>
-          )}
           <button
             onClick={onSwitchServer}
-            className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/70 transition-colors hover:border-white/30 hover:text-white"
+            className="rounded-full border border-white/15 px-4 py-2 text-xs text-white/75 transition-colors hover:border-white/30 hover:text-white"
           >
             Switch server
           </button>
         </div>
-      </div>
+      </PaneBackdrop>
     )
   }
 
-  // --- Ready: native video playback with a minimal hover-in overlay ---
-  const activeQuality = activeRelease ? parseTorrentQuality(activeRelease.name) : 'HD'
-  const activeHDR = activeRelease ? parseTorrentHDR(activeRelease.name) : null
-  const activeIMAX = activeRelease ? isImaxRelease(activeRelease.name) : false
-  const chip = 'rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/70'
+  // --- Ready ---
+  const episodeLabel = mediaType === 'tv' && season !== undefined && episode !== undefined ? `S${season}:E${episode}` : undefined
+  const videoKey = `${activeRelease?.info_hash ?? ''}:${playback.directUrl}:${playNonce}`
 
   return (
-    <div className="group relative h-full w-full select-none overflow-hidden bg-black">
+    <div className="relative h-full w-full overflow-hidden bg-black">
       <DebridVideo
+        key={videoKey}
         playback={playback}
+        startAt={startAt}
         onExhausted={handleExhausted}
         onModeChange={setPlaybackMode}
+        onProgress={handleProgress}
+        onNext={onNext}
+        title={title}
+        subtitle={episodeLabel}
         className="absolute inset-0 h-full w-full"
+        topBarActions={
+          <>
+            <SourceMenu
+              releases={instantReleases}
+              active={activeRelease}
+              transcoding={playbackMode?.kind === 'hls' ? playbackMode.label : null}
+              open={showReleasesDropdown}
+              onOpenChange={setShowReleasesDropdown}
+              onPick={switchRelease}
+            />
+            <a
+              href={playback.directUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open the direct link (VLC, download)"
+              aria-label="Open the direct link"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/70 transition-colors hover:text-white"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </>
+        }
       />
 
-      <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className={chip}>{activeQuality}</span>
-          {activeHDR && <span className={chip}>{activeHDR}</span>}
-          {activeIMAX && <span className={chip}>IMAX</span>}
-          {playbackMode && playbackMode.kind === 'hls' && (
-            <span className={chip} title="Real-Debrid is converting this file for your browser">
-              {playbackMode.label}
-            </span>
-          )}
-          {activeRelease && (
-            <span className="hidden max-w-[260px] truncate text-xs text-white/50 sm:inline">{activeRelease.name}</span>
-          )}
+      {resumeToast && startAt !== undefined && (
+        <div className="absolute bottom-24 left-3 z-30 flex items-center gap-3 rounded-lg border border-white/10 bg-zinc-900/95 px-3.5 py-2.5 text-xs text-white/85 shadow-2xl sm:left-5">
+          <span>Resumed at {formatPlayerTime(startAt)}</span>
+          <button onClick={startOver} className="font-semibold text-primary hover:text-primary/80">
+            Start over
+          </button>
         </div>
+      )}
+    </div>
+  )
+}
 
-        <div className="flex items-center gap-2">
-          {instantReleases.length > 1 && (
-            <div className="relative">
-              <button
-                onClick={() => setShowReleasesDropdown(!showReleasesDropdown)}
-                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-xs text-white/70 transition-colors hover:text-white"
-              >
-                <span>{instantReleases.length} releases</span>
-                <ChevronDown className="h-3 w-3 opacity-60" />
-              </button>
+/** Full-pane status screen over the title's artwork. */
+function PaneBackdrop({
+  backdropUrl,
+  testId,
+  children,
+}: {
+  backdropUrl?: string | null
+  testId?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black" data-testid={testId}>
+      {backdropUrl && (
+        <img src={backdropUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-25" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/40" />
+      <div className="relative z-10 flex flex-col items-center gap-3.5 px-6 text-center">{children}</div>
+    </div>
+  )
+}
 
-              {showReleasesDropdown && (
-                <div className="absolute right-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-white/10 bg-zinc-900/95 p-1.5 shadow-xl backdrop-blur-xl">
-                  <div className="max-h-56 space-y-0.5 overflow-y-auto custom-scrollbar">
-                    {instantReleases.map((rel) => {
-                      const isSelected = rel.info_hash === activeRelease?.info_hash
-                      const sizeBytes = parseInt(rel.size, 10)
-                      return (
-                        <button
-                          key={rel.info_hash}
-                          onClick={() => switchRelease(rel)}
-                          className={cn(
-                            'flex w-full flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
-                            isSelected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
-                          )}
-                        >
-                          <span className="w-full truncate">{rel.name}</span>
-                          <span className="flex items-center gap-1.5 text-[10px] font-medium opacity-70">
-                            <span>{parseTorrentQuality(rel.name)}</span>
-                            {isImaxRelease(rel.name) && (
-                              <>
-                                <span className="opacity-50">·</span>
-                                <span>IMAX</span>
-                              </>
-                            )}
-                            {Number.isFinite(sizeBytes) && sizeBytes > 0 && (
-                              <>
-                                <span className="opacity-50">·</span>
-                                <span>{formatBytes(sizeBytes)}</span>
-                              </>
-                            )}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+function BrandLine({ freeUntil }: { freeUntil: Date | null }) {
+  return (
+    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
+      <Zap className="h-3.5 w-3.5 text-yellow-400" />
+      Real-Debrid
+      {freeUntil && (
+        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] tracking-wider text-emerald-300">
+          Free until {formatPromoDate(freeUntil)}
+        </span>
+      )}
+    </div>
+  )
+}
 
-          <a
-            href={playback.directUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open the direct link (VLC, download)"
-            className="rounded-full border border-white/10 bg-black/40 p-1.5 text-white/60 transition-colors hover:text-white"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+/**
+ * The playing release's quality, and a menu of the other cached releases.
+ * Renders inline (no portal) so it still shows in fullscreen.
+ */
+function SourceMenu({
+  releases,
+  active,
+  transcoding,
+  open,
+  onOpenChange,
+  onPick,
+}: {
+  releases: DebridRelease[]
+  active: DebridRelease | null
+  /** Label of Real-Debrid's transcode when that's what's playing. */
+  transcoding: string | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onPick: (release: DebridRelease) => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) onOpenChange(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, onOpenChange])
+
+  const quality = active ? parseTorrentQuality(active.name) : 'HD'
+  const hdr = active ? parseTorrentHDR(active.name) : null
+  const imax = active ? isImaxRelease(active.name) : false
+  const canPick = releases.length > 1
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        onClick={() => canPick && onOpenChange(!open)}
+        aria-expanded={canPick ? open : undefined}
+        title={active?.name}
+        className={cn(
+          'flex h-9 items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-3 text-xs font-semibold text-white/90 transition-colors',
+          canPick ? 'hover:border-white/30 hover:text-white' : 'cursor-default'
+        )}
+      >
+        <span>{quality}</span>
+        {hdr && <span className="text-white/60">· {hdr}</span>}
+        {imax && <span className="text-white/60">· IMAX</span>}
+        {transcoding && <span className="font-normal text-white/50">· {transcoding}</span>}
+        {canPick && <ChevronDown className={cn('h-3.5 w-3.5 opacity-60 transition-transform', open && 'rotate-180')} />}
+      </button>
+
+      {open && canPick && (
+        <div className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-white/10 bg-zinc-900/95 p-1.5 shadow-2xl">
+          <p className="px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/40">
+            {releases.length} instant releases
+          </p>
+          <div className="custom-scrollbar max-h-64 space-y-0.5 overflow-y-auto">
+            {releases.map((rel) => {
+              const isSelected = rel.info_hash === active?.info_hash
+              const sizeBytes = parseInt(rel.size, 10)
+              const relHdr = parseTorrentHDR(rel.name)
+              return (
+                <button
+                  key={rel.info_hash}
+                  onClick={() => onPick(rel)}
+                  className={cn(
+                    'flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors',
+                    isSelected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                  )}
+                >
+                  <Check className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      {parseTorrentQuality(rel.name)}
+                      {relHdr && <span className="font-normal opacity-70">· {relHdr}</span>}
+                      {isImaxRelease(rel.name) && <span className="font-normal opacity-70">· IMAX</span>}
+                      {Number.isFinite(sizeBytes) && sizeBytes > 0 && (
+                        <span className="ml-auto font-normal opacity-60">{formatBytes(sizeBytes)}</span>
+                      )}
+                    </span>
+                    <span className="block truncate text-[10px] opacity-60">{rel.name}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

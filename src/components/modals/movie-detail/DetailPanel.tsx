@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { Play, Server, ThumbsUp, ThumbsDown, Calendar, Clock } from 'lucide-react'
 import { CircularRating } from '@/components/media/CircularRating'
 import { serverOptions } from '@/lib/config'
+import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
 import {
@@ -64,6 +65,7 @@ export function DetailPanel({
     onServerChange,
     onPlay,
   } = playback
+  const debridFree = useDebridFreeUntil() !== null
 
   return (
     <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-20 items-end", !isPrePlay && "mt-12 mb-16 px-2")}>
@@ -210,7 +212,7 @@ export function DetailPanel({
                     </div>
                   </SelectTrigger>
                   <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                    {serverOptions(mode).map(({ id, name }) => (
+                    {serverOptions(mode, { debridFree }).map(({ id, name }) => (
                       <SelectItem key={id} value={id} className="cursor-pointer focus:bg-white/10 py-2.5 text-sm">{name}</SelectItem>
                     ))}
                   </SelectContent>

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -37,7 +36,6 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   const queryKey = ['continueWatching', accountKey, refreshKey]
   const snapshotKey = `continueWatching:${accountKey}`
 
-  const [isHovered, setIsHovered] = useState(false)
 
   const { data: entries = [], isLoading: loading } = useQuery<ContinueWatchingEntry[]>({
     queryKey,
@@ -120,10 +118,8 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   // Render for both guests and logged-in users
 
   return (
-    <section 
-      className="mb-5 sm:mb-6 relative"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+    <section
+      className="group/row mb-5 sm:mb-6 relative"
     >
       <div className="mb-2.5 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-[17px] font-bold sm:text-xl">Continue Watching</h2>
@@ -157,7 +153,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
           className={`absolute left-0 md:-left-4 top-10 bottom-4 z-30 
             flex items-center justify-center
             transition-opacity duration-300 pointer-events-none
-            ${showLeftButton && isHovered ? 'opacity-100' : 'opacity-0'}
+            opacity-0 ${showLeftButton ? 'group-hover/row:opacity-100' : ''}
             hidden md:flex`}
         >
           <button
@@ -176,7 +172,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
           className={`absolute right-0 md:-right-4 top-10 bottom-4 z-30 
             flex items-center justify-center
             transition-opacity duration-300 pointer-events-none
-            ${showRightButton && isHovered ? 'opacity-100' : 'opacity-0'}
+            opacity-0 ${showRightButton ? 'group-hover/row:opacity-100' : ''}
             hidden md:flex`}
         >
           <button
