@@ -8,6 +8,7 @@
  *
  * Route summary:
  *   GET    /debrid/status                         — account status (no auth required)
+ *   GET    /debrid/promo                          — when free access ends, if it's on (no auth required)
  *   GET    /debrid/search                         — free-text search (premium or admin)
  *   GET    /debrid/media-search                   — search by IMDb id (premium or admin)
  *   POST   /debrid/play                           — add/reuse a release and resolve its streams (premium or admin)
@@ -16,6 +17,9 @@
  *   GET    /debrid/torrents/:torrentId            — one torrent with its files (premium or admin)
  *   GET    /debrid/torrents/:torrentId/files/:fileId/stream — streams for one library file (premium or admin)
  *   DELETE /debrid/torrents/:torrentId            — remove a torrent (admin only)
+ *
+ * "premium" routes are open to every signed-in user while the free promotion
+ * runs (see lib/debridPromo).
  */
 
 import { Router, Request, Response } from 'express'
@@ -24,6 +28,7 @@ import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
 import { getUserId } from '../utils/auth'
 import { isPaidUser } from '../lib/subscription'
+import { debridFreeUntil, isDebridFreeForEveryone } from '../lib/debridPromo'
 import * as debrid from '../lib/debrid'
 
 const router = Router()
@@ -33,9 +38,10 @@ const router = Router()
 // ---------------------------------------------------------------------------
 
 /**
- * Gate the debrid feature behind an active subscription. Admins bypass. Not
- * relaxed outside production — the feature runs on a paid shared account, so
- * it must never be reachable for free.
+ * Gate the debrid feature behind an active subscription. Admins bypass, and
+ * so does every signed-in user while the free promotion runs. Not relaxed
+ * outside production — the feature runs on a paid shared account, so it is
+ * never reachable anonymously.
  */
 async function authorizeDebridAccess(
   req: Request
@@ -46,6 +52,8 @@ async function authorizeDebridAccess(
   if (!userId) {
     return { status: 401, body: { error: 'Unauthorized' } }
   }
+
+  if (isDebridFreeForEveryone()) return null
 
   if (!(await isPaidUser(userId))) {
     return {
@@ -105,6 +113,17 @@ router.get('/status', async (_req, res) => {
     logger.warn('Debrid status check failed', { error: errorMessage(err) })
     return res.status(502).json({ error: 'Real-Debrid unreachable' })
   }
+})
+
+// ---------------------------------------------------------------------------
+// GET /debrid/promo — public. Separate from /status so the answer doesn't
+// depend on Real-Debrid being reachable.
+// ---------------------------------------------------------------------------
+
+router.get('/promo', (_req, res) => {
+  const until = debridFreeUntil()
+  res.set('Cache-Control', 'public, max-age=3600')
+  return res.json({ freeUntil: until ? until.toISOString() : null })
 })
 
 // ---------------------------------------------------------------------------

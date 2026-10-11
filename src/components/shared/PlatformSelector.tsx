@@ -2,7 +2,9 @@ import { useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { OTT_PROVIDERS } from '@/lib/ottProviders'
 import { MonitorPlay, Check } from 'lucide-react'
-import { motion } from 'framer-motion'
+
+const providerButtonClass =
+  'relative flex-shrink-0 group cursor-pointer snap-start flex flex-col items-center gap-2 outline-none transition-transform duration-200 md:hover:scale-105 active:scale-95'
 
 interface PlatformSelectorProps {
   selected: string | null
@@ -31,14 +33,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {/* All Button */}
-        <motion.button
+        <button
           onClick={() => onSelect(null)}
           aria-label="Show all providers"
-          className={cn(
-            "relative flex-shrink-0 group cursor-pointer snap-start flex flex-col items-center gap-2 outline-none"
-          )}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          className={providerButtonClass}
         >
           <div
             className={cn(
@@ -49,13 +47,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
             )}
           >
             {selected === null && (
-              <motion.div
-                layoutId="active-glow"
-                className="absolute inset-0 bg-white/20 blur-xl"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              />
+              <div className="absolute inset-0 bg-white/20 blur-xl" />
             )}
 
             <span className={cn(
@@ -63,14 +55,9 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
               selected === null ? "scale-110" : "scale-100"
             )}>ALL</span>
 
-            {/* Decorative shine for All button */}
+            {/* Decorative shine for All button (CSS keyframes — runs on the compositor) */}
             {selected === null && (
-              <motion.div
-                initial={{ x: '-100%' }}
-                animate={{ x: '100%' }}
-                transition={{ repeat: Infinity, duration: 3, ease: 'linear' }}
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-primary-foreground/15 to-transparent skew-x-12"
-              />
+              <div className="provider-shine absolute inset-0 bg-gradient-to-r from-transparent via-primary-foreground/15 to-transparent" />
             )}
           </div>
 
@@ -82,10 +69,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
               All Content
             </span>
             {selected === null && (
-              <motion.div layoutId="active-dot" className="w-1 h-1 rounded-full bg-primary" />
+              <div className="w-1 h-1 rounded-full bg-primary" />
             )}
           </div>
-        </motion.button>
+        </button>
 
         {/* Separator for desktop */}
         <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-border to-transparent mx-1" />
@@ -94,19 +81,15 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
         {OTT_PROVIDERS.map((provider) => {
           const isSelected = selected === provider.id
           return (
-            <motion.button
+            <button
               key={provider.id}
               onClick={() => onSelect(isSelected ? null : provider.id)}
               aria-label={`Filter by ${provider.displayName}`}
-              className={cn(
-                "relative flex-shrink-0 group cursor-pointer snap-start flex flex-col items-center gap-2 outline-none"
-              )}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              className={providerButtonClass}
             >
               <div
                 className={cn(
-                  "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-[transform,background-color,border-color,box-shadow,opacity,color] duration-300 flex items-center justify-center overflow-hidden bg-card/80 backdrop-blur-sm",
+                  "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-[transform,background-color,border-color,box-shadow,opacity,color] duration-300 flex items-center justify-center overflow-hidden bg-card/80",
                   isSelected
                     ? cn("border-transparent shadow-lg", provider.color.replace('hover:', ''))
                     : "border-border/40 group-hover:border-border group-hover:bg-card"
@@ -126,7 +109,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                   loading="lazy"
                   decoding="async"
                   className={cn(
-                    "h-full w-full object-contain transition-transform duration-500 will-change-transform",
+                    "h-full w-full object-contain transition-transform duration-500",
                     isSelected ? "scale-100" : "grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110"
                   )}
                   onError={(e) => {
@@ -140,13 +123,9 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
 
                 {/* Checkmark */}
                 {isSelected && (
-                  <motion.div
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="absolute inset-0 bg-background/45 flex items-center justify-center backdrop-blur-[2px]"
-                  >
+                  <div className="animate-scale-in absolute inset-0 bg-background/55 flex items-center justify-center">
                     <Check className="w-6 h-6 md:w-8 md:h-8 text-white drop-shadow-md" strokeWidth={3} />
-                  </motion.div>
+                  </div>
                 )}
               </div>
 
@@ -158,10 +137,10 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
                   {provider.displayName}
                 </span>
                 {isSelected && (
-                  <motion.div layoutId="active-dot" className="w-1 h-1 rounded-full bg-white" />
+                  <div className="w-1 h-1 rounded-full bg-white" />
                 )}
               </div>
-            </motion.button>
+            </button>
           )
         })}
       </div>

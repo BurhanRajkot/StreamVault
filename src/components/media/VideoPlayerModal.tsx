@@ -100,6 +100,7 @@ export default function VideoPlayerModal({ open, onOpenChange, source, fileName,
 
           {open && !loading && !error && playback && !playbackFailed && (
             <DebridVideo
+              key={playback.directUrl}
               playback={playback}
               onExhausted={() => setPlaybackFailed(true)}
               className="h-full w-full"

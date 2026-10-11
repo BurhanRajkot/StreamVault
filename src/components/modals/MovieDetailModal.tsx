@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { Media, MediaMode, CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, serverOptions } from '@/lib/config'
 import { DebridPlayerPane } from '@/components/media/DebridPlayerPane'
+import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -66,6 +67,7 @@ export function MovieDetailModal({
   const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState(10)
 
   const [isPlaying, setIsPlaying] = useState(autoPlay || false)
+  const debridFree = useDebridFreeUntil() !== null
   // Picks between two genuinely different pre-play layouts. Only the chosen
   // one is mounted: rendering both and hiding one with CSS would duplicate
   // every control on the screen (two Play buttons, two server pickers).
@@ -205,9 +207,33 @@ export function MovieDetailModal({
     setTimeout(() => setIsCopied(false), 2000)
   }
 
-  // Save mid-watch progress (0.5) when the user leaves after >= 30s
+  // --- Real-Debrid: real progress instead of the iframe heuristics ---
+  // Its player is our own <video>, so it reports the actual position; that
+  // replaces the guessed 0.1 / 0.5 below once it arrives.
+  /** Fraction watched of the current episode/film, or null until reported. */
+  const debridProgressRef = useRef<number | null>(null)
+  const lastDebridSaveRef = useRef(0)
+  const handleDebridProgress = React.useCallback(
+    (position: number, duration: number) => {
+      // Same bar as the iframe servers: 30s in before it counts as started.
+      if (!(duration > 0) || position < 30) return
+      const fraction = Math.min(position / duration, 0.99)
+      debridProgressRef.current = fraction
+      // The backend row only needs to be roughly current; the exact second
+      // lives in the player's own resume point.
+      if (Date.now() - lastDebridSaveRef.current < 60_000) return
+      lastDebridSaveRef.current = Date.now()
+      saveProgress(season, episode, fraction)
+    },
+    [saveProgress, season, episode]
+  )
+
+  // Save mid-watch progress when the user leaves after >= 30s — the real
+  // position for Real-Debrid, an estimated 0.5 for embed servers.
   const handleClose = () => {
-    if (isPlaying && watchStartTimeRef.current) {
+    if (server === DEBRID_SERVER_ID && debridProgressRef.current !== null) {
+      saveProgress(season, episode, debridProgressRef.current)
+    } else if (isPlaying && watchStartTimeRef.current) {
       const elapsed = Date.now() - watchStartTimeRef.current
       if (elapsed >= 30_000) {
         saveProgress(season, episode, 0.5)
@@ -331,11 +357,15 @@ export function MovieDetailModal({
 
     // Record when this episode started
     watchStartTimeRef.current = Date.now()
+    debridProgressRef.current = null
+    lastDebridSaveRef.current = 0
 
     // Clear any existing start timer
     if (startSaveTimerRef.current) clearTimeout(startSaveTimerRef.current)
 
     startSaveTimerRef.current = setTimeout(() => {
+      // Real-Debrid already saved its real position — don't overwrite it.
+      if (debridProgressRef.current !== null) return
       saveProgress(season, episode, 0.1)
     }, 30_000) // 30 seconds
 
@@ -421,6 +451,7 @@ export function MovieDetailModal({
   const handleSkipNext = () =>
     goToEpisode(nextEpisode(position, seasons, currentSeasonEpisodes))
   const handleSkipPrev = () => goToEpisode(previousEpisode(position, seasons))
+  const hasNextEpisode = mode === 'tv' && nextEpisode(position, seasons, currentSeasonEpisodes) !== null
 
   // Disabled states for navigation buttons
   const isAtAbsoluteFirstEpisode = isFirstEpisode(position, seasons)
@@ -525,7 +556,6 @@ export function MovieDetailModal({
         {!isPlaying && (isMobile ? (
           /* Mobile — scrollable sheet over the artwork */
           <div
-            data-lenis-prevent
             className="absolute inset-0 z-10 overflow-y-auto overscroll-contain custom-scrollbar"
           >
             <MobileDetailSheet
@@ -560,7 +590,6 @@ export function MovieDetailModal({
         {isPlaying && (
           <div
             ref={scrollRef}
-            data-lenis-prevent
             className="absolute inset-0 z-10 overflow-x-hidden overflow-y-auto custom-scrollbar max-md:overflow-hidden max-md:bg-black"
           >
             <div className="w-full max-w-[1500px] mx-auto px-4 pt-20 pb-8 max-md:px-0 max-md:pt-0 max-md:pb-0 md:px-12 lg:px-24 md:pt-24 md:pb-16">
@@ -616,6 +645,9 @@ export function MovieDetailModal({
                         season={mode === 'tv' ? season : undefined}
                         episode={mode === 'tv' ? episode : undefined}
                         onSwitchServer={openServerPicker}
+                        backdropUrl={heroImage}
+                        onProgress={handleDebridProgress}
+                        onNext={hasNextEpisode ? handleSkipNext : undefined}
                       />
                     ) : embedUrl ? (
                       <>
@@ -716,7 +748,7 @@ export function MovieDetailModal({
                           </div>
                         </SelectTrigger>
                         <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-                          {serverOptions(mode).map(({ id, name }) => (
+                          {serverOptions(mode, { debridFree }).map(({ id, name }) => (
                             <SelectItem key={id} value={id} className="py-3 text-[15px]">{name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -776,7 +808,7 @@ export function MovieDetailModal({
                               <SelectValue placeholder="Select Server" />
                             </SelectTrigger>
                             <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl">
-                              {serverOptions(mode).map(({ id, name }) => (
+                              {serverOptions(mode, { debridFree }).map(({ id, name }) => (
                                 <SelectItem key={id} value={id} className="cursor-pointer focus:bg-white/10 py-3 text-base">{name}</SelectItem>
                               ))}
                             </SelectContent>

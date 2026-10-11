@@ -111,7 +111,7 @@ export function ContinueWatchingCard({
         }}
         className="
           absolute right-1.5 top-1.5 z-20
-          rounded-full bg-black/60 p-2 backdrop-blur-sm
+          rounded-full bg-black/60 p-2
           text-white
           md:right-2 md:top-2 md:p-1.5
           md:opacity-0 md:group-hover:opacity-100
@@ -181,7 +181,7 @@ export function ContinueWatchingCard({
         />
 
         {/* Progress Bar at Bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 backdrop-blur-sm transition-all duration-300 group-hover:h-1.5">
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 transition-all duration-300 group-hover:h-1.5">
           <div
             className="h-full bg-primary transition-all duration-300 rounded-r-full shadow-[0_0_8px_var(--theme-primary)]"
             style={{ width: `${item.progress * 100}%`, boxShadow: '0 0 10px rgba(225, 9, 20, 0.5)' }}
@@ -195,7 +195,7 @@ export function ContinueWatchingCard({
 
         {/* Episode Badge for TV Shows */}
         {item.mediaType === 'tv' && item.season && item.episode && (
-          <div className="absolute bottom-2 left-2 bg-black/80 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold text-white">
+          <div className="absolute bottom-2 left-2 bg-black/80 px-2 py-1 rounded text-xs font-bold text-white">
             S{item.season} · E{item.episode}
           </div>
         )}

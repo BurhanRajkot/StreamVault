@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useCallback } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -53,7 +53,6 @@ export function RecommendationRow({
   onDislike,
   isLoading = false,
 }: RecommendationRowProps) {
-  const [isHovered, setIsHovered] = useState(false)
   const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([
     section.items,
     isLoading,
@@ -64,10 +63,8 @@ export function RecommendationRow({
   if (!isLoading && section.items.length === 0) return null
 
   return (
-    <section 
-      className="relative mb-6 sm:mb-6"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+    <section
+      className="group/row relative mb-6 sm:mb-6"
     >
       {/* ── Header ─────────────────────────────────────── */}
       <div className="mb-2.5 flex items-center justify-between sm:mb-3">
@@ -87,7 +84,7 @@ export function RecommendationRow({
           className={`absolute left-0 md:-left-4 top-0 bottom-4 z-30 
             flex items-center justify-center
             transition-opacity duration-300 pointer-events-none
-            ${showLeftButton && isHovered ? 'opacity-100' : 'opacity-0'}
+            opacity-0 ${showLeftButton ? 'group-hover/row:opacity-100' : ''}
             hidden md:flex`}
         >
           <button
@@ -132,7 +129,7 @@ export function RecommendationRow({
           className={`absolute right-0 md:-right-4 top-0 bottom-4 z-30 
             flex items-center justify-center
             transition-opacity duration-300 pointer-events-none
-            ${showRightButton && isHovered ? 'opacity-100' : 'opacity-0'}
+            opacity-0 ${showRightButton ? 'group-hover/row:opacity-100' : ''}
             hidden md:flex`}
         >
           <button
@@ -206,7 +203,7 @@ function RecoCard({ item, index, source, onClick, onDislike, isDisliked = false 
             className={cn(
               // Desktop-only: on touch it was an invisible tap target sitting
               // over the artwork, and "not interested" belongs in the detail view
-              'absolute right-2 top-2 z-10 hidden rounded-full bg-background/90 backdrop-blur-sm shadow-lg md:block',
+              'absolute right-2 top-2 z-10 hidden rounded-full bg-background/90 shadow-lg md:block',
               'p-2',
               'opacity-0 group-hover:opacity-100 transition-all duration-200',
               'hover:scale-110 active:scale-95',

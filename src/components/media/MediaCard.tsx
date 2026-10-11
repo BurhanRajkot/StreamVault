@@ -313,7 +313,7 @@ function MediaCardComponent({
                 onClick={handleFavorite}
                 aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
                 className={cn(
-                  'rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
+                  'rounded-full bg-background/90 shadow-lg transition-all active:scale-95',
                   'p-3 md:p-2',
                   'md:opacity-0 md:group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
                 )}
@@ -330,7 +330,7 @@ function MediaCardComponent({
                 onClick={handleDislike}
                 aria-label={disliked ? 'Remove dislike' : 'Dislike this title'}
                 className={cn(
-                  'rounded-full bg-background/90 backdrop-blur-sm shadow-lg transition-all active:scale-95',
+                  'rounded-full bg-background/90 shadow-lg transition-all active:scale-95',
                   'p-3 md:p-2',
                   'md:opacity-0 md:group-hover:opacity-100 hover:scale-110 hover:bg-background cursor-pointer'
                 )}
@@ -349,7 +349,7 @@ function MediaCardComponent({
           )}
 
           {/* Score badge — desktop only, see note on the favourite controls */}
-          <div className="absolute left-2 top-2 hidden items-center gap-1 rounded-lg bg-background/90 backdrop-blur-sm px-2 py-1 text-xs font-medium shadow-lg z-10 md:flex">
+          <div className="absolute left-2 top-2 hidden items-center gap-1 rounded-lg bg-background/90 px-2 py-1 text-xs font-medium shadow-lg z-10 md:flex">
             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
             <span className="text-foreground">{rating}</span>
           </div>

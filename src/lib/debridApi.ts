@@ -166,6 +166,14 @@ export async function fetchDebridStatus(): Promise<DebridAccountStatus> {
   return handleResponse(await fetch(`${API_BASE}/debrid/status`))
 }
 
+/**
+ * When free Real-Debrid streaming for every signed-in user ends, or null when
+ * it isn't on. The backend owns the date; this only labels the UI.
+ */
+export async function fetchDebridPromo(): Promise<{ freeUntil: string | null }> {
+  return handleResponse(await fetch(`${API_BASE}/debrid/promo`))
+}
+
 /** Torrents in the shared Real-Debrid account, newest first. */
 export async function fetchDebridTorrents(token?: string, limit = 100): Promise<DebridTorrent[]> {
   const res = await fetch(`${API_BASE}/debrid/torrents?limit=${limit}`, { headers: authHeaders(token) })
