@@ -21,7 +21,7 @@
     "bottleneck": "^2.19.5",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.0",
     "express": "^5.2.1",
     "express-oauth2-jwt-bearer": "^1.9.1",
     "express-rate-limit": "^8.5.2",
