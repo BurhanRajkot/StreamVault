@@ -242,7 +242,7 @@ export default function DebridLibrary({ token }: DebridLibraryProps) {
     try {
       setTorrents(await fetchDebridTorrents(token, 200))
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load Real-Debrid library')
+      setError(err instanceof Error ? err.message : 'Failed to load Premium library')
     } finally {
       setLoading(false)
     }
@@ -278,7 +278,7 @@ export default function DebridLibrary({ token }: DebridLibraryProps) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm">Loading Real-Debrid library…</p>
+        <p className="text-sm">Loading Premium library…</p>
       </div>
     )
   }
@@ -292,7 +292,7 @@ export default function DebridLibrary({ token }: DebridLibraryProps) {
         <div className="rounded-full bg-destructive/10 p-4">
           <AlertCircle className="h-8 w-8 text-destructive" />
         </div>
-        <p className="text-sm font-medium text-foreground">Real-Debrid Library Unavailable</p>
+        <p className="text-sm font-medium text-foreground">Premium Library Unavailable</p>
         <p className="max-w-sm text-xs text-muted-foreground">{error}</p>
         <button
           id="debrid-retry"
@@ -315,9 +315,9 @@ export default function DebridLibrary({ token }: DebridLibraryProps) {
         <div className="rounded-full border border-dashed border-border/60 p-6">
           <Cloud className="h-10 w-10 opacity-40" />
         </div>
-        <p className="text-sm font-medium">Your Real-Debrid library is empty</p>
+        <p className="text-sm font-medium">Your Premium library is empty</p>
         <p className="max-w-xs text-xs opacity-60">
-          Play something with the Real-Debrid server, or add it from the Debrid Search tab, and it will appear
+          Play something with the ⚡ Premium server, or add it from the Debrid Search tab, and it will appear
           here.
         </p>
       </div>
@@ -360,7 +360,7 @@ export default function DebridLibrary({ token }: DebridLibraryProps) {
         <button
           id="debrid-refresh"
           onClick={load}
-          aria-label="Refresh Real-Debrid library"
+          aria-label="Refresh Premium library"
           className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
         >
           <RefreshCw className="h-3.5 w-3.5" />

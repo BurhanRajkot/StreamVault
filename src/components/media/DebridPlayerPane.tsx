@@ -132,7 +132,7 @@ export function DebridPlayerPane({
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const freeUntil = useDebridFreeUntil()
   const [status, setStatus] = useState<Status>('searching')
-  const [statusMessage, setStatusMessage] = useState('Searching Real-Debrid...')
+  const [statusMessage, setStatusMessage] = useState('Finding the best stream...')
   const [playback, setPlayback] = useState<DebridReadyPlayback | null>(null)
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode | null>(null)
   const [instantReleases, setInstantReleases] = useState<DebridRelease[]>([])
@@ -254,7 +254,7 @@ export function DebridPlayerPane({
           }
           if (res.status === 'failed') {
             setStatus('error')
-            setStatusMessage(`Real-Debrid couldn't download this release (${res.reason}).`)
+            setStatusMessage(`This release couldn't be downloaded (${res.reason}).`)
             return
           }
           if (res.status === 'downloading') {
@@ -268,7 +268,7 @@ export function DebridPlayerPane({
       if (generationRef.current === generation) {
         setStatus('not-found')
         setStatusMessage(
-          `"${release.name}" is still downloading on Real-Debrid. Check the Real-Debrid Cloud tab in a few minutes, or switch to a standard server now.`
+          `"${release.name}" is still downloading. Try again in a few minutes, or switch to another server now.`
         )
       }
     },
@@ -279,7 +279,7 @@ export function DebridPlayerPane({
   const downloadAndPlay = useCallback(
     async (release: DebridRelease, token: string | undefined, generation: number) => {
       setStatus('downloading')
-      setStatusMessage(`Adding ${parseTorrentQuality(release.name)} release to Real-Debrid...`)
+      setStatusMessage(`Preparing the ${parseTorrentQuality(release.name)} release...`)
       setActiveRelease(release)
       setDownloadProgress(null)
       try {
@@ -295,7 +295,7 @@ export function DebridPlayerPane({
           return
         }
         setStatus('error')
-        setStatusMessage(res.status === 'failed' ? res.reason : 'Real-Debrid could not add this release.')
+        setStatusMessage(res.status === 'failed' ? res.reason : 'This release could not be prepared.')
       } catch (err: unknown) {
         if (generationRef.current !== generation) return
         console.error('Real-Debrid download error:', err)
@@ -410,7 +410,7 @@ export function DebridPlayerPane({
         return
       }
       setStatus('error')
-      setStatusMessage("Couldn't start any release for this title on Real-Debrid.")
+      setStatusMessage("Couldn't start any release for this title on Premium.")
     },
     [episodeOpts, showPlayback, pollUntilReady, downloadAndPlay]
   )
@@ -440,7 +440,7 @@ export function DebridPlayerPane({
     const generation = ++generationRef.current
 
     setStatus('searching')
-    setStatusMessage(`Searching Real-Debrid for "${title}"...`)
+    setStatusMessage(`Finding the best stream for "${title}"...`)
     setPlaybackFailed(false)
     setPlayback(null)
     setPlaybackMode(null)
@@ -498,7 +498,7 @@ export function DebridPlayerPane({
       if (generationRef.current !== generation) return
       console.error('Real-Debrid search failed:', err)
       setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
-      setStatusMessage(err instanceof Error ? err.message : 'Real-Debrid search failed')
+      setStatusMessage(err instanceof Error ? err.message : 'Search failed')
     }
   }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease])
 
@@ -527,7 +527,7 @@ export function DebridPlayerPane({
       onClick={onSwitchServer}
       className="text-xs text-white/40 underline underline-offset-4 transition-colors hover:text-white/70"
     >
-      Switch to standard server
+      Switch server
     </button>
   )
 
@@ -541,7 +541,7 @@ export function DebridPlayerPane({
         <Loader2 className="h-9 w-9 animate-spin text-white/70" />
         <p className="max-w-sm text-sm text-white/80">
           {status === 'downloading' && activeRelease
-            ? `Real-Debrid is downloading the ${parseTorrentQuality(activeRelease.name)} release...`
+            ? `Downloading the ${parseTorrentQuality(activeRelease.name)} release...`
             : statusMessage}
         </p>
         {status === 'downloading' && downloadProgress ? (
@@ -581,14 +581,14 @@ export function DebridPlayerPane({
         </div>
         <div className="space-y-1.5">
           <p className="text-base font-semibold text-white">
-            {freeUntil ? `Real-Debrid is free until ${formatPromoDate(freeUntil)}` : 'Real-Debrid is a premium feature'}
+            {freeUntil ? `Premium is free until ${formatPromoDate(freeUntil)}` : 'Premium is for subscribers'}
           </p>
           <p className="max-w-sm text-xs text-white/60">
             {free
               ? 'Sign in with a free account to stream in 4K and 1080p — no subscription needed.'
               : isAuthenticated
-                ? 'Upgrade your account to stream instantly via Real-Debrid.'
-                : 'Sign in and upgrade to stream instantly via Real-Debrid.'}
+                ? 'Upgrade your account to stream in 4K and 1080p on Premium.'
+                : 'Sign in and upgrade to stream in 4K and 1080p on Premium.'}
           </p>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
@@ -602,7 +602,7 @@ export function DebridPlayerPane({
             onClick={onSwitchServer}
             className="rounded-full border border-white/15 px-4 py-2 text-xs text-white/75 transition-colors hover:border-white/30 hover:text-white"
           >
-            Switch to standard server
+            Switch server
           </button>
         </div>
       </PaneBackdrop>
@@ -621,7 +621,7 @@ export function DebridPlayerPane({
           </div>
         )}
         <div className="space-y-1">
-          {status === 'not-found' && <p className="text-sm font-semibold text-white">No Real-Debrid stream available</p>}
+          {status === 'not-found' && <p className="text-sm font-semibold text-white">No Premium stream available</p>}
           <p className="max-w-sm text-xs text-white/60">{statusMessage}</p>
         </div>
         <div className="mt-1 flex items-center gap-2">
@@ -629,7 +629,7 @@ export function DebridPlayerPane({
             onClick={onSwitchServer}
             className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-colors hover:bg-white/90"
           >
-            Switch to standard server
+            Switch server
           </button>
           <button
             onClick={() => void searchAndPlay()}
@@ -652,7 +652,7 @@ export function DebridPlayerPane({
         <div className="space-y-1">
           <p className="text-sm font-semibold text-white">Playback stopped</p>
           <p className="max-w-sm text-xs text-white/60">
-            Neither the direct link nor Real-Debrid&apos;s stream would play in this browser. Try another release, or open
+            Neither the direct link nor the converted stream would play in this browser. Try another release, or open
             the file in VLC.
           </p>
         </div>
@@ -765,7 +765,7 @@ function BrandLine({ freeUntil }: { freeUntil: Date | null }) {
   return (
     <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">
       <Zap className="h-3.5 w-3.5 text-yellow-400" />
-      Real-Debrid
+      Premium
       {freeUntil && (
         <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] tracking-wider text-emerald-300">
           Free until {formatPromoDate(freeUntil)}
