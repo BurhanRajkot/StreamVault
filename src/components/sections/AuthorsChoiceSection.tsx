@@ -20,7 +20,6 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   const [media, setMedia] = useState<Media[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [isHovered, setIsHovered] = useState(false)
   const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([mode, media])
 
   useEffect(() => {
@@ -72,10 +71,8 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   }
 
   return (
-    <section 
-      className="relative mb-6"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+    <section
+      className="group/row relative mb-6"
     >
       {/* Header */}
       <div className="mb-2.5 flex flex-row items-end justify-between gap-4 sm:mb-4">
@@ -91,7 +88,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
         className={`absolute left-0 md:-left-4 top-10 bottom-4 z-30 
           flex items-center justify-center
           transition-opacity duration-300 pointer-events-none
-          ${showLeftButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          opacity-0 ${showLeftButton ? 'group-hover/row:opacity-100' : ''}
           hidden md:flex`}
       >
         <button
@@ -108,7 +105,7 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
         className={`absolute right-0 md:-right-4 top-10 bottom-4 z-30 
           flex items-center justify-center
           transition-opacity duration-300 pointer-events-none
-          ${showRightButton && isHovered ? 'opacity-100' : 'opacity-0'}
+          opacity-0 ${showRightButton ? 'group-hover/row:opacity-100' : ''}
           hidden md:flex`}
       >
         <button
