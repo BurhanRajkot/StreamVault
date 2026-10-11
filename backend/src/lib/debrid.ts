@@ -344,18 +344,48 @@ export function findEpisodeFile(files: DebridTorrentFile[], season: number, epis
   // regex built from the request's season/episode.
   const has = (name: string, pattern: RegExp, wanted: (m: RegExpMatchArray) => boolean) =>
     [...name.matchAll(pattern)].some(wanted)
-  const matchers: Array<(name: string) => boolean> = [
-    // S05E03, S5.E3, S05 E03, S01.EP03
-    (n) => has(n, /s(\d+)[._\s-]*ep?(\d+)/gi, (m) => Number(m[1]) === season && Number(m[2]) === episode),
+
+  /** A double episode ("S04E01&02") holds both; a "range" wider than a few is a misread number. */
+  const holdsEpisode = (first: number, last: number | null) =>
+    episode === first || (last !== null && last > first && last - first <= 3 && episode > first && episode <= last)
+
+  /** The season a file's own name, else its folder, says it's from; null when neither says. */
+  const seasonOf = (f: DebridTorrentFile): number | null => {
+    const own = basename(f).match(/s(\d+)[._\s-]*ep?\d+/i) ?? basename(f).match(/\b(\d+)x\d+/i)
+    if (own) return Number(own[1])
+    const folders = f.path.slice(0, f.path.length - basename(f).length)
+    const folder = folders.match(/season[\s._-]*(\d+)/i) ?? folders.match(/\bs(\d{1,2})\b/i)
+    return folder ? Number(folder[1]) : null
+  }
+
+  const matchers: Array<{ ofThisSeasonOnly: boolean; matches: (name: string) => boolean }> = [
+    // S05E03, S5.E3, S05 E03, S01.EP03 — and doubles: S04E01&02, S04E01-E02, S04E01E02, S04E01-02
+    {
+      ofThisSeasonOnly: false,
+      matches: (n) =>
+        has(
+          n,
+          /s(\d+)[._\s-]*ep?(\d+)(?:(?:[-&+]|[._\s]?e|-e)p?(\d+))?/gi,
+          (m) => Number(m[1]) === season && holdsEpisode(Number(m[2]), m[3] === undefined ? null : Number(m[3]))
+        ),
+    },
     // 5x03
-    (n) => has(n, /\b(\d+)x(\d+)/gi, (m) => Number(m[1]) === season && Number(m[2]) === episode),
-    // per-season torrent named just "E03" / "EP03"
-    (n) => has(n, /\bep?(\d+)/gi, (m) => Number(m[1]) === episode),
-    // A bare episode number as its own word, e.g. "03 - Title.mkv" (4-digit years stripped first).
-    (n) => has(n.replace(/\d{4}/g, ''), /\d+/g, (m) => Number(m[0]) === episode),
+    { ofThisSeasonOnly: false, matches: (n) => has(n, /\b(\d+)x(\d+)/gi, (m) => Number(m[1]) === season && Number(m[2]) === episode) },
+    // Names that only give the episode: "E03" / "EP03", or a bare "03 - Title.mkv"
+    // (4-digit years stripped first). Without a season of their own these
+    // would match the same episode of *every* season in a multi-season pack,
+    // so files whose name or folder says another season are skipped.
+    { ofThisSeasonOnly: true, matches: (n) => has(n, /\bep?(\d+)/gi, (m) => Number(m[1]) === episode) },
+    { ofThisSeasonOnly: true, matches: (n) => has(n.replace(/\d{4}/g, ''), /\d+/g, (m) => Number(m[0]) === episode) },
   ]
-  for (const matches of matchers) {
-    const match = files.find((f) => matches(basename(f)))
+  for (const { ofThisSeasonOnly, matches } of matchers) {
+    const match = files.find((f) => {
+      if (ofThisSeasonOnly) {
+        const fileSeason = seasonOf(f)
+        if (fileSeason !== null && fileSeason !== season) return false
+      }
+      return matches(basename(f))
+    })
     if (match) return match
   }
   return null
@@ -801,6 +831,75 @@ function isImplausibleRelease(name: string, size: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// TV releases from free-text indexers (apibay)
+// ---------------------------------------------------------------------------
+
+/** What part of a series a release holds, relative to the wanted episode. */
+export type TvReleaseCoverage = 'episode' | 'season' | 'multi-season'
+
+const TWO_DIGITS = '0*(\\d{1,2})(?!\\d)'
+
+/**
+ * Whether a free-text-indexed release holds `season`/`episode` of the show
+ * called `title`, and how: the episode alone, its season, or several seasons
+ * (packs are played by picking the episode file inside — see findEpisodeFile).
+ * Null when it's another show, another season/episode, or doesn't say.
+ *
+ * The name has to *start* with the show's title (after any [site] tags), so
+ * "The Kingdom … S01E01 Game of Thrones" isn't taken for Game of Thrones.
+ */
+export function tvReleaseCoverage(
+  name: string,
+  title: string,
+  season: number,
+  episode: number
+): TvReleaseCoverage | null {
+  const show = normalizeForTitleMatch(title.replace(/\s*\(?\b(19|20)\d{2}\)?\s*$/, ''))
+  if (!show) return null
+  const release = normalizeForTitleMatch(name.replace(/^\s*(\[[^\]]*\]|\([^)]*\)|【[^】]*】)\s*/g, ''))
+  if (release !== show && !release.startsWith(`${show} `)) return null
+  const rest = release.slice(show.length)
+
+  // One episode: S01E01 / 1x01. A different episode is a no.
+  const ep = rest.match(new RegExp(`\\bs${TWO_DIGITS}\\s?e${TWO_DIGITS}`)) ?? rest.match(new RegExp(`\\b${TWO_DIGITS}x${TWO_DIGITS}\\b`))
+  if (ep) return Number(ep[1]) === season && Number(ep[2]) === episode ? 'episode' : null
+
+  // Season ranges: S01-S08, S01-08, "Season 1-8", "Seasons 1 2 3 ... 8"
+  const sRange = rest.match(new RegExp(`\\bs${TWO_DIGITS}\\s(?:to\\s)?s?${TWO_DIGITS}\\b`))
+  if (sRange) return inRange(season, sRange[1], sRange[2]) ? 'multi-season' : null
+  const word = rest.match(/\bseasons?\s((?:\d{1,2}\s(?:to\s|and\s)?)*\d{1,2})(?!\d)/)
+  if (word) {
+    const numbers = word[1].split(/\s(?:to\s|and\s)?/).map(Number)
+    const lo = Math.min(...numbers)
+    const hi = Math.max(...numbers)
+    if (season < lo || season > hi) return null
+    return lo === hi ? 'season' : 'multi-season'
+  }
+
+  // A single season: S01
+  const single = rest.match(new RegExp(`\\bs${TWO_DIGITS}\\b`))
+  if (single) return Number(single[1]) === season ? 'season' : null
+
+  // No season at all, but the whole show: "Complete Series", "Integrale"
+  if (/\b(complete|integrale|collection|all seasons)\b/.test(rest)) return 'multi-season'
+  return null
+}
+
+function inRange(season: number, from: string, to: string): boolean {
+  const lo = Math.min(Number(from), Number(to))
+  const hi = Math.max(Number(from), Number(to))
+  return season >= lo && season <= hi
+}
+
+/** Queries that find an episode as itself, in its season pack, and in whole-series packs. */
+function tvApibayQueries(title: string, season: number, episode: number): string[] {
+  const show = title.replace(/\s*\(?\b(19|20)\d{2}\)?\s*$/, '').trim()
+  const ss = String(season).padStart(2, '0')
+  const ee = String(episode).padStart(2, '0')
+  return [`${show} S${ss}E${ee}`, `${show} S${ss}`, `${show} Season ${season}`, `${show} complete`]
+}
+
+// ---------------------------------------------------------------------------
 // Indexer lookup caching (searchMediaReleases only)
 // ---------------------------------------------------------------------------
 
@@ -880,8 +979,9 @@ function torrentioDebridKey(): string | undefined {
 /**
  * Search for a specific movie/episode by TMDB-derived identity (title +
  * IMDb id, + season/episode for TV): Torrentio (many indexers, matched by
- * IMDb id, tagged with Real-Debrid cache status) and, for movies only,
- * apibay as a fallback source.
+ * IMDb id, tagged with Real-Debrid cache status) and apibay as a fallback
+ * source — by title for movies; for TV, the episode and the season /
+ * whole-series packs that hold it.
  *
  * Indexer results are cached per title/episode for an hour (see
  * cachedIndexLookup and the `debrid` cache namespace).
@@ -896,6 +996,7 @@ export async function searchMediaReleases(params: {
 }): Promise<DebridRelease[]> {
   const { title, imdbId, mediaType, season, episode, limit = 20 } = params
   const useApibay = mediaType === 'movie'
+  const tvTarget = mediaType === 'tv' && season !== undefined && episode !== undefined ? { season, episode } : null
   const startedAt = Date.now()
   const torrentioKey = torrentioDebridKey()
 
@@ -908,7 +1009,39 @@ export async function searchMediaReleases(params: {
               await searchTorrentio(imdbId, mediaType === 'tv' ? 'series' : 'movie', season, episode, torrentioKey)
             )
           )
-      ).catch(() => [])
+      ).catch((err: unknown) => {
+        // Best-effort, but never silent: a host Torrentio refuses (it blocks
+        // many datacenter IPs) otherwise looks exactly like "no releases".
+        logger.warn('Torrentio lookup failed', { imdbId, mediaType, season, episode, error: err instanceof Error ? err.message : String(err) })
+        return []
+      })
+    : Promise.resolve([])
+
+  // Series: apibay as the fallback source, as for movies — the episode on
+  // its own, its season pack, and whole-series packs, kept only when they
+  // provably hold this episode of this show (tvReleaseCoverage).
+  const tvApibayPromise: Promise<Array<ApibayResult & { coverage: TvReleaseCoverage }>> = tvTarget
+    ? Promise.all(
+        tvApibayQueries(title, tvTarget.season, tvTarget.episode).map((q) =>
+          cachedIndexLookup(`apibay:0:${q.toLowerCase()}`, () => fetchApibayResults(q, APIBAY_MAX_RESULTS, 0)).catch(
+            (err: unknown) => {
+              logger.warn('apibay TV lookup failed', { q, error: err instanceof Error ? err.message : String(err) })
+              return [] as ApibayResult[]
+            }
+          )
+        )
+      ).then((pages) => {
+        const seen = new Set<string>()
+        const matches: Array<ApibayResult & { coverage: TvReleaseCoverage }> = []
+        for (const r of pages.flat()) {
+          const hash = r.info_hash.toUpperCase()
+          if (seen.has(hash)) continue
+          seen.add(hash)
+          const coverage = tvReleaseCoverage(r.name, title, tvTarget.season, tvTarget.episode)
+          if (coverage) matches.push({ ...r, coverage })
+        }
+        return matches
+      })
     : Promise.resolve([])
 
   const apibayPromise: Promise<ApibayResult[]> = useApibay
@@ -918,12 +1051,13 @@ export async function searchMediaReleases(params: {
     : Promise.resolve([])
 
   const apibayResults = (await apibayPromise).slice(0, Math.max(limit * 3, 60))
+  const tvApibayResults = await tvApibayPromise
 
   // Torrentio is the only source that knows what's cached, so it gets a
   // generous window even when apibay already answered; a slow lookup keeps
   // running in the background and lands in the cache for the next search.
   const torrentioWaitMs =
-    apibayResults.length > 0
+    apibayResults.length > 0 || tvApibayResults.length > 0
       ? Math.max(0, MOVIE_TORRENTIO_GRACE_MS - (Date.now() - startedAt))
       : TORRENTIO_ONLY_WAIT_MS
   const torrentioCandidates = (await resolveWithin(torrentioPromise, torrentioWaitMs)) ?? []
@@ -968,10 +1102,33 @@ export async function searchMediaReleases(params: {
     })
   }
 
+  /** Packs: their size is the whole season/series, not the file that plays. */
+  const packHashes = new Set<string>()
+  for (const r of tvApibayResults) {
+    const hash = r.info_hash.toUpperCase()
+    if (merged.has(hash)) continue
+    if (r.coverage !== 'episode') packHashes.add(hash)
+    merged.set(hash, {
+      id: hash,
+      name: r.name,
+      info_hash: hash,
+      seeders: r.seeders,
+      leechers: r.leechers,
+      size: r.size,
+      num_files: r.num_files,
+      username: 'apibay',
+      added: r.added,
+      category: '208',
+      imdb: imdbId,
+      cached: false,
+    })
+  }
+
   // Drop oversized releases, wrong-sequel matches and implausibly small "4K"
   // files outright. Unknown sizes (0) are kept.
   const candidates = [...merged.values()].filter((c) => {
     const size = parseInt(c.size, 10) || 0
+    if (packHashes.has(c.info_hash)) return !isDifferentSequel(c.name, title)
     return (
       (size === 0 || size <= MAX_RELEASE_SIZE_BYTES) &&
       !isImplausibleRelease(c.name, size) &&

@@ -94,8 +94,13 @@ interface DownloadProgress {
   speed: number
 }
 
-/** Releases tried automatically before an error is shown — each costs one backend round trip (~3-4s). */
-const MAX_AUTO_RELEASE_ATTEMPTS = 5
+/**
+ * Releases tried automatically before an error is shown — each costs one
+ * backend round trip (~3-4s; a release Real-Debrid refuses outright, e.g. a
+ * DMCA'd one, well under 1s). Popular series often have several refused
+ * packs at the top.
+ */
+const MAX_AUTO_RELEASE_ATTEMPTS = 8
 
 /**
  * Extra cached releases resolved, when the first one would need Real-Debrid's
@@ -148,6 +153,15 @@ export function DebridPlayerPane({
   const releaseQueueRef = useRef<DebridRelease[]>([])
   const triedReleasesRef = useRef(new Set<string>())
   const autoAttemptsRef = useRef(0)
+  /**
+   * True when no release came tagged as cached (the cache-aware index was
+   * unreachable — Torrentio refuses some server IPs): the queue is then made
+   * of untagged releases, each asked "instant?" (instantOnly) before any is
+   * downloaded.
+   */
+  const probingRef = useRef(false)
+  /** Releases Real-Debrid said aren't instant — still fine to download. */
+  const notInstantRef = useRef(new Set<string>())
   /** Best uncached release — downloaded if every cached one fails. */
   const uncachedFallbackRef = useRef<DebridRelease | null>(null)
 
@@ -325,7 +339,10 @@ export function DebridPlayerPane({
         setActiveRelease(current)
 
         try {
-          const res = await playDebridRelease(current, token, { ...episodeOpts, instantOnly: current.cached })
+          const res = await playDebridRelease(current, token, {
+            ...episodeOpts,
+            instantOnly: current.cached || probingRef.current,
+          })
           if (generationRef.current !== generation) return
           if (res.status === 'ready') {
             const needsTranscode = planPlaybackModes(res, detectBrowserVideoSupport())[0]?.kind === 'hls'
@@ -337,11 +354,17 @@ export function DebridPlayerPane({
               setStatusMessage('Looking for a release your browser can play directly...')
               continue
             }
+            if (probingRef.current) {
+              // Proven instant — offer it in the picker.
+              const proven: DebridRelease = { ...current, cached: true }
+              setInstantReleases((prev) => (prev.some((r) => r.info_hash === proven.info_hash) ? prev : [...prev, proven]))
+            }
             showPlayback(current, res)
             return
           }
           const skipped: DebridRelease = current
           if (res.status === 'not-cached') {
+            notInstantRef.current.add(skipped.info_hash)
             // Stale cache tag — drop it from the picker too.
             setInstantReleases((prev) => prev.filter((r) => r.info_hash !== skipped.info_hash))
           } else if (res.status === 'downloading' && !downloadingFallback) {
@@ -380,7 +403,8 @@ export function DebridPlayerPane({
         return
       }
       const fallback = uncachedFallbackRef.current
-      if (fallback && !triedReleasesRef.current.has(fallback.info_hash)) {
+      // A release only asked "instant?" (and told no) can still be downloaded.
+      if (fallback && (!triedReleasesRef.current.has(fallback.info_hash) || notInstantRef.current.has(fallback.info_hash))) {
         uncachedFallbackRef.current = null
         await downloadAndPlay(fallback, token, generation)
         return
@@ -427,6 +451,8 @@ export function DebridPlayerPane({
     triedReleasesRef.current = new Set()
     autoAttemptsRef.current = 0
     uncachedFallbackRef.current = null
+    probingRef.current = false
+    notInstantRef.current = new Set()
     positionRef.current = 0
     startPositionRef.current = readResumePosition(storageKey) ?? undefined
 
@@ -458,8 +484,11 @@ export function DebridPlayerPane({
       }
 
       if (uncached.length > 0) {
-        uncachedFallbackRef.current = null
-        await downloadAndPlay(uncached[0], token, generation)
+        // Nothing says what's cached, but popular releases usually are: ask
+        // Real-Debrid about the best few before downloading anything.
+        probingRef.current = true
+        releaseQueueRef.current = uncached.slice(0, MAX_AUTO_RELEASE_ATTEMPTS)
+        await streamRelease(uncached[0], token, { preferDirect: true })
         return
       }
 
@@ -471,7 +500,7 @@ export function DebridPlayerPane({
       setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
       setStatusMessage(err instanceof Error ? err.message : 'Real-Debrid search failed')
     }
-  }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease, downloadAndPlay])
+  }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease])
 
   useEffect(() => {
     void searchAndPlay()
