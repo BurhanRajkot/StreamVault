@@ -23,6 +23,15 @@
 
 const TORRENTIO_BASE_URL = process.env.TORRENTIO_BASE_URL || 'https://torrentio.strem.fun'
 
+/**
+ * Torrentio refuses many datacenter IPs (it answered nothing at all from the
+ * Render host, 2026-10-11). TORRENTIO_PROXY_URL — or the Real-Debrid proxy,
+ * DEBRID_PROXY_URL, when that's all there is — routes the lookup elsewhere.
+ */
+function torrentioProxy(): string | undefined {
+  return process.env.TORRENTIO_PROXY_URL || process.env.DEBRID_PROXY_URL || undefined
+}
+
 export interface TorrentioStream {
   name?: string
   title?: string
@@ -69,6 +78,8 @@ export async function searchTorrentio(
     // and lets a slow lookup finish in the background so its result is cached
     // for the next request.
     signal: AbortSignal.timeout(25_000),
+    // Bun's fetch takes a proxy URL directly.
+    proxy: torrentioProxy(),
   })
 
   if (!res.ok) {

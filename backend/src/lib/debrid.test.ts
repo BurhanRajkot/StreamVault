@@ -6,6 +6,7 @@ import {
   filesToSelect,
   pickPlaybackFile,
   findEpisodeFile,
+  tvReleaseCoverage,
   accountErrorMessage,
   DebridError,
   type DebridRelease,
@@ -198,5 +199,83 @@ describe('accountErrorMessage', () => {
     expect(accountErrorMessage(new DebridError('x', 451, 35))).toBeNull()
     expect(accountErrorMessage(new DebridError('x', 400, 30))).toBeNull()
     expect(accountErrorMessage(new Error('network'))).toBeNull()
+  })
+})
+
+describe('tvReleaseCoverage', () => {
+  const got = (name: string, season = 1, episode = 1) => tvReleaseCoverage(name, 'Game of Thrones 2011', season, episode)
+
+  it('takes the episode itself, and only that episode', () => {
+    expect(got('Game of Thrones S01E01 Winter Is Coming 1080p BluRay x264-OFT')).toBe('episode')
+    expect(got('Game.of.Thrones.s01e01.720p.HDTV.x264-CTU [eztv]')).toBe('episode')
+    expect(got('Game of Thrones 1x01 HDTV')).toBe('episode')
+    expect(got('Game of Thrones S01E02 1080p')).toBeNull()
+    expect(got('Game of Thrones S02E01 1080p')).toBeNull()
+  })
+
+  it('takes the season pack holding it', () => {
+    expect(got('Game.of.Thrones.S01.COMPLETE.1080p.10bit.BluRay.6CH.x265.HEVC-PSA')).toBe('season')
+    expect(got('Game of Thrones - Season 1 - 720p BluRay - x264 - ShAaNiG')).toBe('season')
+    expect(got('Game Of Thrones S01 Season 1 1080p 5.1Ch BluRay ReEnc-DeeJayAhmed')).toBe('season')
+    expect(got('Game.of.Thrones.S03.COMPLETE.1080p.BluRay')).toBeNull()
+    expect(got('Game of Thrones - Season 8 S08 - 2019 1080p Bluray')).toBeNull()
+  })
+
+  it('takes multi-season and whole-series packs that span the season', () => {
+    expect(got('Game.of.Thrones.Season.1-8.S01-08.COMPLETE.1080p.BluRay.WEB.x265')).toBe('multi-season')
+    expect(got('Game of Thrones S01-S04 BluRay 1080p', 3)).toBe('multi-season')
+    expect(got('Game.of.Thrones.Complete.Series.Season.1.2.3.4.5.6.7.8.x264.720p', 6)).toBe('multi-season')
+    expect(got('Game of Thrones Season 1-7 1 2 3 4 5 6 7 Complete 1080p', 7)).toBe('multi-season')
+    expect(got('Game of Thrones Complete Series 1080p', 5)).toBe('multi-season')
+    expect(got('Game of Thrones S01-S04 BluRay 1080p', 6)).toBeNull()
+  })
+
+  it('ignores other shows that mention the title, and names that say nothing', () => {
+    expect(got('The Kingdom The Worlds Most Powerful Prince S01E01 Game of Thrones 1080p')).toBeNull()
+    expect(got('Game of Thrones Conquest and Rebellion 2017 1080p')).toBeNull()
+    expect(got('Thrones S01E01')).toBeNull()
+  })
+
+  it('reads past [site] tags and resolution numbers', () => {
+    expect(got('[ACESSE COMANDOTORRENTS.COM] Game of Thrones S01E01 1080p')).toBe('episode')
+    expect(got('Game of Thrones S01 1080p 2011', 1)).toBe('season')
+    expect(got('Game of Thrones S01 1080p 2011', 10)).toBeNull()
+  })
+})
+
+describe('findEpisodeFile in multi-season packs', () => {
+  const file = (id: number, path: string): DebridTorrentFile => ({ id, path, bytes: 1, selected: 1 })
+  // Real layout of "The.Office Season 1-8 [720p]" on Real-Debrid
+  const office = [
+    file(1, '/The.Office - Season 1 [720p]/The.Office S01E01 - Pilot [720p].mkv'),
+    file(2, '/The.Office - Season 1 [720p]/The.Office S01E02 -Diversity Day [720p].mkv'),
+    file(64, '/The.Office - Season 4 [720p]/The.Office S04E03&04 - Dunder Mifflin Infinity [720p].mkv'),
+    file(65, '/The.Office - Season 4 [720p]/The.Office S04E01&02 - Fun Run [720p].mkv'),
+    file(66, '/The.Office - Season 4 [720p]/The.Office S04E14 - Chair Model [720p].mkv'),
+  ]
+
+  it('finds an episode that shares a file with the one before it', () => {
+    expect(findEpisodeFile(office, 4, 2)?.id).toBe(65)
+    expect(findEpisodeFile(office, 4, 1)?.id).toBe(65)
+    expect(findEpisodeFile(office, 4, 4)?.id).toBe(64)
+    expect(findEpisodeFile(office, 1, 2)?.id).toBe(2)
+  })
+
+  it('reads the other double-episode spellings', () => {
+    const files = [file(1, 'Show.S02E05-E06.mkv'), file(2, 'Show.S02E07E08.mkv'), file(3, 'Show.S02E09-10.mkv')]
+    expect(findEpisodeFile(files, 2, 6)?.id).toBe(1)
+    expect(findEpisodeFile(files, 2, 8)?.id).toBe(2)
+    expect(findEpisodeFile(files, 2, 10)?.id).toBe(3)
+  })
+
+  it("doesn't read a resolution after a dash as an episode range", () => {
+    expect(findEpisodeFile([file(1, 'Show.S01E02-1080p.mkv')], 1, 500)).toBeNull()
+  })
+
+  it('never falls back to the same episode number from another season', () => {
+    expect(findEpisodeFile(office, 4, 7)).toBeNull()
+    const byFolder = [file(1, '/Season 1/02 - Pilot.mkv'), file(2, '/Season 3/02 - Other.mkv')]
+    expect(findEpisodeFile(byFolder, 3, 2)?.id).toBe(2)
+    expect(findEpisodeFile(byFolder, 2, 2)).toBeNull()
   })
 })
