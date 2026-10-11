@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Play, Server, Heart, Share2, Check } from 'lucide-react'
 import { serverOptions } from '@/lib/config'
+import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
 import {
@@ -54,6 +55,7 @@ export function MobileDetailSheet({
     onServerChange,
     onPlay,
   } = playback
+  const debridFree = useDebridFreeUntil() !== null
 
   // Starts clamped — a 5-line synopsis pushes Play off-screen. Local to this
   // layout: the desktop panel never clamps.
@@ -140,7 +142,7 @@ export function MobileDetailSheet({
             </div>
           </SelectTrigger>
           <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-            {serverOptions(mode).map(({ id, name }) => (
+            {serverOptions(mode, { debridFree }).map(({ id, name }) => (
               <SelectItem key={id} value={id} className="py-3 text-[15px]">{name}</SelectItem>
             ))}
           </SelectContent>
