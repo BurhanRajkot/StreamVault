@@ -233,7 +233,8 @@ export function DebridVideo({
         const stuckAt = video.currentTime
         stallTimer = setTimeout(() => {
           stallTimer = null
-          if (video.paused || video.currentTime !== stuckAt) return
+          // A hidden tab may simply be throttled — not a dead connection.
+          if (video.paused || document.hidden || video.currentTime !== stuckAt) return
           if (!reloadDirectRef.current('stalled')) advanceRef.current('stalled')
         }, DIRECT_STALL_RELOAD_MS)
       }
@@ -357,21 +358,46 @@ export function DebridVideo({
   // Catch a mode that will never show a picture: nothing loaded in time. A
   // paused player that already has metadata is just waiting on autoplay
   // permission, not stuck. Doesn't apply once a frame has played.
+  //
+  // Only visible time counts: Chrome doesn't load media in a background tab,
+  // so a viewer who starts an episode and switches tabs would otherwise come
+  // back to the direct stream abandoned for the transcode (or to an error).
   useEffect(() => {
     if (!mode) return
     const video = videoRef.current
     if (!video) return
-    const timer = setTimeout(
-      () => {
-        if (startedRef.current) return
-        const stuck =
-          video.readyState < HTMLMediaElement.HAVE_METADATA ||
-          (!video.paused && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
-        if (stuck) advanceRef.current('nothing loaded before the startup timeout')
-      },
-      mode.kind === 'hls' ? HLS_STARTUP_TIMEOUT_MS : DIRECT_STARTUP_TIMEOUT_MS
-    )
-    return () => clearTimeout(timer)
+    const timeoutMs = mode.kind === 'hls' ? HLS_STARTUP_TIMEOUT_MS : DIRECT_STARTUP_TIMEOUT_MS
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const check = () => {
+      timer = null
+      if (startedRef.current) return
+      if (document.hidden) return // re-armed in full when the tab is visible again
+      const stuck =
+        video.readyState < HTMLMediaElement.HAVE_METADATA ||
+        (!video.paused && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
+      if (stuck) advanceRef.current('nothing loaded before the startup timeout')
+    }
+    const arm = () => {
+      if (timer) clearTimeout(timer)
+      timer = document.hidden ? null : setTimeout(check, timeoutMs)
+    }
+    const onVisibility = () => {
+      if (startedRef.current) return
+      if (document.hidden) {
+        if (timer) clearTimeout(timer)
+        timer = null
+      } else {
+        arm()
+      }
+    }
+
+    arm()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [mode])
 
   // "Plays fine, no sound" — an audio codec the browser can't decode doesn't
