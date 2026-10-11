@@ -293,7 +293,7 @@ const Downloads = () => {
             )}
           >
             <Cloud className="h-4 w-4" />
-            Real-Debrid Cloud
+            Premium Cloud
             <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-violet-400">
               ⚡
             </span>
@@ -333,13 +333,13 @@ const Downloads = () => {
         </Suspense>
       )}
 
-      {/* ── Real-Debrid Cloud Library tab ── */}
+      {/* ── Premium Cloud Library tab ── */}
       {activeTab === 'debrid' && authToken && (
         <Suspense
           fallback={
             <div className="flex items-center justify-center gap-3 py-16 text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span className="text-sm">Loading Real-Debrid…</span>
+              <span className="text-sm">Loading Premium Cloud…</span>
             </div>
           }
         >

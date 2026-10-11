@@ -62,7 +62,7 @@ export function FreePremiumAnnouncement() {
         <div className="min-w-0">
           <p className="text-[15px] font-bold leading-snug">Premium servers are free for 6 months</p>
           <p className="mt-1 text-xs leading-relaxed text-white/65">
-            Stream in 4K and 1080p on the ⚡ Real-Debrid server — free for every signed-in user until{' '}
+            Stream in 4K and 1080p on the ⚡ Premium server — free for every signed-in user until{' '}
             {formatPromoDate(freeUntil)}.
           </p>
         </div>

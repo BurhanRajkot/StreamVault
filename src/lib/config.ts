@@ -11,7 +11,11 @@
 export interface StreamProvider {
   /** Stable key used as the value of the server dropdown and in saved progress. */
   id: string
-  /** Label shown in the server dropdown. */
+  /**
+   * Label shown in the server dropdown. Servers are named after the planets,
+   * in dropdown order (Mercury first), under the ⚡ Premium (Real-Debrid)
+   * server; the provider itself only shows in `id` and the URLs.
+   */
   name: string
   /** URL template with {tmdbId}/{season}/{episode} placeholders. */
   tv: string
@@ -44,7 +48,7 @@ export interface StreamProvider {
 export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   {
     id: 'super111movies',
-    name: 'Super 111movies',
+    name: 'Mercury',
     tv: 'https://111movies.net/tv/{tmdbId}/{season}/{episode}?autoplay=1&theme=23ddc36c',
     movie: 'https://111movies.net/movie/{tmdbId}?autoplay=1&theme=23ddc36c',
     quality: '🚫 Ads Free',
@@ -56,7 +60,7 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   },
   {
     id: 'vidfast_pro',
-    name: 'Source 14 (vidfast_pro)',
+    name: 'Venus',
     tv: 'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
     movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true',
     quality: '⚡ Ultra Fast',
@@ -68,7 +72,7 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   },
   {
     id: 'vidzee',
-    name: 'Source 15 (vidzee)',
+    name: 'Earth',
     tv: 'https://player.vidzee.wtf/embed/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://player.vidzee.wtf/embed/movie/{tmdbId}',
     quality: '⚡ Ultra Fast',
@@ -79,7 +83,7 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   },
   {
     id: 'videasy',
-    name: 'Source 19 (videasy)',
+    name: 'Mars',
     tv: 'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://player.videasy.to/movie/{tmdbId}',
     quality: '✓ Smooth',
@@ -90,7 +94,7 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   },
   {
     id: 'obsidian',
-    name: 'Source 20 (obsidian)',
+    name: 'Jupiter',
     tv: 'https://vidrock.to/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://vidrock.to/movie/{tmdbId}',
     quality: '⚡ Elite Quality',
@@ -99,7 +103,7 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   },
   {
     id: 'extra_2',
-    name: 'Extra 2 (vidsrc.pm)',
+    name: 'Saturn',
     tv: 'https://vidsrc.pm/embed/tv?tmdb={tmdbId}&season={season}&episode={episode}',
     movie: 'https://vidsrc.pm/embed/movie?tmdb={tmdbId}',
     quality: '✓ Stable',
@@ -108,7 +112,7 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   },
   {
     id: 'nontongo',
-    name: 'Extra 4 (nontongo)',
+    name: 'Uranus',
     tv: 'https://nontongo.win/embed/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://nontongo.win/embed/movie/{tmdbId}',
     quality: '⚡ Fast',
@@ -118,7 +122,7 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   },
   {
     id: 'vidcore',
-    name: 'Extra 7 (vidcore)',
+    name: 'Neptune',
     tv: 'https://vidcore.org/embed/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://vidcore.org/embed/movie/{tmdbId}',
     quality: '⚡ Premium',
@@ -311,7 +315,7 @@ export function serverOptions(
 ): Array<{ id: string; name: string }> {
   const providers = Object.entries(CONFIG.PROVIDER_NAMES).map(([id, name]) => ({ id, name }))
   if (mode !== 'movie' && mode !== 'tv') return providers
-  const debridName = debridFree ? '⚡ Real-Debrid (4K/1080p) · Free' : '⚡ Real-Debrid (4K/1080p)'
+  const debridName = debridFree ? '⚡ Premium (4K/1080p) · Free' : '⚡ Premium (4K/1080p)'
   return [{ id: DEBRID_SERVER_ID, name: debridName }, ...providers]
 }
 

@@ -280,7 +280,7 @@ export function DebridVideo({
       // A resume point (or a direct stream that died mid-film) that the
       // transcode can't reach — start over rather than hang.
       startPosition = 0
-      setNotice("Real-Debrid's converted stream can't start mid-way, so this is playing from the beginning. Another release may play directly and resume.")
+      setNotice("The converted stream can't start mid-way, so this is playing from the beginning. Another release may play directly and resume.")
     }
 
     if (Hls.isSupported()) {
@@ -465,7 +465,7 @@ export function DebridVideo({
         topBarActions={topBarActions}
         bufferingHint={
           hlsHint
-            ? "Real-Debrid converts this stream as it plays and can't skip far ahead — go back a bit, or pick another release."
+            ? "This stream is converted as it plays and can't skip far ahead — go back a bit, or pick another release."
             : null
         }
         notice={notice}
