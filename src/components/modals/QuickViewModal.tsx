@@ -1,12 +1,13 @@
 import { useEffect, useState, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { Media, CONFIG } from '@/lib/config'
+import { Media, defaultServer, serverOptions } from '@/lib/config'
 import { fetchMediaDetails, logRecommendationInteraction } from '@/lib/api'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { HoverVideoPlayer } from '@/components/media/HoverVideoPlayer'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useDislikes } from '@/context/DislikesContext'
+import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
 
 interface QuickViewModalProps {
   media: Media
@@ -17,7 +18,6 @@ interface QuickViewModalProps {
 
 export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickViewModalProps) {
   const [details, setDetails] = useState<Media | null>(null)
-  const [provider, setProvider] = useState(CONFIG.DEFAULT_PROVIDER)
   const [isVisible, setIsVisible] = useState(false)
   const [feedback, setFeedback] = useState<'rate' | 'dislike' | null>(null)
   const [modalStyle, setModalStyle] = useState<React.CSSProperties>({})
@@ -26,6 +26,8 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
   const { isDisliked, toggleDislike } = useDislikes()
 
   const mode = (media.media_type === 'tv' || media.first_air_date ? 'tv' : 'movie') as 'movie' | 'tv'
+  const [provider, setProvider] = useState(() => defaultServer(mode))
+  const debridFree = useDebridFreeUntil() !== null
   const disliked = isDisliked(media.id, mode)
 
   useEffect(() => {
@@ -93,7 +95,6 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
     }
   }
 
-  const providers = Object.entries(CONFIG.PROVIDER_NAMES)
   const title = media.title || media.name
   const year = media.release_date?.split('-')[0] || media.first_air_date?.split('-')[0]
   const rating = (media.vote_average * 10).toFixed(0)
@@ -167,8 +168,8 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
               onClick={(e) => e.stopPropagation()}
               className="px-3 py-2.5 min-h-11 flex-1 bg-secondary/80 border border-border hover:border-ring text-foreground text-sm rounded-md transition-colors cursor-pointer"
             >
-              {providers.map(([key, name]) => (
-                <option key={key} value={key}>{name}</option>
+              {serverOptions(mode, { debridFree }).map(({ id, name }) => (
+                <option key={id} value={id}>{name}</option>
               ))}
             </select>
           </div>

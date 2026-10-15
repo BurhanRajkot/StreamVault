@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Play, ChevronLeft, Share2, Heart, Server, SkipForward, SkipBack, Check, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { Media, MediaMode, CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, serverOptions } from '@/lib/config'
+import { Media, MediaMode, CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, defaultServer, serverOptions } from '@/lib/config'
 import { DebridPlayerPane } from '@/components/media/DebridPlayerPane'
 import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
@@ -80,10 +80,12 @@ export function MovieDetailModal({
     // silently blank with no matching dropdown entry. Fall back rather than
     // trust a stale id. The debrid server was "torbox" before Real-Debrid.
     if (initialServer === LEGACY_TORBOX_SERVER_ID) return DEBRID_SERVER_ID
-    if (initialServer === DEBRID_SERVER_ID || (initialServer && initialServer in CONFIG.PROVIDER_NAMES)) {
+    // A saved server (continue watching, quick view) is kept — that's where
+    // the viewer's progress is. Anything else starts on ⚡ Premium.
+    if (initialServer && serverOptions(mode).some(({ id }) => id === initialServer)) {
       return initialServer
     }
-    return CONFIG.DEFAULT_PROVIDER
+    return defaultServer(mode)
   })
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [playbackStarted, setPlaybackStarted] = useState(false)
@@ -480,6 +482,7 @@ export function MovieDetailModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 bg-background text-foreground font-sans overflow-hidden"
+        data-testid="title-page"
       >
         {/* ── Ambient Background (always fixed, never scrolls) ── */}
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
@@ -741,7 +744,7 @@ export function MovieDetailModal({
                       )}
 
                       <Select value={server} onValueChange={setServer}>
-                        <SelectTrigger ref={mobileServerSelectTriggerRef} className="h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-white/80">
+                        <SelectTrigger ref={mobileServerSelectTriggerRef} aria-label="Server" className="h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-white/80">
                           <div className="flex items-center gap-2">
                             <Server className="h-3.5 w-3.5 shrink-0 text-white/40" />
                             <SelectValue placeholder="Server" />
@@ -804,7 +807,7 @@ export function MovieDetailModal({
                             <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Streaming Server</span>
                           </div>
                           <Select value={server} onValueChange={setServer}>
-                            <SelectTrigger ref={serverSelectTriggerRef} className="w-full lg:w-64 bg-black/40 backdrop-blur-md border-white/5 text-white h-12 rounded-xl text-base font-medium hover:bg-white/10 transition-colors">
+                            <SelectTrigger ref={serverSelectTriggerRef} aria-label="Server" className="w-full lg:w-64 bg-black/40 backdrop-blur-md border-white/5 text-white h-12 rounded-xl text-base font-medium hover:bg-white/10 transition-colors">
                               <SelectValue placeholder="Select Server" />
                             </SelectTrigger>
                             <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl">

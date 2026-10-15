@@ -168,7 +168,7 @@ export function DetailPanel({
               <div className="flex flex-wrap gap-3">
                 <div className="w-40 z-[60]">
                   <Select value={season.toString()} onValueChange={(val) => { onSeasonChange(Number(val)); onEpisodeChange(1) }}>
-                    <SelectTrigger className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
+                    <SelectTrigger aria-label="Season" className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
                       <SelectValue placeholder="Season" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
@@ -180,7 +180,7 @@ export function DetailPanel({
                 </div>
                 <div className="w-40 z-[60]">
                   <Select value={episode.toString()} onValueChange={(val) => onEpisodeChange(Number(val))}>
-                    <SelectTrigger className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
+                    <SelectTrigger aria-label="Episode" className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
                       <SelectValue placeholder="Episode" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
@@ -205,7 +205,7 @@ export function DetailPanel({
               {/* Server selector — ghost style */}
               <div className="w-48 z-[60]">
                 <Select value={server} onValueChange={onServerChange}>
-                  <SelectTrigger className="w-full bg-white/[0.06] border-white/[0.08] text-white/80 h-11 backdrop-blur-md rounded-full hover:bg-white/10 transition-colors text-sm">
+                  <SelectTrigger aria-label="Server" className="w-full bg-white/[0.06] border-white/[0.08] text-white/80 h-11 backdrop-blur-md rounded-full hover:bg-white/10 transition-colors text-sm">
                     <div className="flex items-center gap-1.5">
                       <Server className="w-3.5 h-3.5 text-white/40 shrink-0" />
                       <SelectValue placeholder="Server" />

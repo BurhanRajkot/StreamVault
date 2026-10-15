@@ -10,25 +10,27 @@
  *   GET    /debrid/status                         — account status (no auth required)
  *   GET    /debrid/promo                          — when free access ends, if it's on (no auth required)
  *   GET    /debrid/search                         — free-text search (premium or admin)
- *   GET    /debrid/media-search                   — search by IMDb id (premium or admin)
- *   POST   /debrid/play                           — add/reuse a release and resolve its streams (premium or admin)
- *   GET    /debrid/play/:torrentId                — poll a release that is still downloading (premium or admin)
+ *   GET    /debrid/media-search                   — search by IMDb id (player: premium or admin)
+ *   POST   /debrid/play                           — add/reuse a release and resolve its streams (player: premium or admin)
+ *   GET    /debrid/play/:torrentId                — poll a release that is still downloading (player: premium or admin)
  *   GET    /debrid/torrents                       — the account's torrents (premium or admin)
  *   GET    /debrid/torrents/:torrentId            — one torrent with its files (premium or admin)
  *   GET    /debrid/torrents/:torrentId/files/:fileId/stream — streams for one library file (premium or admin)
  *   DELETE /debrid/torrents/:torrentId            — remove a torrent (admin only)
  *
- * "premium" routes are open to every signed-in user while the free promotion
- * runs (see lib/debridPromo).
+ * While the free promotion runs (see lib/debridPromo) the "player" routes are
+ * open to everyone, signed in or not, and the other "premium" ones to every
+ * signed-in user. The library routes stay behind sign-in even then: they list
+ * the shared account's torrents, which guests have no business browsing.
  */
 
 import { Router, Request, Response } from 'express'
-import { checkAuth } from '../middleware/auth'
+import { checkAuth, optionalAuth } from '../middleware/auth'
 import { downloadRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../lib/logger'
 import { getUserId } from '../utils/auth'
 import { isPaidUser } from '../lib/subscription'
-import { debridFreeUntil, isDebridFreeForEveryone } from '../lib/debridPromo'
+import { debridAccess, debridFreeUntil } from '../lib/debridPromo'
 import * as debrid from '../lib/debrid'
 
 const router = Router()
@@ -38,32 +40,33 @@ const router = Router()
 // ---------------------------------------------------------------------------
 
 /**
- * Gate the debrid feature behind an active subscription. Admins bypass, and
- * so does every signed-in user while the free promotion runs. Not relaxed
- * outside production — the feature runs on a paid shared account, so it is
- * never reachable anonymously.
+ * Gate the debrid feature behind an active subscription, with the exceptions
+ * debridAccess (lib/debridPromo) grants — admins, and everyone while the free
+ * promotion runs. Not relaxed outside production. Once the promotion ends a
+ * guest is a 401 again, which the player turns into its sign-in/upgrade screen.
  */
 async function authorizeDebridAccess(
-  req: Request
+  req: Request,
+  { guestsAllowed = false }: { guestsAllowed?: boolean } = {}
 ): Promise<{ status: number; body: { error: string } } | null> {
-  if (req.admin) return null
-
   const userId = getUserId(req)
-  if (!userId) {
+  const access = debridAccess({ admin: !!req.admin, signedIn: !!userId, guestsAllowed })
+
+  if (access === 'granted') return null
+  if (access === 'sign-in-required' || !userId) {
     return { status: 401, body: { error: 'Unauthorized' } }
   }
-
-  if (isDebridFreeForEveryone()) return null
-
   if (!(await isPaidUser(userId))) {
     return {
       status: 403,
       body: { error: 'Debrid streaming is only available for premium users. Please upgrade.' },
     }
   }
-
   return null
 }
+
+/** The routes the automatic player needs — open to guests during the promotion. */
+const PLAYER = { guestsAllowed: true }
 
 const HASH_RE = /^[a-fA-F0-9]{40}$/
 /** Real-Debrid torrent ids: 13 base32 characters. */
@@ -155,15 +158,15 @@ router.get('/search', checkAuth, async (req: Request, res: Response) => {
 })
 
 // ---------------------------------------------------------------------------
-// GET /debrid/media-search?imdb=tt...&type=movie|tv&title=...[&season=&episode=][&limit=20]
+// GET /debrid/media-search?imdb=tt...&type=movie|tv&title=...[&season=&episode=][&limit=20] — player
 //
 // Matches a specific title by IMDb id (+ season/episode for TV) via
 // Torrentio — which also says which releases Real-Debrid has cached — and,
 // for movies, apibay too. Used by the automatic player pane.
 // ---------------------------------------------------------------------------
 
-router.get('/media-search', checkAuth, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req)
+router.get('/media-search', optionalAuth, async (req: Request, res: Response) => {
+  const denied = await authorizeDebridAccess(req, PLAYER)
   if (denied) return res.status(denied.status).json(denied.body)
 
   const title = (req.query.title as string | undefined)?.trim()
@@ -190,7 +193,7 @@ router.get('/media-search', checkAuth, async (req: Request, res: Response) => {
 })
 
 // ---------------------------------------------------------------------------
-// POST /debrid/play — auth + premium, rate-limited
+// POST /debrid/play — player, rate-limited
 // Body: { hash: string, name?: string, fileName?: string, fileIdx?: number,
 //         season?: number, episode?: number, instantOnly?: boolean }
 //
@@ -202,8 +205,8 @@ router.get('/media-search', checkAuth, async (req: Request, res: Response) => {
 //   { status: 'not-cached' } — only with instantOnly: it wasn't instant, and was removed again
 // ---------------------------------------------------------------------------
 
-router.post('/play', checkAuth, downloadRateLimiter, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req)
+router.post('/play', optionalAuth, downloadRateLimiter, async (req: Request, res: Response) => {
+  const denied = await authorizeDebridAccess(req, PLAYER)
   if (denied) return res.status(denied.status).json(denied.body)
 
   const body = req.body as {
@@ -245,14 +248,14 @@ router.post('/play', checkAuth, downloadRateLimiter, async (req: Request, res: R
 })
 
 // ---------------------------------------------------------------------------
-// GET /debrid/play/:torrentId[?fileName=&fileIdx=&season=&episode=] — auth + premium
+// GET /debrid/play/:torrentId[?fileName=&fileIdx=&season=&episode=] — player
 //
 // The polling half of POST /play. Not behind downloadRateLimiter: the player
 // polls every few seconds while a release downloads.
 // ---------------------------------------------------------------------------
 
-router.get('/play/:torrentId', checkAuth, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req)
+router.get('/play/:torrentId', optionalAuth, async (req: Request, res: Response) => {
+  const denied = await authorizeDebridAccess(req, PLAYER)
   if (denied) return res.status(denied.status).json(denied.body)
 
   const { torrentId } = req.params

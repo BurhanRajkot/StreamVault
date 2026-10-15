@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth0 } from '@auth0/auth0-react'
 import { X, Zap } from 'lucide-react'
 import { formatPromoDate, useDebridFreeUntil } from '@/hooks/useDebridPromo'
 
-/** Versioned by the promotion, so a future one shows again to people who dismissed this. */
-const DISMISSED_KEY = 'sv:announce:debrid-free-2026-10'
+/** Versioned by the promotion's terms, so a change (guests welcome, 2026-10-16) shows again to people who dismissed the old one. */
+const DISMISSED_KEY = 'sv:announce:debrid-free-2026-10-everyone'
 
 /** ✕ or the main button: gone for good. "Maybe later": gone for this visit. */
 function wasDismissed(): boolean {
@@ -26,7 +24,6 @@ function wasDismissed(): boolean {
  */
 export function FreePremiumAnnouncement() {
   const freeUntil = useDebridFreeUntil()
-  const { isAuthenticated } = useAuth0()
   const [dismissed, setDismissed] = useState(wasDismissed)
 
   if (!freeUntil || dismissed) return null
@@ -62,29 +59,19 @@ export function FreePremiumAnnouncement() {
         <div className="min-w-0">
           <p className="text-[15px] font-bold leading-snug">Premium servers are free for 6 months</p>
           <p className="mt-1 text-xs leading-relaxed text-white/65">
-            Stream in 4K and 1080p on the ⚡ Premium server — free for every signed-in user until{' '}
+            Stream in 4K and 1080p on the ⚡ Premium server — free for everyone, no sign-in needed, until{' '}
             {formatPromoDate(freeUntil)}.
           </p>
         </div>
       </div>
 
       <div className="mt-3.5 flex items-center gap-2 pl-[52px]">
-        {isAuthenticated ? (
-          <button
-            onClick={() => dismiss()}
-            className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-black transition-colors hover:bg-white/90"
-          >
-            Start watching
-          </button>
-        ) : (
-          <Link
-            to="/login"
-            onClick={() => dismiss()}
-            className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-black transition-colors hover:bg-white/90"
-          >
-            Sign in free
-          </Link>
-        )}
+        <button
+          onClick={() => dismiss()}
+          className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-black transition-colors hover:bg-white/90"
+        >
+          Start watching
+        </button>
         <button onClick={() => dismiss(false)} className="rounded-full px-3 py-1.5 text-xs text-white/60 transition-colors hover:text-white">
           Maybe later
         </button>
