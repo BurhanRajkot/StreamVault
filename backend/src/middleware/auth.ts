@@ -128,4 +128,14 @@ export async function checkAuth(req: Request, res: Response, next: NextFunction)
   return checkJwt(req, res, next)
 }
 
+/**
+ * checkAuth for routes guests may also use: a request with no bearer token
+ * passes through anonymously, one with a token is verified exactly as by
+ * checkAuth (an invalid token is still a 401, never a silent downgrade).
+ */
+export function optionalAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.headers.authorization?.startsWith('Bearer ')) return next()
+  return checkAuth(req, res, next)
+}
+
 export { checkJwt }

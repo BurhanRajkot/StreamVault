@@ -97,7 +97,7 @@ export function MobileDetailSheet({
               value={season.toString()}
               onValueChange={(val) => { onSeasonChange(Number(val)); onEpisodeChange(1) }}
             >
-              <SelectTrigger className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
+              <SelectTrigger aria-label="Season" className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
                 <SelectValue placeholder="Season" />
               </SelectTrigger>
               <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
@@ -110,7 +110,7 @@ export function MobileDetailSheet({
             </Select>
 
             <Select value={episode.toString()} onValueChange={(val) => onEpisodeChange(Number(val))}>
-              <SelectTrigger className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
+              <SelectTrigger aria-label="Episode" className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
                 <SelectValue placeholder="Episode" />
               </SelectTrigger>
               <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
@@ -135,7 +135,7 @@ export function MobileDetailSheet({
 
         {/* Server picker — secondary, but has to be reachable when one fails */}
         <Select value={server} onValueChange={onServerChange}>
-          <SelectTrigger className="mt-2.5 h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-foreground/80">
+          <SelectTrigger aria-label="Server" className="mt-2.5 h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-foreground/80">
             <div className="flex items-center gap-2">
               <Server className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
               <SelectValue placeholder="Server" />
