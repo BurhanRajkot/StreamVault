@@ -1,5 +1,5 @@
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { Sparkles, Play, Heart, Download, Film, ArrowRight } from 'lucide-react';
@@ -101,23 +101,10 @@ if (typeof document !== 'undefined' && !document.getElementById('sv-poster-kf'))
 export default function Login() {
   const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0();
   const navigate = useNavigate();
-  const wallRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isAuthenticated) navigate("/");
   }, [isAuthenticated, navigate]);
-
-  // Pause all columns on hover — cinematic freeze
-  const handleWallEnter = () => {
-    wallRef.current?.querySelectorAll<HTMLDivElement>('.sv-col').forEach(el => {
-      el.style.animationPlayState = 'paused';
-    });
-  };
-  const handleWallLeave = () => {
-    wallRef.current?.querySelectorAll<HTMLDivElement>('.sv-col').forEach(el => {
-      el.style.animationPlayState = 'running';
-    });
-  };
 
   if (isLoading) {
     return (
@@ -137,10 +124,7 @@ export default function Login() {
 
         {/* ── LEFT: Scrolling Poster Wall ─────────────────────────── */}
         <div
-          ref={wallRef}
-          className="hidden lg:block flex-1 relative overflow-hidden bg-[#020617]"
-          onMouseEnter={handleWallEnter}
-          onMouseLeave={handleWallLeave}
+          className="hidden lg:block flex-1 relative overflow-hidden bg-[#020617] group"
         >
           <div
             style={{
@@ -161,7 +145,7 @@ export default function Login() {
               return (
                 <div
                   key={colIdx}
-                  className="sv-col"
+                  className="sv-col group-hover:[animation-play-state:paused!important]"
                   style={{
                     flex: '1',
                     display: 'flex',
