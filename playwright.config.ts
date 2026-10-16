@@ -70,6 +70,11 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       VITE_MOCK_AUTH: 'true',
+      // AuthProvider refuses to render without these; CI has no .env.local.
+      // Placeholders only — Auth0 is never contacted (see VITE_MOCK_AUTH).
+      VITE_AUTH0_DOMAIN: 'auth.e2e.test',
+      VITE_AUTH0_CLIENT_ID: 'e2e-client-id',
+      VITE_AUTH0_AUDIENCE: 'https://api.e2e.test',
       VITE_API_URL: 'http://api.e2e.test',
     },
   },
