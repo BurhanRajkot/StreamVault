@@ -7,7 +7,7 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   // `backend` used to be ignored wholesale — ~11.5k lines including every auth,
   // admin and rate-limiting path, never linted once. It is covered below.
-  { ignores: ["dist", "**/dist/**", "node_modules", "**/node_modules/**"] },
+  { ignores: ["dist", "dist-e2e", "**/dist/**", "node_modules", "**/node_modules/**"] },
 
   // ── Shared base ────────────────────────────────────────────────────────
   {

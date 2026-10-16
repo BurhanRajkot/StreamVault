@@ -42,8 +42,10 @@ export interface StreamProvider {
 }
 
 /**
- * Ordered as they appear in the server dropdown. The first entry is the default
- * every playback starts on; the rest are fallbacks the user can switch to.
+ * Ordered as they appear in the server dropdown, after ⚡ Premium (see
+ * serverOptions). The first entry is the default embed server — what plays
+ * where Premium isn't offered, and what previews use; the rest are fallbacks
+ * the user can switch to.
  */
 export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   {
@@ -195,8 +197,9 @@ export const CONFIG = {
   ) as Record<string, string>,
 
   /**
-   * The server every playback starts on. Everything else in PROVIDER_NAMES is a
-   * fallback the user can switch to from the server dropdown if this one fails.
+   * The default embed server. Movies and TV start on ⚡ Premium instead (see
+   * defaultServer); everything else in PROVIDER_NAMES is a fallback the user
+   * can switch to from the server dropdown.
    */
   DEFAULT_PROVIDER: STREAM_PROVIDER_LIST[0].id,
 
@@ -317,6 +320,14 @@ export function serverOptions(
   if (mode !== 'movie' && mode !== 'tv') return providers
   const debridName = debridFree ? '⚡ Premium (4K/1080p) · Free' : '⚡ Premium (4K/1080p)'
   return [{ id: DEBRID_SERVER_ID, name: debridName }, ...providers]
+}
+
+/**
+ * The server a playback starts on when nothing picked one: the first in the
+ * dropdown — ⚡ Premium for movies and TV, the default embed server otherwise.
+ */
+export function defaultServer(mode: MediaMode): string {
+  return serverOptions(mode)[0].id
 }
 
 export interface Genre {

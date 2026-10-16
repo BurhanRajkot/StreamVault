@@ -15,8 +15,10 @@
     "test": "bun test ./src",
     "test:backend": "cd backend && bun test",
     "e2e": "playwright test",
-    "e2e:ci": "playwright test --project='Desktop Chrome' --reporter=list,html --grep-invert @skip-ci",
+    "e2e:smoke": "playwright test --grep @smoke --project=desktop",
+    "e2e:all-browsers": "E2E_ALL_BROWSERS=1 playwright test",
     "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report e2e/playwright-report",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p backend/tsconfig.json --noEmit",
     "gen:csp": "bun run scripts/gen-csp.ts"
   },
@@ -87,6 +89,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.39.4",
     "@ghostery/adblocker-playwright": "^2.18.2",
     "@happy-dom/global-registrator": "^20.10.6",

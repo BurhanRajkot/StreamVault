@@ -1,212 +1,81 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * StreamVault Playwright Configuration
+ * StreamVault end-to-end tests — see e2e/README.md.
  *
- * Cross-browser + multi-device strategy with deep, thorough coverage across:
- *  - Authenticated and unauthenticated states
- *  - All app routes and feature flows
- *  - Real device emulation (phones + tablets) and engines (Chromium/Firefox/WebKit)
- *  - A dedicated `chrome-real` project (installed Chrome channel) for ad-heavy
- *    real-server runs
+ * Runs the production build (`vite build` + `vite preview`) against an
+ * in-browser mock backend (e2e/fixtures/mock-api.ts), so a run needs no
+ * backend, database, TMDB key or network — locally and on CI alike.
  *
- * Set BASE_URL to point at staging/production for remote audits.
- *
- * IMPORTANT: video & screenshot are set to 'on' (not 'only-on-failure')
- * so that every test run produces visual evidence. This ensures we can
- * catch "tests pass but the site looks broken" issues in the report.
- *
- * NOTE: Firefox/WebKit/iPhone/iPad projects need their browsers installed:
- *   npx playwright install
- * On CI, add the same to your workflow before running the suite.
+ *   npm run e2e                 desktop + mobile Chromium
+ *   npm run e2e:all-browsers    + Firefox and WebKit
+ *   npm run e2e:ui              interactive
  */
+
+const PORT = 4173
+const BASE_URL = `http://localhost:${PORT}`
+const CI = !!process.env.CI
+const ALL_BROWSERS = !!process.env.E2E_ALL_BROWSERS
+
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './e2e/specs',
   outputDir: './e2e/test-results',
-
-  /** Run tests in each file in parallel */
   fullyParallel: true,
+  forbidOnly: CI,
+  retries: CI ? 2 : 0,
+  workers: CI ? 4 : undefined,
+  timeout: 30_000,
+  expect: { timeout: 7_500 },
 
-  /** Fail the build on CI if any test.only() is left in source */
-  forbidOnly: !!process.env.CI,
+  reporter: CI
+    ? [
+        ['github'],
+        ['list'],
+        ['html', { outputFolder: 'e2e/playwright-report', open: 'never' }],
+        ['junit', { outputFile: 'e2e/test-results/junit.xml' }],
+      ]
+    : [['list'], ['html', { outputFolder: 'e2e/playwright-report', open: 'on-failure' }]],
 
-  /** Retry once on CI, 0 locally for fast feedback */
-  retries: process.env.CI ? 1 : 0,
-
-  /** Limit parallelism on CI to avoid resource contention */
-  workers: process.env.CI ? 2 : undefined,
-
-  /**
-   * Exclude real-CDN / ad-heavy @skip-ci tests from normal & CI runs.
-   * Override with E2E_INCLUDE_SKIP_CI=1 to include them (local real runs).
-   */
-  grepInvert: process.env.E2E_INCLUDE_SKIP_CI ? undefined : /@skip-ci/,
-
-  /** Shared settings applied to every project (projects can override) */
   use: {
-    /** Attribute for page.getByTestId() */
+    baseURL: BASE_URL,
     testIdAttribute: 'data-testid',
-    baseURL: process.env.BASE_URL || 'http://localhost:4173',
-    /**
-     * Always capture screenshots & video so the Playwright report shows
-     * visual evidence for EVERY test — not just failures. Critical for
-     * catching "passes but site is blank" issues.
-     */
-    screenshot: 'on',
-    video: 'on',
     trace: 'retain-on-failure',
-    /* Generous timeouts — preview build can be slow to hydrate */
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
-    /* Consistent locale / timezone for date-sensitive tests */
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
     locale: 'en-US',
-    timezoneId: 'Asia/Kolkata',
-    permissions: [],
-    /**
-     * The app registers a Workbox service worker in production builds (which
-     * is what `e2e` runs against, via `vite build` + `vite preview`). That SW
-     * has its own runtime-caching rule for image.tmdb.org that intercepts
-     * fetches independently of page.route() — on a cache miss it issues its
-     * own network request, bypassing our mocks and hitting the preview server
-     * directly (a bare 404). Since SW install/activation timing varies run to
-     * run, this shows up as an intermittent, hard-to-diagnose flake. Blocking
-     * service workers guarantees every request actually goes through the
-     * mocks registered in e2e/fixtures/index.ts.
-     */
+    timezoneId: 'UTC',
+    // The production build registers a Workbox service worker whose runtime
+    // caching would fetch around page.route() — block it so every request
+    // goes through the mocks.
     serviceWorkers: 'block',
-    launchOptions: {
-      args: ['--proxy-server=direct://']
-    }
   },
-
-  /** Global expect timeouts — give content-heavy assertions extra time */
-  expect: {
-    timeout: 10_000,
-  },
-
-  reporter: [
-    ['list'],
-    ['html', { outputFolder: 'e2e/playwright-report', open: 'never' }],
-    ['json', { outputFile: 'e2e/test-results/results.json' }],
-  ],
 
   projects: [
-    // ─── Desktop engines ──────────────────────────────────────────────────
-    {
-      name: 'Desktop Chrome',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'Desktop Firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      // WebKit = Safari engine — your only real blind spot today.
-      name: 'Desktop Safari',
-      use: { ...devices['Desktop Safari'] },
-    },
-    {
-      // Common laptop resolution where 1080p layouts sometimes break.
-      name: 'Laptop 1366',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 } },
-    },
-
-    // ─── Phones ─────────────────────────────────────────────────────────────
-    {
-      name: 'Mobile Chrome (Pixel 7)',
-      use: {
-        ...devices['Pixel 7'],
-        /* Mobile preview can be slower — bump timeouts */
-        actionTimeout: 20_000,
-        navigationTimeout: 45_000,
-      },
-      /* Exclude heavy performance tests that are viewport-agnostic */
-      testIgnore: ['**/performance.spec.ts'],
-    },
-    {
-      // Smallest common screen (375px) — tightest layout constraints.
-      name: 'Mobile Safari (iPhone SE)',
-      use: {
-        ...devices['iPhone SE'],
-        actionTimeout: 20_000,
-        navigationTimeout: 45_000,
-      },
-      testIgnore: ['**/performance.spec.ts'],
-    },
-    {
-      name: 'Mobile Safari (iPhone 15)',
-      use: {
-        ...devices['iPhone 15'],
-        actionTimeout: 20_000,
-        navigationTimeout: 45_000,
-      },
-      testIgnore: ['**/performance.spec.ts'],
-    },
-
-    // ─── Tablets ──────────────────────────────────────────────────────────────
-    {
-      name: 'Tablet (iPad Pro 11)',
-      use: {
-        ...devices['iPad Pro 11'],
-        actionTimeout: 20_000,
-        navigationTimeout: 45_000,
-      },
-      testIgnore: ['**/performance.spec.ts'],
-    },
-    {
-      name: 'Tablet (iPad Mini)',
-      use: {
-        ...devices['iPad Mini'],
-        actionTimeout: 20_000,
-        navigationTimeout: 45_000,
-      },
-      testIgnore: ['**/performance.spec.ts'],
-    },
-
-    // ─── Real, ad-heavy run against live servers (installed Chrome channel) ──
-    // The bundled Chromium above has no ads issue with mocks; this uses your
-    // actual installed Chrome where the provider serves ads. Pair with the
-    // adblock fixture (E2E_ADBLOCK=1) and include @skip-ci tests:
-    //   E2E_ADBLOCK=1 E2E_INCLUDE_SKIP_CI=1 \
-    //     npx playwright test playback.spec.ts --project=chrome-real
-    {
-      name: 'chrome-real',
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    },
-
-    // ─── Brave Browser (local-only) ───────────────────────────────────────────
-    // Not included in CI — Brave is not installed on GitHub runners.
-    // Brave blocks ads natively, so it's a good manual cross-check of the
-    // real provider iframe. To run locally:
-    //   npx playwright test --project=Brave
-    // Uncomment and ensure Brave is installed at the path below.
-    //
-    // {
-    //   name: 'Brave',
-    //   use: {
-    //     ...devices['Desktop Chrome'],
-    //     launchOptions: { executablePath: '/usr/bin/brave' },
-    //   },
-    // },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    ...(ALL_BROWSERS
+      ? [
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+          { name: 'mobile-safari', use: { ...devices['iPhone 15'] } },
+        ]
+      : []),
   ],
 
-  /* ─── Web Server ──────────────────────────────────────────────────────────
-   * Spins up `vite preview` (production build) before running tests.
-   * Skipped on CI where the server is started externally.
-   * VITE_MOCK_AUTH=true enables the mock auth0 provider in the preview build.
-   */
-  webServer: process.env.CI
-    ? undefined
-    : {
-      command: 'npm run build && npm run preview',
-      url: 'http://localhost:4173',
-      reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: {
-        VITE_MOCK_AUTH: 'true',
-        VITE_API_URL: 'http://localhost:4000',
-      },
+  webServer: {
+    // A separate outDir so an e2e build never clobbers the real `dist/`.
+    command: `npx vite build --outDir dist-e2e --emptyOutDir && npx vite preview --outDir dist-e2e --port ${PORT} --strictPort`,
+    url: BASE_URL,
+    reuseExistingServer: !CI,
+    timeout: 180_000,
+    env: {
+      VITE_MOCK_AUTH: 'true',
+      // AuthProvider refuses to render without these; CI has no .env.local.
+      // Placeholders only — Auth0 is never contacted (see VITE_MOCK_AUTH).
+      VITE_AUTH0_DOMAIN: 'auth.e2e.test',
+      VITE_AUTH0_CLIENT_ID: 'e2e-client-id',
+      VITE_AUTH0_AUDIENCE: 'https://api.e2e.test',
+      VITE_API_URL: 'http://api.e2e.test',
     },
+  },
 })

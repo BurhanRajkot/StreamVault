@@ -1,127 +1,60 @@
-import { type Page, type Locator, expect } from '@playwright/test'
-import { BasePage } from './BasePage'
+import { expect, type FrameLocator, type Locator, type Page } from '@playwright/test'
+import { type MediaFixture, titleOf, watchPath } from '../fixtures/data'
 
-export class WatchPage extends BasePage {
-  constructor(page: Page) {
-    super(page)
+/**
+ * The title page (/watch/:type/:id): details, server picker, and the player
+ * — either ⚡ Premium's own <video> or an embed server's iframe.
+ *
+ * Desktop and mobile render different pre-play layouts ("Play Now" vs
+ * "Play"), so locators here match both. Everything is scoped to the title
+ * page's root: opened from another page it's an overlay, and that page —
+ * its own Play buttons and headings — is still in the DOM underneath.
+ */
+export class WatchPage {
+  readonly root: Locator
+  readonly playButton: Locator
+  readonly serverPicker: Locator
+  readonly premiumVideo: Locator
+  readonly premiumLoading: Locator
+  readonly embed: Locator
+  readonly embedFrame: FrameLocator
+
+  constructor(readonly page: Page) {
+    this.root = page.getByTestId('title-page')
+    this.playButton = this.root.getByRole('button', { name: /^Play( Now)?$/ })
+    this.serverPicker = this.root.getByRole('combobox', { name: 'Server' })
+    this.premiumVideo = this.root.getByTestId('debrid-video')
+    this.premiumLoading = this.root.getByTestId('debrid-loading')
+    this.embed = this.root.locator('.player-frame iframe')
+    this.embedFrame = this.root.frameLocator('.player-frame iframe')
   }
 
-  async goto(mediaTypeOrPath?: 'movie' | 'tv' | string, idAndSlug?: string) {
-    if (mediaTypeOrPath && idAndSlug) {
-      await this.page.goto(`/watch/${mediaTypeOrPath}/${idAndSlug}`, { waitUntil: 'domcontentloaded' })
-    } else {
-      await super.goto(mediaTypeOrPath)
-    }
+  heading(media: MediaFixture): Locator {
+    return this.root.getByRole('heading', { level: 1, name: titleOf(media), exact: true })
   }
 
-  /**
-   * Navigate and wait for actual movie/tv content to render —
-   * not just the React shell.
-   */
-  async gotoAndWaitForContent(mediaType: 'movie' | 'tv', idAndSlug: string) {
-    await this.goto(mediaType, idAndSlug)
-    await this.waitForAppReady()
-    await this.assertNotBlankScreen()
+  async goto(media: MediaFixture): Promise<void> {
+    await this.page.goto(watchPath(media))
+    await expect(this.heading(media)).toBeVisible()
   }
 
-  // ─── URL Checks ───────────────────────────────────────────────────────────
-
-  async expectUrl(pattern: RegExp = /\/watch\//) {
-    await expect(this.page).toHaveURL(pattern)
+  async play(): Promise<void> {
+    await this.playButton.click()
   }
 
-  // ─── Back Navigation ──────────────────────────────────────────────────────
-
-  get backButton(): Locator {
-    return this.page.locator('button:has-text("Back"), button[aria-label*="back"], button[aria-label*="Back"]').first()
+  async chooseServer(name: string | RegExp): Promise<void> {
+    await this.serverPicker.click()
+    await this.page.getByRole('option', { name }).click()
   }
 
-  async goBack() {
-    await expect(this.backButton).toBeVisible({ timeout: 5_000 })
-    await this.backButton.click()
-  }
-
-  // ─── Favorites ────────────────────────────────────────────────────────────
-
-  get addToFavoritesButton(): Locator {
-    return this.page.locator('.fixed button[aria-label="Add to favorites"]').first()
-  }
-
-  get removeFromFavoritesButton(): Locator {
-    return this.page.locator('.fixed button[aria-label="Remove from favorites"]').first()
-  }
-
-  async addToFavorites() {
-    await expect(this.addToFavoritesButton).toBeVisible({ timeout: 10_000 })
-    // The favorite/remove button flips instantly on an optimistic local
-    // update — well before the POST to persist it actually lands. Wait for
-    // that response too, otherwise a caller who immediately navigates away
-    // (e.g. to /favorites) can race the mock backend and see a stale list.
-    const [response] = await Promise.all([
-      this.page.waitForResponse(res => res.url().includes('/favorites') && res.request().method() === 'POST'),
-      this.addToFavoritesButton.click(),
-    ])
-    expect(response.ok()).toBe(true)
-    await expect(this.removeFromFavoritesButton).toBeVisible({ timeout: 5_000 })
-  }
-
-  async removeFromFavorites() {
-    await expect(this.removeFromFavoritesButton).toBeVisible({ timeout: 10_000 })
-    await this.removeFromFavoritesButton.click({ force: true })
-  }
-
-  // ─── Content ──────────────────────────────────────────────────────────────
-
-  get movieTitle(): Locator {
-    return this.page.locator('h1, h2').first()
-  }
-
-  get overviewText(): Locator {
-    return this.page.locator('p').filter({ hasText: /\w{20,}/ }).first()
-  }
-
-  get genreTags(): Locator {
-    return this.page.locator('[class*="genre"], span:has-text("Action"), span:has-text("Drama")').first()
-  }
-
-  get trailerButton(): Locator {
-    return this.page.locator('button:has-text("Trailer"), button:has-text("Watch Trailer"), a:has-text("Trailer")').first()
-  }
-
-  get castSection(): Locator {
-    return this.page.locator('[class*="cast"], section:has-text("Cast")').first()
-  }
-
-  // ─── Dislike / Rating ─────────────────────────────────────────────────────
-
-  get dislikeButton(): Locator {
-    return this.page.locator('button[aria-label*="dislike"], button[aria-label*="Dislike"]').first()
-  }
-
-  get ratingBadge(): Locator {
-    return this.page.locator('[class*="rating"], [aria-label*="rating"]').first()
-  }
-
-  // ─── Content Verification ──────────────────────────────────────────────────
-
-  /**
-   * Verify that the watch page actually displays movie/show details —
-   * not just an empty shell.
-   */
-  async assertMovieContentVisible(expectedTitle?: string) {
-    // Verify a title heading is visible
-    const titleEl = this.page.locator('h1, h2, [class*="title"]').first()
-    await expect(titleEl).toBeVisible({ timeout: 10_000 })
-    const titleText = await titleEl.innerText()
-    expect(titleText.trim().length, 'Movie title is empty').toBeGreaterThan(0)
-
-    if (expectedTitle) {
-      expect(titleText.toLowerCase()).toContain(expectedTitle.toLowerCase())
-    }
-
-    // Verify overview/description paragraph exists — match on total length,
-    // not a single 15+ char word (real overview prose rarely has one).
-    const overview = this.page.locator('p').filter({ hasText: /.{40,}/ }).first()
-    await expect(overview).toBeVisible({ timeout: 10_000 })
+  /** The video is decoding and its clock is moving — not just mounted. */
+  async expectPremiumPlaying(): Promise<void> {
+    await expect(this.premiumVideo).toBeVisible()
+    await expect
+      .poll(() => this.premiumVideo.evaluate((v: HTMLVideoElement) => !v.paused && v.currentTime > 0.5), {
+        message: 'Premium video should be playing',
+        timeout: 15_000,
+      })
+      .toBe(true)
   }
 }

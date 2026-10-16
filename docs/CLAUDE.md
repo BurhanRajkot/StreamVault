@@ -121,9 +121,10 @@ npm run build:dev       # Development build
 ```bash
 npm test                # Run frontend unit tests
 npm run test:backend    # Run backend tests
-npm run e2e             # Run all Playwright E2E tests
+npm run e2e             # Playwright E2E — desktop + mobile Chromium (see e2e/README.md)
+npm run e2e:smoke       # @smoke tests only (~20s)
+npm run e2e:all-browsers # + Firefox / WebKit
 npm run e2e:ui          # Playwright UI mode (interactive)
-npm run e2e:ci          # CI-safe E2E tests
 ```
 
 ### Linting
@@ -141,10 +142,10 @@ npm run lint            # ESLint check (automatically runs on file save)
 5. **HTTPS** - Enforced in production
 
 ### Testing
-1. **E2E tests** - Write E2E tests for critical user flows
-2. **Test IDs** - Use `data-testid` attributes for Playwright selectors
-3. **Mock auth** - Use `VITE_MOCK_AUTH=true` for E2E tests
-4. **CI mode** - Tag flaky tests with `@skip-ci`
+1. **E2E tests** - Write E2E tests for critical user flows, one spec per journey in `e2e/specs/` (conventions in `e2e/README.md`)
+2. **Selectors** - Roles and accessible names first; `data-testid` only where there's no accessible handle
+3. **Hermetic** - E2E runs the prod build against `MockApi` (`e2e/fixtures/mock-api.ts`); a new backend endpoint the app calls needs a mock handler or the test fails
+4. **No flakes** - No sleeps; fix a test that's flaky on retry rather than skipping it
 
 ### Performance
 1. **Code splitting** - Use dynamic imports for heavy components
@@ -237,9 +238,9 @@ const media = await fetchMediaDetails('movie', tmdbId)
 ## Troubleshooting
 
 ### E2E Tests Failing
-- Check if preview server is running: `npm run preview`
-- Use mock auth: `VITE_MOCK_AUTH=true`
-- Run specific test: `npm run e2e:ui` and select test
+- Playwright builds + serves the app itself (`dist-e2e/`, port 4173) — free the port if something else holds it
+- Run one file: `npx playwright test premium-player --project=desktop`, or debug in `npm run e2e:ui`
+- Open the trace of a failure: `npx playwright show-trace e2e/test-results/<test>/trace.zip`
 
 ### Backend Not Starting
 - Check if Supabase is accessible
