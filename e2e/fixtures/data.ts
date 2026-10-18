@@ -127,6 +127,11 @@ export function watchPath(media: MediaFixture): string {
 /** Served by the mock network layer; plays in Playwright's bundled Chromium (VP9 + Opus). */
 export const SAMPLE_VIDEO_URL = 'https://media.e2e.test/sample.webm'
 
+/** Real-Debrid's converted (HLS) stream of a 90-second file, in 5-second segments — see serveConverted. */
+export const CONVERTED_STREAM_URL = 'https://media.e2e.test/converted/full.m3u8'
+export const CONVERTED_SEGMENT_S = 5
+const CONVERTED_DURATION_S = 90
+
 export interface ReleaseFixture {
   id: string
   name: string
@@ -179,4 +184,20 @@ export function readyPlayback(overrides: Record<string, unknown> = {}) {
     media: null,
     ...overrides,
   }
+}
+
+/**
+ * A file only Real-Debrid's converted stream can play here: its video is
+ * HEVC, which Playwright's Chromium can't decode.
+ */
+export function convertedPlayback() {
+  return readyPlayback({
+    hls: CONVERTED_STREAM_URL,
+    media: {
+      videoCodec: 'hevc',
+      audioTracks: [{ id: 'eng1', lang: 'English', langIso: 'eng', codec: 'aac', channels: 2 }],
+      selectedAudio: 'eng1',
+      duration: CONVERTED_DURATION_S,
+    },
+  })
 }

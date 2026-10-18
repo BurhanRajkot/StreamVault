@@ -104,8 +104,9 @@ const MAX_AUTO_RELEASE_ATTEMPTS = 8
 /**
  * Extra cached releases resolved, when the first one would need Real-Debrid's
  * HLS transcode, in search of one the browser plays directly. The transcode
- * can't reliably seek (a jump ahead took 20s, or 503'd after two minutes),
- * so a few seconds spent here buy a player that can skip and resume.
+ * is re-encoded, and every jump outside what it has loaded restarts it
+ * (~7s), so a few seconds spent here buy the original quality and instant
+ * seeking.
  */
 const MAX_DIRECT_PLAY_PROBES = 2
 

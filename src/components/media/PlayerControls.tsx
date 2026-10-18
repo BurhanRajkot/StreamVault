@@ -50,6 +50,23 @@ export interface PlayerSource {
   name?: string
 }
 
+/**
+ * The file's clock when the element plays only part of it. Real-Debrid's
+ * converted stream restarts wherever the viewer jumps to, so element time 0
+ * is `offset` seconds into the file. Seeks go through `seek`, which decides
+ * whether a jump needs that restart.
+ */
+export interface PlayerTimeline {
+  /** Seconds into the file at element time 0. */
+  offset: number
+  /** The whole file's length in seconds, or 0 if unknown. */
+  duration: number
+  /** Go to `time`, in seconds into the file. */
+  seek: (time: number) => void
+  /** The stream is restarting at a new spot — show the spinner until it plays. */
+  restarting: boolean
+}
+
 export interface PlayerControlsProps {
   video: HTMLVideoElement | null
   container: HTMLDivElement | null
@@ -68,10 +85,8 @@ export interface PlayerControlsProps {
   streamNote?: string | null
   /** The file's direct link — offered for VLC, mpv or a download. */
   externalUrl?: string | null
-  /** Explanation shown under the spinner while the stream waits on data. */
-  bufferingHint?: string | null
-  /** One-off message (e.g. "couldn't resume here"), shown for a few seconds. */
-  notice?: string | null
+  /** The file's clock, when the element holds only part of the file. */
+  timeline?: PlayerTimeline | null
   /** Next episode, when there is one. */
   onNext?: () => void
   /** What the next episode is, e.g. "S1 · E4". */
@@ -152,15 +167,17 @@ const EMPTY_SNAPSHOT: Snapshot = {
   starved: true,
 }
 
-function snapshotOf(video: HTMLVideoElement | null): Snapshot {
+function snapshotOf(video: HTMLVideoElement | null, timeline: PlayerTimeline | null | undefined): Snapshot {
   if (!video) return EMPTY_SNAPSHOT
+  const offset = timeline?.offset ?? 0
+  const elementDuration = Number.isFinite(video.duration) ? video.duration : 0
   return {
     paused: video.paused,
     ended: video.ended,
     seeking: video.seeking,
-    time: video.currentTime,
-    duration: Number.isFinite(video.duration) ? video.duration : 0,
-    buffered: bufferedAhead(video),
+    time: offset + video.currentTime,
+    duration: timeline?.duration || (elementDuration ? offset + elementDuration : 0),
+    buffered: offset + bufferedAhead(video),
     volume: video.volume,
     muted: video.muted,
     rate: video.playbackRate,
@@ -207,13 +224,15 @@ export function PlayerControls({
   onSourceChange,
   streamNote,
   externalUrl,
-  bufferingHint,
-  notice,
+  timeline,
   onNext,
   nextLabel,
   overlay,
 }: PlayerControlsProps) {
-  const [snap, setSnap] = useState<Snapshot>(() => snapshotOf(video))
+  const [snap, setSnap] = useState<Snapshot>(() => snapshotOf(video, timeline))
+  /** Latest timeline, for listeners that outlive a render. */
+  const timelineRef = useRef(timeline)
+  timelineRef.current = timeline
   const [visible, setVisible] = useState(true)
   const [spinner, setSpinner] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
@@ -246,7 +265,7 @@ export function PlayerControls({
 
     let spinnerTimer: ReturnType<typeof setTimeout> | null = null
     const update = () => {
-      const next = snapshotOf(video)
+      const next = snapshotOf(video, timelineRef.current)
       setSnap((prev) => (sameSnapshot(prev, next) ? prev : next))
     }
     const onWaiting = () => {
@@ -337,8 +356,26 @@ export function PlayerControls({
    * old one for a frame.
    */
   const syncSnap = useCallback(() => {
-    if (video) setSnap(snapshotOf(video))
+    if (video) setSnap(snapshotOf(video, timelineRef.current))
   }, [video])
+
+  // A restart moves where the element's time 0 sits in the file.
+  const timelineOffset = timeline?.offset
+  useEffect(() => {
+    syncSnap()
+  }, [timelineOffset, syncSnap])
+
+  /** Go to `time` seconds into the file — through the timeline when there is one. */
+  const seekTo = useCallback(
+    (time: number) => {
+      if (!video) return
+      const line = timelineRef.current
+      if (line) line.seek(time)
+      else video.currentTime = time
+      syncSnap()
+    },
+    [video, syncSnap]
+  )
 
   const togglePlay = useCallback(() => {
     if (!video) return
@@ -354,9 +391,8 @@ export function PlayerControls({
   const seekBy = useCallback(
     (delta: number) => {
       if (!video) return
-      const end = Number.isFinite(video.duration) ? video.duration : Infinity
-      video.currentTime = Math.min(Math.max(video.currentTime + delta, 0), end)
-      syncSnap()
+      const at = snapshotOf(video, timelineRef.current)
+      seekTo(Math.min(Math.max(at.time + delta, 0), at.duration || Infinity))
 
       // Seeks in quick succession, the same way, add up: "+10s", "+20s", ...
       const side = delta < 0 ? 'back' : 'forward'
@@ -368,16 +404,15 @@ export function PlayerControls({
       if (rippleTimerRef.current) clearTimeout(rippleTimerRef.current)
       rippleTimerRef.current = setTimeout(() => setRipple(null), SEEK_RIPPLE_MS)
     },
-    [video, syncSnap]
+    [video, seekTo]
   )
 
   const seekToFraction = useCallback(
     (fraction: number) => {
-      if (!video || !Number.isFinite(video.duration)) return
-      video.currentTime = video.duration * fraction
-      syncSnap()
+      const { duration } = snapshotOf(video, timelineRef.current)
+      if (duration) seekTo(duration * fraction)
     },
-    [video, syncSnap]
+    [video, seekTo]
   )
 
   const setVolume = useCallback(
@@ -593,17 +628,14 @@ export function PlayerControls({
 
   const onSeekPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (scrubTime === null) return
-    if (video) video.currentTime = timeAt(e.clientX)
-    syncSnap()
+    seekTo(timeAt(e.clientX))
     setScrubTime(null)
   }
 
   const onSeekKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!video) return
-    if (e.key === 'Home') video.currentTime = 0
-    else if (e.key === 'End' && snap.duration) video.currentTime = snap.duration - 1
+    if (e.key === 'Home') seekTo(0)
+    else if (e.key === 'End' && snap.duration) seekTo(snap.duration - 1)
     else return
-    syncSnap()
     e.preventDefault()
   }
 
@@ -628,19 +660,10 @@ export function PlayerControls({
     return () => clearTimeout(timer)
   }, [countdown])
 
-  // ── Notice ───────────────────────────────────────────────────────────────
-  const [noticeVisible, setNoticeVisible] = useState(false)
-  useEffect(() => {
-    if (!notice) return
-    setNoticeVisible(true)
-    const timer = setTimeout(() => setNoticeVisible(false), 7000)
-    return () => clearTimeout(timer)
-  }, [notice])
-
   // ── Render ───────────────────────────────────────────────────────────────
   const displayTime = scrubTime ?? snap.time
   const fraction = (t: number) => (snap.duration ? Math.min(1, Math.max(0, t / snap.duration)) : 0)
-  const showSpinner = (spinner || (!snap.paused && snap.starved)) && !snap.ended
+  const showSpinner = (spinner || !!timeline?.restarting || (!snap.paused && snap.starved)) && !snap.ended
   const volumeLevel = snap.muted ? 0 : snap.volume
   const VolumeIcon = volumeLevel === 0 ? VolumeX : volumeLevel < 0.5 ? Volume1 : Volume2
   const canPip = typeof document !== 'undefined' && document.pictureInPictureEnabled && !!video?.requestPictureInPicture
@@ -710,11 +733,6 @@ export function PlayerControls({
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4">
           <span className="player-spinner" aria-hidden="true" />
           <span className="sr-only">Loading</span>
-          {bufferingHint && (
-            <p className="max-w-xs rounded-lg bg-black/70 px-3.5 py-2 text-center text-xs leading-relaxed text-white/80">
-              {bufferingHint}
-            </p>
-          )}
         </div>
       )}
 
@@ -794,15 +812,6 @@ export function PlayerControls({
               {ripple.amount}s
             </span>
           </span>
-        </div>
-      )}
-
-      {/* Notice */}
-      {notice && noticeVisible && (
-        <div className="pointer-events-none absolute inset-x-0 top-16 z-10 flex justify-center px-4">
-          <p className="max-w-md rounded-lg bg-black/80 px-4 py-2.5 text-center text-xs leading-relaxed text-white/90 shadow-lg">
-            {notice}
-          </p>
         </div>
       )}
 
