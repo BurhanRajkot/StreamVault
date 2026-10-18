@@ -5,16 +5,25 @@
  * preview`, the backend by MockApi, and everything else is either a stand-in
  * or blocked —
  *   - TMDB images        → a generated SVG poster
- *   - media.e2e.test     → the sample video (with Range support, as a CDN would)
+ *   - media.e2e.test     → the sample video (with Range support, as a CDN would),
+ *                          and Real-Debrid's converted (HLS) stream of it
  *   - embed iframes      → a stub page (streaming providers are third-party sites)
  *   - anything else      → aborted (analytics, fonts, trailers, ...)
  */
 
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { BrowserContext, Route } from '@playwright/test'
+import { CONVERTED_SEGMENT_S } from './data'
 
 const SAMPLE_VIDEO = readFileSync(fileURLToPath(new URL('./media/sample.webm', import.meta.url)))
+
+/** The converted stream's init segment and 5-second media segments (VP9 + Opus fMP4). */
+const CONVERTED_DIR = new URL('./media/converted/', import.meta.url)
+const CONVERTED_FILES = new Map(
+  readdirSync(fileURLToPath(CONVERTED_DIR)).map((name) => [name, readFileSync(fileURLToPath(new URL(name, CONVERTED_DIR)))])
+)
+const CONVERTED_SEGMENTS = [...CONVERTED_FILES.keys()].filter((name) => name.endsWith('.m4s')).length
 
 const POSTER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="750" viewBox="0 0 500 750">
   <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
@@ -54,6 +63,31 @@ function serveVideo(route: Route) {
 }
 
 /**
+ * Real-Debrid's converted stream, as Real-Debrid serves it: `?t=<seconds>`
+ * on the playlist starts it there, listing only the rest of the file.
+ */
+function serveConverted(route: Route, url: URL) {
+  const name = url.pathname.slice('/converted/'.length)
+  if (name === 'full.m3u8') {
+    const first = Math.min(Math.floor(Number(url.searchParams.get('t') ?? 0) / CONVERTED_SEGMENT_S), CONVERTED_SEGMENTS - 1)
+    const lines = [
+      '#EXTM3U',
+      '#EXT-X-VERSION:7',
+      `#EXT-X-TARGETDURATION:${CONVERTED_SEGMENT_S}`,
+      '#EXT-X-MEDIA-SEQUENCE:0',
+      '#EXT-X-PLAYLIST-TYPE:VOD',
+      '#EXT-X-MAP:URI="init.mp4"',
+    ]
+    for (let i = first; i < CONVERTED_SEGMENTS; i++) lines.push(`#EXTINF:${CONVERTED_SEGMENT_S}.000,`, `seg${i}.m4s`)
+    lines.push('#EXT-X-ENDLIST', '')
+    return route.fulfill({ status: 200, contentType: 'application/vnd.apple.mpegurl', body: lines.join('\n') })
+  }
+  const file = CONVERTED_FILES.get(name)
+  if (!file) return route.fulfill({ status: 404, body: '' })
+  return route.fulfill({ status: 200, contentType: 'video/mp4', body: file })
+}
+
+/**
  * Install the policy. Register it BEFORE MockApi.attach(): Playwright runs
  * the most recently registered matching route first, so the mock API wins
  * for its own origin and this catch-all handles the rest.
@@ -67,7 +101,9 @@ export async function isolateNetwork(context: BrowserContext, appOrigin: string)
     if (url.hostname === 'image.tmdb.org') {
       return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: POSTER_SVG })
     }
-    if (url.hostname === 'media.e2e.test') return serveVideo(route)
+    if (url.hostname === 'media.e2e.test') {
+      return url.pathname.startsWith('/converted/') ? serveConverted(route, url) : serveVideo(route)
+    }
 
     const frame = request.frame()
     const isSubframeDocument = request.resourceType() === 'document' && frame.parentFrame() !== null

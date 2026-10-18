@@ -11,7 +11,12 @@
  * Recovery, cheapest first:
  *   - A direct link that drops (network error) or stalls mid-film is reloaded
  *     in place, at the same position, a few times. Dropping to the transcode
- *     instead would lose seeking for the rest of the film.
+ *     instead would cost the original quality and instant seeking.
+ *
+ * Real-Debrid's transcode only converts forward from where it starts, so a
+ * jump outside what it has loaded restarts it at the new spot (see
+ * convertedStreamUrl); the element then holds the file from that spot on,
+ * and the controls get a timeline that maps its clock back to the file's.
  *   - A mode that can't show a picture with sound — element error, fatal
  *     hls.js error, no decodable video track, silent audio, nothing loaded
  *     before a timeout — is abandoned for the next one. The viewer's position
@@ -22,9 +27,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DebridReadyPlayback } from '@/lib/debridApi'
-import { detectBrowserVideoSupport, planPlaybackModes, type PlaybackMode } from '@/lib/releasePlayback'
+import {
+  convertedStreamUrl,
+  detectBrowserVideoSupport,
+  planConvertedSeek,
+  planPlaybackModes,
+  type PlaybackMode,
+} from '@/lib/releasePlayback'
 import { cn } from '@/lib/utils'
-import { PlayerControls, type PlayerControlsProps } from './PlayerControls'
+import { PlayerControls, type PlayerControlsProps, type PlayerTimeline } from './PlayerControls'
 
 /** What the caller can put in the controls: title, release picker, next episode, ... */
 type ChromeProps = Pick<
@@ -74,16 +85,18 @@ const DIRECT_RELOAD_BUDGET_RESET_MS = 60_000
 const DIRECT_STALL_RELOAD_MS = 15_000
 
 /**
- * Furthest into a file Real-Debrid's HLS transcode can start. It transcodes
- * from the beginning at about real time, so a jump well past that point
- * never arrives — RD answers 503 after ~2 min (measured 2026-10-05).
+ * A converted stream asked to start closer to the beginning than this just
+ * starts there: too little to tell from the playlist's length whether
+ * Real-Debrid honoured the offset.
  */
-const HLS_MAX_START_S = 60
-
-/** How long the stream may wait for data before the "preparing" hint shows (only for the HLS transcode). */
-const BUFFERING_HINT_DELAY_MS = 2500
+const MIN_CONVERTED_START_S = 10
 
 const PROGRESS_INTERVAL_MS = 5000
+
+/** Where the loaded media ends, in the element's time (0 when nothing is loaded). */
+function bufferedEnd(video: HTMLVideoElement): number {
+  return video.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0
+}
 
 export function DebridVideo({
   playback,
@@ -115,8 +128,20 @@ export function DebridVideo({
   const startedRef = useRef(false)
   const reloadsLeftRef = useRef(MAX_DIRECT_RELOADS)
   const lastReloadAtRef = useRef(0)
-  const [hlsHint, setHlsHint] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
+  /** Seconds into the file at the element's time 0 — non-zero once the converted stream starts mid-way. */
+  const [offset, setOffset] = useState(0)
+  const offsetRef = useRef(0)
+  /** Where the converted stream (re)starts, in seconds into the file. */
+  const convertedAtRef = useRef(startAt && startAt > 0 ? startAt : 0)
+  /** Bumped to restart the converted stream at `convertedAtRef`. */
+  const [convertedRun, setConvertedRun] = useState(0)
+  /** A jump is restarting the converted stream; true until it can play. */
+  const [restarting, setRestarting] = useState(false)
+  /** The viewer jumped while paused — stay paused once the restarted stream is ready. */
+  const pauseAfterRestartRef = useRef(false)
+  /** Artwork only until the first frame: a reload or a restart goes to black, not back to the poster. */
+  const [showPoster, setShowPoster] = useState(true)
+  const fullDuration = playback.media?.duration ?? 0
 
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el
@@ -138,6 +163,7 @@ export function DebridVideo({
   const advance = useCallback(
     (reason: string) => {
       pendingSeekRef.current = positionRef.current > 0 ? positionRef.current : pendingSeekRef.current
+      convertedAtRef.current = pendingSeekRef.current ?? 0
       if (modeIndex + 1 < modes.length) {
         console.warn(`Debrid ${modes[modeIndex]?.label} failed (${reason}), trying ${modes[modeIndex + 1].label}`)
         setModeIndex(modeIndex + 1)
@@ -187,16 +213,20 @@ export function DebridVideo({
   // seeks, and report progress.
   useEffect(() => {
     startedRef.current = false
-    setHlsHint(false)
+    setRestarting(false)
+    pauseAfterRestartRef.current = false
+    if (mode?.kind !== 'hls') {
+      offsetRef.current = 0
+      setOffset(0)
+    }
     const video = videoRef.current
     if (!mode || !video) return
 
-    let hintTimer: ReturnType<typeof setTimeout> | null = null
     let stallTimer: ReturnType<typeof setTimeout> | null = null
     let lastReportAt = 0
 
     const report = () => {
-      const duration = Number.isFinite(video.duration) ? video.duration : 0
+      const duration = Number.isFinite(video.duration) ? offsetRef.current + video.duration : 0
       if (positionRef.current > 0) onProgressRef.current?.(positionRef.current, duration)
       lastReportAt = Date.now()
     }
@@ -204,10 +234,12 @@ export function DebridVideo({
       if (stallTimer) clearTimeout(stallTimer)
       stallTimer = null
     }
-    const clearHint = () => {
-      if (hintTimer) clearTimeout(hintTimer)
-      hintTimer = null
-      setHlsHint(false)
+    const ready = () => {
+      setRestarting(false)
+      if (pauseAfterRestartRef.current) {
+        pauseAfterRestartRef.current = false
+        video.pause()
+      }
     }
 
     const handleLoadedMetadata = () => {
@@ -221,21 +253,19 @@ export function DebridVideo({
     }
     const handlePlaying = () => {
       startedRef.current = true
-      clearHint()
+      setShowPoster(false)
+      ready()
       clearStall()
     }
     const handleTimeUpdate = () => {
       // Ignore the 0 a freshly (re)loaded element reports before its seek.
       if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA || video.currentTime > 0) {
-        positionRef.current = video.currentTime
+        positionRef.current = offsetRef.current + video.currentTime
       }
       if (!video.paused && Date.now() - lastReportAt >= PROGRESS_INTERVAL_MS) report()
     }
     const handleWaiting = () => {
       if (!startedRef.current) return
-      if (mode.kind === 'hls' && !hintTimer) {
-        hintTimer = setTimeout(() => setHlsHint(true), BUFFERING_HINT_DELAY_MS)
-      }
       if (mode.kind === 'direct' && !stallTimer) {
         const stuckAt = video.currentTime
         stallTimer = setTimeout(() => {
@@ -247,7 +277,7 @@ export function DebridVideo({
       }
     }
     const handleCanPlay = () => {
-      clearHint()
+      ready()
       clearStall()
     }
 
@@ -260,7 +290,6 @@ export function DebridVideo({
     video.addEventListener('pause', report)
     video.addEventListener('ended', report)
     return () => {
-      clearHint()
       clearStall()
       report()
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
@@ -274,24 +303,34 @@ export function DebridVideo({
     }
   }, [mode])
 
-  // Attach Real-Debrid's HLS stream. No browser except Safari understands
-  // .m3u8 natively, so everything else goes through hls.js (MSE). hls.js is
-  // loaded only here: most files play from the direct link, and it's the
-  // biggest library on the page.
+  // Attach Real-Debrid's HLS stream, converted from where the viewer is —
+  // and again from wherever they jump to (convertedRun). No browser except
+  // Safari understands .m3u8 natively, so everything else goes through
+  // hls.js (MSE). hls.js is loaded only here: most files play from the
+  // direct link, and it's the biggest library on the page.
   useEffect(() => {
     if (!mode || mode.kind !== 'hls') return
     const video = videoRef.current
     if (!video) return
-    const url = mode.url
+    const requested = Math.floor(convertedAtRef.current)
+    const at = requested >= MIN_CONVERTED_START_S ? requested : 0
+    const url = convertedStreamUrl(mode.url, at)
+    offsetRef.current = at
+    setOffset(at)
 
-    let startPosition = pendingSeekRef.current ?? 0
-    pendingSeekRef.current = null
-    if (startPosition > HLS_MAX_START_S) {
-      // A resume point (or a direct stream that died mid-film) that the
-      // transcode can't reach — start over rather than hang.
-      startPosition = 0
-      setNotice("The converted stream can't start mid-way, so this is playing from the beginning. Another release may play directly and resume.")
+    // The start offset is undocumented. Should Real-Debrid ever ignore it,
+    // the playlist covers the whole file again: seek instead, rather than
+    // show every time off by `at`.
+    const checkOffset = () => {
+      if (at === 0 || !fullDuration || !Number.isFinite(video.duration)) return
+      if (Math.abs(video.duration - fullDuration) < Math.abs(video.duration - (fullDuration - at))) {
+        console.warn('Real-Debrid ignored the converted stream start offset — seeking instead')
+        offsetRef.current = 0
+        setOffset(0)
+        video.currentTime = at
+      }
     }
+    video.addEventListener('loadedmetadata', checkOffset)
 
     let cancelled = false
     let detach: (() => void) | null = null
@@ -299,12 +338,6 @@ export function DebridVideo({
     const playNatively = (): boolean => {
       if (!video.canPlayType('application/vnd.apple.mpegurl')) return false
       video.src = url
-      if (startPosition > 0) {
-        const seek = () => {
-          video.currentTime = startPosition
-        }
-        video.addEventListener('loadedmetadata', seek, { once: true })
-      }
       detach = () => video.removeAttribute('src')
       return true
     }
@@ -316,8 +349,8 @@ export function DebridVideo({
           if (!playNatively()) advanceRef.current('HLS not supported in this browser')
           return
         }
-        // Real-Debrid transcodes on demand: the first segment, and the first
-        // one after a long seek, can take a while to arrive.
+        // Real-Debrid transcodes on demand: the first segment after a
+        // (re)start takes ~7s to arrive.
         const segmentLoadPolicy = {
           default: {
             maxTimeToFirstByteMs: 40_000,
@@ -327,7 +360,7 @@ export function DebridVideo({
           },
         }
         const hls = new Hls({
-          startPosition,
+          startPosition: 0,
           maxBufferLength: 90,
           maxMaxBufferLength: 180,
           fragLoadPolicy: segmentLoadPolicy,
@@ -378,9 +411,10 @@ export function DebridVideo({
 
     return () => {
       cancelled = true
+      video.removeEventListener('loadedmetadata', checkOffset)
       detach?.()
     }
-  }, [mode])
+  }, [mode, convertedRun, fullDuration])
 
   // Catch a mode that will never show a picture: nothing loaded in time. A
   // paused player that already has metadata is just waiting on autoplay
@@ -472,6 +506,32 @@ export function DebridVideo({
     }
   }, [mode])
 
+  /** Seek in the converted stream — restarting it when the spot isn't loaded (see planConvertedSeek). */
+  const seekConverted = useCallback(
+    (target: number) => {
+      const video = videoRef.current
+      if (!video) return
+      const time = Math.min(Math.max(target, 0), fullDuration > 1 ? fullDuration - 1 : Infinity)
+      const loadedUntil = video.readyState >= HTMLMediaElement.HAVE_METADATA ? bufferedEnd(video) : null
+      const plan = planConvertedSeek(time, offsetRef.current, loadedUntil)
+      if (plan.kind === 'local') {
+        video.currentTime = plan.time
+        return
+      }
+      convertedAtRef.current = plan.at
+      positionRef.current = plan.at
+      pauseAfterRestartRef.current = video.paused
+      setRestarting(true)
+      setConvertedRun((n) => n + 1)
+    },
+    [fullDuration]
+  )
+
+  const timeline = useMemo<PlayerTimeline | null>(
+    () => (mode?.kind === 'hls' ? { offset, duration: fullDuration, seek: seekConverted, restarting } : null),
+    [mode?.kind, offset, fullDuration, seekConverted, restarting]
+  )
+
   const handleError = () => {
     const video = videoRef.current
     const code = video?.error?.code
@@ -495,7 +555,7 @@ export function DebridVideo({
         autoPlay
         playsInline
         preload="auto"
-        poster={poster ?? undefined}
+        poster={showPoster ? (poster ?? undefined) : undefined}
         className="absolute inset-0 h-full w-full bg-black object-contain"
         onError={handleError}
       />
@@ -503,13 +563,8 @@ export function DebridVideo({
         video={videoEl}
         container={container}
         externalUrl={playback.directUrl}
-        streamNote={
-          mode.kind === 'hls'
-            ? 'Playing a stream Real-Debrid converts as it goes, so skipping far ahead can take a while. A different quality may play directly.'
-            : null
-        }
-        bufferingHint={hlsHint ? "This stream is converted as it plays and can't skip far ahead — go back a bit, or pick another quality." : null}
-        notice={notice}
+        streamNote={mode.kind === 'hls' ? 'Real-Debrid converts this file as it plays, so a jump takes a few seconds to start.' : null}
+        timeline={timeline}
         {...chrome}
       />
     </div>

@@ -7,6 +7,9 @@ import {
   rankReleasesForPlayback,
   canDecodeVideoCodec,
   planPlaybackModes,
+  convertedStreamUrl,
+  planConvertedSeek,
+  CONVERTED_SEEK_AHEAD_S,
 } from './releasePlayback'
 import type { DebridRelease, DebridReadyPlayback, DebridMediaSummary } from './debridApi'
 
@@ -172,5 +175,50 @@ describe('planPlaybackModes', () => {
 
   it('tries direct first when there is no media info', () => {
     expect(kinds(playback(null))).toEqual(['Direct', 'RD stream'])
+  })
+})
+
+describe('convertedStreamUrl', () => {
+  const url = 'https://4.stream.real-debrid.com/t/ABC123/eng1/none/aac/full.m3u8'
+
+  it('leaves the stream alone when it starts at the beginning', () => {
+    expect(convertedStreamUrl(url, 0)).toBe(url)
+    expect(convertedStreamUrl(url, 0.9)).toBe(url)
+  })
+
+  it('asks Real-Debrid to start converting at the given second', () => {
+    expect(convertedStreamUrl(url, 1800)).toBe(`${url}?t=1800`)
+    expect(convertedStreamUrl(url, 1800.7)).toBe(`${url}?t=1800`)
+  })
+
+  it('adds to a query string that is already there', () => {
+    expect(convertedStreamUrl(`${url}?x=1`, 60)).toBe(`${url}?x=1&t=60`)
+  })
+})
+
+describe('planConvertedSeek', () => {
+  it('seeks within what is loaded, in the element’s own time', () => {
+    // Stream restarted at 30:00; 90s of it loaded.
+    expect(planConvertedSeek(1850, 1800, 90)).toEqual({ kind: 'local', time: 50 })
+  })
+
+  it('leaves a jump just past what is loaded to the running conversion', () => {
+    expect(planConvertedSeek(1800 + 90 + CONVERTED_SEEK_AHEAD_S, 1800, 90)).toEqual({
+      kind: 'local',
+      time: 90 + CONVERTED_SEEK_AHEAD_S,
+    })
+  })
+
+  it('restarts the conversion for a jump far ahead', () => {
+    expect(planConvertedSeek(5000, 1800, 90)).toEqual({ kind: 'restart', at: 5000 })
+  })
+
+  it('restarts the conversion for a jump back before where the stream starts', () => {
+    expect(planConvertedSeek(600.5, 1800, 90)).toEqual({ kind: 'restart', at: 600 })
+    expect(planConvertedSeek(0, 1800, 90)).toEqual({ kind: 'restart', at: 0 })
+  })
+
+  it('restarts when the stream has not loaded yet', () => {
+    expect(planConvertedSeek(1810, 1800, null)).toEqual({ kind: 'restart', at: 1810 })
   })
 })

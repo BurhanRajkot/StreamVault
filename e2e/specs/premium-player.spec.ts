@@ -3,9 +3,10 @@
  * free for everyone, guests included, while the promotion runs.
  */
 
+import type { Page } from '@playwright/test'
 import { test, expect, SIGNED_IN } from '../fixtures/test'
 import { EMBED_STUB_TEXT } from '../fixtures/network'
-import { MOVIE, SHOW, readyPlayback, release } from '../fixtures/data'
+import { CONVERTED_STREAM_URL, MOVIE, SHOW, convertedPlayback, readyPlayback, release } from '../fixtures/data'
 
 test.describe('Premium server', () => {
   test('is the server selected by default for movies and shows', async ({ watch }) => {
@@ -112,6 +113,36 @@ test.describe('Premium server', () => {
     await watch.expectPremiumPlaying()
     const played = mockApi.calls('POST', '/debrid/play').map((c) => (c.body as { hash: string }).hash)
     expect(played, 'starts on the 1080p release the browser decodes, then switches').toEqual([hd.info_hash, uhd.info_hash])
+  })
+
+  test.describe('a file the browser can’t decode, converted by Real-Debrid', () => {
+    test.beforeEach(({ mockApi }) => {
+      mockApi.on('POST', '/debrid/play', { json: convertedPlayback() })
+    })
+
+    /** Resolves with the next request for the converted stream's playlist — its `t` start offset, or null. */
+    const nextPlaylistStart = (page: Page) =>
+      page
+        .waitForRequest((r) => r.url().startsWith(CONVERTED_STREAM_URL))
+        .then((r) => new URL(r.url()).searchParams.get('t'))
+
+    test('resumes mid-way, and a jump back before that point restarts the conversion there', async ({ page, watch }) => {
+      await page.addInitScript((key) => localStorage.setItem(key, JSON.stringify({ t: 60, d: 90, at: Date.now() })), `sv:resume:${MOVIE.imdb_id}`)
+      await watch.goto(MOVIE)
+
+      const resumed = nextPlaylistStart(page)
+      await watch.play()
+      expect(await resumed, 'the conversion starts at the resume point').toBe('60')
+      await watch.expectPremiumPlaying()
+      await expect(watch.seekBar).toHaveAttribute('aria-valuetext', /^1:0\d of 1:30$/)
+
+      const restarted = nextPlaylistStart(page)
+      await watch.seekBar.focus()
+      await page.keyboard.press('Home')
+      expect(await restarted, 'the conversion restarts from the beginning').toBeNull()
+      await watch.expectPremiumPlaying()
+      await expect(watch.seekBar).toHaveAttribute('aria-valuetext', /^0:0\d of 1:30$/)
+    })
   })
 
   test('Back leaves the player for the title’s details', async ({ watch }) => {

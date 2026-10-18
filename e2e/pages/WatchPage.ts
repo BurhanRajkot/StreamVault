@@ -15,6 +15,8 @@ export class WatchPage {
   readonly playButton: Locator
   readonly serverPicker: Locator
   readonly premiumVideo: Locator
+  /** The Premium player's seek bar; its value text is the position shown, e.g. "1:00 of 1:30". */
+  readonly seekBar: Locator
   readonly premiumLoading: Locator
   readonly embed: Locator
   readonly embedFrame: FrameLocator
@@ -24,6 +26,7 @@ export class WatchPage {
     this.playButton = this.root.getByRole('button', { name: /^Play( Now)?$/ })
     this.serverPicker = this.root.getByRole('combobox', { name: 'Server' })
     this.premiumVideo = this.root.getByTestId('debrid-video')
+    this.seekBar = this.root.getByRole('slider', { name: 'Seek' })
     this.premiumLoading = this.root.getByTestId('debrid-loading')
     this.embed = this.root.locator('.player-frame iframe')
     this.embedFrame = this.root.frameLocator('.player-frame iframe')
