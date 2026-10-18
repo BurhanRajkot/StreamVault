@@ -63,6 +63,33 @@ interface DebridPlayerPaneProps {
   onNext?: () => void
   /** What the next episode is, e.g. "S1 · E4". */
   nextLabel?: string
+  /** The release picker and download link, for the page to draw under the player — null when there's nothing to offer. */
+  onReleaseControls?: (controls: ReleaseControls | null) => void
+}
+
+/** What the page shows under the player: the releases to switch between, and the playing file to save. */
+export interface ReleaseControls {
+  /** The instant releases, as the player's Quality menu lists them — the playing one always included. */
+  releases: PlayerSource[]
+  activeId: string | null
+  onSelect: (id: string) => void
+  /** The playing file — null until a release is ready. */
+  download: { url: string; fileName: string; size: string | null } | null
+  /** A release is being found or started. */
+  busy: boolean
+}
+
+/** A release as the Quality menu and the release picker list it. */
+function toPlayerSource(rel: DebridRelease): PlayerSource {
+  const size = parseInt(rel.size, 10)
+  const hdr = parseTorrentHDR(rel.name)
+  return {
+    id: rel.info_hash,
+    label: parseTorrentQuality(rel.name),
+    tags: [hdr, isImaxRelease(rel.name) ? 'IMAX' : null].filter((t): t is string => !!t),
+    size: Number.isFinite(size) && size > 0 ? formatBytes(size) : undefined,
+    name: rel.name,
+  }
 }
 
 type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'upgrade-required'
@@ -130,6 +157,7 @@ export function DebridPlayerPane({
   onProgress,
   onNext,
   nextLabel,
+  onReleaseControls,
 }: DebridPlayerPaneProps) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const freeUntil = useDebridFreeUntil()
@@ -513,30 +541,56 @@ export function DebridPlayerPane({
     }
   }, [searchAndPlay])
 
-  const switchRelease = (release: DebridRelease) => {
-    autoAttemptsRef.current = 0
-    triedReleasesRef.current = new Set()
-    // Pick up where the viewer is in the current file.
-    startPositionRef.current = positionRef.current > 0 ? positionRef.current : startPositionRef.current
-    void getToken().then((token) => streamRelease(release, token))
-  }
-
-  /** The cached releases, as the player's Quality menu lists them. */
-  const sources = useMemo<PlayerSource[]>(
-    () =>
-      instantReleases.map((rel) => {
-        const size = parseInt(rel.size, 10)
-        const hdr = parseTorrentHDR(rel.name)
-        return {
-          id: rel.info_hash,
-          label: parseTorrentQuality(rel.name),
-          tags: [hdr, isImaxRelease(rel.name) ? 'IMAX' : null].filter((t): t is string => !!t),
-          size: Number.isFinite(size) && size > 0 ? formatBytes(size) : undefined,
-          name: rel.name,
-        }
-      }),
-    [instantReleases]
+  const switchRelease = useCallback(
+    (release: DebridRelease) => {
+      autoAttemptsRef.current = 0
+      triedReleasesRef.current = new Set()
+      // Pick up where the viewer is in the current file.
+      startPositionRef.current = positionRef.current > 0 ? positionRef.current : startPositionRef.current
+      void getToken().then((token) => streamRelease(release, token))
+    },
+    [getToken, streamRelease]
   )
+
+  /**
+   * The cached releases, as the Quality menu and the release picker list
+   * them — plus the playing one if it isn't among them (a release that had
+   * to be downloaded first).
+   */
+  const sources = useMemo<PlayerSource[]>(() => {
+    const list = instantReleases.map(toPlayerSource)
+    if (activeRelease && !instantReleases.some((r) => r.info_hash === activeRelease.info_hash)) {
+      list.unshift(toPlayerSource(activeRelease))
+    }
+    return list
+  }, [instantReleases, activeRelease])
+
+  const selectRelease = useCallback(
+    (id: string) => {
+      const release = instantReleases.find((r) => r.info_hash === id)
+      if (release && release.info_hash !== activeRelease?.info_hash) switchRelease(release)
+    },
+    [instantReleases, activeRelease, switchRelease]
+  )
+
+  const releaseControls = useMemo<ReleaseControls | null>(() => {
+    if (sources.length === 0) return null
+    const ready = status === 'ready' && playback
+    return {
+      releases: sources,
+      activeId: activeRelease?.info_hash ?? null,
+      onSelect: selectRelease,
+      download: ready
+        ? { url: playback.directUrl, fileName: playback.fileName, size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null }
+        : null,
+      busy: status === 'searching' || status === 'loading-stream' || status === 'downloading',
+    }
+  }, [sources, status, playback, activeRelease, selectRelease])
+
+  useEffect(() => {
+    onReleaseControls?.(releaseControls)
+  }, [onReleaseControls, releaseControls])
+  useEffect(() => () => onReleaseControls?.(null), [onReleaseControls])
 
   const episodeLine =
     mediaType === 'tv' && season !== undefined && episode !== undefined ? `Season ${season} · Episode ${episode}` : undefined
@@ -672,10 +726,7 @@ export function DebridPlayerPane({
         subtitle={mediaType === 'tv' && season !== undefined && episode !== undefined ? `S${season} · E${episode}` : undefined}
         sources={sources}
         activeSourceId={activeRelease?.info_hash ?? null}
-        onSourceChange={(id) => {
-          const release = instantReleases.find((r) => r.info_hash === id)
-          if (release) switchRelease(release)
-        }}
+        onSourceChange={selectRelease}
         overlay={
           resumeToast && startAt !== undefined ? (
             <div className="flex items-center gap-3 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg">

@@ -6,7 +6,7 @@
 import type { Page } from '@playwright/test'
 import { test, expect, SIGNED_IN } from '../fixtures/test'
 import { EMBED_STUB_TEXT } from '../fixtures/network'
-import { CONVERTED_STREAM_URL, MOVIE, SHOW, convertedPlayback, readyPlayback, release } from '../fixtures/data'
+import { CONVERTED_STREAM_URL, MOVIE, SAMPLE_VIDEO_URL, SHOW, convertedPlayback, readyPlayback, release } from '../fixtures/data'
 
 test.describe('Premium server', () => {
   test('is the server selected by default for movies and shows', async ({ watch }) => {
@@ -113,6 +113,34 @@ test.describe('Premium server', () => {
     await watch.expectPremiumPlaying()
     const played = mockApi.calls('POST', '/debrid/play').map((c) => (c.body as { hash: string }).hash)
     expect(played, 'starts on the 1080p release the browser decodes, then switches').toEqual([hd.info_hash, uhd.info_hash])
+  })
+
+  test('under the player, the release can be switched and the playing file downloaded', async ({ page, watch, mockApi }) => {
+    const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
+    const uhd = release({ name: 'Inception.2010.2160p.UHD.BluRay.x265.HDR.AAC-UHD' })
+    mockApi.on('GET', '/debrid/media-search', { json: { data: [uhd, hd] } })
+    mockApi.on('POST', '/debrid/play', ({ body }) => {
+      const file = (body as { hash: string }).hash === uhd.info_hash ? 'Inception.2160p.mkv' : 'Inception.1080p.mkv'
+      return { json: readyPlayback({ fileName: file, directUrl: `${SAMPLE_VIDEO_URL}?file=${file}` }) }
+    })
+
+    await watch.goto(MOVIE)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+
+    const releasePicker = page.getByRole('combobox', { name: 'Release' })
+    const download = page.getByRole('link', { name: /^Download/ })
+    await expect(releasePicker).toContainText('1080p')
+    await expect(download).toHaveAttribute('href', `${SAMPLE_VIDEO_URL}?file=Inception.1080p.mkv`)
+
+    await releasePicker.click()
+    await page.getByRole('option', { name: /^4K/ }).click()
+
+    await watch.expectPremiumPlaying()
+    await expect(releasePicker).toContainText('4K')
+    await expect(download).toHaveAttribute('href', `${SAMPLE_VIDEO_URL}?file=Inception.2160p.mkv`)
+    const played = mockApi.calls('POST', '/debrid/play').map((c) => (c.body as { hash: string }).hash)
+    expect(played).toEqual([hd.info_hash, uhd.info_hash])
   })
 
   test.describe('a file the browser can’t decode, converted by Real-Debrid', () => {

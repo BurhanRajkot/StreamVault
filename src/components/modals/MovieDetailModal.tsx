@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { ChevronLeft, Share2, Heart, SkipForward, SkipBack, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { Media, MediaMode, CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, defaultServer, serverOptions } from '@/lib/config'
-import { DebridPlayerPane } from '@/components/media/DebridPlayerPane'
+import { DebridPlayerPane, type ReleaseControls } from '@/components/media/DebridPlayerPane'
 import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -13,7 +13,7 @@ import { cn, genreIdsOf } from '@/lib/utils'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { MobileDetailSheet } from './movie-detail/MobileDetailSheet'
 import { DetailPanel } from './movie-detail/DetailPanel'
-import { SeasonEpisodeSelects, ServerSelect } from './movie-detail/PlaybackPickers'
+import { DownloadButton, ReleaseSelect, SeasonEpisodeSelects, ServerSelect } from './movie-detail/PlaybackPickers'
 import type { PlaybackControls } from './movie-detail/types'
 import {
   nextEpisode,
@@ -59,6 +59,8 @@ export function MovieDetailModal({
   const [currentSeasonEpisodes, setCurrentSeasonEpisodes] = useState(10)
 
   const [isPlaying, setIsPlaying] = useState(autoPlay || false)
+  /** Premium's release picker and download link, reported by the player pane. */
+  const [releaseControls, setReleaseControls] = useState<ReleaseControls | null>(null)
   // Picks between two genuinely different pre-play layouts. Only the chosen
   // one is mounted: rendering both and hiding one with CSS would duplicate
   // every control on the screen (two Play buttons, two server pickers).
@@ -644,6 +646,7 @@ export function MovieDetailModal({
                       onProgress={handleDebridProgress}
                       onNext={hasNextEpisode ? handleSkipNext : undefined}
                       nextLabel={nextLabel}
+                      onReleaseControls={setReleaseControls}
                     />
                   ) : embedUrl ? (
                     <>
@@ -742,6 +745,12 @@ export function MovieDetailModal({
                       triggerRef={mobileServerSelectTriggerRef}
                       className="h-12 w-full"
                     />
+                    {server === DEBRID_SERVER_ID && releaseControls && (
+                      <div className="mt-2.5 flex gap-2.5">
+                        <ReleaseSelect controls={releaseControls} className="h-12 min-w-0 flex-1" />
+                        <DownloadButton download={releaseControls.download} showSize={false} className="h-12 shrink-0 px-4" />
+                      </div>
+                    )}
                     <p className="mt-3 text-center text-xs text-white/55">Turn your phone sideways for full screen</p>
 
                     <div className="mt-6 border-t border-white/10 pt-5">
@@ -799,6 +808,12 @@ export function MovieDetailModal({
                         triggerRef={serverSelectTriggerRef}
                         className="w-64"
                       />
+                      {server === DEBRID_SERVER_ID && releaseControls && (
+                        <>
+                          <ReleaseSelect controls={releaseControls} className="w-64" />
+                          <DownloadButton download={releaseControls.download} className="px-4" />
+                        </>
+                      )}
                     </div>
                   </div>
 
