@@ -1,6 +1,8 @@
 import type { Ref } from 'react'
-import { Zap } from 'lucide-react'
+import { Download, Zap } from 'lucide-react'
 import { DEBRID_SERVER_ID, serverOptions, type MediaMode, type ServerOption } from '@/lib/config'
+import type { ReleaseControls } from '@/components/media/DebridPlayerPane'
+import type { PlayerSource } from '@/components/media/PlayerControls'
 import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import type { SeasonSummary } from '@/lib/episodeNavigation'
 import { cn } from '@/lib/utils'
@@ -121,5 +123,75 @@ export function SeasonEpisodeSelects({
         </SelectContent>
       </Select>
     </div>
+  )
+}
+
+/** "1080p HDR · 2.4 GB" */
+function releaseSummary(source: PlayerSource): string {
+  return [[source.label, ...(source.tags ?? [])].join(' '), source.size].filter(Boolean).join(' · ')
+}
+
+interface ReleaseSelectProps {
+  controls: ReleaseControls
+  className?: string
+}
+
+/** The Premium release playing, and the others that start instantly. Switching keeps the viewer's place. */
+export function ReleaseSelect({ controls, className }: ReleaseSelectProps) {
+  const { releases, activeId, onSelect, busy } = controls
+  const active = releases.find((r) => r.id === activeId)
+  return (
+    <Select value={activeId ?? undefined} onValueChange={onSelect}>
+      <SelectTrigger aria-label="Release" className={cn(trigger, className)}>
+        <SelectValue placeholder="Release">
+          <span className="text-white/50">Release</span>{' '}
+          <span className="font-semibold">{active ? releaseSummary(active) : busy ? 'Finding…' : 'Choose'}</span>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent className={cn(content, 'max-h-[min(60vh,26rem)] w-[min(26rem,calc(100vw-2rem))]')}>
+        {releases.map((source) => (
+          <SelectItem key={source.id} value={source.id} className={cn(item, 'py-2')}>
+            <span className="block">
+              <span className="font-semibold">{source.label}</span>
+              {source.tags && source.tags.length > 0 && <span className="text-white/60"> {source.tags.join(' · ')}</span>}
+              {source.size && <span className="text-white/50"> · {source.size}</span>}
+            </span>
+            {source.name && (
+              <span className="block max-w-[min(21rem,calc(100vw-6rem))] truncate text-[11px] text-white/45">{source.name}</span>
+            )}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+interface DownloadButtonProps {
+  download: ReleaseControls['download']
+  /** The file size after the label — off where the release picker beside it already says it. */
+  showSize?: boolean
+  className?: string
+}
+
+/**
+ * Saves the playing file. Real-Debrid serves its direct link as a download,
+ * not a page — a new tab just in case a browser would rather open it.
+ */
+export function DownloadButton({ download, showSize = true, className }: DownloadButtonProps) {
+  const classes = cn(trigger, 'inline-flex items-center justify-center gap-2 border', className)
+  if (!download) {
+    return (
+      <button type="button" disabled className={cn(classes, 'cursor-not-allowed opacity-50')}>
+        <Download className="h-4 w-4" aria-hidden="true" />
+        Download
+      </button>
+    )
+  }
+  return (
+    <a href={download.url} download={download.fileName} target="_blank" rel="noopener noreferrer" title={download.fileName} className={classes}>
+      <Download className="h-4 w-4" aria-hidden="true" />
+      Download
+      {showSize && download.size && <span className="font-normal text-white/55">{download.size}</span>}
+    </a>
   )
 }
