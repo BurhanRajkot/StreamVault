@@ -223,7 +223,7 @@ export interface HybridSearchOptions {
  */
 export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSearchResult[]> {
   const { query, page = 1, mediaOnly = false, mediaType } = opts
-  let results: TMDBMultiResult[] = []
+  let results: TMDBMultiResult[]
   
   // 1. Attempt local NLU parsing of the query (synchronous — no API call)
   const parsed = parseQueryNLU(query)
