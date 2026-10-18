@@ -11,6 +11,9 @@ export interface TrieEntity {
   popularity?: number
   poster_path?: string
   release_year?: number
+  /** Carried so a hit renders with its score, like a title from the full search. */
+  vote_average?: number
+  vote_count?: number
 }
 
 interface TrieNode {
@@ -169,6 +172,8 @@ export async function seedTrieBackground() {
         name?: string
         popularity?: number
         poster_path?: string
+        vote_average?: number
+        vote_count?: number
         release_date?: string
         first_air_date?: string
         media_type?: string
@@ -198,6 +203,8 @@ export async function seedTrieBackground() {
         title: title || '',
         popularity: item.popularity || 0,
         poster_path: item.poster_path,
+        vote_average: item.vote_average,
+        vote_count: item.vote_count,
         release_year: item.release_date ? parseInt(item.release_date.substring(0, 4)) :
                      (item.first_air_date ? parseInt(item.first_air_date.substring(0, 4)) : undefined)
       }

@@ -1,8 +1,41 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+
+/**
+ * Preconnect to the backend API from the HTML itself: every page's first
+ * render waits on it, and on a phone the DNS + TCP + TLS setup is a few
+ * hundred milliseconds the browser can spend while the JS downloads.
+ * `crossorigin` because the API is called with CORS fetches.
+ */
+function preconnectApi(apiUrl: string | undefined): Plugin {
+  return {
+    name: "preconnect-api",
+    transformIndexHtml() {
+      if (!apiUrl) return [];
+      let origin: string;
+      try {
+        origin = new URL(apiUrl).origin;
+      } catch {
+        return [];
+      }
+      return [{ tag: "link", attrs: { rel: "preconnect", href: origin, crossorigin: "" }, injectTo: "head" }];
+    },
+  };
+}
+
+/**
+ * Dev proxy to the local backend. `/downloads` and `/admin/dashboard` are
+ * also app pages, so a page load (Accept: text/html) is served the app
+ * instead of being forwarded — it used to come back as the API's raw 401.
+ */
+const backendProxy = {
+  target: "http://localhost:4000",
+  changeOrigin: true,
+  bypass: (req: { headers: { accept?: string } }) => (req.headers.accept?.includes("text/html") ? "/index.html" : undefined),
+};
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -10,17 +43,18 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      '/tmdb': { target: 'http://localhost:4000', changeOrigin: true },
-      '/continue-watching': { target: 'http://localhost:4000', changeOrigin: true },
-      '/downloads': { target: 'http://localhost:4000', changeOrigin: true },
-      '/admin': { target: 'http://localhost:4000', changeOrigin: true },
-      '/recommendations': { target: 'http://localhost:4000', changeOrigin: true },
-      '/ping': { target: 'http://localhost:4000', changeOrigin: true },
+      '/tmdb': backendProxy,
+      '/continue-watching': backendProxy,
+      '/downloads': backendProxy,
+      '/admin': backendProxy,
+      '/recommendations': backendProxy,
+      '/ping': backendProxy,
     },
   },
   plugins: [
     tailwindcss(),
     react(),
+    preconnectApi(process.env.VITE_API_URL || loadEnv(mode, process.cwd(), "VITE_").VITE_API_URL),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
@@ -90,26 +124,22 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: 4096,
     rollupOptions: {
       output: {
+        // Only what every route needs gets a long-cached chunk of its own.
+        // Everything else — Radix primitives, framer-motion, forms, hls.js —
+        // is left to Rollup, so it ships with the routes that use it. A
+        // catch-all "ui-vendor" made the home page download the title page's
+        // Select and the pricing page's Accordion; matching on a bare
+        // "node_modules/react" prefix swept react-remove-scroll & co. into the
+        // framework chunk the same way.
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (['react', 'react-dom', 'react-router-dom'].some(pkg => id.includes(`node_modules/${pkg}`))) {
-              return 'react-vendor';
-            }
-            if (id.includes('node_modules/@radix-ui/')) {
-              return 'ui-vendor';
-            }
-            if (id.includes('node_modules/@auth0/auth0-react')) {
-              return 'auth-vendor';
-            }
-            if (id.includes('node_modules/@tanstack/react-query')) {
-              return 'query-vendor';
-            }
-            if (id.includes('node_modules/framer-motion')) {
-              return 'motion-vendor';
-            }
-            if (['react-hook-form', '@hookform/resolvers', 'zod'].some(pkg => id.includes(`node_modules/${pkg}`))) {
-              return 'form-vendor';
-            }
+          if (/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom)\//.test(id)) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules/@auth0/')) {
+            return 'auth-vendor';
+          }
+          if (/node_modules\/@tanstack\/(react-query|query-core)\//.test(id)) {
+            return 'query-vendor';
           }
         },
       },

@@ -12,8 +12,8 @@ export interface OTTProvider {
   id: string
   name: string
   displayName: string
+  /** Square app-icon logo (TMDB's), self-hosted in public/logos. */
   logo: string
-  color: string // Tailwind color for glow effect
   region: string
 }
 
@@ -35,32 +35,28 @@ export const OTT_PROVIDERS: OTTProvider[] = [
     id: '8',
     name: 'Netflix',
     displayName: 'Netflix',
-    logo: '/logos/netflix.png',
-    color: 'hover:shadow-[#E50914]/50 border-[#E50914]',
+    logo: '/logos/netflix.webp',
     region: 'IN',
   },
   {
     id: '119',
     name: 'Amazon Prime Video',
     displayName: 'Prime Video',
-    logo: '/logos/prime.png',
-    color: 'hover:shadow-[#00A8E1]/50 border-[#00A8E1]',
+    logo: '/logos/prime.webp',
     region: 'IN',
   },
   {
     id: '1899',
     name: 'HBO Max',
     displayName: 'HBO Max',
-    logo: '/logos/hbo.png',
-    color: 'hover:shadow-[#5B05F7]/50 border-[#5B05F7]',
+    logo: '/logos/hbo.webp',
     region: 'US',
   },
   {
     id: '350',
     name: 'Apple TV Plus',
     displayName: 'Apple TV+',
-    logo: '/logos/apple.png',
-    color: 'hover:shadow-[#FFFFFF]/30 border-white',
+    logo: '/logos/apple.webp',
     region: 'IN',
   },
 ]

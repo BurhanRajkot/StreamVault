@@ -21,11 +21,16 @@ export class HomePage {
 
   /** A poster card. Titles can appear in several rows; this is the first. */
   card(title: string): Locator {
-    return this.page.getByRole('button', { name: `Open ${title}`, exact: true }).first()
+    return this.page.getByRole('button', { name: cardName(title) }).first()
   }
 
   async search(query: string): Promise<void> {
     await this.page.getByRole('button', { name: 'Open search' }).click()
     await this.searchBox.fill(query)
   }
+}
+
+/** A poster card's accessible name: "Open Inception", or "Open Inception, rated 8.4" when it shows a score. */
+export function cardName(title: string): RegExp {
+  return new RegExp(`^Open ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(, rated [\\d.]+)?$`)
 }
