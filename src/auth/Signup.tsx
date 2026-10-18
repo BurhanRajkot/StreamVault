@@ -8,10 +8,10 @@ import { Helmet } from "react-helmet-async";
 const COL1 = [
   "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", // Interstellar
   "https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg", // Inception
-  "https://image.tmdb.org/t/p/w500/lyQBXAFkuhiCO6IeiDfh3Y0hlsT.jpg", // Shawshank
+  "https://image.tmdb.org/t/p/w500/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg", // Shawshank
   "https://image.tmdb.org/t/p/w500/hA2ple9q4qnwxp3hKVNhroipsir.jpg", // Mad Max
   "https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg", // Arrival
-  "https://image.tmdb.org/t/p/w500/eWdyYQreja6JivjKpE7PDFqCfTh.jpg", // Grand Budapest
+  "https://image.tmdb.org/t/p/w500/eWdyYQreja6JGCzqHWXpWHDrrPo.jpg", // Grand Budapest
 ];
 
 const COL2 = [
@@ -19,8 +19,8 @@ const COL2 = [
   "https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", // Fight Club
   "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg", // Avengers
   "https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg", // La La Land
-  "https://image.tmdb.org/t/p/w500/iZf0KyrE25z1sage4SYQLAjPole.jpg", // 1917
-  "https://image.tmdb.org/t/p/w500/3nSJBFCuLmPIg5dRkzU9jEFbFEd.jpg", // The Lighthouse
+  "https://image.tmdb.org/t/p/w500/iZf0KyrE25z1sage4SYFLCCrMi9.jpg", // 1917
+  "https://image.tmdb.org/t/p/w500/dwXmOYJVM1VIkkSXHY5zYSaLJLC.jpg", // The Lighthouse
 ];
 
 const COL3 = [

@@ -18,33 +18,33 @@ const MOVIE_POSTERS = [
   "https://image.tmdb.org/t/p/w342/hA2ple9q4qnwxp3hKVNhroipsir.jpg", // Mad Max
   "https://image.tmdb.org/t/p/w342/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg", // Arrival
   "https://image.tmdb.org/t/p/w342/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg", // La La Land
-  "https://image.tmdb.org/t/p/w342/eWdyYQreja6JivjKpE7PDFqCfTh.jpg", // Grand Budapest Hotel
-  "https://image.tmdb.org/t/p/w342/iZf0KyrE25z1sage4SYQLAjPole.jpg", // 1917
+  "https://image.tmdb.org/t/p/w342/eWdyYQreja6JGCzqHWXpWHDrrPo.jpg", // Grand Budapest Hotel
+  "https://image.tmdb.org/t/p/w342/iZf0KyrE25z1sage4SYFLCCrMi9.jpg", // 1917
   "https://image.tmdb.org/t/p/w342/pThyQovXQrw2m0s9x82twj48Jq4.jpg", // Knives Out
-  "https://image.tmdb.org/t/p/w342/k68nPLbIST6NP96JmTxmZijZchr.jpg", // Tenet
-  "https://image.tmdb.org/t/p/w342/lyQBXAFkuhiCO6IeiDfh3Y0hlsT.jpg", // Shawshank
+  "https://image.tmdb.org/t/p/w342/rrKH3VhHssGTCfPuaEQkxvEoElv.jpg", // Tenet
+  "https://image.tmdb.org/t/p/w342/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg", // Shawshank
   "https://image.tmdb.org/t/p/w342/7fn624j5lj3xTme2SgiLCeuedmO.jpg", // Whiplash
-  "https://image.tmdb.org/t/p/w342/3nSJBFCuLmPIg5dRkzU9jEFbFEd.jpg", // The Lighthouse
-  "https://image.tmdb.org/t/p/w342/4dzUP7RtI5yxhJjXQJsGNGPHj9l.jpg", // Hereditary
+  "https://image.tmdb.org/t/p/w342/dwXmOYJVM1VIkkSXHY5zYSaLJLC.jpg", // The Lighthouse
+  "https://image.tmdb.org/t/p/w342/4GFPuL14eXi66V96xBWY73Y9PfR.jpg", // Hereditary
   "https://image.tmdb.org/t/p/w342/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg", // The Matrix
-  "https://image.tmdb.org/t/p/w342/oF80kEMK2zS4PoywGvWnLz18dZc.jpg", // Goodfellas
-  "https://image.tmdb.org/t/p/w342/bI37vIHcs7A1k0Wn2s3iB374q8V.jpg", // Pulp Fiction
+  "https://image.tmdb.org/t/p/w342/9OkCLM73MIU2CrKZbqiT8Ln1wY2.jpg", // Goodfellas
+  "https://image.tmdb.org/t/p/w342/vQWk5YBFWF4bZaofAbv0tShwBvQ.jpg", // Pulp Fiction
   "https://image.tmdb.org/t/p/w342/rSPw7tgCH9c6NqICZef4kZjFOQ5.jpg", // The Godfather
-  "https://image.tmdb.org/t/p/w342/ry2S0Wn09YkYy92gY9Z01I6G5Zf.jpg", // Spirited Away
+  "https://image.tmdb.org/t/p/w342/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg", // Spirited Away
   "https://image.tmdb.org/t/p/w342/c24sv2weTHPsmDa7jEMN0m2P3RT.jpg", // Into the Spider-Verse
-  "https://image.tmdb.org/t/p/w342/5VTN0YW7iPqAENWpED2pG0B25Qo.jpg", // Star Wars
+  "https://image.tmdb.org/t/p/w342/fai0rspsNeJCS69wHNjOdWxcI7P.jpg", // Star Wars
   "https://image.tmdb.org/t/p/w342/q719jXXEzOoYaps6babgKnONONX.jpg", // Your Name
   "https://image.tmdb.org/t/p/w342/78lPtwv72eTNqFW9COBYI0dWDJa.jpg", // Iron Man
-  "https://image.tmdb.org/t/p/w342/1hRoyzDtpgMU7Dz4PF22siCEVgc.jpg", // The Truman Show
+  "https://image.tmdb.org/t/p/w342/vuza0WqY239yBXOadKlGwJsZJFE.jpg", // The Truman Show
   "https://image.tmdb.org/t/p/w342/saHP97rTPS5eLmrLQEcANmKrsFl.jpg", // Forrest Gump
   "https://image.tmdb.org/t/p/w342/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg", // Schindler's List
   "https://image.tmdb.org/t/p/w342/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg", // Lord of the Rings
-  "https://image.tmdb.org/t/p/w342/aAmfIX3TT40zUHGcCKrlOZRKC7u.jpg", // Inside Out
+  "https://image.tmdb.org/t/p/w342/2H1TmgdfNtsKlU9jKdeNyYL5y8T.jpg", // Inside Out
   "https://image.tmdb.org/t/p/w342/w7RDIgQM6bLT7JXtH4iUQd3Iwxm.jpg", // Seven
-  "https://image.tmdb.org/t/p/w342/5M0j0B18abuTqsCGcTtdq77ZA6I.jpg", // Silence of the Lambs
-  "https://image.tmdb.org/t/p/w342/2TeCGhnnD0BvEDnF0H9QoX7yYnA.jpg", // Up
-  "https://image.tmdb.org/t/p/w342/eKi8dIrr8waobnENzQEqgMeb8qH.jpg", // The Incredibles
-  "https://image.tmdb.org/t/p/w342/c54NpAWpzjcjm02fbH7zJv8w70h.jpg", // Wall-E
+  "https://image.tmdb.org/t/p/w342/uS9m8OBk1A8eM9I042bx8XXpqAq.jpg", // Silence of the Lambs
+  "https://image.tmdb.org/t/p/w342/mFvoEwSfLqbcWwFsDjQebn9bzFe.jpg", // Up
+  "https://image.tmdb.org/t/p/w342/2LqaLgk4Z226KkgPJuiOQ58wvrm.jpg", // The Incredibles
+  "https://image.tmdb.org/t/p/w342/hbhFnRzzg6ZDmm8YAmxBnQpQIPh.jpg", // Wall-E
   "https://image.tmdb.org/t/p/w342/vqzNJRH4YyquRiWxCCOH0aXggHI.jpg", // Terminator 2
 ];
 
