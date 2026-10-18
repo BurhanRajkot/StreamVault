@@ -126,4 +126,11 @@ describe('AutocompleteTrie — Extended Tests', () => {
     expect(withThe.some(r => r.id === 6001)).toBe(true)
     expect(withoutThe.some(r => r.id === 6001)).toBe(true)
   })
+
+  it('should match accented titles whether or not the query has the accents', () => {
+    globalTrie.insert({ id: 7001, title: 'Pokémon Détective', mediaType: 'movie', popularity: 90 })
+
+    expect(globalTrie.search('pokemon d').some(r => r.id === 7001)).toBe(true)
+    expect(globalTrie.search('POKÉMON DÉ').some(r => r.id === 7001)).toBe(true)
+  })
 })

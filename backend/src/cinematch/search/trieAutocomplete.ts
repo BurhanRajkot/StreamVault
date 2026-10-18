@@ -26,6 +26,11 @@ interface TrieNode {
 
 const MAX_ENTITIES_PER_NODE = 20
 
+/** The trie's key for a title or a typed prefix: lower-case, accents folded ("Pokémon" → "pokemon"). */
+function trieKey(text: string): string {
+  return text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
 class AutocompleteTrie {
   private root: TrieNode
 
@@ -47,7 +52,7 @@ class AutocompleteTrie {
    * though usually prefix is enough for a standard Trie.
    */
   public insert(entity: TrieEntity, textToindex?: string) {
-    const text = (textToindex || entity.title).toLowerCase().trim()
+    const text = trieKey(textToindex || entity.title)
     if (!text) return
 
     let current = this.root
@@ -86,7 +91,7 @@ class AutocompleteTrie {
    * $O(m)$ lookup where m is length of prefix.
    */
   public search(prefix: string): TrieEntity[] {
-    const text = prefix.toLowerCase().trim()
+    const text = trieKey(prefix)
     if (!text) return []
 
     let current = this.root
@@ -140,24 +145,29 @@ export async function seedTrieBackground() {
   const startTime = Date.now()
   let count = 0
 
-  const endpoints = [
-    '/trending/all/day',
-    '/trending/all/week',
-    '/movie/popular',
-    '/tv/popular',
-    '/movie/top_rated',
-    '/tv/top_rated'
+  // What people type the start of: this week's titles, plus the most-voted of
+  // all time. TMDB's own search matches whole words only ("nar" finds "Nar",
+  // never "Narcos"), so a title missing here can't come up for a short query.
+  const sources: Array<{ ep: string; pages: number }> = [
+    { ep: '/trending/all/day', pages: 3 },
+    { ep: '/trending/all/week', pages: 3 },
+    { ep: '/movie/popular', pages: 3 },
+    { ep: '/tv/popular', pages: 3 },
+    { ep: '/movie/top_rated', pages: 3 },
+    { ep: '/tv/top_rated', pages: 3 },
+    { ep: '/discover/movie?sort_by=vote_count.desc', pages: 50 },
+    { ep: '/discover/tv?sort_by=vote_count.desc', pages: 25 },
   ]
 
   const tasks: { ep: string; page: number }[] = []
-  for (const ep of endpoints) {
-    for (let page = 1; page <= 3; page++) {
+  for (const { ep, pages } of sources) {
+    for (let page = 1; page <= pages; page++) {
       tasks.push({ ep, page })
     }
   }
 
   const results = await mapConcurrent(tasks, 2, async ({ ep, page }) => {
-    const url = `${TMDB_BASE_URL}${ep}?api_key=${TMDB_API_KEY}&page=${page}`
+    const url = `${TMDB_BASE_URL}${ep}${ep.includes('?') ? '&' : '?'}api_key=${TMDB_API_KEY}&page=${page}`
     try {
       const res = await tmdbFetch(url, {
         headers: {
