@@ -41,7 +41,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   const { data: entries = [] } = useQuery<ContinueWatchingEntry[]>({
     queryKey,
     queryFn: async () => {
-      let data: ContinueWatchingItem[] = []
+      let data: ContinueWatchingItem[]
 
       if (isAuthenticated) {
         try {
