@@ -191,9 +191,9 @@ export async function seedTrieBackground() {
       try {
         const data = await res.json() as { results?: RawTrieItem[] }
         return { ep, items: data.results || [] }
-      } catch (_parseErr) {
+      } catch (parseErr) {
         const preview = await res.text().catch(() => '<unreadable>')
-        throw new Error(`JSON parse error. Body preview: ${preview.substring(0, 150)}`)
+        throw new Error(`JSON parse error. Body preview: ${preview.substring(0, 150)}`, { cause: parseErr })
       }
     } catch (err: unknown) {
       logger.warn(`[Trie] Failed to fetch ${ep}`, { error: err instanceof Error ? err.message : String(err) })
