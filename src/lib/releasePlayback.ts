@@ -118,10 +118,10 @@ export function isBrowserPlayable(name: string, support: BrowserVideoSupport): b
  *   bitrate, less buffering).
  *
  * Real-Debrid's HLS transcode can rescue an undecodable file (it always
- * outputs H.264 + AAC), but its seeking is unreliable — a jump ahead takes
- * 20s or never arrives (measured 2026-10-05) — while a direct link seeks in
- * ~2s. So a release whose name already says it needs the transcode is
- * passed over before resolution is even considered.
+ * outputs H.264 + AAC), but a jump outside what it has loaded restarts the
+ * conversion (~7s, see convertedStreamUrl), while a direct link seeks in
+ * ~2s at the original quality. So a release whose name already says it
+ * needs the transcode is passed over before resolution is even considered.
  */
 export function rankReleasesForPlayback(
   releases: DebridRelease[],
@@ -211,4 +211,46 @@ export function planPlaybackModes(playback: DebridReadyPlayback, support: Browse
   // Direct stays as the last resort even when it's expected to fail: picture
   // without sound beats nothing if Real-Debrid's transcode is down.
   return directPlayable ? [direct, ...hls] : [...hls, direct]
+}
+
+// ---------------------------------------------------------------------------
+// Seeking in Real-Debrid's converted stream
+// ---------------------------------------------------------------------------
+
+/**
+ * Real-Debrid's converted stream, starting `at` seconds into the file.
+ *
+ * Its converter only runs forward, at about 3× real time, so on its own a
+ * jump past what it has converted never arrives. `?t=<seconds>` on the
+ * playlist (undocumented, found 2026-10-18) restarts it there instead: the
+ * playlist then covers the rest of the file, its segments numbered and timed
+ * from 0. The first segment takes ~7s; the rest ~1.5s each.
+ */
+export function convertedStreamUrl(url: string, at: number): string {
+  const start = Math.floor(at)
+  if (start <= 0) return url
+  return `${url}${url.includes('?') ? '&' : '?'}t=${start}`
+}
+
+/** How far past what's loaded a jump can land and still be left to the conversion already running. */
+export const CONVERTED_SEEK_AHEAD_S = 30
+
+export type ConvertedSeek = { kind: 'local'; time: number } | { kind: 'restart'; at: number }
+
+/**
+ * How to jump to `target` (seconds into the file) in a converted stream
+ * that starts `offset` seconds in. `loadedUntil` is where the loaded media
+ * ends, in the element's own time — null before the stream has loaded.
+ *
+ * Within what's loaded, or just past it (the converter runs ahead of
+ * playback), it's an ordinary seek. Anywhere else — behind the stream's
+ * start, or far ahead — the conversion restarts there: a few seconds,
+ * where waiting for it to get there could take minutes.
+ */
+export function planConvertedSeek(target: number, offset: number, loadedUntil: number | null): ConvertedSeek {
+  const local = target - offset
+  if (loadedUntil !== null && local >= 0 && local <= loadedUntil + CONVERTED_SEEK_AHEAD_S) {
+    return { kind: 'local', time: local }
+  }
+  return { kind: 'restart', at: Math.max(0, Math.floor(target)) }
 }
