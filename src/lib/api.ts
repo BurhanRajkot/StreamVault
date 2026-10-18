@@ -221,6 +221,17 @@ export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   return data.results || []
 }
 
+/**
+ * Whether a search hit is worth a tile: a movie or show (not a person) with
+ * artwork, or one enough people have rated that it's clearly real. TMDB's
+ * search is full of no-poster, no-vote entries — they filled the results
+ * with blank grey boxes (a short query like "nar" was 21 of 35).
+ */
+export function isSearchResultWorthShowing(media: Media): boolean {
+  if (media.media_type && media.media_type !== 'movie' && media.media_type !== 'tv') return false
+  return !!media.poster_path || (media.vote_count ?? 0) >= 20
+}
+
 export async function searchMedia(
   mode: MediaMode,
   query: string,
@@ -242,9 +253,12 @@ export async function searchMedia(
   }
 
   // Filter media type specifically if requested.
-  // For 'home' and 'documentary', we omit this to search BOTH TV and Movies.
+  // For 'home' and 'documentary', we omit this to search BOTH TV and Movies —
+  // but never people: an actor's result has no poster and opens nothing.
   if (mode === 'movie' || mode === 'tv') {
     params.append('mediaType', mode)
+  } else {
+    params.append('mediaOnly', 'true')
   }
 
   const url = `${API_BASE}/tmdb/search/hybrid?${params.toString()}`
@@ -256,15 +270,17 @@ export async function searchMedia(
       return { results: [], hasMore: false }
     }
     const data = await res.json()
-    const results: Media[] = data.results || []
+    const raw: Media[] = data.results || []
+    const results = raw.filter(isSearchResultWorthShowing)
 
     // The hybrid route re-ranks one upstream page at a time, so it reports
     // `has_more` rather than a total page count. Deriving pages from
     // total_results (which is just this page's length) always yielded 1 and
-    // killed pagination after the first page.
+    // killed pagination after the first page. Judged on the raw page: a page
+    // that was all noise doesn't mean there's nothing after it.
     return {
       results,
-      hasMore: typeof data.has_more === 'boolean' ? data.has_more : results.length > 0,
+      hasMore: typeof data.has_more === 'boolean' ? data.has_more : raw.length > 0,
     }
   } catch (err: unknown) {
     // AbortError is expected when the caller cancels a stale request — not a real error
@@ -370,17 +386,28 @@ export async function fetchContinueWatching(token: string): Promise<ContinueWatc
 export async function fetchMediaSummaries(
   items: { tmdbId: number; mediaType: 'movie' | 'tv' }[]
 ): Promise<Media[]> {
-  if (items.length === 0) return []
-  const res = await fetch(`${API_BASE}/tmdb/continue-watching-details`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(items),
-  })
-  if (!res.ok) throw new Error(`fetchMediaSummaries failed: ${res.status}`)
-  const rows = (await res.json()) as { media: Media; item: { mediaType: 'movie' | 'tv' } }[]
+  // The endpoint takes at most 20 titles a request; longer lists go in
+  // parallel batches and come back in the order asked for.
+  const batches: (typeof items)[] = []
+  for (let i = 0; i < items.length; i += MEDIA_SUMMARY_BATCH) batches.push(items.slice(i, i + MEDIA_SUMMARY_BATCH))
+
+  const pages = await Promise.all(
+    batches.map(async (batch) => {
+      const res = await fetch(`${API_BASE}/tmdb/continue-watching-details`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+      })
+      if (!res.ok) throw new Error(`fetchMediaSummaries failed: ${res.status}`)
+      return (await res.json()) as { media: Media; item: { mediaType: 'movie' | 'tv' } }[]
+    })
+  )
   // Detail responses don't say what they are; cards need to know.
-  return rows.map(({ media, item }) => ({ ...media, media_type: item.mediaType }))
+  return pages.flat().map(({ media, item }) => ({ ...media, media_type: item.mediaType }))
 }
+
+/** Most titles the batch details endpoint takes in one request. */
+const MEDIA_SUMMARY_BATCH = 20
 
 export async function fetchAggregatedContinueWatching(
   items: ContinueWatchingItem[]

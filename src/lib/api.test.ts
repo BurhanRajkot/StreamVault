@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { adminLogin, getImageSrcSet, buildEmbedUrl, fetchMediaSummaries } from './api';
+import { adminLogin, getImageSrcSet, buildEmbedUrl, fetchMediaSummaries, isSearchResultWorthShowing } from './api';
 import { CONFIG, DEBRID_SERVER_ID, serverOptions, type Media } from './config';
 
 const originalFetch = globalThis.fetch;
@@ -259,5 +259,46 @@ describe('fetchMediaSummaries', () => {
   it('throws when the backend fails, so the row can show its error state', async () => {
     stubFetch(() => Promise.resolve(new Response('{}', { status: 502 })))
     await expect(fetchMediaSummaries([{ tmdbId: 1, mediaType: 'movie' }])).rejects.toThrow('502')
+  })
+})
+
+describe('fetchMediaSummaries batching', () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('splits a long list into requests of 20 and keeps the order asked for', async () => {
+    const bodies: { tmdbId: number }[][] = []
+    globalThis.fetch = mock((_url: string, init?: RequestInit) => {
+      const batch = JSON.parse(String(init?.body)) as { tmdbId: number; mediaType: 'movie' | 'tv' }[]
+      bodies.push(batch)
+      return Promise.resolve(
+        new Response(JSON.stringify(batch.map((item) => ({ media: { id: item.tmdbId }, item }))), { status: 200 })
+      )
+    }) as unknown as typeof fetch
+
+    const items = Array.from({ length: 45 }, (_, i) => ({ tmdbId: i + 1, mediaType: 'movie' as const }))
+    const media = await fetchMediaSummaries(items)
+
+    expect(bodies.map((b) => b.length)).toEqual([20, 20, 5])
+    expect(media.map((m) => m.id)).toEqual(items.map((i) => i.tmdbId))
+  })
+})
+
+describe('isSearchResultWorthShowing', () => {
+  const base = { id: 1, title: 'X', overview: '', vote_average: 0, backdrop_path: null }
+
+  it('keeps movies and shows with artwork', () => {
+    expect(isSearchResultWorthShowing({ ...base, media_type: 'movie', poster_path: '/p.jpg' })).toBe(true)
+    expect(isSearchResultWorthShowing({ ...base, media_type: 'tv', poster_path: '/p.jpg', vote_count: 0 })).toBe(true)
+  })
+
+  it('drops people — they have no poster and open nothing', () => {
+    expect(isSearchResultWorthShowing({ ...base, media_type: 'person', poster_path: '/p.jpg' })).toBe(false)
+  })
+
+  it('drops posterless filler nobody has rated, but keeps a posterless title people have', () => {
+    expect(isSearchResultWorthShowing({ ...base, media_type: 'movie', poster_path: null, vote_count: 3 })).toBe(false)
+    expect(isSearchResultWorthShowing({ ...base, media_type: 'movie', poster_path: null, vote_count: 400 })).toBe(true)
   })
 })

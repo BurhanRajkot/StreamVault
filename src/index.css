@@ -950,6 +950,18 @@
     to   { transform: scaleX(0); }
   }
 
+  /* Sign-in / sign-up poster wall (AuthLayout): each column is its posters
+     three times over, so moving a third of its height loops seamlessly */
+  @keyframes auth-wall-up {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-33.333%); }
+  }
+
+  @keyframes auth-wall-down {
+    from { transform: translateY(-33.333%); }
+    to   { transform: translateY(0); }
+  }
+
   /* Premium's loading bar while there's no percentage to show */
   .pane-indeterminate {
     animation: pane-indeterminate 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;

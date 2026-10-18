@@ -12,7 +12,8 @@ import { AccountMenuPlaceholder } from './AccountMenuPlaceholder'
 const AccountMenu = lazy(() => import('./AccountMenu'))
 
 interface HeaderProps {
-  mode: MediaMode
+  /** The browse tab on screen. Left out on pages that aren't one (Favorites), so no pill reads as current. */
+  mode?: MediaMode
   onModeChange: (mode: MediaMode) => void
   onSearch: (query: string) => void
   searchQuery: string

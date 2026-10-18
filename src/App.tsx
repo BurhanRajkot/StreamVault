@@ -3,7 +3,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
 import { HelmetProvider } from 'react-helmet-async'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
 import ErrorBoundary from './components/layout/ErrorBoundary'
@@ -28,7 +28,6 @@ const lazyImport = (fn: () => Promise<LazyModule>) => lazy(() =>
 
 // Route-level code splitting — only load pages when navigated to
 const Favorites = lazyImport(() => import('./pages/Favorites'))
-const Downloads = lazyImport(() => import('./pages/Downloads'))
 const Watch = lazyImport(() => import('./pages/Watch'))
 const Pricing = lazyImport(() => import('./pages/Pricing'))
 const SubscriptionSuccess = lazyImport(() => import('./pages/SubscriptionSuccess'))
@@ -57,7 +56,8 @@ const AppContent = () => {
     <Suspense fallback={<PageFallback />}>
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<Index />} />
-        <Route path="/downloads" element={<Downloads />} />
+        {/* Downloads lives inside the home page (header, tab bar); this link just opens it there */}
+        <Route path="/downloads" element={<Navigate to="/" replace state={{ mode: 'downloads' }} />} />
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
