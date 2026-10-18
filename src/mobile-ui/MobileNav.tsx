@@ -83,7 +83,8 @@ export function MobileNav({ mode, onModeChange, onSearchOpen, searchOpen = false
           const className = cn(
             'group relative flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 pt-1.5 pb-1',
             'tap-scale',
-            tab.isActive ? 'text-primary' : 'text-muted-foreground'
+            // A lighter blue on dark: primary itself is under 4.5:1 for 10px text there
+            tab.isActive ? 'text-primary dark:text-[hsl(221_90%_70%)]' : 'text-muted-foreground'
           )
 
           const content = (

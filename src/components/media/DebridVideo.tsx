@@ -20,18 +20,23 @@
  *     can move on to another release.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import Hls from 'hls.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DebridReadyPlayback } from '@/lib/debridApi'
 import { detectBrowserVideoSupport, planPlaybackModes, type PlaybackMode } from '@/lib/releasePlayback'
 import { cn } from '@/lib/utils'
-import { PlayerControls } from './PlayerControls'
+import { PlayerControls, type PlayerControlsProps } from './PlayerControls'
+
+/** What the caller can put in the controls: title, release picker, next episode, ... */
+type ChromeProps = Pick<
+  PlayerControlsProps,
+  'title' | 'subtitle' | 'onBack' | 'sources' | 'activeSourceId' | 'onSourceChange' | 'onNext' | 'nextLabel' | 'overlay'
+>
 
 /**
  * Mount one per file — give it a `key` that changes with `playback` — so a
  * new file starts fresh from its first mode and its own `startAt`.
  */
-interface DebridVideoProps {
+interface DebridVideoProps extends ChromeProps {
   playback: DebridReadyPlayback
   /** Every mode failed. `position` is how far the viewer had got, in seconds. */
   onExhausted: (reason: string, position: number) => void
@@ -41,18 +46,22 @@ interface DebridVideoProps {
   startAt?: number
   /** Position/duration, every few seconds while playing and on pause, end and unmount. */
   onProgress?: (position: number, duration: number) => void
-  /** Next episode, when there is one — offered in the controls and when this one ends. */
-  onNext?: () => void
-  title?: string
-  subtitle?: string
-  /** Extra controls for the player's top bar (release picker, open externally). */
-  topBarActions?: ReactNode
+  /** Artwork shown until the first frame. */
+  poster?: string | null
   className?: string
 }
 
 /** How long a mode may take to show its first frame. Real-Debrid's transcoder takes a few seconds to spin up. */
 const DIRECT_STARTUP_TIMEOUT_MS = 25_000
 const HLS_STARTUP_TIMEOUT_MS = 45_000
+/**
+ * A direct link that has sent nothing by now is reconnected once. Real-
+ * Debrid's download servers answer in well under a second; one that hasn't
+ * is usually a hung connection (seen 2026-10-18: 25s of nothing, then the
+ * same link loaded in 2s), and waiting out the full timeout before falling
+ * back to the slower transcode left the viewer on a spinner for ~45s.
+ */
+const DIRECT_STARTUP_RECONNECT_MS = 8_000
 
 /** Fatal hls.js errors to recover from in a row (no segment loading in between) before giving up on the mode. */
 const MAX_HLS_RECOVERIES = 5
@@ -82,11 +91,9 @@ export function DebridVideo({
   onModeChange,
   startAt,
   onProgress,
-  onNext,
-  title,
-  subtitle,
-  topBarActions,
+  poster,
   className,
+  ...chrome
 }: DebridVideoProps) {
   const modes = useMemo(() => planPlaybackModes(playback, detectBrowserVideoSupport()), [playback])
   const [modeIndex, setModeIndex] = useState(0)
@@ -268,11 +275,14 @@ export function DebridVideo({
   }, [mode])
 
   // Attach Real-Debrid's HLS stream. No browser except Safari understands
-  // .m3u8 natively, so everything else goes through hls.js (MSE).
+  // .m3u8 natively, so everything else goes through hls.js (MSE). hls.js is
+  // loaded only here: most files play from the direct link, and it's the
+  // biggest library on the page.
   useEffect(() => {
     if (!mode || mode.kind !== 'hls') return
     const video = videoRef.current
     if (!video) return
+    const url = mode.url
 
     let startPosition = pendingSeekRef.current ?? 0
     pendingSeekRef.current = null
@@ -283,76 +293,93 @@ export function DebridVideo({
       setNotice("The converted stream can't start mid-way, so this is playing from the beginning. Another release may play directly and resume.")
     }
 
-    if (Hls.isSupported()) {
-      // Real-Debrid transcodes on demand: the first segment, and the first
-      // one after a long seek, can take a while to arrive.
-      const segmentLoadPolicy = {
-        default: {
-          maxTimeToFirstByteMs: 40_000,
-          maxLoadTimeMs: 120_000,
-          timeoutRetry: { maxNumRetry: 3, retryDelayMs: 0, maxRetryDelayMs: 0 },
-          errorRetry: { maxNumRetry: 6, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
-        },
-      }
-      const hls = new Hls({
-        startPosition,
-        maxBufferLength: 90,
-        maxMaxBufferLength: 180,
-        fragLoadPolicy: segmentLoadPolicy,
-      })
-      hls.loadSource(mode.url)
-      hls.attachMedia(video)
+    let cancelled = false
+    let detach: (() => void) | null = null
 
-      // Recover the way hls.js documents instead of giving up on the first
-      // fatal error: restart loading for network errors, rebuild the
-      // MediaSource for media errors. The budget refills whenever a segment
-      // lands, so only a stream that's genuinely stuck moves on.
-      let recoveriesLeft = MAX_HLS_RECOVERIES
-      let retryTimer: ReturnType<typeof setTimeout> | null = null
-      hls.on(Hls.Events.FRAG_BUFFERED, () => {
-        recoveriesLeft = MAX_HLS_RECOVERIES
-      })
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (!data.fatal) return
-        if (
-          data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR ||
-          data.details === Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR
-        ) {
-          advanceRef.current(`hls ${data.details}`)
-          return
-        }
-        if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          recoveriesLeft--
-          retryTimer = setTimeout(() => hls.startLoad(video.currentTime), 2000)
-          return
-        }
-        if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          recoveriesLeft--
-          hls.recoverMediaError()
-          return
-        }
-        advanceRef.current(`hls ${data.details}`)
-      })
-      return () => {
-        if (retryTimer) clearTimeout(retryTimer)
-        hls.destroy()
-      }
-    }
-
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = mode.url
+    const playNatively = (): boolean => {
+      if (!video.canPlayType('application/vnd.apple.mpegurl')) return false
+      video.src = url
       if (startPosition > 0) {
         const seek = () => {
           video.currentTime = startPosition
         }
         video.addEventListener('loadedmetadata', seek, { once: true })
       }
-      return () => {
-        video.removeAttribute('src')
-      }
+      detach = () => video.removeAttribute('src')
+      return true
     }
 
-    advanceRef.current('HLS not supported in this browser')
+    import('hls.js')
+      .then(({ default: Hls }) => {
+        if (cancelled) return
+        if (!Hls.isSupported()) {
+          if (!playNatively()) advanceRef.current('HLS not supported in this browser')
+          return
+        }
+        // Real-Debrid transcodes on demand: the first segment, and the first
+        // one after a long seek, can take a while to arrive.
+        const segmentLoadPolicy = {
+          default: {
+            maxTimeToFirstByteMs: 40_000,
+            maxLoadTimeMs: 120_000,
+            timeoutRetry: { maxNumRetry: 3, retryDelayMs: 0, maxRetryDelayMs: 0 },
+            errorRetry: { maxNumRetry: 6, retryDelayMs: 1000, maxRetryDelayMs: 8000 },
+          },
+        }
+        const hls = new Hls({
+          startPosition,
+          maxBufferLength: 90,
+          maxMaxBufferLength: 180,
+          fragLoadPolicy: segmentLoadPolicy,
+        })
+        hls.loadSource(url)
+        hls.attachMedia(video)
+
+        // Recover the way hls.js documents instead of giving up on the first
+        // fatal error: restart loading for network errors, rebuild the
+        // MediaSource for media errors. The budget refills whenever a segment
+        // lands, so only a stream that's genuinely stuck moves on.
+        let recoveriesLeft = MAX_HLS_RECOVERIES
+        let retryTimer: ReturnType<typeof setTimeout> | null = null
+        hls.on(Hls.Events.FRAG_BUFFERED, () => {
+          recoveriesLeft = MAX_HLS_RECOVERIES
+        })
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data.fatal) return
+          if (
+            data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR ||
+            data.details === Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR
+          ) {
+            advanceRef.current(`hls ${data.details}`)
+            return
+          }
+          if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            recoveriesLeft--
+            retryTimer = setTimeout(() => hls.startLoad(video.currentTime), 2000)
+            return
+          }
+          if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            recoveriesLeft--
+            hls.recoverMediaError()
+            return
+          }
+          advanceRef.current(`hls ${data.details}`)
+        })
+        detach = () => {
+          if (retryTimer) clearTimeout(retryTimer)
+          hls.destroy()
+        }
+      })
+      .catch(() => {
+        // The chunk didn't load (offline, or a deploy replaced it): Safari
+        // can still play the stream itself.
+        if (!cancelled && !playNatively()) advanceRef.current('hls.js failed to load')
+      })
+
+    return () => {
+      cancelled = true
+      detach?.()
+    }
   }, [mode])
 
   // Catch a mode that will never show a picture: nothing loaded in time. A
@@ -368,6 +395,8 @@ export function DebridVideo({
     if (!video) return
     const timeoutMs = mode.kind === 'hls' ? HLS_STARTUP_TIMEOUT_MS : DIRECT_STARTUP_TIMEOUT_MS
     let timer: ReturnType<typeof setTimeout> | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let reconnected = false
 
     const check = () => {
       timer = null
@@ -378,24 +407,36 @@ export function DebridVideo({
         (!video.paused && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
       if (stuck) advanceRef.current('nothing loaded before the startup timeout')
     }
-    const arm = () => {
+    const reconnect = () => {
+      reconnectTimer = null
+      if (startedRef.current || document.hidden || reconnected) return
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) return
+      reconnected = true
+      console.warn('Debrid direct link has sent nothing yet — reconnecting')
+      // A pending resume point survives: it's applied on loadedmetadata.
+      video.load()
+    }
+    const clearTimers = () => {
       if (timer) clearTimeout(timer)
-      timer = document.hidden ? null : setTimeout(check, timeoutMs)
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      timer = reconnectTimer = null
+    }
+    const arm = () => {
+      clearTimers()
+      if (document.hidden) return
+      timer = setTimeout(check, timeoutMs)
+      if (mode.kind === 'direct' && !reconnected) reconnectTimer = setTimeout(reconnect, DIRECT_STARTUP_RECONNECT_MS)
     }
     const onVisibility = () => {
       if (startedRef.current) return
-      if (document.hidden) {
-        if (timer) clearTimeout(timer)
-        timer = null
-      } else {
-        arm()
-      }
+      if (document.hidden) clearTimers()
+      else arm()
     }
 
     arm()
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
-      if (timer) clearTimeout(timer)
+      clearTimers()
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [mode])
@@ -454,22 +495,22 @@ export function DebridVideo({
         autoPlay
         playsInline
         preload="auto"
+        poster={poster ?? undefined}
         className="absolute inset-0 h-full w-full bg-black object-contain"
         onError={handleError}
       />
       <PlayerControls
         video={videoEl}
         container={container}
-        title={title}
-        subtitle={subtitle}
-        topBarActions={topBarActions}
-        bufferingHint={
-          hlsHint
-            ? "This stream is converted as it plays and can't skip far ahead — go back a bit, or pick another release."
+        externalUrl={playback.directUrl}
+        streamNote={
+          mode.kind === 'hls'
+            ? 'Playing a stream Real-Debrid converts as it goes, so skipping far ahead can take a while. A different quality may play directly.'
             : null
         }
+        bufferingHint={hlsHint ? "This stream is converted as it plays and can't skip far ahead — go back a bit, or pick another quality." : null}
         notice={notice}
-        onNext={onNext}
+        {...chrome}
       />
     </div>
   )

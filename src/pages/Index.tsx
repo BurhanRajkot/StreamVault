@@ -28,7 +28,11 @@ import { FreePremiumAnnouncement } from '@/components/shared/FreePremiumAnnounce
 const Downloads = lazy(() => import('./Downloads'))
 
 const Index = () => {
-  const [mode, setMode] = useState<MediaMode>('home')
+  const location = useLocation()
+  // A page without browse UI of its own (Favorites, the /downloads link) hands
+  // over the tab it wants in router state. Read it on the first render, so the
+  // home page doesn't flash up before switching.
+  const [mode, setMode] = useState<MediaMode>(() => (location.state as { mode?: MediaMode } | null)?.mode ?? 'home')
   const [showDisclaimer, setShowDisclaimer] = useState(
     () => sessionStorage.getItem('disclaimerAccepted') !== 'true'
   )
@@ -37,9 +41,6 @@ const Index = () => {
   // Owned here (not in Header) so the bottom tab bar can open search too
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
-  // useLocation MUST be called before prevPathnameRef so the React Router
-  // location object is in scope when the ref is initialised.
-  const location = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
@@ -57,17 +58,6 @@ const Index = () => {
       setRefreshKey(k => k + 1)
     }
   }, [location.pathname])
-
-  // Handoff from a page that has no browse UI of its own (e.g. Favorites):
-  // it navigates here carrying the tab the user actually tapped.
-  useEffect(() => {
-    const state = location.state as { openSearch?: boolean; mode?: MediaMode } | null
-    if (!state?.openSearch && !state?.mode) return
-
-    if (state.openSearch) setMobileSearchOpen(true)
-    if (state.mode) setMode(state.mode)
-    navigate(location.pathname, { replace: true, state: null })
-  }, [location.state, location.pathname, navigate])
 
   // ─── CineMatch Onboarding (first-time users only) ────────────────────────
   const { shouldShowOnboarding, markDone } = useOnboarding()
@@ -96,6 +86,19 @@ const Index = () => {
     clearSearch,
     searchQuery,
   } = useMedia(mode, selectedProvider)
+
+  // Handoff from a page that has no browse UI of its own (e.g. Favorites):
+  // it navigates here carrying the tab the user tapped, or what they typed
+  // into its search field.
+  useEffect(() => {
+    const state = location.state as { openSearch?: boolean; mode?: MediaMode; search?: string } | null
+    if (!state?.openSearch && !state?.mode && !state?.search) return
+
+    if (state.openSearch || state.search) setMobileSearchOpen(true)
+    if (state.mode) setMode(state.mode)
+    if (state.search) search(state.search)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate, search])
 
   const handleMediaClick = useCallback((media: Media, season?: number, episode?: number, server?: string, forceAutoPlay?: boolean) => {
     const detectedMode: MediaMode = media.title ? 'movie' : 'tv'
@@ -229,7 +232,7 @@ const Index = () => {
                 {!searchQuery && authorsVisible && (
                   <AuthorsChoiceSection
                     onMediaClick={handleMediaClick}
-                    mode={mode as 'movie' | 'tv' | 'documentary'}
+                    mode={mode === 'movie' || mode === 'tv' || mode === 'documentary' ? mode : 'all'}
                   />
                 )}
               </div>

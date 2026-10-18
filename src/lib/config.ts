@@ -306,6 +306,19 @@ export const DEBRID_SERVER_ID = 'debrid'
 /** The id Real-Debrid's server had while it was TorBox — still in saved continue-watching rows. */
 export const LEGACY_TORBOX_SERVER_ID = 'torbox'
 
+/** One entry in the server dropdown. */
+export interface ServerOption {
+  id: string
+  /** "Premium", "Mercury" */
+  name: string
+  /** The whole entry as plain text, for places that can't style parts of it (a native <select>). */
+  label: string
+  /** Premium only: what it streams in. */
+  detail?: string
+  /** Premium only: free for everyone right now. */
+  free?: boolean
+}
+
 /**
  * Server dropdown options for a given mode. Real-Debrid is offered for movies
  * and TV — search is matched by IMDb id (+ season/episode for TV, via
@@ -315,11 +328,17 @@ export const LEGACY_TORBOX_SERVER_ID = 'torbox'
 export function serverOptions(
   mode: MediaMode,
   { debridFree = false }: { debridFree?: boolean } = {}
-): Array<{ id: string; name: string }> {
-  const providers = Object.entries(CONFIG.PROVIDER_NAMES).map(([id, name]) => ({ id, name }))
+): ServerOption[] {
+  const providers = Object.entries(CONFIG.PROVIDER_NAMES).map(([id, name]) => ({ id, name, label: name }))
   if (mode !== 'movie' && mode !== 'tv') return providers
-  const debridName = debridFree ? '⚡ Premium (4K/1080p) · Free' : '⚡ Premium (4K/1080p)'
-  return [{ id: DEBRID_SERVER_ID, name: debridName }, ...providers]
+  const premium: ServerOption = {
+    id: DEBRID_SERVER_ID,
+    name: 'Premium',
+    detail: '4K/1080p',
+    free: debridFree,
+    label: debridFree ? 'Premium (4K/1080p) · Free' : 'Premium (4K/1080p)',
+  }
+  return [premium, ...providers]
 }
 
 /**

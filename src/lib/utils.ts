@@ -40,3 +40,15 @@ export function slugify(text: string): string {
     .replace(/^-+/, '')             // Trim - from start of text
     .replace(/-+$/, '');            // Trim - from end of text
 }
+
+/** Up to two initials for an avatar: "Riley Tester" → "RT". */
+export function initialsOf(name: string | undefined): string {
+  return (
+    name
+      ?.split(' ')
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'SV'
+  )
+}

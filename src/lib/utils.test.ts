@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { slugify } from './utils';
+import { initialsOf, slugify } from './utils';
 
 describe('slugify', () => {
   it('should return an empty string for falsy inputs', () => {
@@ -41,3 +41,16 @@ describe('slugify', () => {
     expect(slugify('!@#$%^&*()_+={}|[]\\:";\'<>?,./')).toBe('_');
   });
 });
+
+describe('initialsOf', () => {
+  it('takes the first letter of up to two words, upper-cased', () => {
+    expect(initialsOf('Riley Tester')).toBe('RT')
+    expect(initialsOf('ada lovelace byron')).toBe('AL')
+    expect(initialsOf('Cher')).toBe('C')
+  })
+
+  it('falls back to the brand initials when there is no name', () => {
+    expect(initialsOf(undefined)).toBe('SV')
+    expect(initialsOf('')).toBe('SV')
+  })
+})

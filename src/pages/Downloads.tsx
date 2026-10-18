@@ -212,7 +212,7 @@ const Downloads = () => {
   if (!isAdmin && (!isAuthenticated || needsUpgrade)) {
     return (
       <>
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
           <Crown className="mb-4 h-12 w-12 text-yellow-500" />
           <h2 className="mb-2 text-xl font-semibold">Premium Feature</h2>
           <p className="mb-4 max-w-md text-muted-foreground">
@@ -228,19 +228,13 @@ const Downloads = () => {
             {isAuthenticated ? 'Upgrade to Premium' : 'Sign In'}
           </Link>
 
-          {/* Admin Login Button - Bottom Left */}
+          {/* Inline rather than floating: a fixed button sat on top of the footer */}
           <button
             onClick={() => setShowAdminModal(true)}
-            className={cn(
-              'fixed bottom-24 left-6 flex items-center gap-2 rounded-lg border border-border/50 bg-card/80 px-4 py-2.5 text-sm font-medium text-muted-foreground backdrop-blur-sm',
-              'hover:bg-card hover:text-foreground hover:border-primary/50',
-              'transition-all duration-200',
-              'shadow-lg hover:shadow-xl',
-              'z-50'
-            )}
+            className="mt-8 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <ShieldCheck className="h-4 w-4" />
-            <span>Admin Login</span>
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Admin login
           </button>
         </div>
 

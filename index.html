@@ -68,25 +68,19 @@
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" />
     </noscript>
 
-    <!-- Preconnect to TMDB image CDN for faster image loading -->
-    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
+    <!-- TMDB image CDN. No `crossorigin`: posters are plain <img> requests,
+         which can't reuse a connection opened in CORS mode — with it, the
+         hero image paid for a second handshake. -->
+    <link rel="preconnect" href="https://image.tmdb.org" />
     <link rel="dns-prefetch" href="https://image.tmdb.org" />
+    <!-- The backend API's preconnect is injected at build time from
+         VITE_API_URL (see vite.config.ts). -->
 
-    <!-- Preconnect to TMDB API (via backend proxy domain) -->
-    <link rel="preconnect" href="https://api.themoviedb.org" crossorigin />
-
-    <!-- Streaming providers are used on watch pages; keep these as DNS hints on home -->
-    <link rel="dns-prefetch" href="https://vidsrc.me" />
-    <link rel="dns-prefetch" href="https://vidlink.pro" />
-    <link rel="dns-prefetch" href="https://vidfast.pro" />
-    <link rel="dns-prefetch" href="https://player.vidzee.wtf" />
-    <link rel="dns-prefetch" href="https://player.videasy.to" />
-    <link rel="dns-prefetch" href="https://vidrock.ru" />
-    <link rel="dns-prefetch" href="https://vidsrc.pm" />
-    <link rel="dns-prefetch" href="https://flicky.host" />
+    <!-- Embed servers (fallbacks to Premium) — DNS hints only -->
     <!-- 111movies.net 302-redirects to player.vidlove.cc, so warm both -->
     <link rel="dns-prefetch" href="https://111movies.net" />
     <link rel="dns-prefetch" href="https://player.vidlove.cc" />
+    <link rel="dns-prefetch" href="https://vidfast.pro" />
   </head>
 
   <body>

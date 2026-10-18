@@ -250,13 +250,13 @@ const media = await fetchMediaDetails('movie', tmdbId)
 ### Build Errors
 - Clear node_modules: `rm -rf node_modules && npm install`
 - Clear Vite cache: `rm -rf node_modules/.vite`
-- Check TypeScript errors: `npx tsc --noEmit`
+- Check TypeScript errors: `npm run typecheck` (a bare `npx tsc --noEmit` checks nothing — the root tsconfig only references the app/node/backend projects)
 
 ## Git Workflow
 
 1. Work on feature branches
 2. Run tests before committing: `npm run e2e`
-3. Commit with co-authoring: `Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>`
+3. Commit with a co-author trailer naming the Claude model that did the work, e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 4. Create PR with clear description
 5. Wait for CI checks to pass
 

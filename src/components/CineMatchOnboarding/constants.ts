@@ -24,7 +24,7 @@ export const CURATED_TITLES: CuratedTitle[] = [
   { tmdbId: 13,     mediaType: 'movie', title: 'Forrest Gump',            genre: 'Drama',    posterPath: '/saHP97rTPS5eLmrLQEcANmKrsFl.jpg' },
   { tmdbId: 87108,  mediaType: 'tv',    title: 'Chernobyl',               genre: 'Drama',    posterPath: '/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg' },
   // Thriller
-  { tmdbId: 22970,  mediaType: 'movie', title: 'Shutter Island',          genre: 'Thriller', posterPath: '/zZZe5wn0udlhMtdlDjN4NB72R6e.jpg' },
+  { tmdbId: 11324,  mediaType: 'movie', title: 'Shutter Island',          genre: 'Thriller', posterPath: '/nrmXQ0zcZUL8jFLrakWc90IR8z9.jpg' },
   { tmdbId: 680,    mediaType: 'movie', title: 'Pulp Fiction',            genre: 'Thriller', posterPath: '/plnlrtBUULT0rh3Xsjmpubiso3L.jpg' },
   // Horror
   { tmdbId: 419430, mediaType: 'movie', title: 'Get Out',                 genre: 'Horror',   posterPath: '/tFXcEccSQMf3lfhfXKSU9iRBpa3.jpg' },

@@ -1,23 +1,19 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clapperboard, Crown, Heart, LogOut, Search, Shield, X } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Crown, Heart, Search, Shield, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/mobile-ui/use-mobile'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ThemeToggle } from './ThemeToggle'
+import { AccountMenuPlaceholder } from './AccountMenuPlaceholder'
+
+const AccountMenu = lazy(() => import('./AccountMenu'))
 
 interface HeaderProps {
-  mode: MediaMode
+  /** The browse tab on screen. Left out on pages that aren't one (Favorites), so no pill reads as current. */
+  mode?: MediaMode
   onModeChange: (mode: MediaMode) => void
   onSearch: (query: string) => void
   searchQuery: string
@@ -61,7 +57,7 @@ export function Header({
   const searchRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
   const navigate = useNavigate()
-  const { user, isAuthenticated, logout } = useAuth0()
+  const { isAuthenticated } = useAuth0()
 
   // Mobile search state is controlled when the page passes it down.
   const [uncontrolledMobileSearch, setUncontrolledMobileSearch] = useState(false)
@@ -78,14 +74,6 @@ export function Header({
   // Phones have little vertical room; a 100px bar pinned over every scroll
   // costs a fifth of the screen for something needed only between browses.
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
-
-  const initials =
-    user?.name
-      ?.split(' ')
-      .map((n) => n[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || 'SV'
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -223,37 +211,9 @@ export function Header({
     'h-9 rounded-full border-golden-amber/35 bg-golden-amber/10 px-3 text-[11px] font-semibold tracking-[0.02em] text-golden-amber/85 shadow-none transition-none hover:border-golden-amber/50 hover:bg-golden-amber/16 hover:text-golden-amber'
 
   const accountMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          aria-label="Open account menu"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={user?.picture} alt={user?.name || 'User avatar'} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="flex flex-col gap-1">
-          <span className="text-sm font-medium">{user?.name}</span>
-          <span className="text-xs text-muted-foreground">{user?.email}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <button
-          className="flex w-full items-center gap-2 px-2 py-1.5 text-sm text-destructive hover:bg-accent"
-          onClick={() =>
-            logout({
-              logoutParams: { returnTo: window.location.origin },
-            })
-          }
-        >
-          <LogOut className="h-4 w-4" />
-          Logout
-        </button>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Suspense fallback={<AccountMenuPlaceholder />}>
+      <AccountMenu />
+    </Suspense>
   )
 
   return (
@@ -489,14 +449,9 @@ export function Header({
                     </button>
                   )}
 
-                  <Link
-                    to="/admin/dashboard"
-                    aria-label="Admin login"
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground tap-scale"
-                  >
-                    <Shield className="h-[20px] w-[20px]" />
-                  </Link>
-
+                  {/* No admin link here: on a 390px bar it pushed "Sign in"
+                      onto two lines and cut the logo to "StreamVa…". The
+                      desktop header keeps it; /admin/dashboard still works. */}
                   <ThemeToggle compact />
 
                   {isAuthenticated ? (
@@ -504,7 +459,7 @@ export function Header({
                   ) : (
                     <Link
                       to="/login"
-                      className="ml-1 inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground tap-scale"
+                      className="ml-1 inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground tap-scale"
                     >
                       Sign in
                     </Link>

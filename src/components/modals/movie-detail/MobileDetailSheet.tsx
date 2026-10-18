@@ -1,17 +1,9 @@
 import { useState } from 'react'
-import { Play, Server, Heart, Share2, Check } from 'lucide-react'
-import { serverOptions } from '@/lib/config'
-import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
+import { Play, Heart, Share2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { type PlaybackControls, seasonOptions } from './types'
+import type { PlaybackControls } from './types'
+import { SeasonEpisodeSelects, ServerSelect } from './PlaybackPickers'
 
 interface MobileDetailSheetProps {
   display: MediaDisplay
@@ -55,8 +47,6 @@ export function MobileDetailSheet({
     onServerChange,
     onPlay,
   } = playback
-  const debridFree = useDebridFreeUntil() !== null
-
   // Starts clamped — a 5-line synopsis pushes Play off-screen. Local to this
   // layout: the desktop panel never clamps.
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
@@ -67,23 +57,23 @@ export function MobileDetailSheet({
       <div className="h-[44svh] shrink-0" aria-hidden="true" />
 
       <div className="relative flex-1 bg-gradient-to-b from-transparent via-background/95 to-background px-5 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))]">
-        {logoImage ? (
-          <img
-            src={logoImage}
-            alt={title}
-            aria-hidden="true"
-            role="presentation"
-            draggable="false"
-            className="mb-1 max-h-[84px] w-auto max-w-[78%] object-contain drop-shadow-2xl"
-          />
-        ) : (
-          <h1 className="text-[27px] font-bold leading-[1.15] tracking-tight">{title}</h1>
-        )}
+        <h1 className="font-display text-[27px] font-bold leading-[1.15] tracking-tight">
+          {logoImage ? (
+            <img
+              src={logoImage}
+              alt={title}
+              draggable="false"
+              className="mb-1 h-[84px] w-auto max-w-[78%] object-contain object-left-bottom drop-shadow-2xl"
+            />
+          ) : (
+            title
+          )}
+        </h1>
 
         {/* Meta line — year, certificate, runtime */}
         <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] font-medium text-foreground/60">
           {year && <span>{year}</span>}
-          <span className="rounded border border-foreground/25 px-1.5 py-px text-[11px] uppercase tracking-wider">
+          <span className="rounded border border-white/25 px-1.5 py-px text-[11px] font-semibold">
             {contentRating}
           </span>
           {durationStr && <span>{durationStr}</span>}
@@ -92,61 +82,29 @@ export function MobileDetailSheet({
 
         {/* Season / episode pickers */}
         {mode === 'tv' && (
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <Select
-              value={season.toString()}
-              onValueChange={(val) => { onSeasonChange(Number(val)); onEpisodeChange(1) }}
-            >
-              <SelectTrigger aria-label="Season" className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
-                <SelectValue placeholder="Season" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-                {seasonOptions(seasons).map(n => (
-                  <SelectItem key={n} value={n.toString()} className="py-3 text-[15px]">
-                    Season {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={episode.toString()} onValueChange={(val) => onEpisodeChange(Number(val))}>
-              <SelectTrigger aria-label="Episode" className="h-12 w-full rounded-xl border-white/10 bg-white/[0.07] text-sm font-medium text-foreground">
-                <SelectValue placeholder="Episode" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-                {Array.from({ length: episodeCount }, (_, i) => i + 1).map(n => (
-                  <SelectItem key={n} value={n.toString()} className="py-3 text-[15px]">
-                    Episode {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SeasonEpisodeSelects
+            seasons={seasons}
+            season={season}
+            episode={episode}
+            episodeCount={episodeCount}
+            onSeasonChange={onSeasonChange}
+            onEpisodeChange={onEpisodeChange}
+            className="mt-4"
+            triggerClassName="h-12 w-full"
+          />
         )}
 
         {/* Primary CTA */}
         <button
           onClick={onPlay}
-          className="mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-foreground text-[16px] font-bold text-background tap-scale"
+          className="mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-white text-[16px] font-bold text-black tap-scale"
         >
           <Play className="h-5 w-5 fill-current" />
           Play
         </button>
 
         {/* Server picker — secondary, but has to be reachable when one fails */}
-        <Select value={server} onValueChange={onServerChange}>
-          <SelectTrigger aria-label="Server" className="mt-2.5 h-12 w-full rounded-lg border-white/10 bg-white/[0.07] text-sm text-foreground/80">
-            <div className="flex items-center gap-2">
-              <Server className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
-              <SelectValue placeholder="Server" />
-            </div>
-          </SelectTrigger>
-          <SelectContent className="max-h-[50vh] rounded-xl border-border/60 bg-popover text-popover-foreground shadow-2xl custom-scrollbar">
-            {serverOptions(mode, { debridFree }).map(({ id, name }) => (
-              <SelectItem key={id} value={id} className="py-3 text-[15px]">{name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ServerSelect mode={mode} value={server} onChange={onServerChange} className="mt-2.5 h-12 w-full" />
 
         {/* Save / share */}
         <div className="mt-6 flex items-center gap-9 px-1">
@@ -200,7 +158,7 @@ export function MobileDetailSheet({
 
         {cast.length > 0 && (
           <div className="mt-7">
-            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/40">Cast</h3>
+            <h2 className="mb-3 text-sm font-medium text-white/50">Cast</h2>
             {/* Negative margin lets the row bleed to the screen edge */}
             <div className="edge-row -mx-5 gap-4 px-5">
               {cast.map(actor => (
