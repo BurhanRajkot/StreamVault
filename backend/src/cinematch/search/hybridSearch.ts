@@ -98,7 +98,6 @@ async function fetchDiscover(
 // Adapter type that satisfies BM25Document without conflicting with TMDBMultiResult.id
 interface TMDBBm25Doc extends BM25Document {
   id: string          // String composite key ("movie:12345")
-  numericId: number   // Original TMDB numeric id preserved separately
   fields: Record<string, string>
   media_type: 'movie' | 'tv' | 'person'
   title?: string
@@ -121,7 +120,6 @@ function toDocuments(results: TMDBMultiResult[]): TMDBBm25Doc[] {
   return results.map(r => ({
     ...r,
     id: `${r.media_type}:${r.id}`,      // String composite key for BM25Document
-    numericId: r.id,                      // Preserve original numeric TMDB id
     fields: {
       title: r.title || r.name || '',
       name: r.name || r.title || '',
@@ -130,35 +128,82 @@ function toDocuments(results: TMDBMultiResult[]): TMDBBm25Doc[] {
     },
   }))
 }
-// ── Hybrid Score ──────────────────────────────────────────
-// Blend BM25 relevance with TMDB's own popularity signal
-// so highly-relevant niche results aren't buried by big blockbusters.
-//
-//  hybridScore = 0.75 * bm25_norm + 0.25 * popularity_norm
-//
-// where bm25_norm and popularity_norm are min-max normalised to [0,1].
-function computeHybridScores(
-  bm25Results: Array<{ doc: TMDBBm25Doc; bm25Score: number }>,
-): HybridSearchResult[] {
-  if (bm25Results.length === 0) return []
-  const maxBM25 = Math.max(...bm25Results.map(r => r.bm25Score), 1e-9)
-  const popularities = bm25Results.map(r => r.doc.popularity || 0)
-  const maxPop = Math.max(...popularities, 1e-9)
-  return bm25Results.map(({ doc, bm25Score }) => {
-    const bm25Norm = bm25Score / maxBM25
-    const popNorm = (doc.popularity || 0) / maxPop
-    const hybridScore = 0.75 * bm25Norm + 0.25 * popNorm
-    // Reconstruct the TMDBMultiResult shape with the numeric id
-    const tmdbResult: TMDBMultiResult = {
-      ...doc,
-      id: doc.numericId,
-    }
-    return {
-      ...tmdbResult,
-      bm25Score,
-      hybridScore,
-    }
-  }).sort((a, b) => b.hybridScore - a.hybridScore)
+// ── Ranking ───────────────────────────────────────────────
+/** Lowercased letters and digits, single-spaced: "Spider-Man: No Way Home" → "spider man no way home". */
+function normalizeTitle(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+/**
+ * How well a title matches what has been typed so far, 0–1. BM25 only scores
+ * whole words, so an as-you-type query ("nar") gave Narcos and Naruto nothing
+ * and put whatever was literally called "Nar" above them.
+ */
+export function titleMatchScore(title: string, query: string): number {
+  const t = normalizeTitle(title)
+  const q = normalizeTitle(query)
+  if (!t || !q) return 0
+  if (t === q) return 1
+  if (t.startsWith(q)) return 0.85
+  const titleWords = t.split(' ')
+  const queryWords = q.split(' ')
+  const last = queryWords[queryWords.length - 1]
+  const earlier = queryWords.slice(0, -1)
+  // Every finished word is in the title, and the one being typed starts a word
+  if (earlier.every((w) => titleWords.includes(w)) && titleWords.some((w) => w.startsWith(last))) return 0.6
+  if (t.includes(q)) return 0.4
+  return 0
+}
+
+/** No poster and (nearly) nobody has rated it: TMDB filler that shows up as a blank tile. */
+export function isSearchNoise(r: { poster_path?: string | null; vote_count?: number }): boolean {
+  return !r.poster_path && (r.vote_count ?? 0) < 20
+}
+
+/**
+ * A short single word is almost always a word still being typed ("nar"):
+ * BM25's exact-word bonus there mostly rewards obscure titles that happen to
+ * be literally that word, so it counts for little and prefix + popularity
+ * decide.
+ */
+function scoreWeights(query: string): { bm25: number; title: number; popularity: number } {
+  const words = normalizeTitle(query).split(' ').filter(Boolean)
+  return words.length === 1 && words[0].length <= 4
+    ? { bm25: 0.1, title: 0.45, popularity: 0.45 }
+    : { bm25: 0.4, title: 0.35, popularity: 0.25 }
+}
+
+/**
+ * Order search hits: relevance — BM25 over title/overview/tagline, plus how
+ * well the title matches what's typed (titleMatchScore) — blended with
+ * log-scaled popularity, so a blockbuster that merely mentions the word
+ * doesn't bury the exact match. Titles almost nobody has rated are damped:
+ * among equally good matches, the one people actually watch comes first.
+ */
+export function rankSearchResults(query: string, results: TMDBMultiResult[]): HybridSearchResult[] {
+  if (results.length === 0) return []
+  const weights = scoreWeights(query)
+  const bm25 = new Map(rankWithBM25(query, toDocuments(results)).map((r) => [r.doc.id, r.bm25Score]))
+  const maxBM25 = Math.max(0, ...bm25.values())
+  const maxPop = Math.max(0, ...results.map((r) => r.popularity || 0))
+  return results
+    .map((r) => {
+      const bm25Score = bm25.get(`${r.media_type}:${r.id}`) ?? 0
+      const bm25Norm = maxBM25 > 0 ? bm25Score / maxBM25 : 0
+      const popNorm = maxPop > 0 ? Math.log1p(r.popularity || 0) / Math.log1p(maxPop) : 0
+      const titleMatch = titleMatchScore(r.title || r.name || '', query)
+      // 0 votes → ×0.6, 1000+ votes → ×1
+      const confidence = 0.6 + 0.4 * Math.min(1, Math.log1p(r.vote_count || 0) / Math.log1p(1000))
+      const hybridScore =
+        (weights.bm25 * bm25Norm + weights.title * titleMatch + weights.popularity * popNorm) * confidence
+      return { ...r, bm25Score, hybridScore }
+    })
+    .sort((a, b) => b.hybridScore - a.hybridScore)
 }
 // ── Public API ────────────────────────────────────────────
 export interface HybridSearchOptions {
@@ -172,11 +217,9 @@ export interface HybridSearchOptions {
 /**
  * Execute a hybrid search:
  *   1. Fetch TMDB /search/multi results
- *   2. Re-rank with BM25 across title, overview, tagline
- *   3. Blend with popularity for final hybrid score
- *
- * Falls back to raw TMDB results if BM25 produces all-zero scores
- * (e.g. very short single-word queries that are all stopwords).
+ *   2. Drop filler (no poster, no votes)
+ *   3. Rank: BM25 across title, overview, tagline + as-you-type title
+ *      matching, blended with popularity (see rankSearchResults)
  */
 export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSearchResult[]> {
   const { query, page = 1, mediaOnly = false, mediaType } = opts
@@ -218,22 +261,15 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
   } else if (mediaOnly) {
     results = results.filter(r => r.media_type === 'movie' || r.media_type === 'tv')
   }
+  // Filler TMDB returns for loose queries — no artwork, no audience.
+  results = results.filter((r) => !isSearchNoise(r))
   if (results.length === 0) return []
-  // Convert to BM25 document format and score
-  const docs = toDocuments(results)
-  const bm25Ranked = rankWithBM25(query, docs)
-  // Check if BM25 produced any signal (all-zero = pure stopwords query)
-  const hasSignal = bm25Ranked.some(r => r.bm25Score > 0)
-  if (!hasSignal) {
-    // Fall back to TMDB ordering by popularity
-    logger.info('[HybridSearch] BM25 produced no signal, using TMDB ordering', { query })
-    return results.map(r => ({ ...r, bm25Score: 0, hybridScore: r.popularity || 0 }))
-  }
-  logger.info('[HybridSearch] BM25 re-ranked results', {
-    query,
-    count: results.length,
-    topResult: `${bm25Ranked[0]?.doc.title || bm25Ranked[0]?.doc.name} (${bm25Ranked[0]?.bm25Score.toFixed(3)})`,
-  })
 
-  return computeHybridScores(bm25Ranked)
+  const ranked = rankSearchResults(query, results)
+  logger.info('[HybridSearch] ranked results', {
+    query,
+    count: ranked.length,
+    topResult: `${ranked[0]?.title || ranked[0]?.name} (${ranked[0]?.hybridScore.toFixed(3)})`,
+  })
+  return ranked
 }

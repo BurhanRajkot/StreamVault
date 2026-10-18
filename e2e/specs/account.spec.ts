@@ -5,6 +5,7 @@
 
 import { test, expect, SIGNED_IN } from '../fixtures/test'
 import { MOVIE, titleOf } from '../fixtures/data'
+import { cardName } from '../pages/HomePage'
 
 test.describe('as a guest', () => {
   test('the header offers sign in and sign up', async ({ home }) => {
@@ -25,7 +26,7 @@ test.describe('as a guest', () => {
 
   test('signing in from the login page returns them where they were', async ({ page }) => {
     await page.goto('/login?returnTo=%2Fpricing')
-    await page.getByRole('button', { name: 'Sign In to Account' }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 
     await expect(page).toHaveURL('/pricing')
     await expect(page.getByRole('heading', { name: 'Unlock Premium Streaming' })).toBeVisible()
@@ -51,7 +52,7 @@ test.describe('signed in', () => {
 
     await page.goto('/favorites')
     await expect(page.getByRole('heading', { name: 'Favorites', level: 1 })).toBeVisible()
-    const card = page.getByRole('button', { name: `Open ${titleOf(MOVIE)}`, exact: true })
+    const card = page.getByRole('button', { name: cardName(titleOf(MOVIE)) })
     await expect(card).toBeVisible()
 
     // Un-favorite from the title page — the one place both layouts offer it.

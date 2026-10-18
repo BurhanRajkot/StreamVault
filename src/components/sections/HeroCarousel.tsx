@@ -68,9 +68,10 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
   }
 
   // Portrait phones get a tall, poster-led hero (svh so the address bar
-  // collapsing doesn't resize it mid-scroll); md+ keeps the wide 16:9 banner.
+  // collapsing doesn't resize it mid-scroll); md+ a cinematic wide banner,
+  // tall enough to show the shot rather than a strip of it.
   const heroHeightClass =
-    'h-[min(72svh,600px)] min-h-[440px] md:h-[clamp(240px,25vw,750px)] md:min-h-0'
+    'h-[min(72svh,600px)] min-h-[440px] md:h-[clamp(380px,40vw,620px)] md:min-h-0'
 
   if (items.length === 0) {
     return (
@@ -118,17 +119,17 @@ export function HeroCarousel({ items, onMediaClick }: HeroCarouselProps) {
       <button
         onClick={goToPrev}
         aria-label="Previous slide"
-        className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden md:flex"
+        className="absolute left-4 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white transition-colors hover:bg-black/60 active:scale-95 md:flex"
       >
-        <ChevronLeft className="h-5 w-5" />
+        <ChevronLeft className="h-6 w-6" />
       </button>
 
       <button
         onClick={goToNext}
         aria-label="Next slide"
-        className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-lg bg-background/80 backdrop-blur-xl p-3 shadow-xl border border-border/50 hover:bg-primary hover:border-primary hover:text-primary-foreground transition-all duration-300 hover:scale-110 active:scale-95 hover:shadow-glow hidden md:flex"
+        className="absolute right-4 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white transition-colors hover:bg-black/60 active:scale-95 md:flex"
       >
-        <ChevronRight className="h-5 w-5" />
+        <ChevronRight className="h-6 w-6" />
       </button>
 
       {/* Slide indicators with CSS-animated progress (zero JS per-tick) */}

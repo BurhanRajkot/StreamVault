@@ -17,6 +17,8 @@ if (!TMDB_API_KEY) {
 
 /** TMDB caps discover/search paging at 500. */
 const MAX_PAGE = 500
+/** Trie (autocomplete) hits that make a full first page on their own. */
+const TRIE_FULL_PAGE = 12
 
 /** Upper bound on a single upstream TMDB request. */
 const TMDB_TIMEOUT_MS = Number(process.env.TMDB_TIMEOUT_MS || 8000)
@@ -247,41 +249,45 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'page must be an integer between 1 and 500' })
   }
 
-  // 1. Instant prefix check via In-Memory Trie
-  // If we are on page 1, and the query is short, hitting the trie is O(m).
-  // If the trie has a rich set of top entities, we can return them instantly.
-  // Note: we can combine trie results with backend search, but for instant autocomplete
-  // normally the client calls a separate /autocomplete endpoint. We'll serve that here too.
+  if (mediaType && mediaType !== 'movie' && mediaType !== 'tv') {
+    return res.status(400).json({ error: 'mediaType must be movie or tv' })
+  }
+
+  // 1. Instant prefix check via the in-memory trie (O(m) in the query length).
+  // It only holds a bounded set of top titles, so it answers alone only when
+  // it has a full page; otherwise its hits lead and the TMDB search fills in
+  // the rest — "na" used to come back as a single title.
+  let trieHits: Array<{ id: number; media_type: 'movie' | 'tv' }> = []
   if (page === 1 && req.query.autocomplete === 'true') {
-    const trieResults = globalTrie.search(query)
-    if (trieResults.length > 0) {
-      // Map TrieEntity to standard TMDBMultiResult shape
-      const results = trieResults.map(t => ({
+    trieHits = globalTrie
+      .search(query)
+      .filter((t) => !mediaType || t.mediaType === mediaType)
+      .map((t) => ({
         id: t.id,
         media_type: t.mediaType,
         title: t.mediaType === 'movie' ? t.title : undefined,
         name: t.mediaType === 'tv' ? t.title : undefined,
         popularity: t.popularity,
         poster_path: t.poster_path,
+        vote_average: t.vote_average,
+        vote_count: t.vote_count,
         release_date: t.release_year ? `${t.release_year}-01-01` : undefined, // Approximation
         first_air_date: t.release_year ? `${t.release_year}-01-01` : undefined,
         _source: 'trie_autocomplete', // Debug flag
       }))
-      
-      // We return these immediately as sub-10ms autocomplete results.
-      // The trie holds a bounded top-entity set, so there is nothing to page to.
+
+    if (trieHits.length >= TRIE_FULL_PAGE) {
+      // Sub-10ms autocomplete. The trie is bounded, so there's nothing to page to.
       res.setHeader('Cache-Control', 'public, max-age=60')
       res.setHeader('X-Search-Engine', 'memory-trie')
-      return res.json({ results, total_results: results.length, has_more: false, page, query })
+      return res.json({ results: trieHits, total_results: trieHits.length, has_more: false, page, query })
     }
   }
 
-  if (mediaType && mediaType !== 'movie' && mediaType !== 'tv') {
-    return res.status(400).json({ error: 'mediaType must be movie or tv' })
-  }
-
   try {
-    const results = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType })
+    const searched = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType })
+    const seen = new Set(trieHits.map((t) => `${t.media_type}:${t.id}`))
+    const results = [...trieHits, ...searched.filter((r) => !seen.has(`${r.media_type}:${r.id}`))]
     res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=900')
     // `has_more` rather than a page count: hybridSearch re-ranks a single
     // upstream page, so it has no idea how many pages exist in total. Reporting
@@ -290,7 +296,7 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
     res.json({
       results,
       total_results: results.length,
-      has_more: results.length > 0 && page < MAX_PAGE,
+      has_more: searched.length > 0 && page < MAX_PAGE,
       page,
       query,
     })

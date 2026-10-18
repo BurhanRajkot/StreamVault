@@ -166,10 +166,11 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              aria-label="Server"
               className="px-3 py-2.5 min-h-11 flex-1 bg-secondary/80 border border-border hover:border-ring text-foreground text-sm rounded-md transition-colors cursor-pointer"
             >
-              {serverOptions(mode, { debridFree }).map(({ id, name }) => (
-                <option key={id} value={id}>{name}</option>
+              {serverOptions(mode, { debridFree }).map(({ id, label }) => (
+                <option key={id} value={id}>{label}</option>
               ))}
             </select>
           </div>

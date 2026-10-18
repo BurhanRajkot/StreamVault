@@ -5,6 +5,7 @@
 
 import { test, expect } from '../fixtures/test'
 import { MOVIE, SECOND_MOVIE, SHOW, titleOf, watchPath } from '../fixtures/data'
+import { cardName } from '../pages/HomePage'
 
 test.describe('Home', () => {
   test('shows the featured carousel and the catalogue', async ({ home }) => {
@@ -31,7 +32,7 @@ test.describe('Home', () => {
 
     await home.header.getByRole('button', { name: 'TV Shows' }).click()
     await expect(home.card(titleOf(SHOW))).toBeVisible()
-    await expect(page.getByRole('button', { name: `Open ${titleOf(MOVIE)}`, exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: cardName(titleOf(MOVIE)) })).toHaveCount(0)
   })
 })
 
@@ -42,7 +43,7 @@ test.describe('Search', () => {
 
     const result = home.card(titleOf(MOVIE))
     await expect(result).toBeVisible()
-    await expect(page.getByRole('button', { name: `Open ${titleOf(SECOND_MOVIE)}`, exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: cardName(titleOf(SECOND_MOVIE)) })).toHaveCount(0)
 
     await result.click()
     await expect(watch.heading(MOVIE)).toBeVisible()
@@ -53,6 +54,15 @@ test.describe('Search', () => {
     await home.search('zzzz no such film')
 
     await expect(page.getByText('No results found')).toBeVisible()
+  })
+
+  test('works from a page without a catalogue, taking the viewer to the results', async ({ page, home }) => {
+    await page.goto('/favorites')
+    await home.search('incep')
+
+    await expect(page).toHaveURL('/')
+    await expect(home.searchBox).toHaveValue('incep')
+    await expect(home.card(titleOf(MOVIE))).toBeVisible()
   })
 })
 

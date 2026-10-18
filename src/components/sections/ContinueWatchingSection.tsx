@@ -13,6 +13,7 @@ import { ContinueWatchingCard } from '@/components/media/ContinueWatchingCard'
 import { toast } from 'sonner'
 import { useScrollArrows } from '@/hooks/useScrollArrows'
 import { readSnapshot, writeSnapshot } from '@/lib/querySnapshot'
+import { cn } from '@/lib/utils'
 
 import { ContinueWatchingItem } from '@/lib/api'
 
@@ -37,7 +38,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   const snapshotKey = `continueWatching:${accountKey}`
 
 
-  const { data: entries = [], isLoading: loading } = useQuery<ContinueWatchingEntry[]>({
+  const { data: entries = [] } = useQuery<ContinueWatchingEntry[]>({
     queryKey,
     queryFn: async () => {
       let data: ContinueWatchingItem[] = []
@@ -115,90 +116,56 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
     }
   }
 
-  // Render for both guests and logged-in users
+  // Nothing to continue (or nothing known yet, on a first visit with no
+  // snapshot): no section at all, rather than an empty heading — or a
+  // skeleton that collapses into one and shifts the page under the viewer.
+  if (entries.length === 0) return null
 
   return (
-    <section
-      className="group/row mb-5 sm:mb-6 relative"
-    >
+    <section className="group/row relative mb-5 sm:mb-6">
       <div className="mb-2.5 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-[17px] font-bold sm:text-xl">Continue Watching</h2>
-        <span className="hidden text-sm text-foreground/80 sm:block">
-          Pick up where you left off
-        </span>
+        <span className="hidden text-sm text-foreground/80 sm:block">Pick up where you left off</span>
       </div>
 
-      {/* Loading skeleton */}
-      {loading && (
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-0">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="aspect-[2/3] w-[34vw] min-w-[116px] max-w-[170px] shrink-0 animate-pulse rounded-lg bg-muted md:aspect-auto md:h-[clamp(240px,16.5vw,450px)] md:w-[clamp(160px,11vw,300px)] md:max-w-none"
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && entries.length === 0 && (
-        <p className="text-sm text-foreground/75">
-          You haven't started watching anything yet.
-        </p>
-      )}
-
-      {/* Left Navigation Button */}
-      {entries.length > 0 && (
-        <div 
-          className={`absolute left-0 md:-left-4 top-10 bottom-4 z-30 
-            flex items-center justify-center
-            transition-opacity duration-300 pointer-events-none
-            opacity-0 ${showLeftButton ? 'group-hover/row:opacity-100' : ''}
-            hidden md:flex`}
+      {/* Row arrows — revealed by CSS group-hover, never by state (see useScrollArrows) */}
+      {(['left', 'right'] as const).map((side) => (
+        <div
+          key={side}
+          className={cn(
+            'pointer-events-none absolute bottom-4 top-10 z-30 hidden items-center justify-center opacity-0 transition-opacity duration-300 md:flex',
+            side === 'left' ? 'left-0 md:-left-4' : 'right-0 md:-right-4',
+            (side === 'left' ? showLeftButton : showRightButton) && 'group-hover/row:opacity-100'
+          )}
         >
           <button
-            onClick={() => scrollBy('left')}
-            className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
-            aria-label="Scroll left"
+            onClick={() => scrollBy(side)}
+            className="pointer-events-auto text-white/70 drop-shadow-[0_0_6px_rgba(0,0,0,0.8)] transition-all duration-200 hover:scale-125 hover:text-white"
+            aria-label={side === 'left' ? 'Scroll left' : 'Scroll right'}
           >
-            <ChevronLeft className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
+            {side === 'left' ? (
+              <ChevronLeft className="h-10 w-10 md:h-12 md:w-12" strokeWidth={2} />
+            ) : (
+              <ChevronRight className="h-10 w-10 md:h-12 md:w-12" strokeWidth={2} />
+            )}
           </button>
         </div>
-      )}
+      ))}
 
-      {/* Right Navigation Button */}
-      {entries.length > 0 && (
-        <div 
-          className={`absolute right-0 md:-right-4 top-10 bottom-4 z-30 
-            flex items-center justify-center
-            transition-opacity duration-300 pointer-events-none
-            opacity-0 ${showRightButton ? 'group-hover/row:opacity-100' : ''}
-            hidden md:flex`}
-        >
-          <button
-            onClick={() => scrollBy('right')}
-            className="text-white/70 hover:text-white hover:scale-125 transition-all duration-200 pointer-events-auto drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="w-10 h-10 md:w-12 md:h-12" strokeWidth={2} />
-          </button>
-        </div>
-      )}
-
-      {/* Content */}
-      {!loading && entries.length > 0 && (
-        <div ref={rowRef} className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-0">
-          {entries.map(({ media, item }) => (
-            <ContinueWatchingCard
-              key={`${item.mediaType}-${item.tmdbId}`}
-              media={media}
-              item={item}
-              onResume={onMediaClick}
-              onRemove={handleRemove}
-            />
-          ))}
-        </div>
-      )}
+      <div
+        ref={rowRef}
+        className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto scroll-smooth px-3 pb-2 sm:-mx-4 sm:gap-4 sm:px-4 md:mx-0 md:px-0"
+      >
+        {entries.map(({ media, item }) => (
+          <ContinueWatchingCard
+            key={`${item.mediaType}-${item.tmdbId}`}
+            media={media}
+            item={item}
+            onResume={onMediaClick}
+            onRemove={handleRemove}
+          />
+        ))}
+      </div>
     </section>
   )
 }

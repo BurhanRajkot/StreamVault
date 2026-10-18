@@ -1,26 +1,18 @@
-import { motion } from 'framer-motion'
-import { Play, Server, ThumbsUp, ThumbsDown, Calendar, Clock } from 'lucide-react'
+import type { CSSProperties } from 'react'
+import { Play, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { CircularRating } from '@/components/media/CircularRating'
-import { serverOptions } from '@/lib/config'
-import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { type PlaybackControls, seasonOptions } from './types'
+import type { PlaybackControls } from './types'
+import { SeasonEpisodeSelects, ServerSelect } from './PlaybackPickers'
 
 interface DetailPanelProps {
   display: MediaDisplay
   playback: PlaybackControls
   /**
-   * The pre-play layer. It alone carries the selectors and the like/dislike
-   * row; once playback starts the same panel renders below the player as
-   * reference information only.
+   * The pre-play layer: title, selectors, Play and the like/dislike row.
+   * Once playback starts the same panel renders below the player as
+   * reference information only — the player's own bar names the title.
    */
   isPrePlay: boolean
   isLiked: boolean
@@ -28,6 +20,9 @@ interface DetailPanelProps {
   disliked: boolean
   onToggleDislike: () => void
 }
+
+/** Staggered entrance (`.animate-rise`): each block rises a beat after the one above it. */
+const riseDelay = (step: number): CSSProperties => ({ animationDelay: `${120 + step * 60}ms` })
 
 /** Desktop details grid — title block and cast, side by side. */
 export function DetailPanel({
@@ -39,262 +34,165 @@ export function DetailPanel({
   disliked,
   onToggleDislike,
 }: DetailPanelProps) {
-  const {
-    title,
-    subtitle,
-    logoImage,
-    rating,
-    match,
-    year,
-    contentRating,
-    durationStr,
-    description,
-    genres,
-    cast,
-    director,
-  } = display
-  const {
-    mode,
-    season,
-    episode,
-    seasons,
-    episodeCount,
-    server,
-    onSeasonChange,
-    onEpisodeChange,
-    onServerChange,
-    onPlay,
-  } = playback
-  const debridFree = useDebridFreeUntil() !== null
+  const { title, subtitle, logoImage, rating, match, year, contentRating, durationStr, description, genres, cast, director } =
+    display
+  const { mode, season, episode, seasons, episodeCount, server, onSeasonChange, onEpisodeChange, onServerChange, onPlay } =
+    playback
+
+  const meta = [year, durationStr].filter(Boolean)
 
   return (
-    <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-20 items-end", !isPrePlay && "mt-12 mb-16 px-2")}>
-      {/* Left — Details */}
-      <div className="lg:col-span-7 space-y-6">
-        {/* Title / Logo */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.7, ease: 'easeOut' }}
-        >
-          {logoImage ? (
-            <img
-              src={logoImage}
-              alt={title}
-              aria-hidden="true"
-              className="max-h-[120px] md:max-h-[160px] lg:max-h-[180px] w-auto object-contain mb-6 drop-shadow-2xl"
-              draggable="false"
-              role="presentation"
-            />
-          ) : (
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display leading-tight tracking-tight mb-4">
-              {title}
+    <div className={cn('grid grid-cols-1 items-end gap-10 lg:grid-cols-12 lg:gap-20', !isPrePlay && 'items-start')}>
+      {/* Left — details */}
+      <div className="space-y-6 lg:col-span-7">
+        {isPrePlay && (
+          <div className="animate-rise" style={riseDelay(0)}>
+            <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">
+              {logoImage ? (
+                <img
+                  src={logoImage}
+                  alt={title}
+                  draggable="false"
+                  className="mb-2 h-[120px] w-auto max-w-[min(100%,34rem)] object-contain object-left-bottom drop-shadow-2xl md:h-[160px] lg:h-[180px]"
+                />
+              ) : (
+                title
+              )}
             </h1>
-          )}
-          {subtitle && (
-            <p className="text-lg md:text-xl lg:text-2xl text-primary font-light tracking-wide italic font-display">
-              {subtitle}
-            </p>
-          )}
-        </motion.div>
+            {subtitle && <p className="mt-3 text-lg italic text-white/65 md:text-xl">{subtitle}</p>}
+          </div>
+        )}
 
-        {/* Metadata & Rating */}
-        <motion.div
-          initial={{ y: 15, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.7 }}
-          className="flex flex-wrap items-center gap-6"
-        >
-          <div className="flex items-center gap-4">
+        {/* Rating and facts */}
+        <div className="animate-rise flex flex-wrap items-center gap-x-6 gap-y-3" style={riseDelay(1)}>
+          <div className="flex items-center gap-3">
             <CircularRating rating={rating} />
-            <div className="flex flex-col">
-              <span className="text-xs uppercase tracking-widest text-white/50 font-semibold">Score</span>
-              <span className="text-sm md:text-base font-medium text-white/90">{match} Match</span>
-            </div>
+            <span className="text-sm font-medium text-white/85 md:text-base">{match} match</span>
           </div>
-          <div className="h-8 w-px bg-white/20 hidden sm:block" />
-          <div className="flex flex-wrap items-center gap-5 text-sm md:text-base font-medium text-white/70 tracking-wide">
-            {year && (
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                <span>{year}</span>
-              </div>
-            )}
-            {durationStr && (
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                <span>{durationStr}</span>
-              </div>
-            )}
-            <div className="px-2.5 py-1 border border-white/20 rounded text-xs tracking-widest uppercase bg-white/5">
+          <div className="hidden h-6 w-px bg-white/15 sm:block" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-white/70 md:text-base">
+            {meta.map((item, i) => (
+              <span key={item} className="flex items-center gap-3">
+                {i > 0 && <span aria-hidden="true" className="h-1 w-1 rounded-full bg-white/35" />}
+                {item}
+              </span>
+            ))}
+            <span className="rounded border border-white/25 px-1.5 py-px text-xs font-semibold text-white/75">
               {contentRating}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Genres */}
-        <motion.div
-          initial={{ y: 15, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.35, duration: 0.7 }}
-          className="flex flex-wrap gap-3"
-        >
-          {genres.slice(0, 4).map(genre => (
-            <span key={genre} className="px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-sm border border-white/10 text-white/80">
-              {genre}
             </span>
-          ))}
-        </motion.div>
+          </div>
+        </div>
 
-        {/* Description */}
-        <motion.p
-          initial={{ y: 15, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.7 }}
-          className="text-base md:text-lg lg:text-xl text-white/60 leading-relaxed max-w-2xl font-light line-clamp-4 lg:line-clamp-none"
+        {genres.length > 0 && (
+          <div className="animate-rise flex flex-wrap gap-2" style={riseDelay(2)}>
+            {genres.slice(0, 4).map((genre) => (
+              <span key={genre} className="rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1 text-sm text-white/80">
+                {genre}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <p
+          style={riseDelay(3)}
+          className={cn(
+            'animate-rise',
+            'max-w-2xl text-base leading-relaxed text-white/70 md:text-lg',
+            isPrePlay && 'line-clamp-4 lg:line-clamp-none'
+          )}
         >
           {description}
-        </motion.p>
+        </p>
 
-        {/* Pre-Play Selectors + Actions (Only in Layer 1) */}
         {isPrePlay && (
-          <motion.div
-            initial={{ y: 15, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.45, duration: 0.7 }}
-            className="space-y-4 pt-2"
-          >
+          <div className="animate-rise space-y-4 pt-2" style={riseDelay(4)}>
             {mode === 'tv' && (
-              <div className="flex flex-wrap gap-3">
-                <div className="w-40 z-[60]">
-                  <Select value={season.toString()} onValueChange={(val) => { onSeasonChange(Number(val)); onEpisodeChange(1) }}>
-                    <SelectTrigger aria-label="Season" className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
-                      <SelectValue placeholder="Season" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                      {seasonOptions(seasons).map(n => (
-                        <SelectItem key={n} value={n.toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Season {n}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-40 z-[60]">
-                  <Select value={episode.toString()} onValueChange={(val) => onEpisodeChange(Number(val))}>
-                    <SelectTrigger aria-label="Episode" className="w-full bg-white/5 border-white/10 text-white h-11 backdrop-blur-md rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
-                      <SelectValue placeholder="Episode" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px] border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                      {Array.from({ length: episodeCount }, (_, i) => <SelectItem key={i + 1} value={(i + 1).toString()} className="cursor-pointer focus:bg-white/10 py-2.5">Episode {i + 1}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              <SeasonEpisodeSelects
+                seasons={seasons}
+                season={season}
+                episode={episode}
+                episodeCount={episodeCount}
+                onSeasonChange={onSeasonChange}
+                onEpisodeChange={onEpisodeChange}
+                className="max-w-sm"
+              />
             )}
 
-            {/* Actions row — clean, minimalistic */}
-            <div className="flex items-center gap-3">
-              {/* Play Now — primary CTA */}
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={onPlay}
-                className="flex min-h-11 items-center gap-2.5 bg-white text-black px-8 py-3 rounded-full font-semibold text-base hover:bg-white/90 transition-[background-color,transform,box-shadow] hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(255,255,255,0.2)]"
+                className="flex h-12 items-center gap-2.5 rounded-lg bg-white px-8 text-base font-semibold text-black transition-[background-color,transform] hover:bg-white/90 active:scale-[0.97]"
               >
-                <Play className="w-5 h-5 fill-current" />
+                <Play className="h-5 w-5 fill-current" />
                 Play Now
               </button>
 
-              {/* Server selector — ghost style */}
-              <div className="w-48 z-[60]">
-                <Select value={server} onValueChange={onServerChange}>
-                  <SelectTrigger aria-label="Server" className="w-full bg-white/[0.06] border-white/[0.08] text-white/80 h-11 backdrop-blur-md rounded-full hover:bg-white/10 transition-colors text-sm">
-                    <div className="flex items-center gap-1.5">
-                      <Server className="w-3.5 h-3.5 text-white/40 shrink-0" />
-                      <SelectValue placeholder="Server" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="border-border/60 bg-popover text-popover-foreground rounded-xl shadow-2xl custom-scrollbar">
-                    {serverOptions(mode, { debridFree }).map(({ id, name }) => (
-                      <SelectItem key={id} value={id} className="cursor-pointer focus:bg-white/10 py-2.5 text-sm">{name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <ServerSelect mode={mode} value={server} onChange={onServerChange} className="h-12 w-64" />
 
-              {/* Divider */}
-              <div className="w-px h-8 bg-white/10" />
+              <div className="mx-1 h-8 w-px bg-white/10" />
 
-              {/* Like / Dislike — icon-only ghost buttons */}
               <button
                 onClick={onToggleLike}
                 aria-label={isLiked ? 'Remove like' : 'Like this title'}
                 aria-pressed={isLiked}
                 className={cn(
-                  'p-2.5 rounded-full border transition-all',
+                  'flex h-11 w-11 items-center justify-center rounded-full border transition-colors',
                   isLiked
-                    ? 'border-primary/60 bg-primary/10 text-primary'
-                    : 'border-white/10 text-white/50 hover:text-white hover:border-white/30'
+                    ? 'border-primary/60 bg-primary/15 text-primary'
+                    : 'border-white/15 text-white/60 hover:border-white/35 hover:text-white'
                 )}
               >
-                <ThumbsUp className={cn('w-4 h-4', isLiked && 'fill-current')} />
+                <ThumbsUp className={cn('h-4 w-4', isLiked && 'fill-current')} />
               </button>
               <button
                 onClick={onToggleDislike}
                 aria-label={disliked ? 'Remove dislike' : 'Dislike this title'}
                 aria-pressed={disliked}
                 className={cn(
-                  'p-2.5 rounded-full border transition-all',
+                  'flex h-11 w-11 items-center justify-center rounded-full border transition-colors',
                   disliked
                     ? 'border-red-500/60 bg-red-500/10 text-red-400'
-                    : 'border-white/10 text-white/50 hover:text-white hover:border-white/30'
+                    : 'border-white/15 text-white/60 hover:border-white/35 hover:text-white'
                 )}
               >
-                <ThumbsDown className={cn('w-4 h-4', disliked && 'fill-current')} />
+                <ThumbsDown className={cn('h-4 w-4', disliked && 'fill-current')} />
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
 
-      {/* Right — Cast & Crew */}
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.6, duration: 0.7 }}
-        className="lg:col-span-5 space-y-8 pb-4"
-      >
-        {mode === 'movie' && (
-          <div className="border-l-2 border-primary/50 pl-5">
-            <h3 className="text-xs uppercase tracking-[0.2em] text-white/40 mb-2 font-semibold">Director</h3>
-            <p className="text-xl font-medium tracking-wide">{director}</p>
+      {/* Right — cast & crew */}
+      <div className="animate-rise space-y-8 pb-4 lg:col-span-5" style={riseDelay(5)}>
+        {mode === 'movie' && director !== 'Unknown' && (
+          <div>
+            <h2 className="mb-1 text-sm font-medium text-white/50">Director</h2>
+            <p className="text-xl font-semibold text-white/90">{director}</p>
           </div>
         )}
         {cast.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-xs uppercase tracking-[0.2em] text-white/40 font-semibold">Top Cast</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {cast.map((actor, idx) => (
-                <motion.div
-                  key={actor.name}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 + idx * 0.08 }}
-                  className="flex items-center gap-4 group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors"
-                >
-                  <div className="relative overflow-hidden rounded-full w-14 h-14 shrink-0">
-                    <img src={actor.image} alt={actor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <div className="absolute inset-0 border border-white/10 rounded-full group-hover:border-primary/50 transition-colors" />
-                  </div>
+            <h2 className="mb-4 text-sm font-medium text-white/50">Cast</h2>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {cast.map((actor) => (
+                <li key={actor.name} className="flex items-center gap-3.5">
+                  <img
+                    src={actor.image}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-white/10"
+                  />
                   <div className="min-w-0">
-                    <p className="text-base font-medium text-white/85 group-hover:text-white transition-colors truncate">{actor.name}</p>
-                    <p className="text-sm text-white/40 truncate">{actor.role}</p>
+                    <p className="truncate text-[15px] font-medium text-white/90">{actor.name}</p>
+                    <p className="truncate text-sm text-white/45">{actor.role}</p>
                   </div>
-                </motion.div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   )
 }
