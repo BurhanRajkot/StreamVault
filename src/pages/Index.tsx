@@ -229,7 +229,7 @@ const Index = () => {
                 {!searchQuery && authorsVisible && (
                   <AuthorsChoiceSection
                     onMediaClick={handleMediaClick}
-                    mode={mode as 'movie' | 'tv' | 'documentary'}
+                    mode={mode === 'movie' || mode === 'tv' || mode === 'documentary' ? mode : 'all'}
                   />
                 )}
               </div>

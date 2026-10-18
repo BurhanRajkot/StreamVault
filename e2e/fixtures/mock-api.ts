@@ -210,7 +210,11 @@ export class MockApi {
       const results = q.length < 2 ? [] : CATALOGUE.filter((m) => titleOf(m).toLowerCase().includes(q))
       return ok({ ...page(results), has_more: false })
     })
-    this.on('POST', '/tmdb/continue-watching-details', () => ok([]))
+    // Batch base details — Continue Watching and the Author's Choice row.
+    this.on('POST', '/tmdb/continue-watching-details', ({ body }) => {
+      const items = Array.isArray(body) ? (body as { tmdbId: number; mediaType: 'movie' | 'tv' }[]) : []
+      return ok(items.map((item) => ({ media: mediaById(item.mediaType, Number(item.tmdbId)), item })))
+    })
 
     // — Recommendations —
     const noRecommendations = ok({ items: [], sections: [], computedAt: new Date(0).toISOString(), isPersonalized: false })

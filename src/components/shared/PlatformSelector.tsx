@@ -1,145 +1,63 @@
-import { useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { OTT_PROVIDERS } from '@/lib/ottProviders'
-import { MonitorPlay, Check } from 'lucide-react'
-
-const providerButtonClass =
-  'relative flex-shrink-0 group cursor-pointer snap-start flex flex-col items-center gap-2 outline-none transition-transform duration-200 md:hover:scale-105 active:scale-95'
 
 interface PlatformSelectorProps {
   selected: string | null
   onSelect: (id: string | null) => void
 }
 
-export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+/** A service tile and its name; the selected one gets a ring. */
+const tileButton = 'group flex w-16 shrink-0 snap-start flex-col items-center gap-2 outline-none md:w-20 tap-scale'
+const tileFace =
+  'flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl ring-offset-2 ring-offset-background transition-[box-shadow,transform] duration-200 group-hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-primary md:h-16 md:w-16'
+const tileLabel = 'w-full truncate text-center text-xs font-medium transition-colors md:text-[13px]'
 
+export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) {
   return (
     /* No horizontal padding on mobile — the page gutter already provides it */
-    <div className="w-full mb-4 mt-5 md:px-10">
-      <div className="flex items-center justify-between mb-2.5 md:mb-4">
-        <h2 className="text-[17px] md:text-xl font-bold text-foreground flex items-center gap-2">
-          <div className="flex items-center justify-center p-1.5 rounded-lg bg-primary/10 border border-primary/20">
-            <MonitorPlay className="w-4 h-4 text-primary" />
-          </div>
-          Stream By Provider
-        </h2>
-      </div>
+    <div className="mb-4 mt-5 w-full md:px-10">
+      <h2 className="mb-3 text-[17px] font-bold text-foreground md:mb-4 md:text-xl">Browse by service</h2>
 
-      {/* Scrollable Container */}
-      <div
-        ref={scrollRef}
-        className="flex md:flex-wrap items-center gap-4 md:gap-5 overflow-x-auto pb-3 pt-1 no-scrollbar snap-x md:justify-start md:pb-4 md:pt-2 -mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        {/* All Button */}
-        <button
-          onClick={() => onSelect(null)}
-          aria-label="Show all providers"
-          className={providerButtonClass}
-        >
-          <div
+      <div className="no-scrollbar -mx-3 flex snap-x items-start gap-3 overflow-x-auto px-3 pb-2 pt-1 sm:-mx-4 sm:px-4 md:mx-0 md:flex-wrap md:gap-4 md:px-0">
+        <button onClick={() => onSelect(null)} aria-pressed={selected === null} className={tileButton}>
+          <span
             className={cn(
-              "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-[transform,background-color,border-color,box-shadow,opacity,color] duration-300 flex items-center justify-center overflow-hidden",
-              selected === null
-                ? "bg-gradient-to-br from-primary to-blue-600 border-border/30 shadow-[0_0_20px_-5px_theme(colors.primary.DEFAULT)]"
-                : "bg-card/80 border-border/40 group-hover:bg-card"
+              tileFace,
+              'text-sm font-bold md:text-base',
+              selected === null ? 'bg-foreground text-background ring-2 ring-foreground' : 'bg-secondary text-foreground/80'
             )}
           >
-            {selected === null && (
-              <div className="absolute inset-0 bg-white/20 blur-xl" />
-            )}
-
-            <span className={cn(
-              "text-sm md:text-lg font-bold text-primary-foreground tracking-widest uppercase z-10",
-              selected === null ? "scale-110" : "scale-100"
-            )}>ALL</span>
-
-            {/* Decorative shine for All button (CSS keyframes — runs on the compositor) */}
-            {selected === null && (
-              <div className="provider-shine absolute inset-0 bg-gradient-to-r from-transparent via-primary-foreground/15 to-transparent" />
-            )}
-          </div>
-
-          <div className="flex flex-col items-center gap-1">
-            <span className={cn(
-              "text-[11px] md:text-sm font-semibold tracking-wide transition-colors uppercase",
-              selected === null ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
-            )}>
-              All Content
-            </span>
-            {selected === null && (
-              <div className="w-1 h-1 rounded-full bg-primary" />
-            )}
-          </div>
+            All
+          </span>
+          <span className={cn(tileLabel, selected === null ? 'text-foreground' : 'text-foreground/65 group-hover:text-foreground')}>
+            Everything
+          </span>
         </button>
 
-        {/* Separator for desktop */}
-        <div className="hidden md:block w-px h-12 bg-gradient-to-b from-transparent via-border to-transparent mx-1" />
-
-        {/* Provider Buttons */}
         {OTT_PROVIDERS.map((provider) => {
           const isSelected = selected === provider.id
           return (
             <button
               key={provider.id}
               onClick={() => onSelect(isSelected ? null : provider.id)}
+              aria-pressed={isSelected}
               aria-label={`Filter by ${provider.displayName}`}
-              className={providerButtonClass}
+              className={tileButton}
             >
-              <div
-                className={cn(
-                  "relative h-12 w-12 md:h-16 md:w-16 rounded-2xl border transition-[transform,background-color,border-color,box-shadow,opacity,color] duration-300 flex items-center justify-center overflow-hidden bg-card/80",
-                  isSelected
-                    ? cn("border-transparent shadow-lg", provider.color.replace('hover:', ''))
-                    : "border-border/40 group-hover:border-border group-hover:bg-card"
-                )}
-              >
-                {/* Active Glow Background */}
-                {isSelected && (
-                  <div className={cn("absolute inset-0 opacity-20", provider.color.split(" ")[0].replace('hover:shadow-', 'bg-'))} />
-                )}
-
+              <span className={cn(tileFace, isSelected ? 'ring-2 ring-foreground' : 'ring-1 ring-border')}>
                 <img
                   src={provider.logo}
-                  alt={`${provider.displayName} logo`}
-                  aria-hidden="true"
+                  alt=""
                   width={64}
                   height={64}
                   loading="lazy"
                   decoding="async"
-                  className={cn(
-                    "h-full w-full object-contain transition-transform duration-500",
-                    isSelected ? "scale-100" : "grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110"
-                  )}
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none'
-                    const parent = e.currentTarget.parentElement
-                    if (parent && parent.classList) {
-                      parent.classList.add('bg-card')
-                    }
-                  }}
+                  className="h-full w-full object-cover"
                 />
-
-                {/* Checkmark */}
-                {isSelected && (
-                  <div className="animate-scale-in absolute inset-0 bg-background/55 flex items-center justify-center">
-                    <Check className="w-6 h-6 md:w-8 md:h-8 text-white drop-shadow-md" strokeWidth={3} />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <span className={cn(
-                  "text-[11px] md:text-sm font-semibold tracking-wide transition-colors max-w-[68px] md:max-w-[80px] truncate text-center",
-                  isSelected ? "text-foreground" : "text-foreground/80 group-hover:text-foreground"
-                )}>
-                  {provider.displayName}
-                </span>
-                {isSelected && (
-                  <div className="w-1 h-1 rounded-full bg-white" />
-                )}
-              </div>
+              </span>
+              <span className={cn(tileLabel, isSelected ? 'text-foreground' : 'text-foreground/65 group-hover:text-foreground')}>
+                {provider.displayName}
+              </span>
             </button>
           )
         })}

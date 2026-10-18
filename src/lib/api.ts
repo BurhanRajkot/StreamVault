@@ -361,6 +361,27 @@ export async function fetchContinueWatching(token: string): Promise<ContinueWatc
  * Fetch aggregated TMDB details for a list of progress items.
  * Eliminates the frontend N+1 fetch bottleneck by batching on the backend.
  */
+/**
+ * Base details (title, art, rating — no credits/similar/images) for several
+ * titles in one request, for rows of posters. Uses the batch endpoint
+ * Continue Watching was built on: one round trip served from the backend's
+ * TMDB cache, instead of a full detail fetch per card.
+ */
+export async function fetchMediaSummaries(
+  items: { tmdbId: number; mediaType: 'movie' | 'tv' }[]
+): Promise<Media[]> {
+  if (items.length === 0) return []
+  const res = await fetch(`${API_BASE}/tmdb/continue-watching-details`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  })
+  if (!res.ok) throw new Error(`fetchMediaSummaries failed: ${res.status}`)
+  const rows = (await res.json()) as { media: Media; item: { mediaType: 'movie' | 'tv' } }[]
+  // Detail responses don't say what they are; cards need to know.
+  return rows.map(({ media, item }) => ({ ...media, media_type: item.mediaType }))
+}
+
 export async function fetchAggregatedContinueWatching(
   items: ContinueWatchingItem[]
 ): Promise<{ media: Media; item: ContinueWatchingItem }[]> {

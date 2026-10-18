@@ -21,7 +21,7 @@ test.describe('Premium server', () => {
     await watch.serverPicker.click()
 
     const options = page.getByRole('option')
-    await expect(options.first()).toHaveText('⚡ Premium (4K/1080p) · Free')
+    await expect(options.first()).toHaveText(/^Premium\s*4K\/1080p\s*Free$/)
     await expect(options.nth(1)).toHaveText('Mercury')
   })
 
@@ -94,6 +94,37 @@ test.describe('Premium server', () => {
     expect(tried).toEqual([broken.info_hash, good.info_hash])
   })
 
+  test('offers the other instant releases in the player’s Quality menu', async ({ watch, mockApi }) => {
+    const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
+    const uhd = release({ name: 'Inception.2010.2160p.UHD.BluRay.x265.HDR.AAC-UHD' })
+    mockApi.on('GET', '/debrid/media-search', { json: { data: [uhd, hd] } })
+
+    await watch.goto(MOVIE)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+    // Paused, the controls stay up — no racing their auto-hide.
+    await watch.premiumVideo.evaluate((v: HTMLVideoElement) => v.pause())
+
+    await watch.root.getByRole('button', { name: 'Settings' }).click()
+    await watch.root.getByRole('button', { name: /^Quality/ }).click()
+    await watch.root.getByRole('button', { name: /^4K/ }).click()
+
+    await watch.expectPremiumPlaying()
+    const played = mockApi.calls('POST', '/debrid/play').map((c) => (c.body as { hash: string }).hash)
+    expect(played, 'starts on the 1080p release the browser decodes, then switches').toEqual([hd.info_hash, uhd.info_hash])
+  })
+
+  test('Back leaves the player for the title’s details', async ({ watch }) => {
+    await watch.goto(MOVIE)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+
+    await watch.root.getByRole('button', { name: 'Back to details' }).click()
+
+    await expect(watch.premiumVideo).toHaveCount(0)
+    await expect(watch.playButton).toBeVisible()
+  })
+
   test('offers another server when it has no stream, and that server plays', async ({ page, watch, mockApi }) => {
     mockApi.on('GET', '/debrid/media-search', { json: { data: [] } })
 
@@ -125,7 +156,7 @@ test.describe('Premium server', () => {
       )
 
       await watch.goto(MOVIE)
-      await expect(watch.serverPicker).toHaveText(/Premium \(4K\/1080p\)$/)
+      await expect(watch.serverPicker).toHaveText(/Premium\s*4K\/1080p$/)
       await watch.play()
 
       await expect(page.getByText('Premium is for subscribers')).toBeVisible()

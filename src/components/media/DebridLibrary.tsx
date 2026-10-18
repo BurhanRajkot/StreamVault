@@ -317,7 +317,7 @@ export default function DebridLibrary({ token }: DebridLibraryProps) {
         </div>
         <p className="text-sm font-medium">Your Premium library is empty</p>
         <p className="max-w-xs text-xs opacity-60">
-          Play something with the ⚡ Premium server, or add it from the Debrid Search tab, and it will appear
+          Play something with the Premium server, or add it from the Debrid Search tab, and it will appear
           here.
         </p>
       </div>

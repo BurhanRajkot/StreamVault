@@ -131,14 +131,13 @@ function MediaCardComponent({
       ? new Date(media.first_air_date).getFullYear()
       : ''
 
+    // Clicking the art opens the title; keyboard and screen-reader users get
+    // the Play / More info buttons below (a role="button" wrapper around them
+    // nested interactive controls).
     return (
       <div
         onClick={() => onClick(media)}
-        onKeyDown={handleCardKeyDown}
-        role="button"
-        tabIndex={0}
-        aria-label={`Open ${title}`}
-        className="relative h-full w-full cursor-pointer overflow-hidden active:scale-[0.99] group/hero"
+        className="group/hero relative h-full w-full cursor-pointer overflow-hidden active:scale-[0.99]"
       >
         <picture>
           {/* Mobile override; the <img> keeps the wide backdrop as its own
@@ -205,39 +204,52 @@ function MediaCardComponent({
           </div>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 lg:p-8 hidden md:flex flex-col justify-end h-full">
-          <div className="space-y-2 sm:space-y-3 mb-2 transform transition-all duration-300 translate-y-2 opacity-0 group-hover/hero:translate-y-0 group-hover/hero:opacity-100 sm:translate-y-0 sm:opacity-100">
-            {/* Title */}
-            <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white drop-shadow-md leading-tight line-clamp-2">
+        {/* ── Desktop hero content — clear of the carousel's arrows ── */}
+        <div className="absolute inset-0 hidden flex-col justify-end pb-12 pl-20 pr-20 md:flex lg:pb-14 lg:pl-24">
+          <div className="max-w-xl space-y-3 lg:max-w-2xl">
+            <h2 className="font-display text-3xl font-bold leading-[1.05] tracking-tight text-white drop-shadow-md line-clamp-2 lg:text-5xl">
               {title}
             </h2>
 
-            {/* Metadata Badges Row */}
-            <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-zinc-200">
-              <div className="flex items-center gap-1">
-                <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-yellow-400 text-yellow-400" />
-                <span>{rating}</span>
-              </div>
-
+            <div className="flex items-center gap-2.5 text-sm font-medium text-white/80">
+              <span className="flex items-center gap-1">
+                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                {rating}
+              </span>
               {releaseYear && (
                 <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+                  <span className="h-1 w-1 rounded-full bg-white/50" />
                   <span>{releaseYear}</span>
                 </>
               )}
+              <span className="h-1 w-1 rounded-full bg-white/50" />
+              <span>{mediaType === 'tv' ? 'Series' : 'Movie'}</span>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 pt-1">
+            {media.overview && (
+              <p className="line-clamp-2 max-w-lg text-[15px] leading-relaxed text-white/75 lg:line-clamp-3">{media.overview}</p>
+            )}
+
+            <div className="flex items-center gap-3 pt-2">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   onClick(media, undefined, undefined, undefined, true)
                 }}
-                className="flex min-h-11 items-center justify-center gap-2 rounded bg-primary px-5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-primary/90 transition-colors"
+                className="flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-6 text-[15px] font-semibold text-black transition-colors hover:bg-white/85"
               >
-                <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />
+                <Play className="h-4 w-4 fill-current" />
                 Play
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onClick(media)
+                }}
+                className="flex h-11 items-center justify-center gap-2 rounded-lg bg-white/20 px-5 text-[15px] font-semibold text-white transition-colors hover:bg-white/30"
+              >
+                <Info className="h-4 w-4" />
+                More info
               </button>
             </div>
           </div>

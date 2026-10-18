@@ -6,9 +6,13 @@
 /* =======================
    TAILWIND THEME CONFIG
    (Replaces tailwind.config.ts)
+
+   `inline`: utilities use hsl(var(--background)) itself rather than a
+   --color-background resolved once at :root, so a `.dark` sub-tree (the
+   title page, always dark) re-themes everything inside it.
 ======================= */
 
-@theme {
+@theme inline {
   /* Container */
   --container-center: true;
   --container-padding: 2rem;
@@ -64,9 +68,10 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  /* Font families */
-  --font-family-sans: Archivo, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-family-display: Space Grotesk, Archivo, sans-serif;
+  /* Font families. Tailwind v4 reads --font-*; the v3-era --font-family-*
+     names left `font-sans` on the system stack and `font-display` undefined. */
+  --font-sans: Archivo, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk', Archivo, sans-serif;
 
   /* Keyframes */
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -484,6 +489,36 @@
         }
       }
 
+      /* Entrance for staggered blocks. `backwards` keeps a block hidden
+         through its animation-delay instead of flashing in first, and —
+         unlike `both` — drops the animation once it's done: a transform
+         left "filling" (even an identity one) makes the element the
+         containing block of any position:fixed descendant, which is how the
+         phone player ended up 0px tall. */
+      .animate-rise {
+        animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      .animate-fade {
+        animation: fade 0.35s ease-out backwards;
+      }
+
+      @keyframes fade {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+
       .animate-slide-up {
         animation: slide-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
@@ -757,7 +792,7 @@
       z-index: 100;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
       background: #000;
       border: 0;
       border-radius: 0;
@@ -765,23 +800,38 @@
       overscroll-behavior: none;
     }
 
-    /* Page chrome that would otherwise sit over the video */
+    /* Page chrome that would otherwise sit over the video — hidden from
+       assistive tech too, so there's one "Back" on screen, not two */
     .player-hide-chrome {
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
     }
 
+    /* Over the picture by default (a sideways phone playing an embed)... */
     .player-chrome-top {
       display: flex;
-    }
-
-    /* The page's own top chrome already names the title here */
-    .player-shell .player-overlay-title {
-      visibility: hidden;
+      position: absolute;
+      inset: 0 0 auto 0;
+      padding-bottom: 2rem;
+      background: linear-gradient(to bottom, rgb(0 0 0 / 0.7), transparent);
     }
   }
 
   @media (max-width: 767.98px) and (orientation: portrait) {
+    /* Portrait reads top to bottom: back bar, picture, then what's playing
+       and how to change it — not a picture floating mid-screen. */
+    .player-shell {
+      overflow-y: auto;
+    }
+
+    /* ...and its own bar above the picture in portrait */
+    .player-chrome-top {
+      position: relative;
+      padding-bottom: 0.5rem;
+      background: none;
+    }
+
     .player-frame {
       height: auto;
       aspect-ratio: 16 / 9;
@@ -792,6 +842,11 @@
     .player-chrome-portrait {
       display: block;
     }
+
+    /* The back bar above the picture already names the title */
+    .player-shell .player-overlay-title {
+      visibility: hidden;
+    }
   }
 
   @media (orientation: landscape) and (max-height: 500px) {
@@ -800,11 +855,113 @@
       height: 100%;
       aspect-ratio: auto;
     }
+
+    /* Our own player draws a back button that hides with its controls; the
+       page's would sit on the picture for good. Embeds keep the page's. */
+    .player-shell[data-own-controls] .player-chrome-top {
+      display: none;
+    }
+
+    .player-shell .player-back {
+      display: flex;
+    }
+  }
+
+  :fullscreen .player-back {
+    display: flex;
+  }
+
+  /* Player settings: a bottom sheet on a portrait phone, where the picture
+     is ~220px tall and a popover inside it shows one row of a list. Fixed
+     positioning escapes the player's overflow clipping. */
+  .player-menu-scrim {
+    display: none;
+  }
+
+  @media (max-width: 767.98px) and (orientation: portrait) {
+    .player-controls .player-menu-scrim {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background: rgb(0 0 0 / 0.55);
+      animation: fade 0.2s ease-out;
+    }
+
+    .player-controls .player-menu {
+      position: fixed;
+      inset: auto 0 0 0;
+      z-index: 50;
+      width: auto;
+      /* Solid: even 3% see-through let the synopsis underneath show */
+      background-color: rgb(23 23 23);
+      max-height: min(70svh, 34rem);
+      border-radius: 1.25rem 1.25rem 0 0;
+      padding-top: 0.75rem;
+      padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+      font-size: 0.9375rem;
+      animation: player-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .player-controls .player-menu button,
+    .player-controls .player-menu a {
+      padding-top: 0.8rem;
+      padding-bottom: 0.8rem;
+    }
+  }
+
+  @keyframes player-sheet-up {
+    from { transform: translateY(100%); }
+    to   { transform: none; }
   }
 
   /* ── Video player (PlayerControls) ──────────────────────────────────── */
-  /* Click / key / double-tap feedback: pops in, fades out. Transform +
-     opacity only, so it runs on the compositor. */
+  .player-spinner {
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 9999px;
+    border: 3px solid rgb(255 255 255 / 0.18);
+    border-top-color: #fff;
+    animation: player-spin 0.8s linear infinite;
+  }
+
+  @keyframes player-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Double-tap / key seek indicator: a soft half-moon that fades in */
+  .player-ripple {
+    background: radial-gradient(circle at center, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 70%, transparent 71%);
+    animation: player-ripple-in 180ms ease-out;
+  }
+
+  @keyframes player-ripple-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* "Up next" — drains as the countdown runs */
+  .player-countdown {
+    animation: player-countdown linear forwards;
+  }
+
+  @keyframes player-countdown {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+
+  /* Premium's loading bar while there's no percentage to show */
+  .pane-indeterminate {
+    animation: pane-indeterminate 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+
+  @keyframes pane-indeterminate {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(250%); }
+  }
+
+  /* Click / key feedback: pops in, fades out. Transform + opacity only, so
+     it runs on the compositor. */
   .player-flash {
     animation: player-flash 600ms ease-out forwards;
   }

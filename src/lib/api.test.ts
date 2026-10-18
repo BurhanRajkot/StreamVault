@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { adminLogin, getImageSrcSet, buildEmbedUrl } from './api';
-import { CONFIG, type Media } from './config';
+import { adminLogin, getImageSrcSet, buildEmbedUrl, fetchMediaSummaries } from './api';
+import { CONFIG, DEBRID_SERVER_ID, serverOptions, type Media } from './config';
 
 const originalFetch = globalThis.fetch;
 
@@ -192,3 +192,72 @@ describe('stream provider registry', () => {
     });
   }
 });
+
+describe('serverOptions', () => {
+  it('puts Premium first for movies and TV, with the free tag only while the promotion runs', () => {
+    const free = serverOptions('movie', { debridFree: true })
+    expect(free[0]).toMatchObject({ id: DEBRID_SERVER_ID, name: 'Premium', detail: '4K/1080p', free: true })
+    expect(free[0].label).toBe('Premium (4K/1080p) · Free')
+
+    const paid = serverOptions('tv')
+    expect(paid[0]).toMatchObject({ id: DEBRID_SERVER_ID, free: false, label: 'Premium (4K/1080p)' })
+  })
+
+  it('offers only the embed servers, labelled by name, outside movies and TV', () => {
+    const options = serverOptions('documentary')
+    expect(options.some((o) => o.id === DEBRID_SERVER_ID)).toBe(false)
+    for (const o of options) expect(o.label).toBe(o.name)
+  })
+
+  it('never puts an emoji in a label — a native <select> shows them raw', () => {
+    for (const o of serverOptions('movie', { debridFree: true })) {
+      expect(o.label).not.toMatch(/\p{Extended_Pictographic}/u)
+    }
+  })
+})
+
+describe('fetchMediaSummaries', () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('asks for every title in one request and tags each result with its type', async () => {
+    let body: unknown
+    globalThis.fetch = mock((_url: string, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body))
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([
+            { media: { id: 238, title: 'The Godfather' }, item: { tmdbId: 238, mediaType: 'movie' } },
+            { media: { id: 1396, name: 'Breaking Bad' }, item: { tmdbId: 1396, mediaType: 'tv' } },
+          ]),
+          { status: 200 }
+        )
+      )
+    }) as unknown as typeof fetch
+
+    const items = [
+      { tmdbId: 238, mediaType: 'movie' as const },
+      { tmdbId: 1396, mediaType: 'tv' as const },
+    ]
+    const media = await fetchMediaSummaries(items)
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(body).toEqual(items)
+    expect(media.map((m) => [m.id, m.media_type])).toEqual([
+      [238, 'movie'],
+      [1396, 'tv'],
+    ])
+  })
+
+  it('makes no request for an empty list', async () => {
+    stubFetch(() => Promise.reject(new Error('should not be called')))
+    expect(await fetchMediaSummaries([])).toEqual([])
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+
+  it('throws when the backend fails, so the row can show its error state', async () => {
+    stubFetch(() => Promise.resolve(new Response('{}', { status: 502 })))
+    await expect(fetchMediaSummaries([{ tmdbId: 1, mediaType: 'movie' }])).rejects.toThrow('502')
+  })
+})
