@@ -837,7 +837,7 @@ jobs:
 
       - name: Scan frontend image with Trivy
         id: trivy_frontend
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         continue-on-error: true # Advisory — vulnerabilities are reported but don't block the publish
         with:
           image-ref: streamvault-frontend:scan
@@ -905,7 +905,7 @@ jobs:
 
       - name: Scan backend image with Trivy
         id: trivy_backend
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         continue-on-error: true # Advisory — vulnerabilities are reported but don't block the publish
         with:
           image-ref: streamvault-backend:scan
