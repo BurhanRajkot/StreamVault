@@ -30,6 +30,7 @@ interface TMDBMultiResult {
   release_date?: string
   first_air_date?: string
   genre_ids?: number[]
+  original_language?: string
   known_for_department?: string
   profile_path?: string | null
   known_for?: TMDBMultiResult[]
@@ -165,6 +166,18 @@ export function isSearchNoise(r: { poster_path?: string | null; vote_count?: num
   return !r.poster_path && (r.vote_count ?? 0) < 20
 }
 
+/** TMDB's Animation genre — the same id for movies and TV. */
+const ANIMATION_GENRE_ID = 16
+
+/**
+ * Anime as the Anime tab defines it: Japanese-language animation. The tab's
+ * own feeds ask TMDB discover for the same thing (with_genres=16 +
+ * with_original_language=ja), so a search there finds only what it lists.
+ */
+export function isAnime(r: { genre_ids?: number[]; original_language?: string }): boolean {
+  return r.original_language === 'ja' && (r.genre_ids ?? []).includes(ANIMATION_GENRE_ID)
+}
+
 /**
  * A short single word is almost always a word still being typed ("nar"):
  * BM25's exact-word bonus there mostly rewards obscure titles that happen to
@@ -213,6 +226,8 @@ export interface HybridSearchOptions {
   mediaOnly?: boolean
   /** If provided, restrict to only this media type */
   mediaType?: 'movie' | 'tv'
+  /** If true, only anime (see isAnime) — the Anime tab's search */
+  anime?: boolean
 }
 /**
  * Execute a hybrid search:
@@ -222,7 +237,7 @@ export interface HybridSearchOptions {
  *      matching, blended with popularity (see rankSearchResults)
  */
 export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSearchResult[]> {
-  const { query, page = 1, mediaOnly = false, mediaType } = opts
+  const { query, page = 1, mediaOnly = false, mediaType, anime = false } = opts
   let results: TMDBMultiResult[]
   
   // 1. Attempt local NLU parsing of the query (synchronous — no API call)
@@ -234,6 +249,14 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
     // Fallback search term if they included a title portion
     if (parsed.remainingQuery) {
       parsed.filters['with_text_query'] = parsed.remainingQuery
+    }
+
+    // Narrow Discover itself, so "action 2020" finds anime rather than a page
+    // of live-action titles the filter below would throw away.
+    if (anime) {
+      const genres = parsed.filters.with_genres
+      parsed.filters.with_genres = genres ? `${genres},${ANIMATION_GENRE_ID}` : String(ANIMATION_GENRE_ID)
+      parsed.filters.with_original_language = 'ja'
     }
     
     if (parsed.mediaType) {
@@ -260,6 +283,9 @@ export async function hybridSearch(opts: HybridSearchOptions): Promise<HybridSea
     results = results.filter(r => r.media_type === mediaType)
   } else if (mediaOnly) {
     results = results.filter(r => r.media_type === 'movie' || r.media_type === 'tv')
+  }
+  if (anime) {
+    results = results.filter(isAnime)
   }
   // Filler TMDB returns for loose queries — no artwork, no audience.
   results = results.filter((r) => !isSearchNoise(r))

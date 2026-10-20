@@ -189,7 +189,9 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
         'first_air_date.lte',
         'first_air_date.gte',
         'with_watch_monetization_types',
-        'with_genres'
+        'with_genres',
+        // The Anime tab: Japanese-language animation (with_genres=16 + ja)
+        'with_original_language'
     ]
 
     for (const param of validParams) {
@@ -239,6 +241,8 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
   const query = firstString(req.query.query)
   const mediaOnly = req.query.mediaOnly === 'true'
   const mediaType = firstString(req.query.mediaType) as 'movie' | 'tv' | undefined
+  // The Anime tab's search: anime only (see isAnime)
+  const anime = req.query.anime === 'true'
 
   if (!query || query.trim().length === 0) {
     return res.status(400).json({ error: 'Query parameter required' })
@@ -257,8 +261,9 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
   // It only holds a bounded set of top titles, so it answers alone only when
   // it has a full page; otherwise its hits lead and the TMDB search fills in
   // the rest — "na" used to come back as a single title.
+  // Skipped for anime: trie entries carry no genre or language to check.
   let trieHits: Array<{ id: number; media_type: 'movie' | 'tv' }> = []
-  if (page === 1 && req.query.autocomplete === 'true') {
+  if (page === 1 && req.query.autocomplete === 'true' && !anime) {
     trieHits = globalTrie
       .search(query)
       .filter((t) => !mediaType || t.mediaType === mediaType)
@@ -285,7 +290,7 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
   }
 
   try {
-    const searched = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType })
+    const searched = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType, anime })
     const seen = new Set(trieHits.map((t) => `${t.media_type}:${t.id}`))
     const results = [...trieHits, ...searched.filter((r) => !seen.has(`${r.media_type}:${r.id}`))]
     res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=900')

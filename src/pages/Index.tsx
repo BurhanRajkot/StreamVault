@@ -15,6 +15,7 @@ import { ContinueWatchingSection } from '@/components/sections/ContinueWatchingS
 import { PlatformSelector } from '@/components/shared/PlatformSelector'
 import { RecentlyAddedSection } from '@/components/sections/RecentlyAddedSection'
 import { RecommendationRow } from '@/components/sections/RecommendationRow'
+import { AnimeRows } from '@/components/sections/AnimeRows'
 import { useRecommendations } from '@/hooks/useRecommendations'
 import { logRecommendationInteraction, RecoItem } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -74,7 +75,7 @@ const Index = () => {
   const [authorsRef, authorsVisible] = useInView('200px')
   const [recoRef, recoVisible] = useInView('200px')
   const [recentlyRef, recentlyVisible] = useInView('200px')
-  const { sections: recoSections, isLoading: recoLoading, refresh: refreshRecommendations } = useRecommendations(recoVisible)
+  const { sections: recoSections, isLoading: recoLoading, refresh: refreshRecommendations } = useRecommendations(recoVisible && mode !== 'anime')
 
   const {
     media,
@@ -232,14 +233,18 @@ const Index = () => {
                 {!searchQuery && authorsVisible && (
                   <AuthorsChoiceSection
                     onMediaClick={handleMediaClick}
-                    mode={mode === 'movie' || mode === 'tv' || mode === 'documentary' ? mode : 'all'}
+                    mode={mode === 'movie' || mode === 'tv' || mode === 'documentary' || mode === 'anime' ? mode : 'all'}
                   />
                 )}
               </div>
 
-              {/* CineMatch AI — lazy: only renders when scrolled near */}
+              {/* CineMatch AI — lazy: only renders when scrolled near. The Anime
+                  tab swaps it for anime-only rows: everything there is anime. */}
               <div ref={recoRef} className="below-fold-section">
-                {!searchQuery && recoVisible && (
+                {!searchQuery && recoVisible && mode === 'anime' && (
+                  <AnimeRows onMediaClick={handleMediaClick} />
+                )}
+                {!searchQuery && recoVisible && mode !== 'anime' && (
                   <>
                     {/* Guest contextual row — shown before generic sections */}
                     {!isAuthenticated && guestContextualSection && (
@@ -285,6 +290,7 @@ const Index = () => {
                 hasMore={hasMore}
                 onLoadMore={loadMore}
                 onMediaClick={handleMediaClick}
+                title={mode === 'anime' && !searchQuery ? 'All Anime' : undefined}
               />
             </>
           )}

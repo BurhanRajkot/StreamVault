@@ -129,5 +129,43 @@ export const AUTHORS_CHOICE_DOCUMENTARIES: AuthorsChoiceItem[] = [
   { tmdbId: 44639, mediaType: 'movie', note: 'Finance collapse.' }, // Inside Job
 ]
 
+/** Series and films interleaved, since only the first dozen make the row. */
+export const AUTHORS_CHOICE_ANIME: AuthorsChoiceItem[] = [
+  // 🏆 ESSENTIALS
+  { tmdbId: 31911, mediaType: 'tv', note: 'Equivalent exchange.' }, // Fullmetal Alchemist: Brotherhood
+  { tmdbId: 129, mediaType: 'movie', note: 'Ghibli at its peak.' }, // Spirited Away
+  { tmdbId: 1429, mediaType: 'tv', note: 'Humanity behind the walls.' }, // Attack on Titan
+  { tmdbId: 372058, mediaType: 'movie', note: 'Two lives, one comet.' }, // Your Name.
+  { tmdbId: 209867, mediaType: 'tv', note: 'What comes after the quest.' }, // Frieren: Beyond Journey's End
+  { tmdbId: 13916, mediaType: 'tv', note: 'A notebook that kills.' }, // Death Note
+  { tmdbId: 128, mediaType: 'movie', note: 'Nature fights back.' }, // Princess Mononoke
+  { tmdbId: 30991, mediaType: 'tv', note: 'See you, space cowboy.' }, // Cowboy Bebop
+  { tmdbId: 149, mediaType: 'movie', note: 'Neo-Tokyo is about to explode.' }, // Akira
+  { tmdbId: 46298, mediaType: 'tv', note: 'The best shōnen arc ever written.' }, // Hunter x Hunter
+  { tmdbId: 42509, mediaType: 'tv', note: 'Time travel done right.' }, // Steins;Gate
+  { tmdbId: 12477, mediaType: 'movie', note: 'War through a child’s eyes.' }, // Grave of the Fireflies
+
+  // ⚔️ MODERN HITS
+  { tmdbId: 95479, mediaType: 'tv', note: 'Curses and sorcerers.' }, // Jujutsu Kaisen
+  { tmdbId: 85937, mediaType: 'tv', note: 'Breathtaking animation.' }, // Demon Slayer
+  { tmdbId: 378064, mediaType: 'movie', note: 'Bullying and redemption.' }, // A Silent Voice
+  { tmdbId: 88803, mediaType: 'tv', note: 'Vikings and vengeance.' }, // Vinland Saga
+  { tmdbId: 916224, mediaType: 'movie', note: 'Doors to disaster.' }, // Suzume
+  { tmdbId: 65930, mediaType: 'tv', note: 'Heroes in training.' }, // My Hero Academia
+
+  // 🧠 CLASSICS & CULT
+  { tmdbId: 890, mediaType: 'tv', note: 'Mecha, deconstructed.' }, // Neon Genesis Evangelion
+  { tmdbId: 10494, mediaType: 'movie', note: 'Fame turns to paranoia.' }, // Perfect Blue
+  { tmdbId: 31724, mediaType: 'tv', note: 'A prince’s chess game.' }, // Code Geass
+  { tmdbId: 9323, mediaType: 'movie', note: 'The ghost in the machine.' }, // Ghost in the Shell
+  { tmdbId: 4935, mediaType: 'movie', note: 'A walking castle.' }, // Howl's Moving Castle
+  { tmdbId: 8392, mediaType: 'movie', note: 'A forest spirit next door.' }, // My Neighbor Totoro
+  { tmdbId: 508883, mediaType: 'movie', note: 'Miyazaki’s farewell.' }, // The Boy and the Heron
+
+  // 🏴‍☠️ LONG RUNNERS
+  { tmdbId: 37854, mediaType: 'tv', note: 'The grand line awaits.' }, // One Piece
+  { tmdbId: 31910, mediaType: 'tv', note: 'Believe it.' }, // Naruto Shippūden
+]
+
 // Default export can be a mix or just movies for backward compatibility
 export const AUTHORS_CHOICE = AUTHORS_CHOICE_MOVIES
