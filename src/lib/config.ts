@@ -294,7 +294,7 @@ export const CONFIG = {
 }
 
 /* ONLY REQUIRED MODES */
-export type MediaMode = 'home' | 'movie' | 'tv' | 'downloads' | 'documentary'
+export type MediaMode = 'home' | 'movie' | 'tv' | 'downloads' | 'documentary' | 'anime'
 
 /**
  * Server id for Real-Debrid playback, handled entirely client-side (see

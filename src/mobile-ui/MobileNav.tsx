@@ -15,7 +15,7 @@ interface MobileNavProps {
  * Bottom tab bar (< md).
  *
  * Only destinations live here — Home, Search, Downloads, My List. Browsing
- * *categories* (Movies / TV / Docs) moved to the pill row in the header,
+ * *categories* (Movies / TV / Anime / Docs) moved to the pill row in the header,
  * because six equal-weight targets across a 390px screen left every one of
  * them under the 44px minimum and read as a toolbar rather than navigation.
  */

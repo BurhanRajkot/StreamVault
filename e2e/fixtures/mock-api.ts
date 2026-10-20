@@ -23,6 +23,7 @@ import {
   MOVIE,
   SHOW,
   SHOW_SEASONS,
+  isAnime,
   mediaById,
   page,
   readyPlayback,
@@ -200,14 +201,30 @@ export class MockApi {
     this.on('GET', '/tmdb/trending/:mode', ({ params }) =>
       ok(page(CATALOGUE.filter((m) => params.mode === 'all' || m.media_type === params.mode)))
     )
-    this.on('GET', '/tmdb/discover/:mode', ({ params }) => ok(page(CATALOGUE.filter((m) => m.media_type === params.mode))))
+    // Narrowed like TMDB's: every listed genre (comma = AND) and the original language.
+    this.on('GET', '/tmdb/discover/:mode', ({ params, query }) => {
+      const genres = (query.get('with_genres') ?? '').split(',').filter(Boolean).map(Number)
+      const language = query.get('with_original_language')
+      return ok(
+        page(
+          CATALOGUE.filter(
+            (m) =>
+              m.media_type === params.mode &&
+              genres.every((g) => m.genre_ids.includes(g)) &&
+              (!language || m.original_language === language)
+          )
+        )
+      )
+    })
     this.on('GET', '/tmdb/:type(movie|tv)/:id(\\d+)', ({ params }) => ok(mediaById(params.type as 'movie' | 'tv', Number(params.id))))
     this.on('GET', '/tmdb/:type(movie|tv)/:id(\\d+)/similar', () => ok(page([])))
     this.on('GET', '/tmdb/tv/:id(\\d+)/seasons', () => ok(SHOW_SEASONS))
     this.on('GET', '/tmdb/search/movie', () => ok(page([])))
     this.on('GET', '/tmdb/search/hybrid', ({ query }) => {
       const q = (query.get('q') ?? query.get('query') ?? '').toLowerCase()
-      const results = q.length < 2 ? [] : CATALOGUE.filter((m) => titleOf(m).toLowerCase().includes(q))
+      const anime = query.get('anime') === 'true'
+      const results =
+        q.length < 2 ? [] : CATALOGUE.filter((m) => titleOf(m).toLowerCase().includes(q) && (!anime || isAnime(m)))
       return ok({ ...page(results), has_more: false })
     })
     // Batch base details — Continue Watching and the Author's Choice row.

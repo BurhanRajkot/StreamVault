@@ -24,6 +24,7 @@ export interface ParsedQuery {
     with_text_query?: string
     sort_by?: string
     'vote_average.gte'?: string
+    with_original_language?: string
   }
 }
 
