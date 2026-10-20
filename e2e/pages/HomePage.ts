@@ -24,6 +24,15 @@ export class HomePage {
     return this.page.getByRole('button', { name: cardName(title) }).first()
   }
 
+  /** Switch browse category: the header's tabs on desktop, its pill row on phones. */
+  async openCategory(name: string): Promise<void> {
+    await this.header
+      .getByRole('button', { name, exact: true })
+      .or(this.header.getByRole('tab', { name, exact: true }))
+      .filter({ visible: true })
+      .click()
+  }
+
   async search(query: string): Promise<void> {
     await this.page.getByRole('button', { name: 'Open search' }).click()
     await this.searchBox.fill(query)

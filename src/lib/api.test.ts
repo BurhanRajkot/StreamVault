@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
-import { adminLogin, getImageSrcSet, buildEmbedUrl, fetchMediaSummaries, isSearchResultWorthShowing } from './api';
+import { adminLogin, getImageSrcSet, buildEmbedUrl, fetchAnimeRow, fetchMediaSummaries, fetchPopular, fetchTrending, isSearchResultWorthShowing, searchMedia } from './api';
 import { CONFIG, DEBRID_SERVER_ID, serverOptions, type Media } from './config';
 
 const originalFetch = globalThis.fetch;
@@ -153,6 +153,19 @@ describe('buildEmbedUrl', () => {
     const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro_movie.replace('{tmdbId}', '550');
     expect(result).toBe(expected);
   });
+
+  it('resolves anime by media.media_type too — the tab mixes films and series', () => {
+    const result = buildEmbedUrl('anime', 'vidfast_pro', 95479, {
+      season: 2,
+      episode: 5,
+      media: { media_type: 'tv' } as Media,
+    });
+    const expected = CONFIG.STREAM_PROVIDERS.vidfast_pro
+      .replace('{tmdbId}', '95479')
+      .replace('{season}', '2')
+      .replace('{episode}', '5');
+    expect(result).toBe(expected);
+  });
 });
 
 // Every provider listed in PROVIDER_NAMES is rendered as a selectable option in
@@ -300,5 +313,90 @@ describe('isSearchResultWorthShowing', () => {
   it('drops posterless filler nobody has rated, but keeps a posterless title people have', () => {
     expect(isSearchResultWorthShowing({ ...base, media_type: 'movie', poster_path: null, vote_count: 3 })).toBe(false)
     expect(isSearchResultWorthShowing({ ...base, media_type: 'movie', poster_path: null, vote_count: 400 })).toBe(true)
+  })
+})
+
+describe('anime feeds', () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  /** Answers discover by media type and records every URL asked for. */
+  const stubDiscover = (results: { movie: object[]; tv: object[] }) => {
+    const urls: URL[] = []
+    globalThis.fetch = mock((input: string) => {
+      const url = new URL(input)
+      urls.push(url)
+      const type = url.pathname.endsWith('/movie') ? 'movie' : 'tv'
+      return Promise.resolve(new Response(JSON.stringify({ results: results[type], total_pages: 3 }), { status: 200 }))
+    }) as unknown as typeof fetch
+    return urls
+  }
+
+  it('asks discover for Japanese animation, films and series both, tagging each', async () => {
+    const urls = stubDiscover({
+      movie: [{ id: 129, title: 'Spirited Away', popularity: 50 }],
+      tv: [{ id: 95479, name: 'JUJUTSU KAISEN', popularity: 90 }],
+    })
+
+    const { results, total_pages } = await fetchPopular('anime')
+
+    expect(urls.map((u) => u.pathname).sort()).toEqual(['/tmdb/discover/movie', '/tmdb/discover/tv'])
+    for (const url of urls) {
+      expect(url.searchParams.get('with_genres')).toBe('16')
+      expect(url.searchParams.get('with_original_language')).toBe('ja')
+    }
+    expect(results.map((m) => [m.id, m.media_type])).toEqual([
+      [95479, 'tv'],
+      [129, 'movie'],
+    ])
+    expect(total_pages).toBe(3)
+  })
+
+  it('ranks the top-rated row across films and series, with a vote floor on each', async () => {
+    const urls = stubDiscover({
+      movie: [{ id: 129, title: 'Spirited Away', vote_average: 8.5 }],
+      tv: [
+        { id: 209867, name: 'Frieren', vote_average: 8.8 },
+        { id: 1429, name: 'Attack on Titan', vote_average: 8.4 },
+      ],
+    })
+
+    const media = await fetchAnimeRow('top-rated')
+
+    expect(media.map((m) => m.id)).toEqual([209867, 129, 1429])
+    for (const url of urls) {
+      expect(url.searchParams.get('sort_by')).toBe('vote_average.desc')
+      expect(Number(url.searchParams.get('vote_count.gte'))).toBeGreaterThan(0)
+    }
+  })
+
+  it('features well-known anime, films and series both, not the raw popularity chart', async () => {
+    const urls = stubDiscover({
+      movie: [{ id: 129, title: 'Spirited Away', popularity: 50 }],
+      tv: [{ id: 95479, name: 'JUJUTSU KAISEN', popularity: 90 }],
+    })
+
+    const featured = await fetchTrending('anime')
+
+    expect(featured.map((m) => m.id)).toEqual([95479, 129])
+    for (const url of urls) {
+      expect(url.searchParams.get('with_original_language')).toBe('ja')
+      expect(Number(url.searchParams.get('vote_count.gte'))).toBeGreaterThanOrEqual(1000)
+    }
+  })
+
+  it('searches only anime from the Anime tab', async () => {
+    let asked: URL | undefined
+    globalThis.fetch = mock((input: string) => {
+      asked = new URL(input)
+      return Promise.resolve(new Response(JSON.stringify({ results: [], has_more: false }), { status: 200 }))
+    }) as unknown as typeof fetch
+
+    await searchMedia('anime', 'naruto')
+
+    expect(asked?.searchParams.get('anime')).toBe('true')
+    expect(asked?.searchParams.get('mediaOnly')).toBe('true')
+    expect(asked?.searchParams.has('mediaType')).toBe(false)
   })
 })

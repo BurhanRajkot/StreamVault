@@ -26,6 +26,7 @@ e2e/
   specs/              one file per user journey
     premium-player    ⚡ Premium: default server, guest playback, fallbacks, promo end
     browse            home, search, title pages
+    anime             the Anime tab: anime-only rows, grid and search; plays on Premium
     account           guest vs signed-in, favorites
     promo             the "Premium is free" announcement
     smoke             every route renders (@smoke, runs first in CI)

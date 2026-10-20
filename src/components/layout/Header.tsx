@@ -31,6 +31,7 @@ const NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
   { label: 'Home', value: 'home' },
   { label: 'Movies', value: 'movie' },
   { label: 'TV Shows', value: 'tv' },
+  { label: 'Anime', value: 'anime' },
   { label: 'Docs', value: 'documentary' },
   { label: 'Downloads', value: 'downloads' },
 ]
@@ -40,6 +41,7 @@ const MOBILE_NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
   { label: 'Home', value: 'home' },
   { label: 'Movies', value: 'movie' },
   { label: 'TV Shows', value: 'tv' },
+  { label: 'Anime', value: 'anime' },
   { label: 'Docs', value: 'documentary' },
 ]
 
