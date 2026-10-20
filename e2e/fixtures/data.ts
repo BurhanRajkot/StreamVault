@@ -20,6 +20,7 @@ export interface MediaFixture {
   popularity: number
   genre_ids: number[]
   genres: { id: number; name: string }[]
+  original_language: string
   runtime?: number
   imdb_id?: string
   external_ids?: { imdb_id: string }
@@ -32,6 +33,8 @@ const GENRES = {
   scifi: { id: 878, name: 'Science Fiction' },
   crime: { id: 80, name: 'Crime' },
   drama: { id: 18, name: 'Drama' },
+  animation: { id: 16, name: 'Animation' },
+  fantasy: { id: 14, name: 'Fantasy' },
 }
 
 export const MOVIE: MediaFixture = {
@@ -48,6 +51,7 @@ export const MOVIE: MediaFixture = {
   popularity: 120,
   genre_ids: [GENRES.action.id, GENRES.scifi.id],
   genres: [GENRES.action, GENRES.scifi],
+  original_language: 'en',
   runtime: 148,
   imdb_id: 'tt1375666',
   credits: {
@@ -83,6 +87,7 @@ export const SHOW: MediaFixture = {
   popularity: 300,
   genre_ids: [GENRES.drama.id, GENRES.crime.id],
   genres: [GENRES.drama, GENRES.crime],
+  original_language: 'en',
   external_ids: { imdb_id: 'tt0903747' },
   number_of_seasons: 2,
   credits: { cast: [], crew: [] },
@@ -93,7 +98,45 @@ export const SHOW_SEASONS = [
   { season_number: 2, episode_count: 13, name: 'Season 2' },
 ]
 
-export const CATALOGUE: MediaFixture[] = [MOVIE, SECOND_MOVIE, SHOW]
+/** Anime is Japanese-language animation — what the Anime tab asks discover for. */
+export const ANIME_SHOW: MediaFixture = {
+  ...SHOW,
+  id: 95479,
+  name: 'Jujutsu Kaisen',
+  first_air_date: '2020-10-03',
+  overview: 'A boy swallows a cursed talisman and becomes cursed himself.',
+  poster_path: '/jujutsu-kaisen-poster.jpg',
+  backdrop_path: '/jujutsu-kaisen-backdrop.jpg',
+  vote_average: 8.6,
+  popularity: 90,
+  genre_ids: [GENRES.animation.id, GENRES.fantasy.id],
+  genres: [GENRES.animation, GENRES.fantasy],
+  original_language: 'ja',
+  external_ids: { imdb_id: 'tt12343534' },
+}
+
+export const ANIME_MOVIE: MediaFixture = {
+  ...MOVIE,
+  id: 129,
+  title: 'Spirited Away',
+  release_date: '2001-07-20',
+  overview: 'A young girl wanders into a world ruled by gods, witches and spirits.',
+  poster_path: '/spirited-away-poster.jpg',
+  backdrop_path: '/spirited-away-backdrop.jpg',
+  vote_average: 8.5,
+  popularity: 80,
+  genre_ids: [GENRES.animation.id, GENRES.fantasy.id],
+  genres: [GENRES.animation, GENRES.fantasy],
+  original_language: 'ja',
+  runtime: 125,
+  imdb_id: 'tt0245429',
+}
+
+export const CATALOGUE: MediaFixture[] = [MOVIE, SECOND_MOVIE, SHOW, ANIME_SHOW, ANIME_MOVIE]
+
+export function isAnime(media: MediaFixture): boolean {
+  return media.original_language === 'ja' && media.genre_ids.includes(GENRES.animation.id)
+}
 
 export function titleOf(media: MediaFixture): string {
   return media.title ?? media.name ?? ''

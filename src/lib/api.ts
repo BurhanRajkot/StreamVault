@@ -42,6 +42,30 @@ interface TmdbListResponse {
 const EMPTY_LIST: TmdbListResponse = { results: [], total_pages: 0 }
 
 /**
+ * Discover filter for anime: Japanese-language animation (16 = Animation, the
+ * same id for movies and TV). The backend's search applies the same rule to
+ * the Anime tab's results (isAnime in hybridSearch.ts).
+ */
+const ANIME_FILTER = '&with_genres=16&with_original_language=ja'
+
+/**
+ * The discover filter that narrows a mode whose feed blends movies and TV
+ * ('' for home, which isn't narrowed), or null for a single-type mode.
+ */
+function blendedModeFilter(mode: MediaMode): string | null {
+  switch (mode) {
+    case 'home':
+      return ''
+    case 'documentary':
+      return '&with_genres=99' // 99 = Documentary
+    case 'anime':
+      return ANIME_FILTER
+    default:
+      return null
+  }
+}
+
+/**
  * Fetch a movie discover URL and a tv discover URL in parallel.
  * A failed sub-request degrades to an empty result set instead of throwing,
  * so one broken half can't wipe out the whole combined feed.
@@ -72,10 +96,10 @@ export async function fetchPopular(
     return { results: [], total_pages: 0 }
   }
 
-  // HOME + DOCUMENTARY: blended movie/tv feed sorted by popularity.
-  // Documentary is identical to home apart from the genre filter (99 = Documentary).
-  if (mode === 'home' || mode === 'documentary') {
-    const genre = mode === 'documentary' ? '&with_genres=99' : ''
+  // HOME + DOCUMENTARY + ANIME: blended movie/tv feed sorted by popularity,
+  // identical apart from the discover filter (see blendedModeFilter).
+  const genre = blendedModeFilter(mode)
+  if (genre !== null) {
     const provider = providerFilterParams(providerId, 'flatrate')
 
     const movieUrl = `${API_BASE}/tmdb/discover/movie?sort_by=popularity.desc&page=${page}${genre}${provider}`
@@ -135,11 +159,10 @@ export async function fetchRecentlyAdded(
   const todayStr = today.toISOString().split('T')[0]
   const monthsAgoStr = monthsAgo.toISOString().split('T')[0]
 
-  // HOME + DOCUMENTARY: blended movie/tv feed sorted by newest release.
-  if (mode === 'home' || mode === 'documentary') {
-    const isDoc = mode === 'documentary'
-    const genre = isDoc ? '&with_genres=99' : ''
-    const voteCount = isDoc ? 5 : 20 // documentaries have far fewer ratings
+  // HOME + DOCUMENTARY + ANIME: blended movie/tv feed sorted by newest release.
+  const genre = blendedModeFilter(mode)
+  if (genre !== null) {
+    const voteCount = mode === 'documentary' ? 5 : 20 // documentaries have far fewer ratings
     const provider = providerFilterParams(providerId, 'flatrate')
 
     const movieUrl =
@@ -204,8 +227,14 @@ export async function fetchRecentlyAdded(
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
   if (mode === 'downloads') return []
 
-  // Documentaries and Home: reuse Popular as Trending.
-  if (mode === 'documentary' || mode === 'home') {
+  // Anime: the best known of the series and film rows.
+  if (mode === 'anime') {
+    const [series, movies] = await Promise.all([fetchAnimeRow('series'), fetchAnimeRow('movies')])
+    return [...series, ...movies].sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 10)
+  }
+
+  // Home and documentaries: reuse Popular as Trending.
+  if (blendedModeFilter(mode) !== null) {
     const data = await fetchPopular(mode, 1)
     return data.results.slice(0, 10) // Top 10 for carousel
   }
@@ -253,13 +282,15 @@ export async function searchMedia(
   }
 
   // Filter media type specifically if requested.
-  // For 'home' and 'documentary', we omit this to search BOTH TV and Movies —
+  // For the blended modes, we omit this to search BOTH TV and Movies —
   // but never people: an actor's result has no poster and opens nothing.
   if (mode === 'movie' || mode === 'tv') {
     params.append('mediaType', mode)
   } else {
     params.append('mediaOnly', 'true')
   }
+  // The Anime tab finds only anime
+  if (mode === 'anime') params.append('anime', 'true')
 
   const url = `${API_BASE}/tmdb/search/hybrid?${params.toString()}`
 
@@ -287,6 +318,47 @@ export async function searchMedia(
     if (err instanceof Error && err.name === 'AbortError') return { results: [], hasMore: false }
     console.error('searchMedia fetch err:', err)
     return { results: [], hasMore: false }
+  }
+}
+
+/** The Anime tab's rows, alongside its curated pick and the full grid. */
+export type AnimeRowKind = 'series' | 'movies' | 'top-rated' | 'new'
+
+/**
+ * Popular, among titles enough people have rated. Raw popularity is led by
+ * long-running children's shows (Doraemon, Chibi Maruko-chan); the floor
+ * leaves the anime most viewers know. The full grid keeps them all.
+ */
+const WELL_KNOWN_ANIME = '&sort_by=popularity.desc&vote_count.gte=1000'
+
+/** One page of anime of one media type, from TMDB discover. */
+async function discoverAnime(type: 'movie' | 'tv', params: string): Promise<Media[]> {
+  const res = await fetch(`${API_BASE}/tmdb/discover/${type}?page=1${ANIME_FILTER}${params}`)
+  if (!res.ok) {
+    console.error('discoverAnime failed:', res.status, res.statusText)
+    return []
+  }
+  const data = (await res.json()) as TmdbListResponse
+  return (data.results || []).map((m) => ({ ...m, media_type: type }))
+}
+
+export async function fetchAnimeRow(kind: AnimeRowKind): Promise<Media[]> {
+  switch (kind) {
+    case 'series':
+      return discoverAnime('tv', WELL_KNOWN_ANIME)
+    case 'movies':
+      return discoverAnime('movie', WELL_KNOWN_ANIME)
+    case 'top-rated': {
+      // A vote floor, or the top is whatever three people rated 10. Films
+      // draw more votes than series, so theirs is higher.
+      const [movies, tv] = await Promise.all([
+        discoverAnime('movie', '&sort_by=vote_average.desc&vote_count.gte=500'),
+        discoverAnime('tv', '&sort_by=vote_average.desc&vote_count.gte=300'),
+      ])
+      return [...movies, ...tv].sort((a, b) => b.vote_average - a.vote_average)
+    }
+    case 'new':
+      return fetchRecentlyAdded('anime')
   }
 }
 
@@ -483,7 +555,7 @@ export function buildEmbedUrl(
     episode?: number
     malId?: string
     subOrDub?: string
-    media?: Media // used to read media_type for documentaries
+    media?: Media // used to read media_type for documentaries and anime
   }
 ): string {
   const { season = 1, episode = 1, media } = options
@@ -498,8 +570,8 @@ export function buildEmbedUrl(
     return template ? fillMovieTemplate(template, mediaId) : ''
   }
 
-  // Documentaries can be either a movie or a TV series — resolve by media_type.
-  if (mode === 'documentary' && media) {
+  // Documentaries and anime can be either a movie or a TV series — resolve by media_type.
+  if ((mode === 'documentary' || mode === 'anime') && media) {
     const actualMode = media.media_type || 'movie'
     return actualMode === 'tv' ? tvUrl() : movieUrl()
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { isSearchNoise, rankSearchResults, titleMatchScore } from './hybridSearch'
+import { isAnime, isSearchNoise, rankSearchResults, titleMatchScore } from './hybridSearch'
 
 describe('titleMatchScore', () => {
   it('scores an exact title highest, ignoring case, punctuation and accents', () => {
@@ -29,6 +29,19 @@ describe('isSearchNoise', () => {
   it('keeps anything with artwork, or a real audience', () => {
     expect(isSearchNoise({ poster_path: '/a.jpg', vote_count: 0 })).toBe(false)
     expect(isSearchNoise({ poster_path: null, vote_count: 500 })).toBe(false)
+  })
+})
+
+describe('isAnime', () => {
+  it('takes Japanese-language animation, film or series', () => {
+    expect(isAnime({ original_language: 'ja', genre_ids: [16, 10759] })).toBe(true) // Naruto
+    expect(isAnime({ original_language: 'ja', genre_ids: [28, 10749, 16] })).toBe(true) // The Last: Naruto the Movie
+  })
+
+  it('leaves out animation from elsewhere and Japanese live action', () => {
+    expect(isAnime({ original_language: 'en', genre_ids: [16, 10759] })).toBe(false) // Avatar: The Last Airbender
+    expect(isAnime({ original_language: 'ja', genre_ids: [18, 10759] })).toBe(false) // Alice in Borderland
+    expect(isAnime({ original_language: 'ja' })).toBe(false) // a trie hit: nothing to tell by
   })
 })
 
