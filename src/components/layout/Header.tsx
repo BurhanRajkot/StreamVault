@@ -240,16 +240,19 @@ export function Header({
             <a
               href="/"
               onClick={handleLogoClick}
+              // Named outright: below lg the wordmark is hidden and the
+              // icon alone would leave the link with no name
+              aria-label="StreamVault"
               className="group flex items-center gap-2.5"
             >
               <Clapperboard className="h-6 w-6 text-primary group-hover:text-accent" strokeWidth={2.5} />
-              <span className="hidden text-xl font-bold tracking-tight text-foreground sm:block">
+              <span className="hidden text-xl font-bold tracking-tight text-foreground lg:block">
                 Stream<span className="text-primary">Vault</span>
               </span>
             </a>
           </div>
 
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="hidden min-w-0 items-center gap-0.5 md:flex lg:gap-1">
             {NAV_ITEMS.map((item) => {
               const isActive = mode === item.value
               return (
@@ -257,7 +260,9 @@ export function Header({
                   key={item.value}
                   onClick={() => onModeChange(item.value)}
                   className={cn(
-                    'relative rounded-full px-4 py-2 text-sm font-medium',
+                    // Tighter on a tablet, where six pills, search and sign-in
+                    // share ~768px; nowrap so "TV Shows" never breaks in two
+                    'relative whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-medium lg:px-4 lg:text-sm',
                     isActive ? 'text-foreground' : mutedInteractiveClass
                   )}
                 >
@@ -272,7 +277,7 @@ export function Header({
             })}
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1 lg:gap-3">
             {mode !== 'downloads' && (
               <div ref={searchRef} className="relative flex items-center">
                 <div
@@ -346,7 +351,7 @@ export function Header({
 
             <Link
               to="/admin/dashboard"
-              className="hidden h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:text-foreground sm:inline-flex"
+              className="hidden h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:text-foreground lg:inline-flex"
               aria-label="Admin login"
             >
               <Shield className="h-5 w-5" />
@@ -367,7 +372,8 @@ export function Header({
                     Login
                   </Button>
                 </Link>
-                <Link to="/signup">
+                {/* Below lg there is room for one: returning viewers sign in */}
+                <Link to="/signup" className="hidden lg:block">
                   <Button
                     size="sm"
                     className="rounded-full bg-primary bg-none px-5 font-medium text-primary-foreground shadow-none transition-colors hover:bg-primary/90 hover:shadow-none hover:scale-100 active:scale-100"
