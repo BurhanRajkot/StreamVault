@@ -774,8 +774,7 @@
   }
 
   /* The player's own controls exist only in the takeover layouts below */
-  .player-chrome-top,
-  .player-chrome-portrait {
+  .player-chrome-top {
     display: none;
   }
 
@@ -819,25 +818,25 @@
   }
 
   @media (max-width: 767.98px) and (orientation: portrait) {
-    /* Portrait reads top to bottom: the picture at the top of the screen,
-       then what's playing and how to change it. Only that panel scrolls —
-       the picture stays put, so browsing episodes never loses the video. */
+    /* Held upright, the player still takes the whole screen — the picture
+       letterboxed in the middle, the controls over all of it. Everything
+       else (episodes, servers, downloads) is on the title page or in the
+       player's own menus. */
     .player-shell {
       overflow: hidden;
-      padding-top: env(safe-area-inset-top, 0px);
     }
 
-    /* ...and in portrait, a small round back button on the picture's corner
-       rather than a bar of its own (the panel below names the title) */
+    /* A small round back button in the corner, always there — the
+       controls' own back hides with them */
     .player-shell .player-chrome-top {
       inset: env(safe-area-inset-top, 0px) auto auto 0;
-      padding: 0.375rem;
+      padding: 0.5rem;
       background: none;
     }
 
     .player-shell .player-chrome-top > button {
-      width: 2.25rem;
-      height: 2.25rem;
+      width: 2.5rem;
+      height: 2.5rem;
       background: rgb(0 0 0 / 0.45);
       -webkit-backdrop-filter: blur(6px);
       backdrop-filter: blur(6px);
@@ -848,24 +847,14 @@
     }
 
     .player-frame {
-      height: auto;
-      aspect-ratio: 16 / 9;
-      /* Flex item: without this the frame is squashed by the controls below */
-      flex: 0 0 auto;
-    }
-
-    .player-chrome-portrait {
-      display: block;
       flex: 1 1 auto;
       min-height: 0;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
     }
 
-    /* The back bar above the picture already names the title */
+    /* The title beside the back button */
     .player-shell .player-overlay-title {
-      visibility: hidden;
+      padding-left: 2.75rem;
+      padding-top: 0.5rem;
     }
   }
 

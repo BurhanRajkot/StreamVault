@@ -12,7 +12,8 @@ import { useIsMobile } from '@/mobile-ui/use-mobile'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { MobileDetailSheet } from './movie-detail/MobileDetailSheet'
-import { MobilePlayerPanel } from './movie-detail/MobilePlayerPanel'
+import { DownloadSheet, type DownloadTarget } from '@/components/media/DownloadSheet'
+import { enterPlaybackFullscreen, exitPlaybackFullscreen } from '@/lib/playbackFullscreen'
 import { DetailPanel } from './movie-detail/DetailPanel'
 import { EpisodeList, NowPlayingHeading, SourcePickers } from './movie-detail/NowPlaying'
 import { nowPlayingMeta } from './movie-detail/types'
@@ -95,8 +96,26 @@ export function MovieDetailModal({
   // "Try another server" button doing nothing on a phone.
   const serverSelectTriggerRef = useRef<HTMLButtonElement>(null)
   const mobileServerSelectTriggerRef = useRef<HTMLButtonElement>(null)
-  const openServerPicker = () =>
-    (serverSelectTriggerRef.current ?? mobileServerSelectTriggerRef.current)?.click()
+  /**
+   * On a phone the player is full screen and the server picker lives on the
+   * title page — "Switch server" goes back there with the picker open, and
+   * picking one starts playing again.
+   */
+  const [pickServerOnDetails, setPickServerOnDetails] = useState(false)
+  const openServerPicker = () => {
+    const trigger = serverSelectTriggerRef.current ?? mobileServerSelectTriggerRef.current
+    if (trigger) {
+      trigger.click()
+      return
+    }
+    if (isMobile && isPlaying) {
+      setPickServerOnDetails(true)
+      stopPlaying()
+    }
+  }
+  const [downloadTarget, setDownloadTarget] = useState<DownloadTarget | null>(null)
+  /** The phone title page has scrolled past its artwork — the top bar turns solid. */
+  const [sheetScrolled, setSheetScrolled] = useState(false)
 
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const queryClient = useQueryClient()
@@ -240,14 +259,28 @@ export function MovieDetailModal({
 
   const handleClose = () => {
     saveProgressOnExit()
+    exitPlaybackFullscreen()
     onClose()
+  }
+
+  /**
+   * Start playback. A phone hands the whole screen to the player — called
+   * straight from the tap, since fullscreen needs the user's gesture.
+   */
+  const startPlaying = () => {
+    if (isMobile) enterPlaybackFullscreen()
+    setIsPlaying(true)
   }
 
   /** Back from the player to the title's details, without leaving the page. */
   const stopPlaying = () => {
     saveProgressOnExit()
+    exitPlaybackFullscreen()
     setIsPlaying(false)
   }
+
+  // Leaving the page mid-film shouldn't leave the browser fullscreen
+  useEffect(() => () => exitPlaybackFullscreen(), [])
 
   useEffect(() => {
     if (isPlaying) {
@@ -474,7 +507,24 @@ export function MovieDetailModal({
     onSeasonChange: setSeason,
     onEpisodeChange: setEpisode,
     onServerChange: setServer,
-    onPlay: () => setIsPlaying(true),
+    onPlay: startPlaying,
+  }
+
+  const imdbId = media.imdb_id ?? media.external_ids?.imdb_id
+  const openDownload = (s?: number, ep?: number, episodeName?: string) =>
+    setDownloadTarget({
+      title,
+      year: display.year,
+      imdbId,
+      mediaType: typedMode,
+      season: mode === 'tv' ? s : undefined,
+      episode: mode === 'tv' ? ep : undefined,
+      label: mode === 'tv' && s !== undefined && ep !== undefined ? [`S${s} · E${ep}`, episodeName].filter(Boolean).join(' · ') : undefined,
+    })
+  const playEpisode = (s: number, ep: number) => {
+    setSeason(s)
+    setEpisode(ep)
+    startPlaying()
   }
 
   const nextTarget = mode === 'tv' ? nextEpisode(position, seasons, currentSeasonEpisodes) : null
@@ -499,7 +549,7 @@ export function MovieDetailModal({
     // Scoping `dark` here keeps every token below on the dark palette.
     <div className="dark animate-fade fixed inset-0 z-50 overflow-hidden bg-background font-sans text-foreground" data-testid="title-page">
       {/* ── Ambient background (fixed, never scrolls) ── */}
-      <div className="pointer-events-none absolute inset-0 z-0 h-full w-full">
+      <div className="pointer-events-none absolute inset-0 z-0 h-full w-full max-md:hidden">
         <picture>
           {/* A 16:9 backdrop cropped to a portrait phone is mostly sky and
               shoulders — the poster is the art that was composed for it.
@@ -532,7 +582,9 @@ export function MovieDetailModal({
         className={cn(
           'pointer-events-none absolute inset-x-0 top-0 z-[100] flex items-center justify-between px-4 py-4 transition-opacity duration-300 max-md:pt-[calc(1rem+env(safe-area-inset-top,0px))] md:px-10 md:py-6',
           // The takeover player draws its own back control over the video
-          isPlaying && 'player-hide-chrome'
+          isPlaying && 'player-hide-chrome',
+          // Over the page's text once the artwork has scrolled away: a solid bar
+          isMobile && !isPlaying && sheetScrolled && 'bg-background/95 pb-2.5 shadow-lg shadow-black/40 backdrop-blur-md'
         )}
       >
         <button
@@ -575,14 +627,38 @@ export function MovieDetailModal({
       {!isPlaying &&
         (isMobile ? (
           /* Mobile — scrollable sheet over the artwork */
-          <div className="custom-scrollbar absolute inset-0 z-10 overflow-y-auto overscroll-contain">
+          <div
+            className="custom-scrollbar absolute inset-0 z-10 overflow-y-auto overscroll-contain"
+            onScroll={(e) => setSheetScrolled(e.currentTarget.scrollTop > 180)}
+          >
             <MobileDetailSheet
+              tvId={media.id}
               display={display}
-              playback={playbackControls}
+              playback={{
+                ...playbackControls,
+                onServerChange: (id) => {
+                  setServer(id)
+                  // Came here from the player's "Switch server": play on the new one
+                  if (pickServerOnDetails) {
+                    setPickServerOnDetails(false)
+                    startPlaying()
+                  }
+                },
+              }}
               favorited={favorited}
               onToggleFavorite={() => toggleFavorite(initialMedia.id, typedMode, genreIdsOf(initialMedia))}
+              isLiked={isLiked}
+              onToggleLike={handleLikeToggle}
               isCopied={isCopied}
               onShare={handleShare}
+              onDownload={openDownload}
+              onPlayEpisode={playEpisode}
+              similar={media.similar?.results ?? []}
+              serverTriggerRef={mobileServerSelectTriggerRef}
+              openServerPicker={pickServerOnDetails}
+              onServerPickerOpenChange={(open) => {
+                if (!open) setPickServerOnDetails(false)
+              }}
             />
           </div>
         ) : (
@@ -594,6 +670,7 @@ export function MovieDetailModal({
                 display={display}
                 playback={playbackControls}
                 isPrePlay
+                onDownload={() => openDownload(season, episode)}
                 isLiked={isLiked}
                 onToggleLike={handleLikeToggle}
                 disliked={disliked}
@@ -670,6 +747,19 @@ export function MovieDetailModal({
                       onNext={hasNextEpisode ? handleSkipNext : undefined}
                       nextLabel={nextLabel}
                       onReleaseControls={setReleaseControls}
+                      episodes={
+                        mode === 'tv' ? (
+                          <EpisodeList
+                            tvId={media.id}
+                            seasons={seasons}
+                            season={season}
+                            episode={episode}
+                            episodeCount={currentSeasonEpisodes}
+                            onPick={(s, ep) => goToEpisode({ season: s, episode: ep })}
+                            listClassName="-mx-2"
+                          />
+                        ) : undefined
+                      }
                     />
                   ) : embedUrl ? (
                     <>
@@ -725,29 +815,6 @@ export function MovieDetailModal({
                   )}
                 </div>
 
-                {/* Portrait: what's playing, and how to change it — in the
-                    space under the picture instead of a screen away. Turning
-                    the phone hides this and the video takes over. */}
-                {isMobile && (
-                  <MobilePlayerPanel
-                    tvId={media.id}
-                    display={display}
-                    mode={mode}
-                    season={season}
-                    episode={episode}
-                    seasons={seasons}
-                    episodeCount={currentSeasonEpisodes}
-                    onPickEpisode={(s, ep) => goToEpisode({ season: s, episode: ep })}
-                    server={server}
-                    onServerChange={setServer}
-                    serverTriggerRef={mobileServerSelectTriggerRef}
-                    releaseControls={releaseControls}
-                    favorited={favorited}
-                    onToggleFavorite={() => toggleFavorite(initialMedia.id, typedMode, genreIdsOf(initialMedia))}
-                    isCopied={isCopied}
-                    onShare={handleShare}
-                  />
-                )}
               </div>
 
               {/* Desktop: what's playing, and where it's playing from */}
@@ -833,6 +900,13 @@ export function MovieDetailModal({
           </div>
         </div>
       )}
+
+      <DownloadSheet
+        target={downloadTarget}
+        onOpenChange={(open) => {
+          if (!open) setDownloadTarget(null)
+        }}
+      />
     </div>
   )
 }

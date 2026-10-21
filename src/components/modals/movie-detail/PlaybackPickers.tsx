@@ -47,15 +47,27 @@ interface ServerSelectProps {
   triggerRef?: Ref<HTMLButtonElement>
   /** Just the server's name on the trigger ("⚡ Premium") — the menu still says everything. */
   compact?: boolean
+  /** Open on mount — the phone player's "Switch server" lands here. */
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
   className?: string
 }
 
-export function ServerSelect({ mode, value, onChange, triggerRef, compact = false, className }: ServerSelectProps) {
+export function ServerSelect({
+  mode,
+  value,
+  onChange,
+  triggerRef,
+  compact = false,
+  defaultOpen,
+  onOpenChange,
+  className,
+}: ServerSelectProps) {
   const debridFree = useDebridFreeUntil() !== null
   const options = serverOptions(mode, { debridFree })
   const selected = options.find((option) => option.id === value)
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
       <SelectTrigger ref={triggerRef} aria-label="Server" className={cn(trigger, className)}>
         {compact && selected ? (
           <SelectValue placeholder="Server">

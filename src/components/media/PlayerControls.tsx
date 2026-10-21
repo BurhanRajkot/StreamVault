@@ -22,7 +22,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Download,
   ExternalLink,
+  ListVideo,
   Maximize,
   Minimize,
   Pause,
@@ -33,6 +35,7 @@ import {
   Volume1,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatPlayerTime } from '@/lib/playbackPosition'
@@ -93,6 +96,10 @@ export interface PlayerControlsProps {
   nextLabel?: string
   /** Extra overlay just above the control bar (e.g. a "resumed at" prompt). */
   overlay?: ReactNode
+  /** The playing file, offered from the settings menu. */
+  download?: { url: string; fileName: string; size: string | null } | null
+  /** The season's episodes — an Episodes button opens them in a panel over the picture. */
+  episodes?: ReactNode
 }
 
 const SEEK_STEP_S = 10
@@ -207,7 +214,14 @@ function isTextField(target: EventTarget | null): boolean {
   return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)
 }
 
-type MenuView = 'main' | 'quality' | 'speed'
+/** Safari's own picture-in-picture API — the standard one is missing on iPhone. */
+type WebkitPresentationVideo = HTMLVideoElement & {
+  webkitSupportsPresentationMode?: (mode: string) => boolean
+  webkitSetPresentationMode?: (mode: 'inline' | 'picture-in-picture' | 'fullscreen') => void
+  webkitPresentationMode?: string
+}
+
+type MenuView = 'main' | 'quality' | 'speed' | 'episodes'
 
 interface SeekRipple {
   side: 'back' | 'forward'
@@ -234,6 +248,8 @@ export function PlayerControls({
   onNext,
   nextLabel,
   overlay,
+  download,
+  episodes,
 }: PlayerControlsProps) {
   const [snap, setSnap] = useState<Snapshot>(() => snapshotOf(video, timeline))
   /** Latest timeline, for listeners that outlive a render. */
@@ -317,7 +333,8 @@ export function PlayerControls({
   }, [video])
 
   useEffect(() => {
-    const onChange = () => setFullscreen(!!container && document.fullscreenElement === container)
+    // Any element: on a phone the whole page goes fullscreen when playback starts
+    const onChange = () => setFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [container])
@@ -478,9 +495,15 @@ export function PlayerControls({
     if (!video) return
     if (document.pictureInPictureElement) {
       void document.exitPictureInPicture().catch(() => {})
-    } else {
-      void video.requestPictureInPicture?.().catch(() => {})
+      return
     }
+    if (document.pictureInPictureEnabled && video.requestPictureInPicture) {
+      void video.requestPictureInPicture().catch(() => {})
+      return
+    }
+    // iPhone Safari: picture-in-picture through its own presentation modes
+    const webkit = video as WebkitPresentationVideo
+    webkit.webkitSetPresentationMode?.(webkit.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture')
   }, [video])
 
   const goBack = useCallback(() => {
@@ -581,6 +604,8 @@ export function PlayerControls({
     const onPointerDown = (e: PointerEvent) => {
       const t = e.target as Node
       if (menuRef.current?.contains(t) || settingsButtonRef.current?.contains(t)) return
+      // A picker inside the menu (the episodes panel's season) portals its list out to <body>
+      if ((t as Element).closest?.('[data-radix-popper-content-wrapper],[role="listbox"]')) return
       // A click on the picture closes the menu itself (onSurfacePointerUp) —
       // closed here first, that same click would then also pause the film.
       if (t === surfaceRef.current) return
@@ -685,7 +710,11 @@ export function PlayerControls({
   const showSpinner = (spinner || !!timeline?.restarting || (!snap.paused && snap.starved)) && !snap.ended
   const volumeLevel = snap.muted ? 0 : snap.volume
   const VolumeIcon = volumeLevel === 0 ? VolumeX : volumeLevel < 0.5 ? Volume1 : Volume2
-  const canPip = typeof document !== 'undefined' && document.pictureInPictureEnabled && !!video?.requestPictureInPicture
+  const canPip =
+    typeof document !== 'undefined' &&
+    !!video &&
+    ((document.pictureInPictureEnabled && !!video.requestPictureInPicture) ||
+      !!(video as WebkitPresentationVideo).webkitSupportsPresentationMode?.('picture-in-picture'))
   const activeSource = sources.find((s) => s.id === activeSourceId) ?? null
   const qualityBadge = activeSource ? (activeSource.label === '4K' ? '4K' : /^(1080p|720p)$/.test(activeSource.label) ? 'HD' : null) : null
   const inCredits =
@@ -1075,12 +1104,24 @@ export function PlayerControls({
               </button>
             )}
 
+            {episodes && (
+              <button
+                onClick={() => setMenu((m) => (m === 'episodes' ? null : 'episodes'))}
+                aria-label="Episodes"
+                aria-expanded={menu === 'episodes'}
+                title="Episodes"
+                className={iconButton}
+              >
+                <ListVideo className="h-6 w-6" />
+              </button>
+            )}
+
             <button
               ref={settingsButtonRef}
               onClick={(e) => {
                 // detail === 0: activated from the keyboard, not a pointer.
                 menuOpenedByKeyRef.current = e.detail === 0
-                setMenu((m) => (m ? null : 'main'))
+                setMenu((m) => (m && m !== 'episodes' ? null : 'main'))
               }}
               aria-haspopup="dialog"
               aria-expanded={menu !== null}
@@ -1103,7 +1144,7 @@ export function PlayerControls({
                 onClick={togglePip}
                 aria-label={pip ? 'Exit picture-in-picture' : 'Picture-in-picture'}
                 title="Picture-in-picture"
-                className={cn(iconButton, 'pointer-coarse:hidden')}
+                className={iconButton}
               >
                 <PictureInPicture2 className="h-6 w-6" />
               </button>
@@ -1122,8 +1163,28 @@ export function PlayerControls({
 
       {/* Settings — a popover over the picture; a bottom sheet on a portrait
           phone, where the picture is too short to hold a list (index.css) */}
-      {menu && <div aria-hidden="true" className="player-menu-scrim" />}
-      {menu && (
+      {/* Episodes — a panel down the side of the picture (a sheet on a portrait phone) */}
+      {menu === 'episodes' && episodes && (
+        <div
+          ref={menuRef}
+          role="dialog"
+          aria-label="Episodes"
+          data-player-menu
+          className="player-episodes absolute inset-y-0 right-0 z-30 flex w-[min(26rem,100%)] flex-col bg-neutral-950/[0.96] text-white shadow-2xl ring-1 ring-white/10"
+        >
+          <div className="flex shrink-0 items-center justify-end px-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
+            <button onClick={() => setMenu(null)} aria-label="Close episodes" className={iconButton}>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
+            {episodes}
+          </div>
+        </div>
+      )}
+
+      {menu && menu !== 'episodes' && <div aria-hidden="true" className="player-menu-scrim" />}
+      {menu && menu !== 'episodes' && (
         <div
           ref={menuRef}
           role="dialog"
@@ -1137,6 +1198,33 @@ export function PlayerControls({
                 <MenuRow onClick={() => setMenu('quality')} label="Quality" value={activeSource?.label ?? 'Auto'} chevron />
               )}
               <MenuRow onClick={() => setMenu('speed')} label="Playback speed" value={speedLabel(snap.rate)} chevron />
+              {canPip && (
+                <MenuRow
+                  onClick={() => {
+                    setMenu(null)
+                    togglePip()
+                  }}
+                  label={pip ? 'Exit picture-in-picture' : 'Picture-in-picture'}
+                  icon={<PictureInPicture2 className="h-4 w-4 text-white/60" />}
+                />
+              )}
+              {download && (
+                <a
+                  href={download.url}
+                  download={download.fileName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={download.fileName}
+                  onClick={() => setMenu(null)}
+                  className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                >
+                  <span>Download</span>
+                  <span className="flex items-center gap-1.5 text-white/60">
+                    {download.size}
+                    <Download className="h-4 w-4" />
+                  </span>
+                </a>
+              )}
               {externalUrl && (
                 <a
                   href={externalUrl}
@@ -1214,7 +1302,19 @@ export function PlayerControls({
   )
 }
 
-function MenuRow({ label, value, chevron, onClick }: { label: string; value?: string; chevron?: boolean; onClick: () => void }) {
+function MenuRow({
+  label,
+  value,
+  chevron,
+  icon,
+  onClick,
+}: {
+  label: string
+  value?: string
+  chevron?: boolean
+  icon?: ReactNode
+  onClick: () => void
+}) {
   return (
     <button
       onClick={onClick}
@@ -1224,6 +1324,7 @@ function MenuRow({ label, value, chevron, onClick }: { label: string; value?: st
       <span className="flex items-center gap-1 text-white/60">
         {value}
         {chevron && <ChevronRight className="h-4 w-4" />}
+        {icon}
       </span>
     </button>
   )
