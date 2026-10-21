@@ -876,7 +876,9 @@
     }
   }
 
-  :fullscreen .player-back {
+  /* The player itself fullscreen (desktop) — not the whole page, which is
+     how a phone plays, and which keeps the page's own back button */
+  :not(html):fullscreen .player-back {
     display: flex;
   }
 
