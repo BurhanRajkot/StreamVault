@@ -12,6 +12,7 @@ import { useIsMobile } from '@/mobile-ui/use-mobile'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { MobileDetailSheet } from './movie-detail/MobileDetailSheet'
+import { MobilePlayerPanel } from './movie-detail/MobilePlayerPanel'
 import { DetailPanel } from './movie-detail/DetailPanel'
 import { DownloadButton, ReleaseSelect, SeasonEpisodeSelects, ServerSelect } from './movie-detail/PlaybackPickers'
 import type { PlaybackControls } from './movie-detail/types'
@@ -576,7 +577,8 @@ export function MovieDetailModal({
         ) : (
           /* Desktop — bottom-anchored */
           <div className="absolute inset-0 z-10 flex flex-col overflow-y-auto">
-            <div className="mx-auto mt-auto w-full max-w-[1500px] px-6 pb-12 md:px-16 lg:px-24">
+            {/* pt clears the Back / My List bar when a short window makes this scroll */}
+            <div className="mx-auto mt-auto w-full max-w-[1500px] px-6 pb-12 pt-24 md:px-16 lg:px-24">
               <DetailPanel
                 display={display}
                 playback={playbackControls}
@@ -621,7 +623,7 @@ export function MovieDetailModal({
                   >
                     <ChevronLeft className="h-6 w-6" />
                   </button>
-                  <div className="min-w-0 flex-1">
+                  <div className="player-chrome-title min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold text-white">{title}</p>
                     {mode === 'tv' && (
                       <p className="truncate text-xs text-white/55">
@@ -706,58 +708,24 @@ export function MovieDetailModal({
                     space under the picture instead of a screen away. Turning
                     the phone hides this and the video takes over. */}
                 {isMobile && (
-                  <div className="player-chrome-portrait w-full px-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] pt-4">
-                    {mode === 'tv' && (
-                      <div className="mb-3 flex items-center gap-2">
-                        <button
-                          onClick={handleSkipPrev}
-                          disabled={isAtAbsoluteFirstEpisode}
-                          aria-label="Previous episode"
-                          className={cn(episodeStepButton, 'h-12 w-12 tap-scale')}
-                        >
-                          <SkipBack className="h-5 w-5" />
-                        </button>
-                        <SeasonEpisodeSelects
-                          seasons={seasons}
-                          season={season}
-                          episode={episode}
-                          episodeCount={currentSeasonEpisodes}
-                          onSeasonChange={setSeason}
-                          onEpisodeChange={setEpisode}
-                          className="min-w-0 flex-1 gap-2"
-                          triggerClassName="h-12 w-full"
-                        />
-                        <button
-                          onClick={handleSkipNext}
-                          disabled={isAtAbsoluteLastEpisode}
-                          aria-label="Next episode"
-                          className={cn(episodeStepButton, 'h-12 w-12 tap-scale')}
-                        >
-                          <SkipForward className="h-5 w-5" />
-                        </button>
-                      </div>
-                    )}
-
-                    <ServerSelect
-                      mode={mode}
-                      value={server}
-                      onChange={setServer}
-                      triggerRef={mobileServerSelectTriggerRef}
-                      className="h-12 w-full"
-                    />
-                    {server === DEBRID_SERVER_ID && releaseControls && (
-                      <div className="mt-2.5 flex gap-2.5">
-                        <ReleaseSelect controls={releaseControls} className="h-12 min-w-0 flex-1" />
-                        <DownloadButton download={releaseControls.download} showSize={false} className="h-12 shrink-0 px-4" />
-                      </div>
-                    )}
-                    <p className="mt-3 text-center text-xs text-white/55">Turn your phone sideways for full screen</p>
-
-                    <div className="mt-6 border-t border-white/10 pt-5">
-                      {nowPlayingLine && <p className="text-[13px] font-medium text-white/50">{nowPlayingLine}</p>}
-                      <p className="mt-2 line-clamp-5 text-[15px] leading-relaxed text-white/75">{display.description}</p>
-                    </div>
-                  </div>
+                  <MobilePlayerPanel
+                    tvId={media.id}
+                    display={display}
+                    mode={mode}
+                    season={season}
+                    episode={episode}
+                    seasons={seasons}
+                    episodeCount={currentSeasonEpisodes}
+                    onPickEpisode={(s, ep) => goToEpisode({ season: s, episode: ep })}
+                    server={server}
+                    onServerChange={setServer}
+                    serverTriggerRef={mobileServerSelectTriggerRef}
+                    releaseControls={releaseControls}
+                    favorited={favorited}
+                    onToggleFavorite={() => toggleFavorite(initialMedia.id, typedMode, genreIdsOf(initialMedia))}
+                    isCopied={isCopied}
+                    onShare={handleShare}
+                  />
                 )}
               </div>
 

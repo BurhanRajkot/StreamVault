@@ -819,17 +819,32 @@
   }
 
   @media (max-width: 767.98px) and (orientation: portrait) {
-    /* Portrait reads top to bottom: back bar, picture, then what's playing
-       and how to change it — not a picture floating mid-screen. */
+    /* Portrait reads top to bottom: the picture at the top of the screen,
+       then what's playing and how to change it. Only that panel scrolls —
+       the picture stays put, so browsing episodes never loses the video. */
     .player-shell {
-      overflow-y: auto;
+      overflow: hidden;
+      padding-top: env(safe-area-inset-top, 0px);
     }
 
-    /* ...and its own bar above the picture in portrait */
-    .player-chrome-top {
-      position: relative;
-      padding-bottom: 0.5rem;
+    /* ...and in portrait, a small round back button on the picture's corner
+       rather than a bar of its own (the panel below names the title) */
+    .player-shell .player-chrome-top {
+      inset: env(safe-area-inset-top, 0px) auto auto 0;
+      padding: 0.375rem;
       background: none;
+    }
+
+    .player-shell .player-chrome-top > button {
+      width: 2.25rem;
+      height: 2.25rem;
+      background: rgb(0 0 0 / 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+
+    .player-shell .player-chrome-title {
+      display: none;
     }
 
     .player-frame {
@@ -841,6 +856,11 @@
 
     .player-chrome-portrait {
       display: block;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
 
     /* The back bar above the picture already names the title */
@@ -938,6 +958,17 @@
   @keyframes player-ripple-in {
     from { opacity: 0; }
     to   { opacity: 1; }
+  }
+
+  /* Episode list: the bars over the episode that's playing */
+  .now-playing-bar {
+    transform-origin: bottom;
+    animation: now-playing-bar 1.2s ease-in-out infinite;
+  }
+
+  @keyframes now-playing-bar {
+    0%, 100% { transform: scaleY(0.3); }
+    50%      { transform: scaleY(1); }
   }
 
   /* "Up next" — drains as the countdown runs */
