@@ -10,6 +10,7 @@ import { Analytics } from '@vercel/analytics/react'
 import App from './App'
 import './index.css'
 import { Toaster } from '@/components/ui/sonner'
+import { watchForUpdates } from '@/lib/swUpdate'
 
 
 // Suppress Chrome extension errors that are unrelated to our app
@@ -45,4 +46,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 // registerSW.js and wires it into index.html at build time), and its
 // registerType: 'autoUpdate' handles version rollover. Registering here as well
 // would just re-register the same script.
-
+// What it doesn't do is move an open page onto the new build — see swUpdate.
+watchForUpdates()

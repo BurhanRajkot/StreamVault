@@ -2,6 +2,7 @@ import { useEffect, useRef, lazy, Suspense } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
+import { applyPendingUpdate } from './lib/swUpdate'
 import { HelmetProvider } from 'react-helmet-async'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
@@ -51,6 +52,12 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 const AppContent = () => {
   const location = useLocation()
   const backgroundLocation = location.state && location.state.backgroundLocation
+
+  // A new deploy waiting behind the service worker loads on the next page
+  // change — never on the player, where a reload would cut playback off
+  useEffect(() => {
+    applyPendingUpdate(location.pathname)
+  }, [location.pathname])
 
   return (
     <Suspense fallback={<PageFallback />}>
