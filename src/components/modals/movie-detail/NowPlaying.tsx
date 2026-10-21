@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Ref } from 'react'
-import { Check, Heart, Play, Share2 } from 'lucide-react'
+import { Check, Download, Heart, Play, Share2 } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID, type MediaMode } from '@/lib/config'
 import type { EpisodeSummary } from '@/lib/api'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
@@ -166,6 +166,10 @@ interface EpisodeListProps {
   className?: string
   /** The list itself — give it a height and overflow to make it scroll on its own. */
   listClassName?: string
+  /** Mark the current episode as playing — off on the title page, where nothing plays yet. */
+  markCurrent?: boolean
+  /** A download button on every row. */
+  onDownload?: (season: number, episode: number, name: string) => void
 }
 
 /** Today, as TMDB writes air dates — for telling which episodes are out yet. */
@@ -188,6 +192,8 @@ export function EpisodeList({
   density = 'compact',
   className,
   listClassName,
+  markCurrent = true,
+  onDownload,
 }: EpisodeListProps) {
   // Picking a season here only browses it; the playing episode changes on a
   // tap. The choice is remembered against the season that was playing when it
@@ -243,7 +249,7 @@ export function EpisodeList({
 
       <ol ref={listRef} className={cn('mt-2.5', listClassName)} aria-busy={isPending || undefined}>
         {rows.map((ep) => {
-          const playing = browseSeason === season && ep.episode_number === episode
+          const playing = markCurrent && browseSeason === season && ep.episode_number === episode
           const unaired = !!ep.air_date && ep.air_date > now
           const name = ep.name || `Episode ${ep.episode_number}`
           const note = playing
@@ -254,7 +260,7 @@ export function EpisodeList({
                 ? `${ep.runtime}m`
                 : ''
           return (
-            <li key={ep.episode_number}>
+            <li key={ep.episode_number} className="flex items-center gap-1">
               <button
                 onClick={() => {
                   if (!playing) onPick(browseSeason, ep.episode_number)
@@ -262,7 +268,7 @@ export function EpisodeList({
                 aria-current={playing || undefined}
                 aria-label={`Episode ${ep.episode_number}: ${name}${playing ? ', now playing' : ''}`}
                 className={cn(
-                  'group flex w-full items-center text-left transition-colors',
+                  'group flex min-w-0 flex-1 items-center text-left transition-colors',
                   comfortable
                     ? 'gap-4 rounded-xl p-2.5 hover:bg-white/[0.05]'
                     : 'gap-3 rounded-lg px-2 py-1 active:bg-white/[0.08]',
@@ -325,6 +331,16 @@ export function EpisodeList({
                   )}
                 </div>
               </button>
+              {onDownload && (
+                <button
+                  onClick={() => onDownload(browseSeason, ep.episode_number, name)}
+                  aria-label={`Download episode ${ep.episode_number}`}
+                  title="Download"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
+                >
+                  <Download className="h-[18px] w-[18px]" />
+                </button>
+              )}
             </li>
           )
         })}

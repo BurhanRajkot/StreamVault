@@ -79,9 +79,14 @@ test.describe('Title page', () => {
 
     await page.getByRole('combobox', { name: 'Season' }).click()
     await page.getByRole('option', { name: 'Season 2' }).click()
-    await page.getByRole('combobox', { name: 'Episode' }).click()
 
     // Season 2 has 13 episodes in the fixture, season 1 only 7.
-    await expect(page.getByRole('option', { name: 'Episode 13', exact: true })).toBeVisible()
+    if (test.info().project.name === 'mobile') {
+      // A phone lists the season's episodes on the title page
+      await expect(page.getByRole('region', { name: 'Episodes' }).getByRole('listitem')).toHaveCount(13)
+    } else {
+      await page.getByRole('combobox', { name: 'Episode' }).click()
+      await expect(page.getByRole('option', { name: 'Episode 13', exact: true })).toBeVisible()
+    }
   })
 })

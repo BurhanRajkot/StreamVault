@@ -26,7 +26,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DebridReadyPlayback } from '@/lib/debridApi'
+import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
 import {
   convertedStreamUrl,
   detectBrowserVideoSupport,
@@ -40,7 +40,7 @@ import { PlayerControls, type PlayerControlsProps, type PlayerTimeline } from '.
 /** What the caller can put in the controls: title, release picker, next episode, ... */
 type ChromeProps = Pick<
   PlayerControlsProps,
-  'title' | 'subtitle' | 'onBack' | 'sources' | 'activeSourceId' | 'onSourceChange' | 'onNext' | 'nextLabel' | 'overlay'
+  'title' | 'subtitle' | 'onBack' | 'sources' | 'activeSourceId' | 'onSourceChange' | 'onNext' | 'nextLabel' | 'overlay' | 'episodes'
 >
 
 /**
@@ -563,6 +563,11 @@ export function DebridVideo({
         video={videoEl}
         container={container}
         externalUrl={playback.directUrl}
+        download={{
+          url: playback.directUrl,
+          fileName: playback.fileName,
+          size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null,
+        }}
         streamNote={mode.kind === 'hls' ? 'Real-Debrid converts this file as it plays, so a jump takes a few seconds to start.' : null}
         timeline={timeline}
         {...chrome}

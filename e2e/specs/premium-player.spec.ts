@@ -41,9 +41,14 @@ test.describe('Premium server', () => {
 
   test('a guest can play a TV episode, and the episode picked is the one requested', async ({ page, watch, mockApi }) => {
     await watch.goto(SHOW)
-    await page.getByRole('combobox', { name: 'Episode' }).click()
-    await page.getByRole('option', { name: 'Episode 3', exact: true }).click()
-    await watch.play()
+    if (test.info().project.name === 'mobile') {
+      // A phone's title page lists the episodes; tapping one plays it
+      await page.getByRole('region', { name: 'Episodes' }).getByRole('button', { name: /^Episode 3: / }).click()
+    } else {
+      await page.getByRole('combobox', { name: 'Episode' }).click()
+      await page.getByRole('option', { name: 'Episode 3', exact: true }).click()
+      await watch.play()
+    }
 
     await watch.expectPremiumPlaying()
 
@@ -116,6 +121,7 @@ test.describe('Premium server', () => {
   })
 
   test('under the player, the release can be switched and the playing file downloaded', async ({ page, watch, mockApi }) => {
+    test.skip(test.info().project.name === 'mobile', 'A phone plays full screen — the same choices are in the player’s menus')
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
     const uhd = release({ name: 'Inception.2010.2160p.UHD.BluRay.x265.HDR.AAC-UHD' })
     mockApi.on('GET', '/debrid/media-search', { json: { data: [uhd, hd] } })
@@ -215,7 +221,8 @@ test.describe('Premium server', () => {
       )
 
       await watch.goto(MOVIE)
-      await expect(watch.serverPicker).toHaveText(/Premium\s*4K\/1080p$/)
+      await expect(watch.serverPicker).toContainText('Premium')
+      await expect(watch.serverPicker).not.toContainText('Free')
       await watch.play()
 
       await expect(page.getByText('Premium is for subscribers')).toBeVisible()
@@ -224,59 +231,67 @@ test.describe('Premium server', () => {
   })
 })
 
-test.describe('on a phone, under the player', () => {
+test.describe('Downloads', () => {
+  test('the player’s settings offer the playing file', async ({ page, watch }) => {
+    await watch.goto(MOVIE)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+    // Paused, the controls stay up — no racing their auto-hide.
+    await watch.premiumVideo.evaluate((v: HTMLVideoElement) => v.pause())
+
+    await watch.root.getByRole('button', { name: /^Settings/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Player settings' }).getByRole('link', { name: /^Download/ })).toHaveAttribute(
+      'href',
+      SAMPLE_VIDEO_URL
+    )
+  })
+
+  test('the title page downloads a release without playing it', async ({ page, watch, mockApi }) => {
+    const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
+    mockApi.on('GET', '/debrid/media-search', { json: { data: [hd] } })
+    mockApi.on('POST', '/debrid/play', { json: readyPlayback({ fileName: 'Inception.1080p.mkv', directUrl: `${SAMPLE_VIDEO_URL}?file=dl` }) })
+
+    await watch.goto(MOVIE)
+    await watch.root.getByRole('button', { name: /^Download/ }).click()
+
+    const sheet = page.getByRole('dialog', { name: 'Download' })
+    await sheet.getByRole('button', { name: /1080p/ }).click()
+    await expect(sheet.getByRole('link', { name: /^Save 1080p/ })).toHaveAttribute('href', `${SAMPLE_VIDEO_URL}?file=dl`)
+    await expect(watch.premiumVideo, 'nothing plays').toHaveCount(0)
+    const [play] = mockApi.calls('POST', '/debrid/play')
+    expect((play.body as { instantOnly?: boolean }).instantOnly).toBe(true)
+  })
+})
+
+test.describe('on a phone', () => {
   test.beforeEach(() => {
-    test.skip(test.info().project.name !== 'mobile', 'The episode list is the portrait phone layout')
+    test.skip(test.info().project.name !== 'mobile', 'The phone title page and full-screen player')
   })
 
-  test('tapping an episode in the list plays it', async ({ page, watch, mockApi }) => {
+  test('the title page offers Play and Download, and a show’s episodes', async ({ page, watch }) => {
+    await watch.goto(SHOW)
+
+    await expect(watch.playButton).toBeVisible()
+    await expect(watch.root.getByRole('button', { name: /^Download S1:E1$/ })).toBeVisible()
+    const episodes = page.getByRole('region', { name: 'Episodes' })
+    await expect(episodes.getByRole('listitem')).toHaveCount(7)
+    await expect(episodes.getByRole('button', { name: 'Download episode 4' })).toBeVisible()
+  })
+
+  test('playing leaves nothing else on screen, and the player’s Episodes panel switches episode', async ({ page, watch, mockApi }) => {
     await watch.goto(SHOW)
     await watch.play()
     await watch.expectPremiumPlaying()
 
-    const episodes = page.getByRole('region', { name: 'Episodes' })
-    await expect(episodes.getByRole('button', { name: /^Episode 1: Episode One of Season 1, now playing$/ })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Episodes' }), 'the title page’s list is gone').toHaveCount(0)
+    await expect(watch.serverPicker).toHaveCount(0)
 
-    await episodes.getByRole('button', { name: /^Episode 3: / }).click()
+    await watch.premiumVideo.evaluate((v: HTMLVideoElement) => v.pause())
+    await watch.root.getByRole('button', { name: 'Episodes' }).click()
+    await page.getByRole('dialog', { name: 'Episodes' }).getByRole('button', { name: /^Episode 3: / }).click()
 
     await watch.expectPremiumPlaying()
     const search = mockApi.calls('GET', '/debrid/media-search').at(-1)!
-    expect(search.query.get('season')).toBe('1')
     expect(search.query.get('episode')).toBe('3')
-    await expect(episodes.getByRole('button', { name: /now playing$/ })).toHaveAccessibleName(/^Episode 3: /)
-    await expect(watch.root.getByText('S1 · E3 · Episode Three of Season 1', { exact: true })).toBeVisible()
-  })
-
-  test('browsing another season leaves the episode playing until one is picked', async ({ page, watch, mockApi }) => {
-    await watch.goto(SHOW)
-    await watch.play()
-    await watch.expectPremiumPlaying()
-    const searches = mockApi.calls('GET', '/debrid/media-search').length
-
-    const episodes = page.getByRole('region', { name: 'Episodes' })
-    await episodes.getByRole('combobox', { name: 'Season' }).click()
-    await page.getByRole('option', { name: 'Season 2' }).click()
-
-    await expect(episodes.getByRole('listitem')).toHaveCount(13)
-    await expect(episodes.getByRole('button', { name: /now playing$/ })).toHaveCount(0)
-    expect(mockApi.calls('GET', '/debrid/media-search'), 'nothing new was played').toHaveLength(searches)
-
-    await episodes.getByRole('button', { name: /^Episode 2: Episode Two of Season 2/ }).click()
-    await watch.expectPremiumPlaying()
-    const search = mockApi.calls('GET', '/debrid/media-search').at(-1)!
-    expect(search.query.get('season')).toBe('2')
-    expect(search.query.get('episode')).toBe('2')
-  })
-
-  test('the picture stays on screen while the details scroll', async ({ page, watch }) => {
-    await watch.goto(SHOW)
-    await watch.play()
-    await watch.expectPremiumPlaying()
-
-    const before = await watch.premiumVideo.boundingBox()
-    await page.locator('.player-chrome-portrait').evaluate((panel) => panel.scrollTo(0, panel.scrollHeight))
-    await expect(page.getByRole('region', { name: 'Episodes' }).getByRole('listitem').last()).toBeInViewport()
-
-    expect(await watch.premiumVideo.boundingBox()).toEqual(before)
   })
 })

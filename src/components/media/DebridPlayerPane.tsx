@@ -65,6 +65,8 @@ interface DebridPlayerPaneProps {
   nextLabel?: string
   /** The release picker and download link, for the page to draw under the player — null when there's nothing to offer. */
   onReleaseControls?: (controls: ReleaseControls | null) => void
+  /** The season's episodes, for the player's Episodes panel. */
+  episodes?: ReactNode
 }
 
 /** What the page shows under the player: the releases to switch between, and the playing file to save. */
@@ -158,6 +160,7 @@ export function DebridPlayerPane({
   onNext,
   nextLabel,
   onReleaseControls,
+  episodes,
 }: DebridPlayerPaneProps) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const freeUntil = useDebridFreeUntil()
@@ -727,6 +730,7 @@ export function DebridPlayerPane({
         sources={sources}
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}
+        episodes={episodes}
         overlay={
           resumeToast && startAt !== undefined ? (
             <div className="flex items-center gap-3 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg">
