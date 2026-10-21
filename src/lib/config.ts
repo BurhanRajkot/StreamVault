@@ -413,4 +413,6 @@ export interface Media {
       rating: string
     }[]
   }
+  /** Appended to the detail responses (`append_to_response=similar`). */
+  similar?: { results: Media[] }
 }

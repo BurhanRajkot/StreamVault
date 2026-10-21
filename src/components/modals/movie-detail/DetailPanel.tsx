@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Play, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Download, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { CircularRating } from '@/components/media/CircularRating'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
@@ -15,6 +15,8 @@ interface DetailPanelProps {
    * reference information only — the player's own bar names the title.
    */
   isPrePlay: boolean
+  /** Open the download sheet (pre-play only). */
+  onDownload?: () => void
   isLiked: boolean
   onToggleLike: () => void
   disliked: boolean
@@ -29,6 +31,7 @@ export function DetailPanel({
   display,
   playback,
   isPrePlay,
+  onDownload,
   isLiked,
   onToggleLike,
   disliked,
@@ -127,9 +130,17 @@ export function DetailPanel({
                 Play Now
               </button>
 
-              <ServerSelect mode={mode} value={server} onChange={onServerChange} className="h-12 w-64" />
+              {onDownload && (
+                <button
+                  onClick={onDownload}
+                  className="flex h-12 items-center gap-2.5 rounded-lg bg-white/[0.12] px-6 text-base font-semibold text-white transition-[background-color,transform] hover:bg-white/[0.2] active:scale-[0.97]"
+                >
+                  <Download className="h-5 w-5" />
+                  Download
+                </button>
+              )}
 
-              <div className="mx-1 h-8 w-px bg-white/10" />
+              <ServerSelect mode={mode} value={server} onChange={onServerChange} className="h-12 w-56" />
 
               <button
                 onClick={onToggleLike}
