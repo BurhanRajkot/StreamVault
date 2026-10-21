@@ -45,18 +45,33 @@ interface ServerSelectProps {
   onChange: (server: string) => void
   /** For opening the picker from elsewhere ("Switch server"). */
   triggerRef?: Ref<HTMLButtonElement>
+  /** Just the server's name on the trigger ("⚡ Premium") — the menu still says everything. */
+  compact?: boolean
   className?: string
 }
 
-export function ServerSelect({ mode, value, onChange, triggerRef, className }: ServerSelectProps) {
+export function ServerSelect({ mode, value, onChange, triggerRef, compact = false, className }: ServerSelectProps) {
   const debridFree = useDebridFreeUntil() !== null
+  const options = serverOptions(mode, { debridFree })
+  const selected = options.find((option) => option.id === value)
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger ref={triggerRef} aria-label="Server" className={cn(trigger, className)}>
-        <SelectValue placeholder="Server" />
+        {compact && selected ? (
+          <SelectValue placeholder="Server">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              {selected.id === DEBRID_SERVER_ID && (
+                <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" />
+              )}
+              <span className="truncate font-semibold">{selected.name}</span>
+            </span>
+          </SelectValue>
+        ) : (
+          <SelectValue placeholder="Server" />
+        )}
       </SelectTrigger>
       <SelectContent className={content}>
-        {serverOptions(mode, { debridFree }).map((option) => (
+        {options.map((option) => (
           <SelectItem key={option.id} value={option.id} className={item}>
             <ServerLabel option={option} />
           </SelectItem>
@@ -149,18 +164,24 @@ function releaseSummary(source: PlayerSource): string {
 
 interface ReleaseSelectProps {
   controls: ReleaseControls
+  /** Leave out the "Release" prefix where space is short. */
+  compact?: boolean
   className?: string
 }
 
 /** The Premium release playing, and the others that start instantly. Switching keeps the viewer's place. */
-export function ReleaseSelect({ controls, className }: ReleaseSelectProps) {
+export function ReleaseSelect({ controls, compact = false, className }: ReleaseSelectProps) {
   const { releases, activeId, onSelect, busy } = controls
   const active = releases.find((r) => r.id === activeId)
   return (
     <Select value={activeId ?? undefined} onValueChange={onSelect}>
       <SelectTrigger aria-label="Release" className={cn(trigger, className)}>
         <SelectValue placeholder="Release">
-          <span className="text-white/50">Release</span>{' '}
+          {!compact && (
+            <>
+              <span className="text-white/50">Release</span>{' '}
+            </>
+          )}
           <span className="font-semibold">{active ? releaseSummary(active) : busy ? 'Finding…' : 'Choose'}</span>
         </SelectValue>
       </SelectTrigger>
@@ -186,6 +207,8 @@ interface DownloadButtonProps {
   download: ReleaseControls['download']
   /** The file size after the label — off where the release picker beside it already says it. */
   showSize?: boolean
+  /** Just the icon (still named "Download" for assistive tech). */
+  iconOnly?: boolean
   className?: string
 }
 
@@ -193,21 +216,22 @@ interface DownloadButtonProps {
  * Saves the playing file. Real-Debrid serves its direct link as a download,
  * not a page — a new tab just in case a browser would rather open it.
  */
-export function DownloadButton({ download, showSize = true, className }: DownloadButtonProps) {
-  const classes = cn(trigger, 'inline-flex items-center justify-center gap-2 border', className)
+export function DownloadButton({ download, showSize = true, iconOnly = false, className }: DownloadButtonProps) {
+  const classes = cn(trigger, 'inline-flex items-center justify-center gap-2 border', iconOnly && 'px-0', className)
+  const label = iconOnly ? <span className="sr-only">Download</span> : 'Download'
   if (!download) {
     return (
       <button type="button" disabled className={cn(classes, 'cursor-not-allowed opacity-50')}>
         <Download className="h-4 w-4" aria-hidden="true" />
-        Download
+        {label}
       </button>
     )
   }
   return (
     <a href={download.url} download={download.fileName} target="_blank" rel="noopener noreferrer" title={download.fileName} className={classes}>
       <Download className="h-4 w-4" aria-hidden="true" />
-      Download
-      {showSize && download.size && <span className="font-normal text-white/55">{download.size}</span>}
+      {label}
+      {showSize && !iconOnly && download.size && <span className="font-normal text-white/55">{download.size}</span>}
     </a>
   )
 }
