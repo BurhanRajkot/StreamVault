@@ -223,3 +223,60 @@ test.describe('Premium server', () => {
     })
   })
 })
+
+test.describe('on a phone, under the player', () => {
+  test.beforeEach(() => {
+    test.skip(test.info().project.name !== 'mobile', 'The episode list is the portrait phone layout')
+  })
+
+  test('tapping an episode in the list plays it', async ({ page, watch, mockApi }) => {
+    await watch.goto(SHOW)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+
+    const episodes = page.getByRole('region', { name: 'Episodes' })
+    await expect(episodes.getByRole('button', { name: /^Episode 1: Episode One of Season 1, now playing$/ })).toBeVisible()
+
+    await episodes.getByRole('button', { name: /^Episode 3: / }).click()
+
+    await watch.expectPremiumPlaying()
+    const search = mockApi.calls('GET', '/debrid/media-search').at(-1)!
+    expect(search.query.get('season')).toBe('1')
+    expect(search.query.get('episode')).toBe('3')
+    await expect(episodes.getByRole('button', { name: /now playing$/ })).toHaveAccessibleName(/^Episode 3: /)
+    await expect(watch.root.getByText('S1 · E3 · Episode Three of Season 1', { exact: true })).toBeVisible()
+  })
+
+  test('browsing another season leaves the episode playing until one is picked', async ({ page, watch, mockApi }) => {
+    await watch.goto(SHOW)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+    const searches = mockApi.calls('GET', '/debrid/media-search').length
+
+    const episodes = page.getByRole('region', { name: 'Episodes' })
+    await episodes.getByRole('combobox', { name: 'Season' }).click()
+    await page.getByRole('option', { name: 'Season 2' }).click()
+
+    await expect(episodes.getByRole('listitem')).toHaveCount(13)
+    await expect(episodes.getByRole('button', { name: /now playing$/ })).toHaveCount(0)
+    expect(mockApi.calls('GET', '/debrid/media-search'), 'nothing new was played').toHaveLength(searches)
+
+    await episodes.getByRole('button', { name: /^Episode 2: Episode Two of Season 2/ }).click()
+    await watch.expectPremiumPlaying()
+    const search = mockApi.calls('GET', '/debrid/media-search').at(-1)!
+    expect(search.query.get('season')).toBe('2')
+    expect(search.query.get('episode')).toBe('2')
+  })
+
+  test('the picture stays on screen while the details scroll', async ({ page, watch }) => {
+    await watch.goto(SHOW)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+
+    const before = await watch.premiumVideo.boundingBox()
+    await page.locator('.player-chrome-portrait').evaluate((panel) => panel.scrollTo(0, panel.scrollHeight))
+    await expect(page.getByRole('region', { name: 'Episodes' }).getByRole('listitem').last()).toBeInViewport()
+
+    expect(await watch.premiumVideo.boundingBox()).toEqual(before)
+  })
+})
