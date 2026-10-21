@@ -28,6 +28,7 @@ import {
   page,
   readyPlayback,
   release,
+  seasonEpisodes,
   titleOf,
 } from './data'
 
@@ -219,6 +220,7 @@ export class MockApi {
     this.on('GET', '/tmdb/:type(movie|tv)/:id(\\d+)', ({ params }) => ok(mediaById(params.type as 'movie' | 'tv', Number(params.id))))
     this.on('GET', '/tmdb/:type(movie|tv)/:id(\\d+)/similar', () => ok(page([])))
     this.on('GET', '/tmdb/tv/:id(\\d+)/seasons', () => ok(SHOW_SEASONS))
+    this.on('GET', '/tmdb/tv/:id(\\d+)/season/:season(\\d+)', ({ params }) => ok(seasonEpisodes(Number(params.season))))
     this.on('GET', '/tmdb/search/movie', () => ok(page([])))
     this.on('GET', '/tmdb/search/hybrid', ({ query }) => {
       const q = (query.get('q') ?? query.get('query') ?? '').toLowerCase()

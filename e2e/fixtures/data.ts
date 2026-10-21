@@ -98,6 +98,20 @@ export const SHOW_SEASONS = [
   { season_number: 2, episode_count: 13, name: 'Season 2' },
 ]
 
+/** A season's episodes as /tmdb/tv/:id/season/:n answers — "S1 E3" is named "Episode Three of Season 1". */
+export function seasonEpisodes(season: number) {
+  const count = SHOW_SEASONS.find((s) => s.season_number === season)?.episode_count ?? 0
+  const words = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen']
+  return Array.from({ length: count }, (_, i) => ({
+    episode_number: i + 1,
+    name: `Episode ${words[i]} of Season ${season}`,
+    overview: '',
+    still_path: null,
+    runtime: 47,
+    air_date: '2008-01-20',
+  }))
+}
+
 /** Anime is Japanese-language animation — what the Anime tab asks discover for. */
 export const ANIME_SHOW: MediaFixture = {
   ...SHOW,

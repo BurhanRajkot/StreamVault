@@ -78,6 +78,31 @@ interface SeasonEpisodeSelectsProps {
   triggerClassName?: string
 }
 
+interface SeasonSelectProps {
+  seasons: SeasonSummary[]
+  value: number
+  onChange: (season: number) => void
+  className?: string
+}
+
+/** Just the season — on its own where picking one browses rather than plays (the episode list). */
+export function SeasonSelect({ seasons, value, onChange, className }: SeasonSelectProps) {
+  return (
+    <Select value={value.toString()} onValueChange={(val) => onChange(Number(val))}>
+      <SelectTrigger aria-label="Season" className={cn(trigger, className)}>
+        <SelectValue placeholder="Season" />
+      </SelectTrigger>
+      <SelectContent className={content}>
+        {seasonOptions(seasons).map((n) => (
+          <SelectItem key={n} value={n.toString()} className={item}>
+            Season {n}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 /** Season and episode, side by side. Picking a season starts it from episode 1. */
 export function SeasonEpisodeSelects({
   seasons,
@@ -91,24 +116,15 @@ export function SeasonEpisodeSelects({
 }: SeasonEpisodeSelectsProps) {
   return (
     <div className={cn('grid grid-cols-2 gap-2.5', className)}>
-      <Select
-        value={season.toString()}
-        onValueChange={(val) => {
-          onSeasonChange(Number(val))
+      <SeasonSelect
+        seasons={seasons}
+        value={season}
+        onChange={(n) => {
+          onSeasonChange(n)
           onEpisodeChange(1)
         }}
-      >
-        <SelectTrigger aria-label="Season" className={cn(trigger, triggerClassName)}>
-          <SelectValue placeholder="Season" />
-        </SelectTrigger>
-        <SelectContent className={content}>
-          {seasonOptions(seasons).map((n) => (
-            <SelectItem key={n} value={n.toString()} className={item}>
-              Season {n}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        className={triggerClassName}
+      />
 
       <Select value={episode.toString()} onValueChange={(val) => onEpisodeChange(Number(val))}>
         <SelectTrigger aria-label="Episode" className={cn(trigger, triggerClassName)}>

@@ -394,6 +394,25 @@ export async function fetchTVSeasons(
   return data || []
 }
 
+/** One episode of a season, as the player's episode list shows it. */
+export interface EpisodeSummary {
+  episode_number: number
+  name: string
+  overview: string
+  still_path: string | null
+  /** Minutes, when TMDB knows it. */
+  runtime: number | null
+  air_date: string | null
+}
+
+export async function fetchSeasonEpisodes(tvId: number, season: number): Promise<EpisodeSummary[]> {
+  if (!tvId) return []
+  const res = await fetch(`${API_BASE}/tmdb/tv/${tvId}/season/${season}`)
+  if (!res.ok) throw new Error(`fetchSeasonEpisodes failed: ${res.status}`)
+  const data: unknown = await res.json()
+  return Array.isArray(data) ? (data as EpisodeSummary[]) : []
+}
+
 /* ======================================================
    IMAGE HELPERS
 ====================================================== */

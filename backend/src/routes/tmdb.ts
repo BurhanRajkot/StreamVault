@@ -499,6 +499,65 @@ router.get('/tv/:id/seasons', async (req: Request, res: Response) => {
   }
 })
 
+/** One episode as the player's episode list draws it. */
+interface EpisodeSummary {
+  episode_number: number
+  name: string
+  overview: string
+  still_path: string | null
+  runtime: number | null
+  air_date: string | null
+}
+
+/**
+ * GET /tmdb/tv/:id/season/:season
+ * The episodes of one season — names, stills and runtimes for the episode
+ * list under the player. Trimmed to those fields: TMDB's season payload also
+ * carries full crew and guest-star lists for every episode, ~100KB a season.
+ */
+router.get('/tv/:id/season/:season', async (req: Request, res: Response) => {
+  const parsedId = Number(req.params.id)
+  const parsedSeason = Number(req.params.season)
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || parsedId > 100_000_000) {
+    return res.status(400).json({ error: 'Invalid media id: must be a positive integer' })
+  }
+  if (!Number.isInteger(parsedSeason) || parsedSeason < 0 || parsedSeason > 1000) {
+    return res.status(400).json({ error: 'Invalid season number' })
+  }
+
+  try {
+    const cacheKey = cache.generateCacheKey('episodes', `${parsedId}:${parsedSeason}`)
+    const cached = await cache.seasons.get(cacheKey)
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT')
+      return res.json(cached)
+    }
+
+    const data = (await fetchTMDB(`/tv/${parsedId}/season/${parsedSeason}`)) as {
+      episodes?: Array<Partial<EpisodeSummary>>
+    }
+    const episodes: EpisodeSummary[] = (data.episodes ?? [])
+      .filter((e) => typeof e.episode_number === 'number')
+      .map((e) => ({
+        episode_number: e.episode_number as number,
+        name: e.name ?? '',
+        overview: e.overview ?? '',
+        still_path: e.still_path ?? null,
+        runtime: e.runtime ?? null,
+        air_date: e.air_date ?? null,
+      }))
+
+    // fetchTMDB answers a rate-limited request with empty data rather than
+    // throwing — don't pin that emptiness in the cache for two hours.
+    if (episodes.length > 0) await cache.seasons.set(cacheKey, episodes, 7200)
+    res.setHeader('X-Cache', 'MISS')
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200')
+    res.json(episodes)
+  } catch (_error) {
+    res.status(500).json({ error: 'Failed to fetch episodes' })
+  }
+})
+
 /**
  * POST /tmdb/continue-watching-details
  * BFF (Backend-For-Frontend) endpoint to aggregating TMDB details

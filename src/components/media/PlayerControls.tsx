@@ -108,6 +108,12 @@ const NEXT_EPISODE_COUNTDOWN_S = 10
 const CREDITS_WINDOW_S = 40
 const CREDITS_MIN_DURATION_S = 10 * 60
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const
+/**
+ * A picture shorter than this gets the compact controls — a portrait phone,
+ * where the picture is ~220px tall and the full-size centre buttons, seek bar
+ * and button row ran into each other.
+ */
+const COMPACT_MAX_HEIGHT_PX = 320
 
 const VOLUME_STORAGE_KEY = 'sv:player:volume'
 
@@ -314,6 +320,19 @@ export function PlayerControls({
     const onChange = () => setFullscreen(!!container && document.fullscreenElement === container)
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [container])
+
+  // Sized from the picture itself rather than the viewport: the same phone
+  // gets the compact set in portrait and the full one turned sideways.
+  const [compact, setCompact] = useState(false)
+  useEffect(() => {
+    if (!container || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => {
+      const { height } = entry.contentRect
+      setCompact(height > 0 && height < COMPACT_MAX_HEIGHT_PX)
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
   }, [container])
 
   // ── Auto-hide ────────────────────────────────────────────────────────────
@@ -674,8 +693,78 @@ export function PlayerControls({
   // Glide between timeupdates while playing; jump when the viewer seeks.
   const smooth = !snap.paused && !snap.seeking && scrubTime === null
 
-  const iconButton =
-    'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
+  const iconButton = cn(
+    'flex shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70',
+    compact ? 'h-9 w-9 [&>svg]:h-5 [&>svg]:w-5' : 'h-10 w-10'
+  )
+
+  const seekBar = (
+    <div
+      ref={seekBarRef}
+      role="slider"
+      tabIndex={0}
+      aria-label="Seek"
+      aria-valuemin={0}
+      aria-valuemax={Math.floor(snap.duration)}
+      aria-valuenow={Math.floor(displayTime)}
+      aria-valuetext={`${formatPlayerTime(displayTime)} of ${formatPlayerTime(snap.duration)}`}
+      data-testid="player-seekbar"
+      onPointerDown={onSeekPointerDown}
+      onPointerMove={onSeekPointerMove}
+      onPointerUp={onSeekPointerUp}
+      onPointerCancel={() => setScrubTime(null)}
+      onPointerLeave={() => setHover(null)}
+      onKeyDown={onSeekKeyDown}
+      className={cn(
+        'group/seek relative flex cursor-pointer touch-none items-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70',
+        // Compact: a taller strip to land a thumb on, track low in it so it
+        // sits along the picture's bottom edge
+        compact ? 'h-7 items-end pb-2.5' : 'h-6 sm:mx-1'
+      )}
+    >
+      <div
+        className={cn(
+          'relative h-[3px] w-full overflow-hidden rounded-full bg-white/25 transition-[height] duration-150 group-hover/seek:h-[5px]',
+          scrubTime !== null && 'h-[5px]'
+        )}
+      >
+        <div
+          className={cn('absolute inset-0 origin-left bg-white/40', smooth && 'transition-transform duration-500 ease-linear')}
+          style={{ transform: `scaleX(${fraction(snap.buffered)})` }}
+        />
+        {hover && scrubTime === null && (
+          <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: hover.x }} />
+        )}
+        <div
+          className={cn('absolute inset-0 origin-left bg-primary', smooth && 'transition-transform duration-300 ease-linear')}
+          style={{ transform: `scaleX(${fraction(displayTime)})` }}
+        />
+      </div>
+      {/* Thumb: rides a full-width layer that slides, so it moves on the compositor */}
+      <div
+        aria-hidden="true"
+        className={cn('pointer-events-none absolute inset-0', smooth && 'transition-transform duration-300 ease-linear')}
+        style={{ transform: `translateX(${fraction(displayTime) * 100}%)` }}
+      >
+        <div
+          className={cn(
+            'absolute left-0 h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_0_3px_rgba(0,0,0,0.25)] transition-transform duration-150 group-hover/seek:scale-100 group-focus-visible/seek:scale-100 pointer-coarse:scale-100',
+            // Centred on the track wherever the track sits in the strip
+            compact ? 'bottom-[calc(0.625rem+1.5px)] translate-y-1/2' : 'top-1/2 -translate-y-1/2',
+            scrubTime !== null ? 'scale-125' : 'scale-0'
+          )}
+        />
+      </div>
+      {(hover || scrubTime !== null) && snap.duration > 0 && (
+        <div
+          className="pointer-events-none absolute bottom-7 -translate-x-1/2 rounded-md bg-black/85 px-2 py-1 text-xs font-semibold tabular-nums text-white shadow"
+          style={{ left: scrubTime !== null ? `${fraction(scrubTime) * 100}%` : `${hover?.x ?? 0}px` }}
+        >
+          {formatPlayerTime(scrubTime ?? hover?.time ?? 0)}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div
@@ -712,21 +801,44 @@ export function PlayerControls({
         }}
       />
 
-      {/* Scrims: just enough shade for the controls to read on a bright frame */}
-      <div
-        aria-hidden="true"
-        className={cn(
-          'pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent transition-opacity duration-300',
-          shown ? 'opacity-100' : 'opacity-0'
-        )}
-      />
-      <div
-        aria-hidden="true"
-        className={cn(
-          'pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300',
-          shown ? 'opacity-100' : 'opacity-0'
-        )}
-      />
+      {/* Scrims: just enough shade for the controls to read on a bright frame.
+          A short picture is mostly controls, so it dims as a whole instead. */}
+      {compact ? (
+        <div
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-0 bg-black/45 transition-opacity duration-300',
+            shown ? 'opacity-100' : 'opacity-0'
+          )}
+        />
+      ) : (
+        <>
+          <div
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent transition-opacity duration-300',
+              shown ? 'opacity-100' : 'opacity-0'
+            )}
+          />
+          <div
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-300',
+              shown ? 'opacity-100' : 'opacity-0'
+            )}
+          />
+        </>
+      )}
+
+      {/* With the controls away, a hairline of progress along the bottom edge */}
+      {compact && !shown && snap.duration > 0 && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-white/20">
+          <div
+            className="absolute inset-0 origin-left bg-primary"
+            style={{ transform: `scaleX(${fraction(displayTime)})` }}
+          />
+        </div>
+      )}
 
       {/* Spinner */}
       {showSpinner && (
@@ -740,7 +852,9 @@ export function PlayerControls({
       {!showSpinner && scrubTime === null && countdown === null && menu === null && (
         <div
           className={cn(
-            'pointer-events-none absolute inset-0 flex items-center justify-center gap-10 transition-opacity duration-200 sm:gap-16',
+            'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-200',
+            // Compact: lifted a little, clear of the button row and seek bar below
+            compact ? 'gap-12 pb-6' : 'gap-10 sm:gap-16',
             shown ? 'opacity-100' : 'opacity-0'
           )}
         >
@@ -749,27 +863,31 @@ export function PlayerControls({
             aria-label="Back 10 seconds"
             tabIndex={-1}
             className={cn(
-              'hidden h-12 w-12 items-center justify-center rounded-full bg-black/35 text-white active:bg-black/55 pointer-coarse:flex',
+              'hidden items-center justify-center rounded-full text-white pointer-coarse:flex',
+              compact ? 'h-11 w-11 active:bg-white/15' : 'h-12 w-12 bg-black/35 active:bg-black/55',
               shown && 'pointer-events-auto'
             )}
           >
-            <SeekIcon direction="back" className="h-7 w-7" />
+            <SeekIcon direction="back" className={compact ? 'h-[26px] w-[26px]' : 'h-7 w-7'} />
           </button>
           <button
             onClick={togglePlay}
             aria-label={snap.paused || snap.ended ? 'Play' : 'Pause'}
             tabIndex={-1}
             className={cn(
-              'h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white transition-[transform,background-color] duration-150 hover:bg-black/65 active:scale-95 sm:h-[4.5rem] sm:w-[4.5rem]',
+              'items-center justify-center rounded-full text-white transition-[transform,background-color] duration-150 active:scale-95',
+              compact
+                ? 'h-14 w-14 bg-white/[0.14] backdrop-blur-sm active:bg-white/25'
+                : 'h-16 w-16 bg-black/45 hover:bg-black/65 sm:h-[4.5rem] sm:w-[4.5rem]',
               // A mouse already has the bar; it only needs the big button while paused.
               snap.paused || snap.ended ? 'flex' : 'hidden pointer-coarse:flex',
               shown && 'pointer-events-auto'
             )}
           >
             {snap.paused || snap.ended ? (
-              <Play className="ml-1 h-8 w-8 fill-current" />
+              <Play className={cn('ml-1 fill-current', compact ? 'h-7 w-7' : 'h-8 w-8')} />
             ) : (
-              <Pause className="h-8 w-8 fill-current" />
+              <Pause className={cn('fill-current', compact ? 'h-7 w-7' : 'h-8 w-8')} />
             )}
           </button>
           <button
@@ -777,11 +895,12 @@ export function PlayerControls({
             aria-label="Forward 10 seconds"
             tabIndex={-1}
             className={cn(
-              'hidden h-12 w-12 items-center justify-center rounded-full bg-black/35 text-white active:bg-black/55 pointer-coarse:flex',
+              'hidden items-center justify-center rounded-full text-white pointer-coarse:flex',
+              compact ? 'h-11 w-11 active:bg-white/15' : 'h-12 w-12 bg-black/35 active:bg-black/55',
               shown && 'pointer-events-auto'
             )}
           >
-            <SeekIcon direction="forward" className="h-7 w-7" />
+            <SeekIcon direction="forward" className={compact ? 'h-[26px] w-[26px]' : 'h-7 w-7'} />
           </button>
         </div>
       )}
@@ -819,7 +938,13 @@ export function PlayerControls({
       <div
         className={cn(
           'pointer-events-none absolute inset-x-0 z-10 flex items-end justify-between gap-3 px-[max(1rem,env(safe-area-inset-left,0px))] transition-[bottom] duration-300',
-          shown ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))]' : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))]'
+          compact
+            ? shown
+              ? 'bottom-[4.25rem]'
+              : 'bottom-3'
+            : shown
+              ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))]'
+              : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))]'
         )}
       >
         <div className="pointer-events-auto min-w-0">{overlay}</div>
@@ -865,72 +990,18 @@ export function PlayerControls({
         </div>
       </div>
 
-      {/* Bottom bar */}
+      {/* Bottom bar — compact turns it over: buttons on top, the seek bar
+          along the picture's bottom edge */}
       <div
         className={cn(
-          'absolute inset-x-0 bottom-0 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] transition-opacity duration-300 sm:pb-2 sm:pl-4 sm:pr-4',
+          'absolute inset-x-0 bottom-0 transition-opacity duration-300',
+          compact
+            ? 'flex flex-col-reverse px-3'
+            : 'pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:pb-2 sm:pl-4 sm:pr-4',
           shown ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
       >
-        {/* Seek bar */}
-        <div
-          ref={seekBarRef}
-          role="slider"
-          tabIndex={0}
-          aria-label="Seek"
-          aria-valuemin={0}
-          aria-valuemax={Math.floor(snap.duration)}
-          aria-valuenow={Math.floor(displayTime)}
-          aria-valuetext={`${formatPlayerTime(displayTime)} of ${formatPlayerTime(snap.duration)}`}
-          data-testid="player-seekbar"
-          onPointerDown={onSeekPointerDown}
-          onPointerMove={onSeekPointerMove}
-          onPointerUp={onSeekPointerUp}
-          onPointerCancel={() => setScrubTime(null)}
-          onPointerLeave={() => setHover(null)}
-          onKeyDown={onSeekKeyDown}
-          className="group/seek relative flex h-6 cursor-pointer touch-none items-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:mx-1"
-        >
-          <div
-            className={cn(
-              'relative h-[3px] w-full overflow-hidden rounded-full bg-white/25 transition-[height] duration-150 group-hover/seek:h-[5px]',
-              scrubTime !== null && 'h-[5px]'
-            )}
-          >
-            <div
-              className={cn('absolute inset-0 origin-left bg-white/40', smooth && 'transition-transform duration-500 ease-linear')}
-              style={{ transform: `scaleX(${fraction(snap.buffered)})` }}
-            />
-            {hover && scrubTime === null && (
-              <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: hover.x }} />
-            )}
-            <div
-              className={cn('absolute inset-0 origin-left bg-primary', smooth && 'transition-transform duration-300 ease-linear')}
-              style={{ transform: `scaleX(${fraction(displayTime)})` }}
-            />
-          </div>
-          {/* Thumb: rides a full-width layer that slides, so it moves on the compositor */}
-          <div
-            aria-hidden="true"
-            className={cn('pointer-events-none absolute inset-0', smooth && 'transition-transform duration-300 ease-linear')}
-            style={{ transform: `translateX(${fraction(displayTime) * 100}%)` }}
-          >
-            <div
-              className={cn(
-                'absolute left-0 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_0_3px_rgba(0,0,0,0.25)] transition-transform duration-150 group-hover/seek:scale-100 group-focus-visible/seek:scale-100 pointer-coarse:scale-100',
-                scrubTime !== null ? 'scale-125' : 'scale-0'
-              )}
-            />
-          </div>
-          {(hover || scrubTime !== null) && snap.duration > 0 && (
-            <div
-              className="pointer-events-none absolute bottom-7 -translate-x-1/2 rounded-md bg-black/85 px-2 py-1 text-xs font-semibold tabular-nums text-white shadow"
-              style={{ left: scrubTime !== null ? `${fraction(scrubTime) * 100}%` : `${hover?.x ?? 0}px` }}
-            >
-              {formatPlayerTime(scrubTime ?? hover?.time ?? 0)}
-            </div>
-          )}
-        </div>
+        {seekBar}
 
         {/* Buttons */}
         <div className="flex items-center gap-0.5 sm:gap-1">
@@ -982,7 +1053,12 @@ export function PlayerControls({
             />
           </div>
 
-          <span className="ml-1 whitespace-nowrap text-[13px] font-medium tabular-nums text-white sm:ml-2 sm:text-sm">
+          <span
+            className={cn(
+              'ml-1 whitespace-nowrap font-medium tabular-nums text-white',
+              compact ? 'text-xs' : 'text-[13px] sm:ml-2 sm:text-sm'
+            )}
+          >
             {formatPlayerTime(displayTime)}
             <span className="text-white/55"> / {formatPlayerTime(snap.duration)}</span>
           </span>
