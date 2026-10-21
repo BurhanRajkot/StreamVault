@@ -29,3 +29,16 @@ export function seasonOptions(seasons: SeasonSummary[]): number[] {
     ? seasons.map((s) => s.season_number)
     : Array.from({ length: 10 }, (_, i) => i + 1)
 }
+
+/** "S1 · E3 · The Pointy End", or "1972 · 2h 55m · R". */
+export function nowPlayingMeta(
+  isTv: boolean,
+  season: number,
+  episode: number,
+  episodeName: string | undefined,
+  facts: Array<string | undefined>
+): string {
+  return isTv
+    ? [`S${season} · E${episode}`, episodeName].filter(Boolean).join(' · ')
+    : facts.filter(Boolean).join(' · ')
+}
