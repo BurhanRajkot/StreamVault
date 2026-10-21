@@ -14,7 +14,9 @@ import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { MobileDetailSheet } from './movie-detail/MobileDetailSheet'
 import { MobilePlayerPanel } from './movie-detail/MobilePlayerPanel'
 import { DetailPanel } from './movie-detail/DetailPanel'
-import { DownloadButton, ReleaseSelect, SeasonEpisodeSelects, ServerSelect } from './movie-detail/PlaybackPickers'
+import { EpisodeList, NowPlayingHeading, SourcePickers } from './movie-detail/NowPlaying'
+import { nowPlayingMeta } from './movie-detail/types'
+import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import type { PlaybackControls } from './movie-detail/types'
 import {
   nextEpisode,
@@ -477,8 +479,16 @@ export function MovieDetailModal({
 
   const nextTarget = mode === 'tv' ? nextEpisode(position, seasons, currentSeasonEpisodes) : null
   const nextLabel = nextTarget ? `S${nextTarget.season} · E${nextTarget.episode}` : undefined
-  const nowPlayingLine =
-    mode === 'tv' ? `Season ${season} · Episode ${episode}` : [display.year, display.durationStr].filter(Boolean).join(' · ')
+  const isDesktopShow = !isMobile && mode === 'tv'
+  // Shares its query with the episode list, so naming the episode is free
+  const { data: playingSeasonEpisodes } = useSeasonEpisodes(media.id, season, isPlaying && mode === 'tv')
+  const desktopMetaLine = nowPlayingMeta(
+    mode === 'tv',
+    season,
+    episode,
+    playingSeasonEpisodes?.find((e) => e.episode_number === episode)?.name,
+    [display.year, display.durationStr, display.contentRating]
+  )
 
   const episodeStepButton =
     'flex shrink-0 items-center justify-center rounded-lg bg-white/[0.07] text-white transition-colors hover:bg-white/[0.12] disabled:pointer-events-none disabled:opacity-30'
@@ -533,7 +543,8 @@ export function MovieDetailModal({
           <ChevronLeft className="h-5 w-5" />
           <span className="hidden md:inline">Back</span>
         </button>
-        <div className="pointer-events-auto flex gap-2 md:gap-3">
+        {/* While playing, My List and Share sit under the picture instead */}
+        <div className={cn('pointer-events-auto flex gap-2 md:gap-3', isPlaying && 'invisible')}>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -597,10 +608,20 @@ export function MovieDetailModal({
           ══════════════════════════════════════════ */}
       {isPlaying && (
         <div className="custom-scrollbar absolute inset-0 z-10 overflow-y-auto overflow-x-hidden max-md:overflow-hidden max-md:bg-black">
-          <div className="mx-auto w-full max-w-[1500px] px-4 pb-8 pt-20 max-md:px-0 max-md:pb-0 max-md:pt-0 md:px-12 md:pb-16 md:pt-24 lg:px-24">
+          <div className="mx-auto w-full max-w-[1800px] px-4 pb-8 pt-20 max-md:px-0 max-md:pb-0 max-md:pt-0 md:px-10 md:pb-16 md:pt-20 xl:px-14">
             {/* Opacity only: a transform here would capture the phone
-                player's position:fixed takeover while it ran. */}
-            <div className="animate-fade flex w-full flex-col md:gap-8">
+                player's position:fixed takeover while it ran.
+
+                Desktop, a show: two columns from xl — the picture and what's
+                playing on the left, the season's episodes in a column of
+                their own on the right. Narrower, one column in that order. */}
+            <div
+              className={cn(
+                'animate-fade grid w-full grid-cols-1 md:gap-x-8 md:gap-y-7',
+                isDesktopShow && 'xl:grid-cols-[minmax(0,1fr)_400px]'
+              )}
+            >
+              <div className="flex min-w-0 flex-col md:gap-5 xl:col-start-1 xl:row-start-1">
               {/*
                 Video player.
 
@@ -729,62 +750,74 @@ export function MovieDetailModal({
                 )}
               </div>
 
-              {/* Desktop: what's playing, and the pickers to change it */}
+              {/* Desktop: what's playing, and where it's playing from */}
               {!isMobile && (
                 <>
-                  <div className="flex flex-col gap-5 border-b border-white/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="min-w-0">
-                      <h1 className="truncate font-display text-3xl font-bold tracking-tight text-white lg:text-4xl">{title}</h1>
-                      {nowPlayingLine && <p className="mt-1.5 text-base text-white/60">{nowPlayingLine}</p>}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      {mode === 'tv' && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={handleSkipPrev}
-                            disabled={isAtAbsoluteFirstEpisode}
-                            aria-label="Previous episode"
-                            title="Previous episode"
-                            className={cn(episodeStepButton, 'h-11 w-11')}
-                          >
-                            <SkipBack className="h-[18px] w-[18px]" />
-                          </button>
-                          <SeasonEpisodeSelects
-                            seasons={seasons}
-                            season={season}
-                            episode={episode}
-                            episodeCount={currentSeasonEpisodes}
-                            onSeasonChange={setSeason}
-                            onEpisodeChange={setEpisode}
-                            className="w-[18rem] gap-2"
-                          />
-                          <button
-                            onClick={handleSkipNext}
-                            disabled={isAtAbsoluteLastEpisode}
-                            aria-label="Next episode"
-                            title="Next episode"
-                            className={cn(episodeStepButton, 'h-11 w-11')}
-                          >
-                            <SkipForward className="h-[18px] w-[18px]" />
-                          </button>
-                        </div>
-                      )}
-                      <ServerSelect
-                        mode={mode}
-                        value={server}
-                        onChange={setServer}
-                        triggerRef={serverSelectTriggerRef}
-                        className="w-64"
-                      />
-                      {server === DEBRID_SERVER_ID && releaseControls && (
-                        <>
-                          <ReleaseSelect controls={releaseControls} className="w-64" />
-                          <DownloadButton download={releaseControls.download} className="px-4" />
-                        </>
-                      )}
-                    </div>
+                  <NowPlayingHeading
+                    title={title}
+                    metaLine={desktopMetaLine}
+                    favorited={favorited}
+                    onToggleFavorite={() => toggleFavorite(initialMedia.id, typedMode, genreIdsOf(initialMedia))}
+                    isCopied={isCopied}
+                    onShare={handleShare}
+                    size="desktop"
+                  />
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {mode === 'tv' && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleSkipPrev}
+                          disabled={isAtAbsoluteFirstEpisode}
+                          aria-label="Previous episode"
+                          title="Previous episode"
+                          className={cn(episodeStepButton, 'h-11 w-11')}
+                        >
+                          <SkipBack className="h-[18px] w-[18px]" />
+                        </button>
+                        <button
+                          onClick={handleSkipNext}
+                          disabled={isAtAbsoluteLastEpisode}
+                          aria-label="Next episode"
+                          title={nextLabel ? `Next episode · ${nextLabel}` : 'Next episode'}
+                          className={cn(episodeStepButton, 'h-11 gap-2 px-4 text-sm font-semibold')}
+                        >
+                          Next
+                          <SkipForward className="h-[18px] w-[18px]" />
+                        </button>
+                        <div className="mx-1 h-7 w-px bg-white/10" aria-hidden="true" />
+                      </div>
+                    )}
+                    <SourcePickers
+                      mode={mode}
+                      server={server}
+                      onServerChange={setServer}
+                      serverTriggerRef={serverSelectTriggerRef}
+                      releaseControls={releaseControls}
+                      size="desktop"
+                    />
                   </div>
+                </>
+              )}
+              </div>
 
+              {/* Desktop, a show: the season's episodes — a column beside the
+                  picture from xl, its own scroll so the page stays put */}
+              {isDesktopShow && (
+                <EpisodeList
+                  tvId={media.id}
+                  seasons={seasons}
+                  season={season}
+                  episode={episode}
+                  episodeCount={currentSeasonEpisodes}
+                  onPick={(s, ep) => goToEpisode({ season: s, episode: ep })}
+                  density="comfortable"
+                  className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.07] xl:sticky xl:top-20 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:max-h-[calc(100vh-6.5rem)]"
+                  listClassName="custom-scrollbar -mx-1.5 grid gap-1 overflow-y-auto px-0 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-1"
+                />
+              )}
+
+              {!isMobile && (
+                <div className="border-t border-white/10 pt-8 xl:col-start-1 xl:row-start-2">
                   <DetailPanel
                     display={display}
                     playback={playbackControls}
@@ -794,7 +827,7 @@ export function MovieDetailModal({
                     disliked={disliked}
                     onToggleDislike={() => toggleDislike(initialMedia.id, typedMode)}
                   />
-                </>
+                </div>
               )}
             </div>
           </div>
