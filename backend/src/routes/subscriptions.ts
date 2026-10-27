@@ -143,6 +143,15 @@ router.post('/manual-request', strictRateLimiter, checkJwt, async (req, res) => 
       .select()
       .single()
 
+    // The checks above can race a concurrent submission; the database's
+    // unique indexes are the final word.
+    if (error?.code === '23505') {
+      return res.status(400).json({
+        error: error.message.includes('idx_subscription_requests_one_intro')
+          ? 'You have already used the new member offer. Please choose the monthly plan instead.'
+          : 'Transaction ID already submitted',
+      })
+    }
     if (error) throw error
 
     logger.info('Manual payment request submitted', {
