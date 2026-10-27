@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMo
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Clapperboard, Crown, Heart, Search, Shield, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
-import { MediaMode } from '@/lib/config'
+import { MediaMode, MODE_PATHS } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/mobile-ui/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -256,9 +256,10 @@ export function Header({
             {NAV_ITEMS.map((item) => {
               const isActive = mode === item.value
               return (
-                <button
+                <Link
                   key={item.value}
-                  onClick={() => onModeChange(item.value)}
+                  to={MODE_PATHS[item.value]}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
                     // Tighter on a tablet, where six pills, search and sign-in
                     // share ~768px; nowrap so "TV Shows" never breaks in two
@@ -272,7 +273,7 @@ export function Header({
                     />
                   )}
                   <span className="relative z-10">{item.label}</span>
-                </button>
+                </Link>
               )
             })}
           </nav>

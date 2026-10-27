@@ -27,12 +27,29 @@ test.describe('Home', () => {
   })
 
   test('filters the catalogue to movies or TV shows', async ({ page, home }) => {
-    test.skip(test.info().project.name === 'mobile', 'The section tabs are desktop navigation')
     await home.goto()
 
-    await home.header.getByRole('button', { name: 'TV Shows' }).click()
+    await home.openCategory('TV Shows')
+    await expect(page).toHaveURL('/tv')
     await expect(home.card(titleOf(SHOW))).toBeVisible()
     await expect(page.getByRole('button', { name: cardName(titleOf(MOVIE)) })).toHaveCount(0)
+  })
+
+  test('gives every section its own address, kept on reload and left with Back', async ({ page, home }) => {
+    await home.goto()
+
+    await home.openCategory('Movies')
+    await expect(page).toHaveURL('/movies')
+    await expect(home.card(titleOf(MOVIE))).toBeVisible()
+    await expect(page.getByRole('button', { name: cardName(titleOf(SHOW)) })).toHaveCount(0)
+
+    await page.reload()
+    await expect(home.card(titleOf(MOVIE))).toBeVisible()
+    await expect(page.getByRole('button', { name: cardName(titleOf(SHOW)) })).toHaveCount(0)
+
+    await page.goBack()
+    await expect(page).toHaveURL('/')
+    await expect(home.card(titleOf(SHOW))).toBeVisible()
   })
 })
 
