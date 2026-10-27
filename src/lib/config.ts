@@ -296,6 +296,22 @@ export const CONFIG = {
 /* ONLY REQUIRED MODES */
 export type MediaMode = 'home' | 'movie' | 'tv' | 'downloads' | 'documentary' | 'anime'
 
+/** Each browse tab has its own URL, so a tab can be linked, reloaded and reached with Back. */
+export const MODE_PATHS: Record<MediaMode, string> = {
+  home: '/',
+  movie: '/movies',
+  tv: '/tv',
+  anime: '/anime',
+  documentary: '/documentaries',
+  downloads: '/downloads',
+}
+
+export function modeFromPath(pathname: string): MediaMode {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
+  const match = (Object.keys(MODE_PATHS) as MediaMode[]).find((mode) => MODE_PATHS[mode] === path)
+  return match ?? 'home'
+}
+
 /**
  * Server id for Real-Debrid playback, handled entirely client-side (see
  * DebridPlayerPane) rather than via an embed-provider iframe. Kept out of
