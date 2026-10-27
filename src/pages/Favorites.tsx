@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Heart, AlertCircle, ArrowUpDown, Clock, Star, ArrowUpAZ } from 'lucide-react'
 import { useFavorites } from '@/context/FavoritesContext'
-import { Media } from '@/lib/config'
+import { Media, MODE_PATHS } from '@/lib/config'
 import { fetchMediaSummaries } from '@/lib/api'
 import { MediaGrid } from '@/components/media/MediaGrid'
 import { Header } from '@/components/layout/Header'
@@ -117,7 +117,7 @@ const Favorites = () => {
 
       <div className="flex min-h-screen flex-col">
         <Header
-          onModeChange={(m) => navigate('/', { state: { mode: m } })}
+          onModeChange={(m) => navigate(MODE_PATHS[m])}
           // The header searches every title, not this list — the home page owns the results
           onSearch={(q) => navigate('/', { state: { search: q } })}
           searchQuery=""
@@ -127,7 +127,7 @@ const Favorites = () => {
         <MobileNav
           mode="home"
           // Browsing modes live on the home page — carry the tap over to it
-          onModeChange={(m) => navigate('/', { state: { mode: m } })}
+          onModeChange={(m) => navigate(MODE_PATHS[m])}
         />
 
         {/* Page header */}

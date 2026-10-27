@@ -2,9 +2,10 @@ import { useEffect, useRef, lazy, Suspense } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
+import { MODE_PATHS } from './lib/config'
 import { applyPendingUpdate } from './lib/swUpdate'
 import { HelmetProvider } from 'react-helmet-async'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
 import ErrorBoundary from './components/layout/ErrorBoundary'
@@ -62,9 +63,10 @@ const AppContent = () => {
   return (
     <Suspense fallback={<PageFallback />}>
       <Routes location={backgroundLocation || location}>
-        <Route path="/" element={<Index />} />
-        {/* Downloads lives inside the home page (header, tab bar); this link just opens it there */}
-        <Route path="/downloads" element={<Navigate to="/" replace state={{ mode: 'downloads' }} />} />
+        {/* Every browse tab is the home page; Index reads which one from the path */}
+        {Object.values(MODE_PATHS).map((path) => (
+          <Route key={path} path={path} element={<Index />} />
+        ))}
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
