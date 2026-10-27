@@ -1,7 +1,7 @@
 import { useState, useCallback, lazy, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { PageMeta } from '@/seo/PageMeta'
-import { Media, MediaMode } from '@/lib/config'
+import { Media, MediaMode, MODE_PATHS, modeFromPath } from '@/lib/config'
 import { useMedia } from '@/hooks/useMedia'
 import { useInView } from '@/hooks/useInView'
 import { Header } from '@/components/layout/Header'
@@ -28,12 +28,43 @@ import { FreePremiumAnnouncement } from '@/components/shared/FreePremiumAnnounce
 
 const Downloads = lazy(() => import('./Downloads'))
 
+const SECTION_META: Record<MediaMode, { title: string; description: string; noindex?: boolean }> = {
+  home: {
+    title: 'Watch Movies, TV Shows & Anime',
+    description: 'StreamVault — Browse thousands of movies, TV shows, and anime. Stream instantly for free with no sign-up.',
+  },
+  movie: {
+    title: 'Movies',
+    description: 'Browse trending and popular movies on StreamVault. Stream instantly for free with no sign-up.',
+  },
+  tv: {
+    title: 'TV Shows',
+    description: 'Browse trending and popular TV shows on StreamVault. Stream every season and episode for free.',
+  },
+  anime: {
+    title: 'Anime',
+    description: 'Browse anime series and films on StreamVault. Stream instantly for free with no sign-up.',
+  },
+  documentary: {
+    title: 'Documentaries',
+    description: 'Browse documentary films and series on StreamVault. Stream instantly for free with no sign-up.',
+  },
+  downloads: {
+    title: 'Downloads',
+    description: 'Your downloads on StreamVault.',
+    noindex: true,
+  },
+}
+
 const Index = () => {
   const location = useLocation()
-  // A page without browse UI of its own (Favorites, the /downloads link) hands
-  // over the tab it wants in router state. Read it on the first render, so the
-  // home page doesn't flash up before switching.
-  const [mode, setMode] = useState<MediaMode>(() => (location.state as { mode?: MediaMode } | null)?.mode ?? 'home')
+  const navigate = useNavigate()
+  // The URL is the source of truth for the tab (/movies, /anime, …), so a tab
+  // can be shared, reloaded, and left with Back
+  const mode = modeFromPath(location.pathname)
+  const setMode = useCallback((next: MediaMode) => {
+    if (next !== mode) navigate(MODE_PATHS[next])
+  }, [mode, navigate])
   const [showDisclaimer, setShowDisclaimer] = useState(
     () => sessionStorage.getItem('disclaimerAccepted') !== 'true'
   )
@@ -42,7 +73,6 @@ const Index = () => {
   // Owned here (not in Header) so the bottom tab bar can open search too
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
-  const navigate = useNavigate()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
 
   // Track previous pathname so we can detect "returned from /watch" navigation
@@ -88,15 +118,13 @@ const Index = () => {
     searchQuery,
   } = useMedia(mode, selectedProvider)
 
-  // Handoff from a page that has no browse UI of its own (e.g. Favorites):
-  // it navigates here carrying the tab the user tapped, or what they typed
-  // into its search field.
+  // Handoff from a page that has no search of its own (e.g. Favorites): it
+  // navigates here carrying what the user typed into its search field.
   useEffect(() => {
-    const state = location.state as { openSearch?: boolean; mode?: MediaMode; search?: string } | null
-    if (!state?.openSearch && !state?.mode && !state?.search) return
+    const state = location.state as { openSearch?: boolean; search?: string } | null
+    if (!state?.openSearch && !state?.search) return
 
-    if (state.openSearch || state.search) setMobileSearchOpen(true)
-    if (state.mode) setMode(state.mode)
+    setMobileSearchOpen(true)
     if (state.search) search(state.search)
     navigate(location.pathname, { replace: true, state: null })
   }, [location.state, location.pathname, navigate, search])
@@ -172,10 +200,7 @@ const Index = () => {
           refreshRecommendations()
         }} />
       )}
-      <PageMeta
-        title="Watch Movies, TV Shows & Anime"
-        description="StreamVault — Browse thousands of movies, TV shows, and anime. Stream instantly for free with no sign-up."
-      />
+      <PageMeta {...SECTION_META[mode]} />
 
       <div className="flex min-h-screen flex-col">
         <Header

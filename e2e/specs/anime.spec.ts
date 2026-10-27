@@ -11,6 +11,7 @@ test.describe('Anime tab', () => {
   test('lists anime films and series, and nothing else', async ({ page, home }) => {
     await home.goto()
     await home.openCategory('Anime')
+    await expect(page).toHaveURL('/anime')
 
     const all = page.getByRole('heading', { name: 'All Anime' })
     await expect(all).toBeVisible()
@@ -28,6 +29,14 @@ test.describe('Anime tab', () => {
     for (const media of [MOVIE, SECOND_MOVIE, SHOW]) {
       await expect(page.getByRole('button', { name: cardName(titleOf(media)) })).toHaveCount(0)
     }
+  })
+
+  test('opens straight from its own address', async ({ page, home }) => {
+    await page.goto('/anime')
+
+    await expect(page.getByRole('heading', { name: 'All Anime' })).toBeVisible()
+    await expect(home.card(titleOf(ANIME_SHOW))).toBeVisible()
+    await expect(page.getByRole('button', { name: cardName(titleOf(MOVIE)) })).toHaveCount(0)
   })
 
   test('searches only anime', async ({ page, home, mockApi }) => {
