@@ -41,10 +41,10 @@ router.post('/approve', async (req, res) => {
       return res.status(400).json({ error: 'A valid requestId is required' })
     }
 
-    // 1. Get request details
+    // The plan's length lives in code, so look the plan up first.
     const { data: request, error: fetchError } = await supabaseAdmin
       .from('subscription_requests')
-      .select('*')
+      .select('plan_id')
       .eq('id', requestId)
       .single()
 
@@ -52,63 +52,45 @@ router.post('/approve', async (req, res) => {
       return res.status(404).json({ error: 'Request not found' })
     }
 
-    if (request.status === 'approved') {
+    const plan = SUBSCRIPTION_PLANS[request.plan_id as keyof typeof SUBSCRIPTION_PLANS] as
+      | (typeof SUBSCRIPTION_PLANS)[keyof typeof SUBSCRIPTION_PLANS]
+      | undefined
+    const durationDays = plan?.durationDays ?? 30
+
+    // Granting the plan and marking the request approved happen in one
+    // transaction, with the request row locked — so a double-click can't
+    // extend the subscription twice, and a failure can't leave one done
+    // without the other. A renewal extends from the current expiry.
+    const { data: approval, error: approveError } = await supabaseAdmin
+      .rpc('approve_subscription_request', {
+        p_request_id: requestId,
+        p_duration_days: durationDays,
+      })
+      .single<{
+        result: 'approved' | 'already_approved' | 'not_found'
+        approved_user_id: string | null
+        expires_at: string | null
+      }>()
+
+    if (approveError) throw approveError
+
+    if (approval.result === 'not_found') {
+      return res.status(404).json({ error: 'Request not found' })
+    }
+    if (approval.result === 'already_approved') {
       return res.status(400).json({ error: 'Request already approved' })
     }
 
-    // 2. Grant access FIRST. The paywall in routes/downloads.ts gates on
-    //    User.subscriptionStatus === 'active', so this is the write that
-    //    actually makes the subscription real. Doing it before flipping the
-    //    request to "approved" means a failure here leaves the request
-    //    pending and retryable, instead of marking it approved while the
-    //    user still has no access.
-    if (request.user_id) {
-      const plan = SUBSCRIPTION_PLANS[request.plan_id as keyof typeof SUBSCRIPTION_PLANS] as
-        | (typeof SUBSCRIPTION_PLANS)[keyof typeof SUBSCRIPTION_PLANS]
-        | undefined
-      const durationDays = plan?.durationDays ?? 30
-
-      // Renewing before the current period ends extends it instead of
-      // resetting the clock and discarding the days the user already paid for.
-      const { data: existingUser } = await supabaseAdmin
-        .from('User')
-        .select('subscriptionExpiresAt')
-        .eq('id', request.user_id)
-        .single()
-
-      const currentExpiry = existingUser?.subscriptionExpiresAt
-        ? new Date(existingUser.subscriptionExpiresAt).getTime()
-        : 0
-      const base = Math.max(currentExpiry, Date.now())
-      const subscriptionExpiresAt = new Date(base + durationDays * 24 * 60 * 60 * 1000).toISOString()
-
-      const { error: userUpdateError } = await supabaseAdmin
-        .from('User')
-        .update({ subscriptionStatus: 'active', subscriptionExpiresAt })
-        .eq('id', request.user_id)
-
-      if (userUpdateError) {
-        logger.error('Failed to activate subscription; request left pending', {
-          error: userUpdateError.message,
-          userId: request.user_id,
-          requestId,
-        })
-        return res.status(500).json({ error: 'Failed to activate subscription' })
-      }
-    } else {
+    if (!approval.approved_user_id) {
       // Guest submissions carry no user_id, so there is no account to upgrade.
-      logger.warn('Approving a request with no linked user account', { requestId })
+      logger.warn('Approved a request with no linked user account', { requestId })
     }
 
-    // 3. Record the approval
-    const { error: updateError } = await supabaseAdmin
-      .from('subscription_requests')
-      .update({ status: 'approved' })
-      .eq('id', requestId)
-
-    if (updateError) throw updateError
-
-    logger.info('Approved subscription request', { requestId, userId: request.user_id })
+    logger.info('Approved subscription request', {
+      requestId,
+      userId: approval.approved_user_id,
+      expiresAt: approval.expires_at,
+    })
     res.json({ success: true })
   } catch (error: unknown) {
     logger.error('Failed to approve request', { error: error instanceof Error ? error.message : String(error) })

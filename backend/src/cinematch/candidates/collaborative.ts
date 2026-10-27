@@ -11,6 +11,31 @@ interface PeerProfile {
   castMap?: Record<string, number> | null
 }
 
+/** A UserGenreProfile row: genre weights, plus the onboarding `_meta` block. */
+interface StoredGenreProfile {
+  userId: string
+  genreMap: Record<string, unknown> | null
+}
+
+/**
+ * Keyword and cast affinities are not columns of their own — they live inside
+ * genreMap under `_meta`. Split them out, and drop `_meta` from the genre
+ * vector itself: an object value there turns the cosine magnitude into NaN.
+ */
+function toPeerProfile(row: StoredGenreProfile): PeerProfile {
+  const { _meta, ...genres } = row.genreMap ?? {}
+  const meta = (_meta && typeof _meta === 'object' ? _meta : {}) as {
+    keywordMap?: Record<string, number>
+    castMap?: Record<string, number>
+  }
+  return {
+    userId: row.userId,
+    genreMap: genres as Record<string, number>,
+    keywordMap: meta.keywordMap ?? null,
+    castMap: meta.castMap ?? null,
+  }
+}
+
 /** Shape of a TMDB detail response (subset used for genres) */
 interface TMDBDetail {
   id?: number
@@ -79,11 +104,11 @@ async function collaborativeSourceImpl(profile: UserProfile): Promise<Candidate[
     if (!peers) {
       const { data, error } = await supabaseAdmin
         .from('UserGenreProfile')
-        .select('userId, genreMap, keywordMap, castMap')
+        .select('userId, genreMap')
         .limit(500)
 
       if (error || !data || data.length === 0) return []
-      peers = data as PeerProfile[]
+      peers = (data as StoredGenreProfile[]).map(toPeerProfile)
       peerCache.set('global_peers', peers)
     }
 

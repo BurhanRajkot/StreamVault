@@ -1,153 +1,123 @@
 -- ============================================================
--- Schema verification report
+-- Schema drift report
 --
--- Not a migration — a read-only diagnostic. Paste into the Supabase SQL
--- editor and read the rows.
+-- Not a migration — a read-only check. Paste into the Supabase SQL editor
+-- and read the rows: problems sort to the top, and every row should say OK.
 --
--- The SQL editor does not display RAISE NOTICE / RAISE WARNING output, so
--- the hardening migration's progress messages are invisible there. This
--- returns the same information as actual rows.
---
--- Every row should read OK. Anything else tells you exactly what to do next.
+-- It checks the live database against what
+-- migrations/20261027000000_streamvault_schema.sql builds. If anything has
+-- drifted (a dashboard edit, a hand-made policy), re-running that migration
+-- puts it back.
 -- ============================================================
 
--- Runtime-evaluated lookups.
---
--- Postgres resolves every table reference when it PLANS a query, including
--- ones inside a CASE branch that never executes. So a plain reference to
--- cron.job makes this whole report fail with "relation cron.job does not
--- exist" on any project where pg_cron is not installed. query_to_xml() defers
--- the lookup to runtime, and the to_regclass() guard skips it entirely when
--- the relation is absent.
-WITH dyn AS (
-  SELECT
-    d.label,
-    CASE WHEN to_regclass(d.rel) IS NULL THEN NULL
-         ELSE (xpath('/row/c/text()', query_to_xml(d.q, false, true, '')))[1]::text::bigint
-    END AS n
-  FROM (VALUES
-    ('cron_job', 'cron.job',
-     'SELECT count(*) AS c FROM cron.job WHERE jobname = ''positionbiaslog-retention'''),
-    ('dup_txid', 'public.subscription_requests',
-     'SELECT count(*) AS c FROM (SELECT 1 FROM public."subscription_requests" WHERE transaction_id IS NOT NULL GROUP BY transaction_id HAVING count(*) > 1) x'),
-    ('dup_fav', 'public."Favorite"',
-     'SELECT count(*) AS c FROM (SELECT 1 FROM public."Favorite" GROUP BY "userId","tmdbId","mediaType" HAVING count(*) > 1) x'),
-    ('dup_cw', 'public."ContinueWatching"',
-     'SELECT count(*) AS c FROM (SELECT 1 FROM public."ContinueWatching" GROUP BY "userId","tmdbId","mediaType" HAVING count(*) > 1) x')
-  ) AS d(label, rel, q)
+WITH
+tables(name) AS (
+  VALUES ('User'), ('Favorite'), ('ContinueWatching'), ('Download'), ('subscription_requests'),
+         ('UserInteractions'), ('UserGenreProfile'), ('RecommendationCache'),
+         ('PositionBiasLog'), ('ml_interactions'), ('movie_embeddings')
+),
+constraints(tbl, name) AS (
+  VALUES
+    ('User', 'user_id_check'), ('User', 'user_subscription_status_check'),
+    ('Favorite', 'favorite_user_fkey'), ('Favorite', 'favorite_user_media_key'),
+    ('ContinueWatching', 'continue_watching_user_fkey'), ('ContinueWatching', 'continue_watching_user_media_key'),
+    ('ContinueWatching', 'continue_watching_progress_check'),
+    ('Download', 'download_filename_key'), ('Download', 'download_external_url_check'),
+    ('subscription_requests', 'subscription_requests_user_fkey'),
+    ('subscription_requests', 'subscription_requests_transaction_id_key'),
+    ('subscription_requests', 'subscription_requests_status_check'),
+    ('UserInteractions', 'user_interactions_user_fkey'), ('UserInteractions', 'user_interactions_event_type_check'),
+    ('UserInteractions', 'user_interactions_weight_check'),
+    ('UserGenreProfile', 'user_genre_profile_user_fkey'),
+    ('RecommendationCache', 'recommendation_cache_user_fkey'),
+    ('PositionBiasLog', 'position_bias_log_user_fkey'),
+    ('ml_interactions', 'ml_interactions_user_fkey'), ('ml_interactions', 'ml_interactions_actor_check')
+),
+indexes(name) AS (
+  VALUES ('idx_user_active_expiry'), ('idx_favorite_user_created'), ('idx_continue_watching_user_updated'),
+         ('idx_download_created_at'), ('idx_subscription_requests_created_at'),
+         ('idx_subscription_requests_user_id'), ('idx_subscription_requests_one_intro'),
+         ('idx_interactions_user_created'), ('idx_interactions_peer_lookup'), ('idx_position_bias_user'),
+         ('idx_position_bias_window'), ('ml_interactions_user_id_idx'), ('ml_interactions_timestamp_idx'),
+         ('movie_embeddings_embedding_idx')
+),
+functions(name) AS (
+  VALUES ('approve_subscription_request'), ('get_position_bias_ctr'), ('match_movies_from_user_embedding'),
+         ('set_updated_at'), ('ensure_user_exists'), ('stamp_subscription_review')
+),
+cron_jobs(name) AS (
+  VALUES ('positionbiaslog-retention'), ('recommendation-cache-cleanup'), ('subscription-expiry')
+),
+-- cron.job only exists when pg_cron is installed, and a plain reference would
+-- fail the whole query at plan time. query_to_xml() defers it to run time.
+scheduled AS (
+  SELECT CASE WHEN to_regclass('cron.job') IS NULL THEN NULL::text[]
+              ELSE string_to_array(coalesce((xpath('/row/j/text()', query_to_xml(
+                     'SELECT string_agg(jobname, '','') AS j FROM cron.job', false, true, '')))[1]::text, ''), ',')
+         END AS names
 ),
 checks AS (
-
-  -- ── Baseline tables ──────────────────────────────────────
-  SELECT 1 AS sort, 'table: ' || t AS item,
-         CASE WHEN to_regclass('public."' || t || '"') IS NOT NULL
-              THEN 'OK' ELSE 'MISSING' END AS status,
-         'run 20260101000000_baseline_core_tables.sql' AS fix
-  FROM unnest(ARRAY['User','Favorite','ContinueWatching','Download','subscription_requests']) AS t
-
-  -- ── Columns the application depends on ───────────────────
-  UNION ALL
-  SELECT 2, 'column: User.subscriptionStatus',
-         CASE WHEN EXISTS (
-           SELECT 1 FROM information_schema.columns
-           WHERE table_schema='public' AND table_name='User'
-             AND column_name='subscriptionStatus'
-         ) THEN 'OK' ELSE 'MISSING' END,
-         'download paywall + admin approval both read this'
+  SELECT 1 AS sort, 'table ' || t.name AS item,
+         CASE WHEN c.oid IS NULL THEN 'MISSING'
+              WHEN NOT c.relrowsecurity THEN 'RLS DISABLED'
+              ELSE 'OK' END AS status
+  FROM tables t
+  LEFT JOIN pg_class c ON c.oid = to_regclass(format('public.%I', t.name))
 
   UNION ALL
-  SELECT 2, 'column: Download.externalUrl',
-         CASE WHEN EXISTS (
-           SELECT 1 FROM information_schema.columns
-           WHERE table_schema='public' AND table_name='Download'
-             AND column_name='externalUrl'
-         ) THEN 'OK' ELSE 'MISSING' END,
-         'needed to redirect instead of streaming'
-
-  -- ── Uniqueness constraints (the race-condition guards) ───
-  UNION ALL
-  SELECT 3, 'unique: ' || c.label,
-         CASE WHEN EXISTS (SELECT 1 FROM pg_constraint WHERE conname = c.name)
-              THEN 'OK' ELSE 'NOT APPLIED' END,
-         'likely blocked by existing duplicates — see the duplicate rows below'
-  FROM (VALUES
-    ('subscription_requests_transaction_id_key', 'subscription_requests(transaction_id)'),
-    ('favorite_user_media_key',                  'Favorite(userId,tmdbId,mediaType)'),
-    ('continue_watching_user_media_key',         'ContinueWatching(userId,tmdbId,mediaType)')
-  ) AS c(name, label)
-
-  -- ── Indexes ──────────────────────────────────────────────
-  UNION ALL
-  SELECT 4, 'index: ' || i,
-         CASE WHEN EXISTS (
-           SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname = i
-         ) THEN 'OK' ELSE 'MISSING' END,
-         'run 20260728000000_schema_hardening.sql'
-  FROM unnest(ARRAY[
-    'idx_subscription_requests_created_at',
-    'idx_subscription_requests_status',
-    'idx_subscription_requests_user_id',
-    'idx_download_created_at',
-    'idx_continue_watching_user_updated',
-    'idx_favorite_user',
-    'idx_position_bias_logged_position'
-  ]) AS i
-
-  -- ── Propensity RPC ───────────────────────────────────────
-  UNION ALL
-  SELECT 5, 'function: get_position_bias_ctr',
-         CASE WHEN EXISTS (
-           SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-           WHERE n.nspname='public' AND p.proname='get_position_bias_ctr'
-         ) THEN 'OK' ELSE 'MISSING' END,
-         'still unused until positionBias.ts calls it'
-
-  -- ── Retention job ────────────────────────────────────────
-  UNION ALL
-  SELECT 6, 'extension: pg_cron',
-         CASE WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron')
-              THEN 'OK' ELSE 'NOT ENABLED' END,
-         'Dashboard > Database > Extensions, then re-run the hardening file'
+  SELECT 2, 'public key access to ' || t.name,
+         CASE WHEN has_table_privilege('anon', format('public.%I', t.name), 'SELECT, INSERT, UPDATE, DELETE')
+                OR has_table_privilege('authenticated', format('public.%I', t.name), 'SELECT, INSERT, UPDATE, DELETE')
+              THEN 'EXPOSED' ELSE 'OK' END
+  FROM tables t
+  WHERE to_regclass(format('public.%I', t.name)) IS NOT NULL
 
   UNION ALL
-  SELECT 6, 'cron job: positionbiaslog-retention',
-         CASE WHEN n IS NULL THEN 'N/A (pg_cron off)'
-              WHEN n > 0    THEN 'OK'
-              ELSE 'NOT SCHEDULED' END,
-         'PositionBiasLog grows unbounded without it'
-  FROM dyn WHERE label = 'cron_job'
+  SELECT 3, 'policy ' || p.tablename || '.' || p.policyname, 'UNEXPECTED'
+  FROM pg_policies p
+  WHERE p.schemaname = 'public' AND p.tablename IN (SELECT name FROM tables)
 
-  -- ── RLS coverage ─────────────────────────────────────────
   UNION ALL
-  SELECT 7, 'RLS enabled: ' || c.relname,
-         CASE WHEN c.relrowsecurity THEN 'OK' ELSE 'DISABLED' END,
-         'table is exposed through PostgREST without it'
-  FROM pg_class c
-  JOIN pg_namespace n ON n.oid = c.relnamespace
-  WHERE n.nspname = 'public'
-    AND c.relkind = 'r'
-    AND c.relname IN ('User','Favorite','ContinueWatching','Download',
-                      'subscription_requests','UserInteractions','UserGenreProfile',
-                      'UserKeywordProfile','UserCastProfile','RecommendationCache',
-                      'PositionBiasLog')
+  SELECT 4, 'constraint ' || k.tbl || '.' || k.name,
+         CASE WHEN c.oid IS NULL THEN 'MISSING'
+              WHEN NOT c.convalidated THEN 'NOT VALIDATED'
+              ELSE 'OK' END
+  FROM constraints k
+  LEFT JOIN pg_constraint c ON c.conname = k.name AND c.conrelid = to_regclass(format('public.%I', k.tbl))
 
-  -- ── Remaining duplicates blocking the constraints ────────
   UNION ALL
-  SELECT 8,
-         'duplicates: ' || CASE label
-                             WHEN 'dup_txid' THEN 'subscription_requests.transaction_id'
-                             WHEN 'dup_fav'  THEN 'Favorite'
-                             ELSE 'ContinueWatching'
-                           END,
-         CASE WHEN n IS NULL THEN 'N/A (table missing)'
-              WHEN n = 0     THEN 'OK'
-              ELSE n::text || ' GROUP(S)' END,
-         'clean these up, then re-run the hardening file'
-  FROM dyn WHERE label IN ('dup_txid','dup_fav','dup_cw')
+  SELECT 5, 'index ' || i.name,
+         CASE WHEN to_regclass(format('public.%I', i.name)) IS NULL THEN 'MISSING' ELSE 'OK' END
+  FROM indexes i
+
+  UNION ALL
+  SELECT 6, 'function ' || f.name,
+         CASE WHEN p.oid IS NULL THEN 'MISSING'
+              WHEN NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) s WHERE s LIKE 'search_path=%') THEN 'SEARCH_PATH NOT PINNED'
+              WHEN has_function_privilege('anon', p.oid, 'EXECUTE') THEN 'CALLABLE BY PUBLIC KEY'
+              ELSE 'OK' END
+  FROM functions f
+  LEFT JOIN pg_proc p ON p.proname = f.name AND p.pronamespace = 'public'::regnamespace
+
+  UNION ALL
+  SELECT 7, 'column ml_interactions.userId',
+         CASE WHEN format_type(a.atttypid, a.atttypmod) = 'text' THEN 'OK'
+              ELSE 'IS ' || format_type(a.atttypid, a.atttypmod) || ' (signed-in telemetry fails)' END
+  FROM pg_attribute a
+  WHERE a.attrelid = to_regclass('public.ml_interactions') AND a.attname = 'userId'
+
+  UNION ALL
+  SELECT 8, 'cron job ' || j.name,
+         CASE WHEN s.names IS NULL THEN 'PG_CRON NOT ENABLED'
+              WHEN j.name = ANY (s.names) THEN 'OK'
+              ELSE 'NOT SCHEDULED' END
+  FROM cron_jobs j CROSS JOIN scheduled s
+
+  UNION ALL
+  SELECT 9, 'unused table ' || t, 'STILL PRESENT'
+  FROM unnest(ARRAY['Profile', 'UserKeywordProfile', 'UserCastProfile']) AS t
+  WHERE to_regclass(format('public.%I', t)) IS NOT NULL
 )
-SELECT
-  item,
-  status,
-  CASE WHEN status = 'OK' THEN '' ELSE fix END AS next_step
+SELECT item, status
 FROM checks
 ORDER BY (status = 'OK'), sort, item;

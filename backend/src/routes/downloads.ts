@@ -178,7 +178,7 @@ async function findDownload(
 
   const { data } = await supabaseAdmin
     .from('Download')
-    .select('filename')
+    .select('filename, externalUrl')
     .eq('id', id)
     .single()
 
