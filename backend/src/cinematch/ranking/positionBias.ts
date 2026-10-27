@@ -55,31 +55,22 @@ export async function computePropensityTable(): Promise<PropensityTable> {
   if (cached) return cached
 
   try {
-    const { data, error } = await supabaseAdmin
-      .from('PositionBiasLog')
-      .select('displayPosition, clicked')
-      .order('displayPosition', { ascending: true })
+    // One row per display position, aggregated in SQL over the 90-day window.
+    // Pulling raw impression rows instead would be silently truncated at
+    // PostgREST's 1000-row cap — keeping only the lowest positions.
+    const { data, error } = await supabaseAdmin.rpc('get_position_bias_ctr')
 
-    if (error || !data || data.length === 0) {
+    const stats = (data ?? []) as Array<{ displayPosition: number; impressions: number; clicks: number }>
+    if (error || stats.length === 0) {
       logger.warn('[IPS] No position bias data yet — using uniform propensities')
       return new Map()
     }
 
-    // Aggregate click counts and impression counts per position
-    const stats = new Map<number, { impressions: number; clicks: number }>()
-    for (const row of data) {
-      const pos = row.displayPosition
-      const existing = stats.get(pos) ?? { impressions: 0, clicks: 0 }
-      existing.impressions++
-      if (row.clicked) existing.clicks++
-      stats.set(pos, existing)
-    }
-
     // Compute raw CTR per position
     const ctrByPosition = new Map<number, number>()
-    for (const [pos, { impressions, clicks }] of stats.entries()) {
+    for (const { displayPosition, impressions, clicks } of stats) {
       if (impressions >= MIN_IMPRESSIONS) {
-        ctrByPosition.set(pos, clicks / impressions)
+        ctrByPosition.set(displayPosition, clicks / impressions)
       }
     }
 

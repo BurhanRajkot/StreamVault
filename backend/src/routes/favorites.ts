@@ -29,7 +29,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
     .from('Favorite')
     .select('*')
     .eq('userId', userId)
-    .order('id', { ascending: false })
+    .order('createdAt', { ascending: false })
 
   if (error) {
     console.error('Favorites fetch error:', error)
@@ -91,6 +91,11 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
       .select()
       .single()
 
+    // A concurrent request can pass the check above; the unique constraint
+    // on (userId, tmdbId, mediaType) settles it.
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'Already favorited' })
+    }
     if (error) {
       console.error('Favorite create error:', error)
       return res.status(500).json({ error: 'Server error' })
