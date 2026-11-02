@@ -60,7 +60,7 @@
     "@types/express": "^5.0.6",
     "@vercel/analytics": "^2.0.1",
     "baseline-browser-mapping": "^2.11.8",
-    "body-parser": "^2.3.0",
+    "body-parser": "^2.4.0",
     "caniuse-lite": "^1.0.30001800",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -86,13 +86,13 @@
     "use-debounce": "^10.1.1",
     "vaul": "^1.1.2",
     "yaml": "^2.9.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^10.0.1",
     "@ghostery/adblocker-playwright": "^2.20.1",
-    "@happy-dom/global-registrator": "^20.10.6",
+    "@happy-dom/global-registrator": "^21.0.4",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/typography": "^0.5.20",
     "@testing-library/dom": "^10.4.2",
@@ -110,7 +110,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^15.15.0",
-    "happy-dom": "^20.10.6",
+    "happy-dom": "^21.0.4",
     "jsdom": "^29.1.1",
     "pngjs": "^7.0.0",
     "postcss": "^8.5.31",
