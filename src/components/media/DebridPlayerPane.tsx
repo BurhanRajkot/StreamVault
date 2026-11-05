@@ -40,7 +40,9 @@ import { detectBrowserVideoSupport, planPlaybackModes, rankReleasesForPlayback }
 import { getAdminToken } from '@/lib/api'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { formatPromoDate, useDebridFreeUntil } from '@/hooks/useDebridPromo'
+import { recordPremiumPlay } from '@/lib/supportPrompt'
 import { DebridVideo } from './DebridVideo'
+import { SupportPrompt } from './SupportPrompt'
 import type { PlayerSource } from './PlayerControls'
 
 interface DebridPlayerPaneProps {
@@ -176,6 +178,10 @@ export function DebridPlayerPane({
   /** Bumped to remount the video (e.g. "Start over") without changing the file. */
   const [playNonce, setPlayNonce] = useState(0)
   const [resumeToast, setResumeToast] = useState(false)
+  /** The star/coffee prompt, shown in place of the video until dismissed (see lib/supportPrompt). */
+  const [supportPrompt, setSupportPrompt] = useState(false)
+  /** The title/episode last counted as a Premium play — switching release or retrying doesn't count again. */
+  const countedPlayKeyRef = useRef<string | null>(null)
   /** Latest position reported by the video, in seconds. */
   const positionRef = useRef(0)
   /** Bumped on every new search/poll/release attempt so stale loops know to stop. */
@@ -232,6 +238,10 @@ export function DebridPlayerPane({
   const showPlayback = useCallback((release: DebridRelease, ready: DebridReadyPlayback) => {
     const start = startPositionRef.current
     playingKeyRef.current = storageKeyRef.current
+    if (countedPlayKeyRef.current !== storageKeyRef.current) {
+      countedPlayKeyRef.current = storageKeyRef.current
+      if (recordPremiumPlay()) setSupportPrompt(true)
+    }
     setActiveRelease(release)
     setPlayback(ready)
     setStartAt(start)
@@ -706,6 +716,15 @@ export function DebridPlayerPane({
             Switch server
           </button>
         </ActionRow>
+      </PaneBackdrop>
+    )
+  }
+
+  // --- Ready, but asking for a star or a coffee first ---
+  if (supportPrompt) {
+    return (
+      <PaneBackdrop backdropUrl={backdropUrl}>
+        <SupportPrompt onDismiss={() => setSupportPrompt(false)} />
       </PaneBackdrop>
     )
   }
