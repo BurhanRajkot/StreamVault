@@ -362,6 +362,27 @@ export async function fetchAnimeRow(kind: AnimeRowKind): Promise<Media[]> {
   }
 }
 
+export interface DonationDetails {
+  /** data: URL of a UPI QR code with no amount set. */
+  qrCode: string
+  upiId: string
+  payeeName: string
+}
+
+/** The "buy me a coffee" UPI QR, or null when the backend has no UPI ID configured. */
+export async function fetchDonationDetails(): Promise<DonationDetails | null> {
+  const res = await fetch(`${API_BASE}/subscriptions/plans`)
+  if (!res.ok) return null
+  const data: unknown = await res.json()
+  if (!data || typeof data !== 'object' || !('donation' in data)) return null
+  const donation = (data as { donation: unknown }).donation
+  if (!donation || typeof donation !== 'object') return null
+  const { qrCode, upiId, payeeName } = donation as Partial<DonationDetails>
+  return typeof qrCode === 'string' && typeof upiId === 'string'
+    ? { qrCode, upiId, payeeName: typeof payeeName === 'string' ? payeeName : 'StreamVault' }
+    : null
+}
+
 export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Media | null> {
   if (mode === 'downloads' || !id) return null
 

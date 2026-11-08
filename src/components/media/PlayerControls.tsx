@@ -11,9 +11,13 @@
  * and cursor hide after a few idle seconds. Touch: a tap shows/hides the
  * controls, which put play/pause and ∓10s in the middle of the picture;
  * double-tapping the left/right side seeks ∓10s (keep tapping to go
- * further). Keyboard (anywhere outside a text field): Space/K play, ←/→ or
- * J/L ∓10s, ↑/↓ volume, M mute, F fullscreen, 0–9 jump to 0–90%, Shift+N
- * next episode.
+ * further); pinching out on a sideways phone zooms the picture to fill the
+ * screen (pinch in to fit it again). Keyboard (anywhere outside a text
+ * field): Space/K play, ←/→ or J/L ∓10s, ↑/↓ volume, M mute, F fullscreen,
+ * 0–9 jump to 0–90%, Shift+N next episode.
+ *
+ * Pointing at the seek bar (or dragging its thumb) shows a frame from that
+ * spot when the file allows it — see SeekPreview.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
@@ -23,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Expand,
   ExternalLink,
   ListVideo,
   Maximize,
@@ -31,6 +36,7 @@ import {
   PictureInPicture2,
   Play,
   Settings,
+  Shrink,
   SkipForward,
   Volume1,
   Volume2,
@@ -39,6 +45,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatPlayerTime } from '@/lib/playbackPosition'
+import { useFrameGrabber } from '@/hooks/useFrameGrabber'
+import { SeekPreview } from './SeekPreview'
 
 /** One file the viewer can switch to, as the settings menu lists it. */
 export interface PlayerSource {
@@ -100,6 +108,13 @@ export interface PlayerControlsProps {
   download?: { url: string; fileName: string; size: string | null } | null
   /** The season's episodes — an Episodes button opens them in a panel over the picture. */
   episodes?: ReactNode
+  /** A link the seek bar's preview frames can be grabbed from (see SeekPreview) — none, just the time. */
+  previewUrl?: string | null
+  /**
+   * Nothing on screen yet and a loading screen under the controls: only the
+   * back button shows, and pointer events reach the loading screen.
+   */
+  starting?: boolean
 }
 
 const SEEK_STEP_S = 10
@@ -123,6 +138,28 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const
 const COMPACT_MAX_HEIGHT_PX = 320
 
 const VOLUME_STORAGE_KEY = 'sv:player:volume'
+const REMAINING_STORAGE_KEY = 'sv:player:remaining'
+
+/** Pinching out by this much (finger spread ratio) fills the screen; in by as much fits it again. */
+const PINCH_FILL_RATIO = 1.2
+/** Picture and screen shapes this close need no zoom. */
+const FILL_MIN_ASPECT_GAP = 0.05
+
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function storeFlag(key: string, on: boolean) {
+  try {
+    localStorage.setItem(key, on ? '1' : '0')
+  } catch {
+    // Not remembering it is fine.
+  }
+}
 
 function readStoredVolume(): { volume: number; muted: boolean } | null {
   try {
@@ -250,6 +287,8 @@ export function PlayerControls({
   overlay,
   download,
   episodes,
+  previewUrl,
+  starting = false,
 }: PlayerControlsProps) {
   const [snap, setSnap] = useState<Snapshot>(() => snapshotOf(video, timeline))
   /** Latest timeline, for listeners that outlive a render. */
@@ -265,6 +304,19 @@ export function PlayerControls({
   /** Playhead position while the seek bar is being dragged. */
   const [scrubTime, setScrubTime] = useState<number | null>(null)
   const [hover, setHover] = useState<{ time: number; x: number } | null>(null)
+  /** The seek bar's width, for placing the preview card. */
+  const [barWidth, setBarWidth] = useState(0)
+  /** The viewer has pointed at the seek bar — previews may start loading. */
+  const [previewArmed, setPreviewArmed] = useState(false)
+  /** Show the time left instead of the time played. */
+  const [showRemaining, setShowRemaining] = useState(() => readFlag(REMAINING_STORAGE_KEY))
+  /** Zoomed to fill the screen (a sideways phone), cropping the picture's edges. */
+  const [fill, setFill] = useState(false)
+  const [videoAspect, setVideoAspect] = useState(16 / 9)
+  const [containerAspect, setContainerAspect] = useState(0)
+  /** Fingers on the picture, for pinch-to-zoom. */
+  const touchesRef = useRef(new Map<number, { x: number; y: number }>())
+  const pinchRef = useRef<{ from: number; handled: boolean } | null>(null)
   const [countdown, setCountdown] = useState<number | null>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rippleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -345,12 +397,51 @@ export function PlayerControls({
   useEffect(() => {
     if (!container || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(([entry]) => {
-      const { height } = entry.contentRect
+      const { width, height } = entry.contentRect
       setCompact(height > 0 && height < COMPACT_MAX_HEIGHT_PX)
+      setContainerAspect(height > 0 ? width / height : 0)
     })
     observer.observe(container)
     return () => observer.disconnect()
   }, [container])
+
+  useEffect(() => {
+    const bar = seekBarRef.current
+    if (!bar || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => setBarWidth(entry.contentRect.width))
+    observer.observe(bar)
+    return () => observer.disconnect()
+  }, [starting])
+
+  // ── Zoom to fill ─────────────────────────────────────────────────────────
+  // Only where it helps: a touch screen held sideways whose shape differs
+  // from the picture's (a 20:9 phone and a 16:9 episode, a 2.39:1 film).
+  // Upright, filling would crop most of the picture away.
+  const [coarsePointer] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches)
+  const canFill =
+    coarsePointer && containerAspect > 1 && Math.abs(containerAspect / videoAspect - 1) > FILL_MIN_ASPECT_GAP
+  const filled = fill && canFill
+
+  useEffect(() => {
+    if (!video) return
+    const onMeta = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) setVideoAspect(video.videoWidth / video.videoHeight)
+    }
+    onMeta()
+    video.addEventListener('loadedmetadata', onMeta)
+    video.addEventListener('resize', onMeta)
+    return () => {
+      video.removeEventListener('loadedmetadata', onMeta)
+      video.removeEventListener('resize', onMeta)
+    }
+  }, [video])
+
+  useEffect(() => {
+    if (!video) return
+    video.style.objectFit = filled ? 'cover' : ''
+  }, [video, filled])
+
+  const { grabber, version: previewVersion } = useFrameGrabber(previewUrl, snap.duration, previewArmed)
 
   // ── Auto-hide ────────────────────────────────────────────────────────────
   const pinned = snap.paused || scrubTime !== null || menu !== null || countdown !== null
@@ -623,7 +714,39 @@ export function PlayerControls({
   }, [menu])
 
   // ── Pointer on the picture ───────────────────────────────────────────────
+  const fingerSpread = () => {
+    const [a, b] = [...touchesRef.current.values()]
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0
+  }
+
+  const onSurfacePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch') return
+    touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (touchesRef.current.size === 2) pinchRef.current = { from: fingerSpread(), handled: false }
+  }
+
+  const onSurfacePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!touchesRef.current.has(e.pointerId)) return
+    touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const pinch = pinchRef.current
+    if (!pinch || pinch.handled || !pinch.from || !canFill) return
+    const ratio = fingerSpread() / pinch.from
+    if (ratio >= PINCH_FILL_RATIO || ratio <= 1 / PINCH_FILL_RATIO) {
+      pinch.handled = true
+      setFill(ratio > 1)
+    }
+  }
+
+  /** True while this pointer was part of a pinch — its lift isn't a tap. */
+  const endTouch = (e: React.PointerEvent<HTMLDivElement>): boolean => {
+    const wasPinch = touchesRef.current.has(e.pointerId) && pinchRef.current !== null
+    touchesRef.current.delete(e.pointerId)
+    if (touchesRef.current.size === 0) pinchRef.current = null
+    return wasPinch
+  }
+
   const onSurfacePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (endTouch(e)) return
     if (e.target !== e.currentTarget) return
     if (menu) {
       setMenu(null)
@@ -660,6 +783,7 @@ export function PlayerControls({
   const onSeekPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!snap.duration) return
     e.currentTarget.setPointerCapture(e.pointerId)
+    setPreviewArmed(true)
     setScrubTime(timeAt(e.clientX))
   }
 
@@ -742,6 +866,9 @@ export function PlayerControls({
       onPointerMove={onSeekPointerMove}
       onPointerUp={onSeekPointerUp}
       onPointerCancel={() => setScrubTime(null)}
+      onPointerEnter={(e) => {
+        if (e.pointerType === 'mouse') setPreviewArmed(true)
+      }}
       onPointerLeave={() => setHover(null)}
       onKeyDown={onSeekKeyDown}
       className={cn(
@@ -768,6 +895,10 @@ export function PlayerControls({
           className={cn('absolute inset-0 origin-left bg-primary', smooth && 'transition-transform duration-300 ease-linear')}
           style={{ transform: `scaleX(${fraction(displayTime)})` }}
         />
+        {/* Where a click would land */}
+        {hover && scrubTime === null && (
+          <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white" style={{ left: hover.x }} />
+        )}
       </div>
       {/* Thumb: rides a full-width layer that slides, so it moves on the compositor */}
       <div
@@ -785,12 +916,14 @@ export function PlayerControls({
         />
       </div>
       {(hover || scrubTime !== null) && snap.duration > 0 && (
-        <div
-          className="pointer-events-none absolute bottom-7 -translate-x-1/2 rounded-md bg-black/85 px-2 py-1 text-xs font-semibold tabular-nums text-white shadow"
-          style={{ left: scrubTime !== null ? `${fraction(scrubTime) * 100}%` : `${hover?.x ?? 0}px` }}
-        >
-          {formatPlayerTime(scrubTime ?? hover?.time ?? 0)}
-        </div>
+        <SeekPreview
+          grabber={grabber}
+          version={previewVersion}
+          time={scrubTime ?? hover?.time ?? 0}
+          x={scrubTime !== null ? fraction(scrubTime) * barWidth : (hover?.x ?? 0)}
+          barWidth={barWidth}
+          compact={compact}
+        />
       )}
     </div>
   )
@@ -801,11 +934,17 @@ export function PlayerControls({
         'player-controls absolute inset-0 select-none',
         // Above the phone layout's pickers (z-110) while the settings sheet is up
         menu ? 'z-[120]' : 'z-20',
-        !shown && 'cursor-none'
+        !shown && !starting && 'cursor-none',
+        // The loading screen underneath takes the clicks; only the back button is ours
+        starting && 'pointer-events-none'
       )}
       data-shown={shown || undefined}
       onPointerMove={(e) => {
-        if (e.pointerType === 'mouse') reveal()
+        if (e.pointerType !== 'mouse') return
+        reveal()
+        // A mouse on the player is likely headed for the seek bar: load the
+        // preview frames' file header now, once playback is under way.
+        if (!previewArmed && !starting && !snap.starved) setPreviewArmed(true)
       }}
       // Touching a control is activity too: keep the controls up after a ∓10s
       // tap instead of letting them vanish mid-use. (The picture's own taps
@@ -822,14 +961,20 @@ export function PlayerControls({
       {/* Picture surface — clicks/taps here, not on the controls */}
       <div
         ref={surfaceRef}
-        className="absolute inset-0"
+        // Vertical scrolling stays the browser's (the title page on a tablet); a pinch is ours
+        className="absolute inset-0 touch-pan-y"
         data-testid="player-surface"
+        onPointerDown={onSurfacePointerDown}
+        onPointerMove={onSurfacePointerMove}
         onPointerUp={onSurfacePointerUp}
+        onPointerCancel={endTouch}
         onDoubleClick={(e) => {
           if (e.target === e.currentTarget) toggleFullscreen()
         }}
       />
 
+      {!starting && (
+      <>
       {/* Scrims: just enough shade for the controls to read on a bright frame.
           A short picture is mostly controls, so it dims as a whole instead. */}
       {compact ? (
@@ -1001,6 +1146,9 @@ export function PlayerControls({
         )}
       </div>
 
+      </>
+      )}
+
       {/* Top bar */}
       <div
         className={cn(
@@ -1013,12 +1161,15 @@ export function PlayerControls({
             <ArrowLeft className="h-6 w-6" />
           </button>
         )}
-        <div className="player-overlay-title min-w-0 flex-1 pt-1">
+        {/* The loading screen names the title itself */}
+        <div className={cn('player-overlay-title min-w-0 flex-1 pt-1', starting && 'invisible')}>
           {title && <p className="truncate text-base font-semibold text-white drop-shadow sm:text-lg">{title}</p>}
           {subtitle && <p className="truncate text-xs text-white/70 sm:text-sm">{subtitle}</p>}
         </div>
       </div>
 
+      {!starting && (
+      <>
       {/* Bottom bar — compact turns it over: buttons on top, the seek bar
           along the picture's bottom edge */}
       <div
@@ -1082,15 +1233,29 @@ export function PlayerControls({
             />
           </div>
 
-          <span
+          <button
+            onClick={() => {
+              setShowRemaining((on) => {
+                storeFlag(REMAINING_STORAGE_KEY, !on)
+                return !on
+              })
+            }}
+            aria-label={showRemaining ? 'Show time played' : 'Show time remaining'}
+            title={showRemaining ? 'Show time played' : 'Show time remaining'}
             className={cn(
-              'ml-1 whitespace-nowrap font-medium tabular-nums text-white',
+              'ml-1 whitespace-nowrap rounded-md px-1 py-0.5 font-medium tabular-nums text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70',
               compact ? 'text-xs' : 'text-[13px] sm:ml-2 sm:text-sm'
             )}
           >
-            {formatPlayerTime(displayTime)}
-            <span className="text-white/55"> / {formatPlayerTime(snap.duration)}</span>
-          </span>
+            {showRemaining ? (
+              <>−{formatPlayerTime(Math.max(0, snap.duration - displayTime))}</>
+            ) : (
+              <>
+                {formatPlayerTime(displayTime)}
+                <span className="text-white/55"> / {formatPlayerTime(snap.duration)}</span>
+              </>
+            )}
+          </button>
 
           <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
             {onNext && (
@@ -1147,6 +1312,17 @@ export function PlayerControls({
                 className={iconButton}
               >
                 <PictureInPicture2 className="h-6 w-6" />
+              </button>
+            )}
+            {canFill && (
+              <button
+                onClick={() => setFill((on) => !on)}
+                aria-label={filled ? 'Fit to screen' : 'Zoom to fill'}
+                aria-pressed={filled}
+                title={filled ? 'Fit to screen (pinch in)' : 'Zoom to fill (pinch out)'}
+                className={iconButton}
+              >
+                {filled ? <Shrink className="h-6 w-6" /> : <Expand className="h-6 w-6" />}
               </button>
             )}
             <button
@@ -1297,6 +1473,8 @@ export function PlayerControls({
             </>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   )
