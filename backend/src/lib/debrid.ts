@@ -245,40 +245,111 @@ export async function getTorrentInfo(torrentId: string): Promise<DebridTorrentIn
 
 export async function deleteTorrent(torrentId: string): Promise<void> {
   await debridFetch<null>(`/torrents/delete/${encodeURIComponent(torrentId)}`, { method: 'DELETE' })
+  forgetTorrent(torrentId)
 }
 
 /** Add a torrent by info-hash. Returns Real-Debrid's torrent id. */
 export async function addMagnet(hash: string, name?: string): Promise<string> {
   const magnet = `magnet:?xt=urn:btih:${hash.toLowerCase()}${name ? `&dn=${encodeURIComponent(name)}` : ''}`
   const res = await debridFetch<{ id: string }>('/torrents/addMagnet', { form: { magnet } })
-  invalidateTorrentLookup()
+  rememberTorrent(hash, res.id)
   return res.id
 }
 
 const DEAD_STATUSES = new Set<DebridTorrentStatus>(['magnet_error', 'error', 'virus', 'dead'])
 
-/**
- * Short-lived snapshot of the library, so starting playback (and the
- * "already in the account?" check that comes with it) doesn't list the whole
- * account on every click.
- */
-let torrentLookup: { at: number; list: Promise<DebridTorrent[]> } | null = null
-const TORRENT_LOOKUP_TTL_MS = 30_000
+// ---------------------------------------------------------------------------
+// "Is this release already in the account?"
+//
+// Starting playback asks before adding a release, so the account doesn't
+// fill with duplicates. Listing the account to answer costs 0.4-2s (226
+// torrents, measured 2026-11-08) — a large share of the ~3-4s a play takes —
+// so the answer comes, cheapest first, from:
+//   1. torrents this server has added or found (knownTorrents);
+//   2. a snapshot of the account, fresh for 30s. Up to 10 minutes old it
+//      still answers for a release it holds — while a fresh copy loads —
+//      since preparePlayback fetches the torrent's info next anyway and
+//      re-adds one deleted since. A release it doesn't hold waits for a
+//      fresh listing: someone may have added it in the meantime;
+//   3. a fresh listing, started as soon as a release search comes in
+//      (warmTorrentLookup) so it's usually ready by the time Play is.
+// ---------------------------------------------------------------------------
 
-function invalidateTorrentLookup(): void {
-  torrentLookup = null
+/** Info-hash (lower case) → torrent id, for torrents added or found here. Oldest first, capped. */
+const knownTorrents = new Map<string, string>()
+const KNOWN_TORRENTS_MAX = 2000
+
+function rememberTorrent(hash: string, torrentId: string): void {
+  const key = hash.toLowerCase()
+  knownTorrents.delete(key)
+  knownTorrents.set(key, torrentId)
+  if (knownTorrents.size > KNOWN_TORRENTS_MAX) {
+    const oldest = knownTorrents.keys().next().value
+    if (oldest !== undefined) knownTorrents.delete(oldest)
+  }
 }
 
-/** An existing, healthy torrent in the account for this info-hash — reused instead of adding a duplicate. */
-export async function findTorrentByHash(hash: string): Promise<DebridTorrent | null> {
-  if (!torrentLookup || Date.now() - torrentLookup.at > TORRENT_LOOKUP_TTL_MS) {
-    const list = listTorrents(500)
-    torrentLookup = { at: Date.now(), list }
-    list.catch(() => invalidateTorrentLookup())
+function forgetTorrent(torrentId: string): void {
+  for (const [hash, id] of knownTorrents) {
+    if (id === torrentId) knownTorrents.delete(hash)
   }
-  const list = await torrentLookup.list
+}
+
+let torrentLookup: { at: number; list: Promise<DebridTorrent[]> } | null = null
+const TORRENT_LOOKUP_FRESH_MS = 30_000
+const TORRENT_LOOKUP_STALE_MS = 10 * 60_000
+
+function refreshTorrentLookup(): Promise<DebridTorrent[]> {
+  const entry = { at: Date.now(), list: listTorrents(500) }
+  torrentLookup = entry
+  entry.list.catch(() => {
+    if (torrentLookup === entry) torrentLookup = null
+  })
+  return entry.list
+}
+
+/**
+ * List the account ahead of a likely play — a release search — unless a
+ * fresh snapshot is already there or on its way.
+ */
+export function warmTorrentLookup(): void {
+  if (!debridKey()) return
+  if (torrentLookup && Date.now() - torrentLookup.at <= TORRENT_LOOKUP_FRESH_MS) return
+  refreshTorrentLookup().catch(() => {})
+}
+
+/** The id of an existing, healthy torrent in the account for this info-hash — reused instead of adding a duplicate. */
+export async function findTorrentId(hash: string): Promise<string | null> {
   const wanted = hash.toLowerCase()
-  return list.find((t) => t.hash.toLowerCase() === wanted && !DEAD_STATUSES.has(t.status)) ?? null
+  const known = knownTorrents.get(wanted)
+  if (known) return known
+
+  const match = (list: DebridTorrent[]): string | null => {
+    const hit = list.find((t) => t.hash.toLowerCase() === wanted && !DEAD_STATUSES.has(t.status))
+    if (hit) rememberTorrent(wanted, hit.id)
+    return hit?.id ?? null
+  }
+
+  const snapshot = torrentLookup
+  const age = snapshot ? Date.now() - snapshot.at : Infinity
+  if (snapshot && age <= TORRENT_LOOKUP_STALE_MS) {
+    const list = await snapshot.list.catch(() => null)
+    if (list) {
+      const id = match(list)
+      if (id) {
+        if (age > TORRENT_LOOKUP_FRESH_MS) refreshTorrentLookup().catch(() => {})
+        return id
+      }
+      if (age <= TORRENT_LOOKUP_FRESH_MS) return null
+    }
+  }
+  return match(await refreshTorrentLookup())
+}
+
+/** Forget every remembered torrent and snapshot — tests only. */
+export function resetTorrentLookupForTests(): void {
+  knownTorrents.clear()
+  torrentLookup = null
 }
 
 // ---------------------------------------------------------------------------
@@ -568,18 +639,34 @@ export async function preparePlayback(params: {
 }): Promise<PlaybackResult> {
   let torrentId = params.torrentId
   let addedHere = false
+  let reused = false
   if (!torrentId) {
     if (!params.hash) throw new Error('hash or torrentId is required')
-    const existing = await findTorrentByHash(params.hash).catch(() => null)
+    const existing = await findTorrentId(params.hash).catch(() => null)
     if (existing) {
-      torrentId = existing.id
+      torrentId = existing
+      reused = true
     } else {
       torrentId = await addMagnet(params.hash, params.name)
       addedHere = true
     }
   }
 
-  let info = await getTorrentInfo(torrentId)
+  let info: DebridTorrentInfo | null = null
+  try {
+    info = await getTorrentInfo(torrentId)
+  } catch (err: unknown) {
+    // A remembered torrent deleted since (from the library, or on
+    // Real-Debrid's site): add the release afresh.
+    if (!(reused && params.hash && err instanceof DebridError && err.status === 404)) throw err
+  }
+  if (reused && params.hash && (!info || DEAD_STATUSES.has(info.status))) {
+    forgetTorrent(torrentId)
+    torrentId = await addMagnet(params.hash, params.name)
+    addedHere = true
+    info = await getTorrentInfo(torrentId)
+  }
+  if (!info) throw new Error('Torrent info unavailable')
 
   if (info.status === 'waiting_files_selection') {
     const ids = filesToSelect(info.files)
@@ -593,7 +680,7 @@ export async function preparePlayback(params: {
     await deleteTorrent(torrentId).catch((err: unknown) => {
       logger.warn('Could not remove non-instant torrent', { torrentId, error: err instanceof Error ? err.message : String(err) })
     })
-    invalidateTorrentLookup()
+    forgetTorrent(torrentId)
     return { status: 'not-cached' }
   }
 

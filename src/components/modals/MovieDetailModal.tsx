@@ -18,6 +18,8 @@ import { DetailPanel } from './movie-detail/DetailPanel'
 import { EpisodeList, NowPlayingHeading, SourcePickers } from './movie-detail/NowPlaying'
 import { nowPlayingMeta } from './movie-detail/types'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
+import { useDebridToken } from '@/hooks/useDebridToken'
+import { prefetchPremiumReleases } from '@/lib/premiumSearch'
 import type { PlaybackControls } from './movie-detail/types'
 import {
   nextEpisode,
@@ -529,6 +531,31 @@ export function MovieDetailModal({
 
   const nextTarget = mode === 'tv' ? nextEpisode(position, seasons, currentSeasonEpisodes) : null
   const nextLabel = nextTarget ? `S${nextTarget.season} · E${nextTarget.episode}` : undefined
+
+  // ⚡ Premium: find the releases while the viewer is still reading the
+  // details, so Play goes straight to starting one — and, a little way into
+  // an episode, the next episode's, so "Next episode" does too.
+  const getDebridToken = useDebridToken()
+  const debridMediaType = mode === 'tv' ? 'tv' : 'movie'
+  const prefetch = server !== DEBRID_SERVER_ID ? null : !isPlaying ? position : nextTarget
+  const prefetchSeason = prefetch?.season
+  const prefetchEpisode = prefetch?.episode
+  useEffect(() => {
+    if (prefetchSeason === undefined || prefetchEpisode === undefined) return
+    const timer = setTimeout(
+      () => {
+        void getDebridToken().then((token) =>
+          prefetchPremiumReleases(
+            { title, year: display.year, imdbId, mediaType: debridMediaType, season: prefetchSeason, episode: prefetchEpisode },
+            token
+          )
+        )
+      },
+      // Settled on the page (not just passing through a season picker), or well into the episode
+      isPlaying ? 30_000 : 250
+    )
+    return () => clearTimeout(timer)
+  }, [prefetchSeason, prefetchEpisode, isPlaying, title, display.year, imdbId, debridMediaType, getDebridToken])
   const isDesktopShow = !isMobile && mode === 'tv'
   // Shares its query with the episode list, so naming the episode is free
   const { data: playingSeasonEpisodes } = useSeasonEpisodes(media.id, season, isPlaying && mode === 'tv')
@@ -698,19 +725,18 @@ export function MovieDetailModal({
                 isDesktopShow && 'xl:grid-cols-[minmax(0,1fr)_400px]'
               )}
             >
-              <div className="flex min-w-0 flex-col md:gap-5 xl:col-start-1 xl:row-start-1">
+              <div className="player-column flex min-w-0 flex-col md:gap-5 xl:col-start-1 xl:row-start-1">
               {/*
                 Video player.
 
                 One player for every viewport — the container is what
-                changes. On md+ it's an inline 16:9 card; below md the
-                `.player-shell` class takes the whole screen (portrait:
-                back bar, picture, then the episode and server pickers;
-                landscape: edge to edge).
+                changes (index.css). On md+ it's an inline 16:9 card sized
+                to fit the window; on a phone `.player-shell` takes the
+                whole screen, upright or turned sideways.
               */}
               <div
                 data-own-controls={server === DEBRID_SERVER_ID || undefined}
-                className="player-shell relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-[0_30px_90px_-20px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.06] max-md:aspect-auto max-md:rounded-none max-md:shadow-none max-md:ring-0"
+                className="player-shell relative w-full overflow-hidden bg-black"
               >
                 {/* Back bar — phones; the desktop page has its own */}
                 <div className="player-chrome-top pointer-events-none z-[110] items-center gap-2 px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top,0px))]">

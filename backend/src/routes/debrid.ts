@@ -183,6 +183,10 @@ router.get('/media-search', optionalAuth, async (req: Request, res: Response) =>
     return res.status(400).json({ error: 'imdb must be a valid IMDb id (e.g. tt1375666)' })
   }
 
+  // Play usually follows a search within seconds — have the account's
+  // "already added?" listing ready for it.
+  debrid.warmTorrentLookup()
+
   try {
     const data = await debrid.searchMediaReleases({ title, imdbId, mediaType, season, episode, limit })
     return res.json({ data })

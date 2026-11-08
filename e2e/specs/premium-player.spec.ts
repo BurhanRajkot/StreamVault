@@ -70,15 +70,90 @@ test.describe('Premium server', () => {
     })
   })
 
-  test('shows its progress while it finds a stream', async ({ watch, mockApi }) => {
-    mockApi.on('GET', '/debrid/media-search', { delayMs: 1_500, json: { data: [release()] } })
+  test('finds the releases while the details are still open, so Play starts one at once', async ({ watch, mockApi }) => {
+    await watch.goto(MOVIE)
+    await expect.poll(() => mockApi.calls('GET', '/debrid/media-search').length, { message: 'searched before Play' }).toBe(1)
+
+    await watch.play()
+
+    await watch.expectPremiumPlaying()
+    expect(mockApi.calls('GET', '/debrid/media-search'), 'Play reused that search').toHaveLength(1)
+  })
+
+  test('shows each step while it starts a stream', async ({ watch, mockApi }) => {
+    let finishSearch!: () => void
+    const searchDone = new Promise<void>((resolve) => (finishSearch = resolve))
+    mockApi.on('GET', '/debrid/media-search', async () => {
+      await searchDone
+      return { json: { data: [release()] } }
+    })
+    let finishPlay!: () => void
+    const playDone = new Promise<void>((resolve) => (finishPlay = resolve))
+    mockApi.on('POST', '/debrid/play', async () => {
+      await playDone
+      return { json: readyPlayback() }
+    })
 
     await watch.goto(MOVIE)
     await watch.play()
 
-    await expect(watch.premiumLoading).toBeVisible()
+    const steps = watch.premiumLoading.getByRole('progressbar', { name: 'Loading the stream' })
     await expect(watch.premiumLoading).toContainText('Finding the best stream')
+    await expect(steps).toHaveAttribute('aria-valuetext', /^Step 1 of 3/)
+
+    finishSearch()
+    await expect(watch.premiumLoading).toContainText('Starting the 1080p stream')
+    await expect(steps).toHaveAttribute('aria-valuetext', /^Step 2 of 3/)
+
+    finishPlay()
     await watch.expectPremiumPlaying()
+  })
+
+  test.describe('when its first pick only plays converted', () => {
+    // Ranked in this order: seeders break the tie between the two 1080p AAC releases.
+    const first = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-FIRST', seeders: '900' })
+    const second = release({ name: 'Inception.2010.1080p.WEBRip.x264.AAC-SECOND', seeders: '50' })
+    const third = release({ name: 'Inception.2010.720p.WEBRip.x264.AAC-THIRD', seeders: '40' })
+    const dolby = release({ name: 'Inception.2010.1080p.WEB-DL.DDP5.1.x264-DOLBY', seeders: '30' })
+    const hashesPlayed = (calls: { body: unknown }[]) => calls.map((c) => (c.body as { hash: string }).hash)
+
+    test('asks about the next releases that could play directly together, and plays one', async ({ watch, mockApi }) => {
+      mockApi.on('GET', '/debrid/media-search', { json: { data: [dolby, third, second, first] } })
+      let thirdAsked!: () => void
+      const thirdAskedYet = new Promise<void>((resolve) => (thirdAsked = resolve))
+      mockApi.on('POST', '/debrid/play', async ({ body }) => {
+        const { hash } = body as { hash: string }
+        if (hash === first.info_hash) return { json: convertedPlayback() }
+        if (hash === third.info_hash) thirdAsked()
+        // Answers only once the third has been asked about too — one at a time would never get here
+        if (hash === second.info_hash) await thirdAskedYet
+        return { json: readyPlayback() }
+      })
+
+      await watch.goto(MOVIE)
+      await watch.play()
+
+      await watch.expectPremiumPlaying()
+      await expect(watch.premiumVideo, 'the file itself, not the converted stream').toHaveAttribute('src', SAMPLE_VIDEO_URL)
+      expect(hashesPlayed(mockApi.calls('POST', '/debrid/play')), 'never the Dolby one').toEqual([
+        first.info_hash,
+        second.info_hash,
+        third.info_hash,
+      ])
+    })
+
+    test('plays it converted straight away when nothing else could play directly', async ({ watch, mockApi }) => {
+      mockApi.on('GET', '/debrid/media-search', { json: { data: [dolby, first] } })
+      mockApi.on('POST', '/debrid/play', ({ body }) =>
+        (body as { hash: string }).hash === first.info_hash ? { json: convertedPlayback() } : { json: readyPlayback() }
+      )
+
+      await watch.goto(MOVIE)
+      await watch.play()
+
+      await watch.expectPremiumPlaying()
+      expect(hashesPlayed(mockApi.calls('POST', '/debrid/play'))).toEqual([first.info_hash])
+    })
   })
 
   test('moves on to the next release when one can’t be played', async ({ watch, mockApi }) => {
@@ -227,6 +302,74 @@ test.describe('Premium server', () => {
 
       await expect(page.getByText('Premium is for subscribers')).toBeVisible()
       await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
+    })
+  })
+})
+
+test.describe('Seek bar', () => {
+  test.beforeEach(() => {
+    test.skip(test.info().project.name === 'mobile', 'Pointing at the bar needs a mouse')
+  })
+
+  test('pointing at it shows the frame and the time there', async ({ page, watch }) => {
+    await watch.goto(MOVIE)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+    // Paused, the controls stay up — no racing their auto-hide.
+    await watch.premiumVideo.evaluate((v: HTMLVideoElement) => v.pause())
+
+    const bar = (await watch.seekBar.boundingBox())!
+    await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2)
+
+    const preview = watch.root.getByTestId('seek-preview')
+    await expect(preview).toContainText('0:04')
+    await expect(preview.getByTestId('seek-preview-frame'), 'a frame from that spot').toHaveAttribute('data-ready', 'true')
+  })
+})
+
+test.describe('fits the screen', () => {
+  test.describe('a laptop', () => {
+    test.use({ viewport: { width: 1366, height: 768 } })
+    test.beforeEach(() => {
+      test.skip(test.info().project.name === 'mobile', 'A desktop window')
+    })
+
+    test('the whole 16:9 player, controls included, is on screen without scrolling', async ({ watch }) => {
+      await watch.goto(MOVIE)
+      await watch.play()
+      await watch.expectPremiumPlaying()
+
+      const player = (await watch.premiumVideo.boundingBox())!
+      expect(player.y + player.height).toBeLessThanOrEqual(768)
+      expect(player.width / player.height).toBeCloseTo(16 / 9, 1)
+      await watch.premiumVideo.evaluate((v: HTMLVideoElement) => v.pause())
+      await expect(watch.seekBar).toBeInViewport({ ratio: 1 })
+    })
+  })
+
+  test.describe('a phone turned sideways', () => {
+    test.use({ viewport: { width: 915, height: 412 } })
+    test.beforeEach(() => {
+      test.skip(test.info().project.name !== 'mobile', 'A touch screen')
+    })
+
+    test('fills the screen exactly, and the picture can be zoomed to fill it', async ({ page, watch }) => {
+      await watch.goto(MOVIE)
+      await watch.play()
+      await watch.expectPremiumPlaying()
+
+      expect(await watch.premiumVideo.boundingBox()).toEqual({ x: 0, y: 0, width: 915, height: 412 })
+      await watch.premiumVideo.evaluate((v: HTMLVideoElement) => v.pause())
+      await expect(watch.seekBar).toBeInViewport({ ratio: 1 })
+
+      // A 16:9 picture on a ~20:9 screen
+      const objectFit = () => watch.premiumVideo.evaluate((v: HTMLVideoElement) => getComputedStyle(v).objectFit)
+      expect(await objectFit()).toBe('contain')
+      await watch.root.getByRole('button', { name: 'Zoom to fill' }).click()
+      expect(await objectFit()).toBe('cover')
+      await watch.root.getByRole('button', { name: 'Fit to screen' }).click()
+      expect(await objectFit()).toBe('contain')
+      await expect(page.getByRole('button', { name: 'Zoom to fill' })).toBeVisible()
     })
   })
 })

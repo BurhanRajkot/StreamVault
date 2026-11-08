@@ -25,13 +25,14 @@
  *     can move on to another release.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
 import {
   convertedStreamUrl,
   detectBrowserVideoSupport,
   planConvertedSeek,
   planPlaybackModes,
+  previewStreamUrl,
   type PlaybackMode,
 } from '@/lib/releasePlayback'
 import { cn } from '@/lib/utils'
@@ -57,22 +58,45 @@ interface DebridVideoProps extends ChromeProps {
   startAt?: number
   /** Position/duration, every few seconds while playing and on pause, end and unmount. */
   onProgress?: (position: number, duration: number) => void
-  /** Artwork shown until the first frame. */
+  /** Artwork shown until the first frame (when there's no `loadingScreen`). */
   poster?: string | null
+  /**
+   * Drawn over the player until the first frame, in place of the artwork and
+   * the controls' spinner — given what's happening, e.g. "Starting
+   * playback…". Without it, the artwork and a spinner.
+   */
+  loadingScreen?: (message: string) => ReactNode
+  /** The first frame is on screen. */
+  onStarted?: () => void
   className?: string
 }
 
-/** How long a mode may take to show its first frame. Real-Debrid's transcoder takes a few seconds to spin up. */
-const DIRECT_STARTUP_TIMEOUT_MS = 25_000
+/** Past this, the loading screen says it's taking a while (and why). */
+const SLOW_START_MS = 8_000
+
+/**
+ * How long a mode may take to show its first frame. Real-Debrid's
+ * transcoder takes a few seconds to spin up; a direct link can need three
+ * slow requests in a row (below).
+ */
+const DIRECT_STARTUP_TIMEOUT_MS = 35_000
 const HLS_STARTUP_TIMEOUT_MS = 45_000
 /**
- * A direct link that has sent nothing by now is reconnected once. Real-
- * Debrid's download servers answer in well under a second; one that hasn't
- * is usually a hung connection (seen 2026-10-18: 25s of nothing, then the
- * same link loaded in 2s), and waiting out the full timeout before falling
- * back to the slower transcode left the viewer on a spinner for ~45s.
+ * A direct link with no metadata by now gets a second connection racing the
+ * first (see the startup effect), for the host that sits on a connection —
+ * seen 2026-10-18 (25s of nothing, then the same link loaded in 2s) and
+ * again 2026-11-08 (nothing for 15s, playing 3.6s after reconnecting).
+ *
+ * Racing, not reconnecting: a healthy host can also take 0.5-11s to answer
+ * *each* range request (measured 2026-11-08), and metadata takes three in a
+ * row — the start, the index at the end of the file, then the data. A plain
+ * reconnect at 8s fired in every one of three traced slow-but-healthy
+ * starts, each time killing a request that had just begun to answer and
+ * paying for a fresh one (22s to the first frame instead of ~14s). The
+ * browser gives no sign of bytes arriving before metadata (no `progress`
+ * event), so the two can't be told apart — only raced.
  */
-const DIRECT_STARTUP_RECONNECT_MS = 8_000
+const DIRECT_STARTUP_HEDGE_MS = 6_000
 
 /** Fatal hls.js errors to recover from in a row (no segment loading in between) before giving up on the mode. */
 const MAX_HLS_RECOVERIES = 5
@@ -105,6 +129,8 @@ export function DebridVideo({
   startAt,
   onProgress,
   poster,
+  loadingScreen,
+  onStarted,
   className,
   ...chrome
 }: DebridVideoProps) {
@@ -139,9 +165,26 @@ export function DebridVideo({
   const [restarting, setRestarting] = useState(false)
   /** The viewer jumped while paused — stay paused once the restarted stream is ready. */
   const pauseAfterRestartRef = useRef(false)
-  /** Artwork only until the first frame: a reload or a restart goes to black, not back to the poster. */
-  const [showPoster, setShowPoster] = useState(true)
+  /**
+   * No frame shown yet — the artwork (or the loading screen) stays up until
+   * one is. A reload or a restart later goes to black, not back to it.
+   */
+  const [starting, setStarting] = useState(true)
+  /** Starting is taking longer than it should. */
+  const [slowStart, setSlowStart] = useState(false)
   const fullDuration = playback.media?.duration ?? 0
+  const previewUrl = useMemo(() => previewStreamUrl(playback, detectBrowserVideoSupport()), [playback])
+  const onStartedRef = useRef(onStarted)
+  onStartedRef.current = onStarted
+  /** The file has shown a frame, in any mode. */
+  const firstFrameRef = useRef(false)
+
+  useEffect(() => {
+    if (!starting) return
+    setSlowStart(false)
+    const timer = setTimeout(() => setSlowStart(true), SLOW_START_MS)
+    return () => clearTimeout(timer)
+  }, [starting, mode])
 
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el
@@ -250,10 +293,22 @@ export function DebridVideo({
       const seekTo = pendingSeekRef.current
       pendingSeekRef.current = null
       if (seekTo && seekTo > 0 && mode.kind === 'direct') video.currentTime = seekTo
+      // `autoplay` doesn't say when the browser refuses it (iPhone Safari
+      // wants a tap for sound): ask, so a refusal shows the play button
+      // instead of an endless loading screen.
+      if (!startedRef.current) {
+        video.play().catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'NotAllowedError') setStarting(false)
+        })
+      }
     }
     const handlePlaying = () => {
       startedRef.current = true
-      setShowPoster(false)
+      if (!firstFrameRef.current) {
+        firstFrameRef.current = true
+        setStarting(false)
+        onStartedRef.current?.()
+      }
       ready()
       clearStall()
     }
@@ -429,8 +484,10 @@ export function DebridVideo({
     if (!video) return
     const timeoutMs = mode.kind === 'hls' ? HLS_STARTUP_TIMEOUT_MS : DIRECT_STARTUP_TIMEOUT_MS
     let timer: ReturnType<typeof setTimeout> | null = null
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    let reconnected = false
+    let hedgeTimer: ReturnType<typeof setTimeout> | null = null
+    let hedged = false
+    /** A hidden element loading the same link's metadata over a connection of its own. */
+    let racer: HTMLVideoElement | null = null
 
     const check = () => {
       timer = null
@@ -441,25 +498,47 @@ export function DebridVideo({
         (!video.paused && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
       if (stuck) advanceRef.current('nothing loaded before the startup timeout')
     }
-    const reconnect = () => {
-      reconnectTimer = null
-      if (startedRef.current || document.hidden || reconnected) return
-      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) return
-      reconnected = true
-      console.warn('Debrid direct link has sent nothing yet — reconnecting')
-      // A pending resume point survives: it's applied on loadedmetadata.
-      video.load()
+    const dropRacer = () => {
+      if (!racer) return
+      racer.removeAttribute('src')
+      racer.load()
+      racer = null
     }
+    // The player's own connection keeps going; whichever answers first wins.
+    // Should the racer win, the player reloads — and reads what the racer
+    // fetched from the browser's media cache, which both share for one URL.
+    const hedge = () => {
+      hedgeTimer = null
+      if (startedRef.current || document.hidden || hedged) return
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) return
+      hedged = true
+      const r = document.createElement('video')
+      r.muted = true
+      r.preload = 'metadata'
+      r.addEventListener(
+        'loadedmetadata',
+        () => {
+          if (racer !== r || startedRef.current || video.readyState >= HTMLMediaElement.HAVE_METADATA) return
+          console.warn('Debrid direct link: a second connection answered first — reloading from it')
+          // A pending resume point survives: it's applied on loadedmetadata.
+          video.load()
+        },
+        { once: true }
+      )
+      r.src = mode.url
+      racer = r
+    }
+    video.addEventListener('loadedmetadata', dropRacer)
     const clearTimers = () => {
       if (timer) clearTimeout(timer)
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      timer = reconnectTimer = null
+      if (hedgeTimer) clearTimeout(hedgeTimer)
+      timer = hedgeTimer = null
     }
     const arm = () => {
       clearTimers()
       if (document.hidden) return
       timer = setTimeout(check, timeoutMs)
-      if (mode.kind === 'direct' && !reconnected) reconnectTimer = setTimeout(reconnect, DIRECT_STARTUP_RECONNECT_MS)
+      if (mode.kind === 'direct' && !hedged) hedgeTimer = setTimeout(hedge, DIRECT_STARTUP_HEDGE_MS)
     }
     const onVisibility = () => {
       if (startedRef.current) return
@@ -471,6 +550,8 @@ export function DebridVideo({
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
       clearTimers()
+      dropRacer()
+      video.removeEventListener('loadedmetadata', dropRacer)
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [mode])
@@ -555,7 +636,7 @@ export function DebridVideo({
         autoPlay
         playsInline
         preload="auto"
-        poster={showPoster ? (poster ?? undefined) : undefined}
+        poster={starting && !loadingScreen ? (poster ?? undefined) : undefined}
         className="absolute inset-0 h-full w-full bg-black object-contain"
         onError={handleError}
       />
@@ -570,8 +651,24 @@ export function DebridVideo({
         }}
         streamNote={mode.kind === 'hls' ? 'Real-Debrid converts this file as it plays, so a jump takes a few seconds to start.' : null}
         timeline={timeline}
+        previewUrl={previewUrl}
+        starting={starting && !!loadingScreen}
         {...chrome}
       />
+      {starting && loadingScreen && (
+        // Under the controls, so their back button (a phone turned sideways, fullscreen) stays usable
+        <div className="absolute inset-0 z-10">
+          {loadingScreen(
+            mode.kind === 'hls'
+              ? slowStart
+                ? 'Still converting — Real-Debrid takes a little longer with some files…'
+                : 'Real-Debrid is converting this file for your browser…'
+              : slowStart
+                ? 'Still connecting — Real-Debrid’s server is slow to answer…'
+                : 'Starting playback…'
+          )}
+        </div>
+      )}
     </div>
   )
 }
