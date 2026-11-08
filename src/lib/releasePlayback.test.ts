@@ -10,6 +10,9 @@ import {
   convertedStreamUrl,
   planConvertedSeek,
   CONVERTED_SEEK_AHEAD_S,
+  isTheatricalRip,
+  isLikelyDirectPlayable,
+  previewStreamUrl,
 } from './releasePlayback'
 import type { DebridRelease, DebridReadyPlayback, DebridMediaSummary } from './debridApi'
 
@@ -120,11 +123,50 @@ describe('rankReleasesForPlayback', () => {
     ])
   })
 
+  // Shape of the real Dune: Part Two result (2026-11-08): a 37 GB Russian
+  // "BDRemux" and a telesync were picked ahead of an ordinary encode.
+  it('sinks "BDRemux" spellings and cam/telesync rips below ordinary encodes', () => {
+    const ranked = rankReleasesForPlayback(
+      [
+        release('Дюна: Часть вторая / Dune: Part Two [2024 BDRemux 1080p] Dub + Original (Eng)', { size: 37 * GB, seeders: 9 }),
+        release('Dune.Part.Two.2024.1080p.HD-TS.X264-EMIN3M[TGx]', { size: 2 * GB, seeders: 300 }),
+        release('Dune.Part.Two.2024.1080p.WEBRip.x264.AAC-LAMA', { size: 3 * GB, seeders: 50 }),
+      ],
+      noHevc
+    )
+    expect(ranked[0].name).toBe('Dune.Part.Two.2024.1080p.WEBRip.x264.AAC-LAMA')
+    expect(ranked[2].name).toMatch(/HD-TS/)
+  })
+
   it('ranks cached above uncached among playable releases', () => {
     const ranked = rankReleasesForPlayback(breakingBad, noHevc)
     const uncachedIndex = ranked.findIndex((r) => !r.cached)
     const lastCachedPlayable = ranked.filter((r) => r.cached && isBrowserPlayable(r.name, noHevc)).length - 1
     expect(uncachedIndex).toBeGreaterThan(lastCachedPlayable)
+  })
+})
+
+describe('isTheatricalRip', () => {
+  it.each(['Movie.2024.HDCAM.x264', 'Movie 2024 1080p HD-TS X264', 'Movie.2024.TELESYNC.XviD', 'Movie.2024.HDTC.x264', 'Movie.2024.DVDScr.XviD', 'Movie 2024 CAMRip'])(
+    'flags %s',
+    (name) => expect(isTheatricalRip(name)).toBe(true)
+  )
+  it.each(['Movie.2024.1080p.WEB-DL.DDP5.1.H.264', 'Movie.2024.1080p.BluRay.DTS.x264', 'Movie.2024.1080p.WEBRip.x264.AAC'])(
+    'leaves %s alone',
+    (name) => expect(isTheatricalRip(name)).toBe(false)
+  )
+})
+
+describe('isLikelyDirectPlayable', () => {
+  it('expects AAC or undeclared audio in a decodable codec to play from the file', () => {
+    expect(isLikelyDirectPlayable('Show.S01E01.1080p.WEB.x264.AAC', noHevc)).toBe(true)
+    expect(isLikelyDirectPlayable('Show.S01E01.1080p.WEB.x264', noHevc)).toBe(true)
+  })
+  it('expects Dolby/DTS audio, remuxes and undecodable video to need the transcode', () => {
+    expect(isLikelyDirectPlayable('Show.S01E01.1080p.WEB.DDP5.1.x264', noHevc)).toBe(false)
+    expect(isLikelyDirectPlayable('Movie.2024.1080p.BDRemux.AVC', noHevc)).toBe(false)
+    expect(isLikelyDirectPlayable('Show.S01E01.1080p.WEB.x265.AAC', noHevc)).toBe(false)
+    expect(isLikelyDirectPlayable('Show.S01E01.1080p.WEB.x265.AAC', withHevc)).toBe(true)
   })
 })
 
@@ -175,6 +217,14 @@ describe('planPlaybackModes', () => {
 
   it('tries direct first when there is no media info', () => {
     expect(kinds(playback(null))).toEqual(['Direct', 'RD stream'])
+  })
+
+  it('previews frames from the file whenever the browser decodes its video, whatever the audio', () => {
+    const eac3 = media({ audioTracks: [{ id: 'eng1', lang: 'English', langIso: 'eng', codec: 'eac3', channels: 6 }] })
+    expect(previewStreamUrl(playback(eac3), noHevc)).toBe(playback(eac3).directUrl)
+    expect(previewStreamUrl(playback(null), noHevc)).toBe(playback(null).directUrl)
+    expect(previewStreamUrl(playback(media({ videoCodec: 'hevc' })), noHevc)).toBeNull()
+    expect(previewStreamUrl(playback(media({ videoCodec: 'hevc' })), withHevc)).not.toBeNull()
   })
 })
 

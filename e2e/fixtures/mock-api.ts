@@ -34,6 +34,10 @@ import {
 
 export const MOCK_API_ORIGIN = 'http://api.e2e.test'
 
+/** Stand-in for the "buy me a coffee" UPI QR — a 1×1 PNG. */
+const DONATION_QR =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 export interface MockRequest {
@@ -299,10 +303,14 @@ export class MockApi {
     this.on(
       'GET',
       '/subscriptions/plans',
-      ok([
-        { id: 'basic', name: 'Basic', price: 199, currency: 'INR', features: ['HD streaming'] },
-        { id: 'premium', name: 'Premium', price: 499, currency: 'INR', features: ['4K streaming', 'Downloads'] },
-      ])
+      ok({
+        plans: [
+          { id: 'basic', name: 'Basic', price: 199, currency: 'INR', features: ['HD streaming'] },
+          { id: 'premium', name: 'Premium', price: 499, currency: 'INR', features: ['4K streaming', 'Downloads'] },
+        ],
+        upiConfig: { payeeName: 'StreamVault', upiId: 'streamvault@upi' },
+        donation: { qrCode: DONATION_QR, upiId: 'streamvault@upi', payeeName: 'StreamVault' },
+      })
     )
     this.on('GET', '/downloads', ({ authenticated }) =>
       authenticated ? { status: 403, json: { error: 'Upgrade required' } } : { status: 401, json: { error: 'Unauthorized' } }

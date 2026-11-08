@@ -29,7 +29,7 @@ function buildPlansPayload() {
   // Format: upi://pay?pa=<upi_id>&pn=<payee_name>&cu=<currency>
   const baseUrl = `upi://pay?pa=${encodeURIComponent(UPI_CONFIG.upiId)}&pn=${encodeURIComponent(UPI_CONFIG.payeeName)}&cu=${UPI_CONFIG.currency}`
 
-  return Promise.all(
+  const plansPromise = Promise.all(
     Object.entries(SUBSCRIPTION_PLANS).map(async ([key, plan]) => {
       const upiUrl = `${baseUrl}&am=${plan.price}&tn=${encodeURIComponent(plan.name)}`
       return {
@@ -39,12 +39,24 @@ function buildPlansPayload() {
         upiId: UPI_CONFIG.upiId,
       }
     })
-  ).then((plans) => ({
+  )
+  // "Buy me a coffee" — no amount, so the payer picks one. Shown by the
+  // support prompt on the Premium player; omitted when no UPI ID is set.
+  const donationPromise = UPI_CONFIG.upiId
+    ? QRCode.toDataURL(`${baseUrl}&tn=${encodeURIComponent('Buy me a coffee - StreamVault')}`).then((qrCode) => ({
+        qrCode,
+        upiId: UPI_CONFIG.upiId,
+        payeeName: UPI_CONFIG.payeeName,
+      }))
+    : Promise.resolve(null)
+
+  return Promise.all([plansPromise, donationPromise]).then(([plans, donation]) => ({
     plans,
     upiConfig: {
       payeeName: UPI_CONFIG.payeeName,
       upiId: UPI_CONFIG.upiId,
     },
+    donation,
   }))
 }
 
