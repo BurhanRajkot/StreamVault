@@ -52,9 +52,22 @@ export function isDolbyVisionOnly(name: string): boolean {
   return /\b(DV|DoVi|Dolby[ ._-]?Vision)\b/i.test(name) && !/\bHDR/i.test(name)
 }
 
-/** Lossless remuxes: 40-100 Mbit/s video plus TrueHD/DTS-HD audio that always has to be transcoded. */
+/**
+ * Lossless remuxes: 40-100 Mbit/s video plus TrueHD/DTS-HD audio that always
+ * has to be transcoded. Also spelled "BDRemux" / "UHDRemux" — the 37 GB
+ * Russian "BDRemux 1080p" was the auto-pick for Dune: Part Two (2026-11-08).
+ */
 function isRemux(name: string): boolean {
-  return /\bREMUX\b/i.test(name)
+  return /(\b|BD|UHD)REMUX\b/i.test(name)
+}
+
+/**
+ * Filmed in a cinema or taken off a pre-release copy: CAM, TS/telesync, TC/
+ * telecine, screeners. They're often what's cached first for a new film, and
+ * the worst picture on offer.
+ */
+export function isTheatricalRip(name: string): boolean {
+  return /\b(HD[ .-]?)?(CAM|TS|TC|TELESYNC|TELECINE)(-?Rip)?\b|\b(DVD|BD)?SCR(EENER)?\b|\bPRE-?DVD(Rip)?\b/i.test(name)
 }
 
 /**
@@ -111,11 +124,22 @@ export function isBrowserPlayable(name: string, support: BrowserVideoSupport): b
 }
 
 /**
+ * Whether a release is worth resolving in the hope that it plays straight
+ * from its file — nothing in its name says it would need Real-Debrid's
+ * transcode (a codec this browser can't decode, Dolby/DTS audio, a remux).
+ * The player only spends extra resolves on these when its first pick turns
+ * out to need the transcode.
+ */
+export function isLikelyDirectPlayable(name: string, support: BrowserVideoSupport): boolean {
+  return isBrowserPlayable(name, support) && audioRank(name) !== 2 && !isRemux(name)
+}
+
+/**
  * Order releases for automatic playback, best first:
- *   decodable by this browser → cached → audio not declared as
- *   Dolby/DTS → 1080p over 4K over 720p → likely English → not a remux →
- *   audio declared browser-safe → IMAX → seeders → smaller file (lower
- *   bitrate, less buffering).
+ *   decodable by this browser → cached → not a cam/telesync → audio not
+ *   declared as Dolby/DTS → 1080p over 4K over 720p → likely English → not
+ *   a remux → audio declared browser-safe → IMAX → seeders → smaller file
+ *   (lower bitrate, less buffering).
  *
  * Real-Debrid's HLS transcode can rescue an undecodable file (it always
  * outputs H.264 + AAC), but a jump outside what it has loaded restarts the
@@ -132,6 +156,7 @@ export function rankReleasesForPlayback(
     return [
       isBrowserPlayable(r.name, support) ? 0 : 1,
       r.cached ? 0 : 1,
+      isTheatricalRip(r.name) ? 1 : 0,
       audioRank(r.name) === 2 ? 1 : 0,
       resolutionRank(r.name),
       isLikelyNonEnglishRelease(r.name) ? 1 : 0,
@@ -211,6 +236,20 @@ export function planPlaybackModes(playback: DebridReadyPlayback, support: Browse
   // Direct stays as the last resort even when it's expected to fail: picture
   // without sound beats nothing if Real-Debrid's transcode is down.
   return directPlayable ? [direct, ...hls] : [...hls, direct]
+}
+
+/**
+ * Where the seek bar's preview frames come from: the file's direct link,
+ * whenever this browser decodes its *video* — the audio doesn't matter for a
+ * silent thumbnail, so a file that plays through the transcode only for its
+ * Dolby/DTS sound still gets previews. Null when the picture itself can't be
+ * decoded here (the transcode, which only converts forward, can't serve
+ * frames from elsewhere in the film on demand).
+ */
+export function previewStreamUrl(playback: DebridReadyPlayback, support: BrowserVideoSupport): string | null {
+  const codec = playback.media?.videoCodec
+  if (codec === undefined || codec === null) return playback.directUrl
+  return canDecodeVideoCodec(codec, support) ? playback.directUrl : null
 }
 
 // ---------------------------------------------------------------------------

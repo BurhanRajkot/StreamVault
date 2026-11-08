@@ -27,7 +27,6 @@ import { ExternalLink, RefreshCw } from 'lucide-react'
 import {
   playDebridRelease,
   pollDebridPlayback,
-  searchDebridMedia,
   parseTorrentQuality,
   parseTorrentHDR,
   isImaxRelease,
@@ -36,12 +35,19 @@ import {
   type DebridRelease,
   type DebridReadyPlayback,
 } from '@/lib/debridApi'
-import { detectBrowserVideoSupport, planPlaybackModes, rankReleasesForPlayback } from '@/lib/releasePlayback'
-import { getAdminToken } from '@/lib/api'
+import {
+  detectBrowserVideoSupport,
+  isLikelyDirectPlayable,
+  planPlaybackModes,
+  rankReleasesForPlayback,
+} from '@/lib/releasePlayback'
+import { findPremiumReleases } from '@/lib/premiumSearch'
+import { useDebridToken } from '@/hooks/useDebridToken'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { formatPromoDate, useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { recordPremiumPlay } from '@/lib/supportPrompt'
 import { DebridVideo } from './DebridVideo'
+import { PaneBackdrop, PremiumLoading } from './PremiumLoading'
 import { SupportPrompt } from './SupportPrompt'
 import type { PlayerSource } from './PlayerControls'
 
@@ -137,9 +143,17 @@ const MAX_AUTO_RELEASE_ATTEMPTS = 8
  * HLS transcode, in search of one the browser plays directly. The transcode
  * is re-encoded, and every jump outside what it has loaded restarts it
  * (~7s), so a few seconds spent here buy the original quality and instant
- * seeking.
+ * seeking. They're asked about at once — one round trip (~3-4s) rather than
+ * one each — and only those whose names don't already rule direct play out.
  */
 const MAX_DIRECT_PLAY_PROBES = 2
+
+/** One release, as Real-Debrid answered for it (see streamRelease). */
+type Attempt =
+  | { kind: 'ready'; playback: DebridReadyPlayback; direct: boolean }
+  | { kind: 'skipped' }
+  /** Refused for a reason every release shares (no access, account down) — stop trying. */
+  | { kind: 'stop'; status: Status; message: string }
 
 /** Past this much playback, a failure is shown rather than silently restarting the viewer on another release. */
 const AUTO_SWITCH_MAX_POSITION_S = 30
@@ -164,7 +178,8 @@ export function DebridPlayerPane({
   onReleaseControls,
   episodes,
 }: DebridPlayerPaneProps) {
-  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+  const { isAuthenticated } = useAuth0()
+  const getToken = useDebridToken()
   const freeUntil = useDebridFreeUntil()
   const [status, setStatus] = useState<Status>('searching')
   const [statusMessage, setStatusMessage] = useState('Finding the best stream…')
@@ -178,6 +193,8 @@ export function DebridPlayerPane({
   /** Bumped to remount the video (e.g. "Start over") without changing the file. */
   const [playNonce, setPlayNonce] = useState(0)
   const [resumeToast, setResumeToast] = useState(false)
+  /** The current file has shown its first frame. */
+  const [videoStarted, setVideoStarted] = useState(false)
   /** The star/coffee prompt, shown in place of the video until dismissed (see lib/supportPrompt). */
   const [supportPrompt, setSupportPrompt] = useState(false)
   /** The title/episode last counted as a Premium play — switching release or retrying doesn't count again. */
@@ -218,17 +235,6 @@ export function DebridPlayerPane({
    */
   const playingKeyRef = useRef(storageKey)
 
-  const getToken = useCallback(async () => {
-    try {
-      const adminToken = getAdminToken()
-      if (adminToken) return adminToken
-      if (isAuthenticated) return await getAccessTokenSilently()
-    } catch {
-      // Guest or silent token error
-    }
-    return undefined
-  }, [isAuthenticated, getAccessTokenSilently])
-
   /**
    * Where a newly resolved file should start: wherever the viewer already is
    * (switching release mid-film), else the saved resume point.
@@ -246,16 +252,18 @@ export function DebridPlayerPane({
     setPlayback(ready)
     setStartAt(start)
     setResumeToast(!!start && start > 0)
+    setVideoStarted(false)
     setPlaybackFailed(false)
     setDownloadProgress(null)
     setStatus('ready')
   }, [])
 
+  // Counted from the first frame: the toast isn't on screen before that.
   useEffect(() => {
-    if (!resumeToast) return
+    if (!resumeToast || !videoStarted) return
     const timer = setTimeout(() => setResumeToast(false), 8000)
     return () => clearTimeout(timer)
-  }, [resumeToast])
+  }, [resumeToast, videoStarted])
 
   const handleProgress = useCallback(
     (position: number, duration: number) => {
@@ -276,6 +284,7 @@ export function DebridPlayerPane({
     saveResumePosition(storageKey, 0, 0)
     setStartAt(undefined)
     setResumeToast(false)
+    setVideoStarted(false)
     setPlayNonce((n) => n + 1)
   }
 
@@ -354,77 +363,97 @@ export function DebridPlayerPane({
    * error.
    *
    * `preferDirect` (automatic picks only, not a release the viewer chose):
-   * when the resolved file would need Real-Debrid's transcode, try a couple
-   * more cached releases for one that plays directly before settling for it.
+   * when the resolved file would need Real-Debrid's transcode, ask about a
+   * couple more cached releases — together — for one that plays directly,
+   * before settling for it.
    */
   const streamRelease = useCallback(
     async (release: DebridRelease, token?: string, opts: { preferDirect?: boolean } = {}) => {
       const generation = ++generationRef.current
-      let current: DebridRelease | null = release
+      const support = detectBrowserVideoSupport()
       /** A cached-tagged release already in the account but still downloading — polled if nothing else works. */
       let downloadingFallback: { torrentId: string; release: DebridRelease } | null = null
-      /** The first ready release that needs the transcode — played if no direct one turns up. */
-      let transcodeFallback: { release: DebridRelease; playback: DebridReadyPlayback } | null = null
-      let directProbesLeft = opts.preferDirect ? MAX_DIRECT_PLAY_PROBES : 0
 
-      while (current) {
-        triedReleasesRef.current.add(current.info_hash)
+      /** Ask Real-Debrid for one release, and note what its answer says about it. */
+      const attempt = async (rel: DebridRelease): Promise<Attempt> => {
+        triedReleasesRef.current.add(rel.info_hash)
         autoAttemptsRef.current++
+        try {
+          const res = await playDebridRelease(rel, token, {
+            ...episodeOpts,
+            instantOnly: rel.cached || probingRef.current,
+          })
+          const current = generationRef.current === generation
+          if (res.status === 'ready') {
+            if (probingRef.current && current) {
+              // Proven instant — offer it in the picker.
+              const proven: DebridRelease = { ...rel, cached: true }
+              setInstantReleases((prev) => (prev.some((r) => r.info_hash === proven.info_hash) ? prev : [...prev, proven]))
+            }
+            return { kind: 'ready', playback: res, direct: planPlaybackModes(res, support)[0]?.kind !== 'hls' }
+          }
+          if (res.status === 'not-cached') {
+            notInstantRef.current.add(rel.info_hash)
+            // Stale cache tag — drop it from the picker too.
+            if (current) setInstantReleases((prev) => prev.filter((r) => r.info_hash !== rel.info_hash))
+          } else if (res.status === 'downloading' && !downloadingFallback) {
+            downloadingFallback = { torrentId: res.torrentId, release: rel }
+          }
+          console.warn(`Real-Debrid release not playable (${res.status}), trying another:`, rel.name)
+        } catch (err: unknown) {
+          if (isUpgradeError(err)) {
+            return { kind: 'stop', status: 'upgrade-required', message: err instanceof Error ? err.message : 'Premium required' }
+          }
+          if (isDebridUnavailable(err)) return { kind: 'stop', status: 'error', message: err.message }
+          console.warn('Real-Debrid release could not start, trying another:', rel.name, err)
+        }
+        return { kind: 'skipped' }
+      }
+
+      let current: DebridRelease | null = release
+      while (current) {
         setStatus('loading-stream')
         setStatusMessage(
-          autoAttemptsRef.current > 1
+          autoAttemptsRef.current > 0
             ? `Trying another release (${parseTorrentQuality(current.name)})…`
             : `Starting the ${parseTorrentQuality(current.name)} stream…`
         )
         setPlaybackFailed(false)
         setActiveRelease(current)
 
-        try {
-          const res = await playDebridRelease(current, token, {
-            ...episodeOpts,
-            instantOnly: current.cached || probingRef.current,
-          })
-          if (generationRef.current !== generation) return
-          if (res.status === 'ready') {
-            const needsTranscode = planPlaybackModes(res, detectBrowserVideoSupport())[0]?.kind === 'hls'
-            const next = releaseQueueRef.current.find((r) => !triedReleasesRef.current.has(r.info_hash))
-            if (needsTranscode && directProbesLeft > 0 && next) {
-              directProbesLeft--
-              transcodeFallback ??= { release: current, playback: res }
-              current = next
-              setStatusMessage('Looking for a release your browser can play directly…')
-              continue
+        const result = await attempt(current)
+        if (generationRef.current !== generation) return
+        if (result.kind === 'stop') {
+          setStatus(result.status)
+          setStatusMessage(result.message)
+          return
+        }
+        if (result.kind === 'ready') {
+          if (result.direct || !opts.preferDirect) {
+            showPlayback(current, result.playback)
+            return
+          }
+          const budget = Math.min(MAX_DIRECT_PLAY_PROBES, MAX_AUTO_RELEASE_ATTEMPTS - autoAttemptsRef.current)
+          const candidates = releaseQueueRef.current
+            .filter((r) => !triedReleasesRef.current.has(r.info_hash) && isLikelyDirectPlayable(r.name, support))
+            .slice(0, Math.max(0, budget))
+          if (candidates.length > 0) {
+            setStatusMessage('Looking for a release your browser can play directly…')
+            // Whatever turns up, the transcode is still the likeliest outcome: have its player ready.
+            void import('hls.js').catch(() => {})
+            const answers = candidates.map(attempt)
+            // Best-ranked first, even if a later one answers sooner.
+            for (let i = 0; i < candidates.length; i++) {
+              const answer = await answers[i]
+              if (generationRef.current !== generation) return
+              if (answer.kind === 'ready' && answer.direct) {
+                showPlayback(candidates[i], answer.playback)
+                return
+              }
             }
-            if (probingRef.current) {
-              // Proven instant — offer it in the picker.
-              const proven: DebridRelease = { ...current, cached: true }
-              setInstantReleases((prev) => (prev.some((r) => r.info_hash === proven.info_hash) ? prev : [...prev, proven]))
-            }
-            showPlayback(current, res)
-            return
           }
-          const skipped: DebridRelease = current
-          if (res.status === 'not-cached') {
-            notInstantRef.current.add(skipped.info_hash)
-            // Stale cache tag — drop it from the picker too.
-            setInstantReleases((prev) => prev.filter((r) => r.info_hash !== skipped.info_hash))
-          } else if (res.status === 'downloading' && !downloadingFallback) {
-            downloadingFallback = { torrentId: res.torrentId, release: current }
-          }
-          console.warn(`Real-Debrid release not playable (${res.status}), trying another:`, current.name)
-        } catch (err: unknown) {
-          if (generationRef.current !== generation) return
-          if (isUpgradeError(err)) {
-            setStatus('upgrade-required')
-            setStatusMessage(err instanceof Error ? err.message : 'Premium required')
-            return
-          }
-          if (isDebridUnavailable(err)) {
-            setStatus('error')
-            setStatusMessage(err.message)
-            return
-          }
-          console.warn('Real-Debrid release could not start, trying another:', current.name, err)
+          showPlayback(current, result.playback)
+          return
         }
 
         current =
@@ -433,14 +462,12 @@ export function DebridPlayerPane({
             : null
       }
 
-      if (transcodeFallback) {
-        showPlayback(transcodeFallback.release, transcodeFallback.playback)
-        return
-      }
-      if (downloadingFallback) {
+      // TS can't see the assignment inside `attempt`.
+      const stillDownloading = downloadingFallback as { torrentId: string; release: DebridRelease } | null
+      if (stillDownloading) {
         setStatus('downloading')
-        setActiveRelease(downloadingFallback.release)
-        await pollUntilReady(downloadingFallback.torrentId, downloadingFallback.release, token, generation)
+        setActiveRelease(stillDownloading.release)
+        await pollUntilReady(stillDownloading.torrentId, stillDownloading.release, token, generation)
         return
       }
       const fallback = uncachedFallbackRef.current
@@ -477,7 +504,8 @@ export function DebridPlayerPane({
     [getToken, streamRelease]
   )
 
-  const searchAndPlay = useCallback(async () => {
+  /** `fresh`: search again rather than reuse the title page's search (Try again). */
+  const searchAndPlay = useCallback(async ({ fresh = false }: { fresh?: boolean } = {}) => {
     const generation = ++generationRef.current
 
     setStatus('searching')
@@ -499,14 +527,7 @@ export function DebridPlayerPane({
     const token = await getToken()
 
     try {
-      const cleanTitle = title.replace(/[^a-zA-Z0-9\s]/g, ' ').trim()
-      const queryTitle = year ? `${cleanTitle} ${year}` : cleanTitle
-
-      const releases = await searchDebridMedia(queryTitle, imdbId ?? undefined, mediaType, token, {
-        season,
-        episode,
-        limit: 25,
-      })
+      const releases = await findPremiumReleases({ title, year, imdbId, mediaType, season, episode }, token, { fresh })
       if (generationRef.current !== generation) return
 
       const ranked = rankReleasesForPlayback(releases, detectBrowserVideoSupport())
@@ -613,33 +634,21 @@ export function DebridPlayerPane({
     const pct = Math.min(100, Math.round(downloadProgress?.progress ?? 0))
     const downloading = status === 'downloading' && downloadProgress !== null
     return (
-      <PaneBackdrop backdropUrl={backdropUrl} testId="debrid-loading" onSwitchServer={onSwitchServer}>
-        <TitleLines title={title} episodeLine={episodeLine} />
-        <div
-          className="mt-7 h-[3px] w-44 overflow-hidden rounded-full bg-white/15 sm:w-56"
-          role="progressbar"
-          aria-label="Loading the stream"
-          aria-valuemin={downloading ? 0 : undefined}
-          aria-valuemax={downloading ? 100 : undefined}
-          aria-valuenow={downloading ? pct : undefined}
-        >
-          {downloading ? (
-            <div className="h-full rounded-full bg-white transition-[width] duration-700" style={{ width: `${pct}%` }} />
-          ) : (
-            <div className="pane-indeterminate h-full w-2/5 rounded-full bg-white" />
-          )}
-        </div>
-        <p className="mt-4 text-sm text-white/75" aria-live="polite">
-          {status === 'downloading' && activeRelease
+      <PremiumLoading
+        backdropUrl={backdropUrl}
+        testId="debrid-loading"
+        onSwitchServer={onSwitchServer}
+        title={title}
+        episodeLine={episodeLine}
+        step={status === 'searching' ? 'find' : 'prepare'}
+        percent={downloading ? pct : null}
+        message={
+          status === 'downloading' && activeRelease
             ? `Downloading the ${parseTorrentQuality(activeRelease.name)} release${downloading ? ` · ${pct}%` : '…'}`
-            : statusMessage}
-        </p>
-        {downloading && (
-          <p className="mt-1 text-xs tabular-nums text-white/45">
-            {formatBytes(downloadProgress.speed)}/s · {downloadProgress.seeders} peers
-          </p>
-        )}
-      </PaneBackdrop>
+            : statusMessage
+        }
+        detail={downloading ? `${formatBytes(downloadProgress.speed)}/s · ${downloadProgress.seeders} peers` : undefined}
+      />
     )
   }
 
@@ -682,7 +691,7 @@ export function DebridPlayerPane({
           <button onClick={onSwitchServer} className={primaryAction}>
             Switch server
           </button>
-          <button onClick={() => void searchAndPlay()} className={secondaryAction}>
+          <button onClick={() => void searchAndPlay({ fresh: true })} className={secondaryAction}>
             <RefreshCw className="h-4 w-4" />
             Try again
           </button>
@@ -750,6 +759,18 @@ export function DebridPlayerPane({
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}
         episodes={episodes}
+        onStarted={() => setVideoStarted(true)}
+        loadingScreen={(message) => (
+          <PremiumLoading
+            backdropUrl={backdropUrl}
+            testId="debrid-starting"
+            onSwitchServer={onSwitchServer}
+            title={title}
+            episodeLine={episodeLine}
+            step="start"
+            message={message}
+          />
+        )}
         overlay={
           resumeToast && startAt !== undefined ? (
             <div className="flex items-center gap-3 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg">
@@ -770,53 +791,6 @@ const primaryAction =
   'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-black transition-colors hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
 const secondaryAction =
   'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
-
-/** Full-pane status screen over the title's artwork. */
-function PaneBackdrop({
-  backdropUrl,
-  testId,
-  onSwitchServer,
-  children,
-}: {
-  backdropUrl?: string | null
-  testId?: string
-  /** A quiet way out while the viewer waits. */
-  onSwitchServer?: () => void
-  children: ReactNode
-}) {
-  return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black text-white" data-testid={testId}>
-      {backdropUrl && (
-        <img
-          src={backdropUrl}
-          alt=""
-          aria-hidden="true"
-          decoding="async"
-          className="absolute inset-0 h-full w-full scale-105 object-cover opacity-30"
-        />
-      )}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.35)_0%,rgba(0,0,0,0.85)_75%)]" />
-      <div className="relative z-10 flex max-w-md flex-col items-center px-6 text-center">{children}</div>
-      {onSwitchServer && (
-        <button
-          onClick={onSwitchServer}
-          className="absolute bottom-3 right-3 z-10 rounded-md px-3 py-2 text-xs font-medium text-white/55 transition-colors hover:bg-white/10 hover:text-white sm:bottom-4 sm:right-4"
-        >
-          Switch server
-        </button>
-      )}
-    </div>
-  )
-}
-
-function TitleLines({ title, episodeLine }: { title: string; episodeLine?: string }) {
-  return (
-    <>
-      <p className="line-clamp-2 font-display text-xl font-semibold leading-tight sm:text-3xl">{title}</p>
-      {episodeLine && <p className="mt-1.5 text-sm text-white/60">{episodeLine}</p>}
-    </>
-  )
-}
 
 function StatusMessage({ heading, body }: { heading: string; body: string }) {
   return (

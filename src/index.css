@@ -773,6 +773,28 @@
     height: 100%;
   }
 
+  /* Desktop: an inline 16:9 card. Its shape lives here rather than in
+     utility classes so the takeover rules below can undo all of it — a
+     phone turned sideways is wider than `md`, and a leftover aspect-ratio
+     made the "full screen" player 485px tall on a 360px screen, its controls
+     below the bottom edge. */
+  .player-shell {
+    aspect-ratio: 16 / 9;
+    border-radius: 1rem;
+    box-shadow: 0 30px 90px -20px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.06);
+  }
+
+  /* The picture and everything under it, sized so the whole 16:9 card fits
+     the window below the Back button — on a 1366×768 laptop a full-width
+     card ran ~40px past the bottom edge, taking the controls with it. */
+  @media (min-width: 768px) {
+    .player-column {
+      width: 100%;
+      max-width: calc((100svh - 6.5rem) * 16 / 9);
+      margin-inline: auto;
+    }
+  }
+
   /* The player's own controls exist only in the takeover layouts below */
   .player-chrome-top {
     display: none;
@@ -792,6 +814,7 @@
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
+      aspect-ratio: auto;
       background: #000;
       border: 0;
       border-radius: 0;
