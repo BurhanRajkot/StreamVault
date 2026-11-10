@@ -6,14 +6,14 @@ import { Search, Download, Crown, ShieldCheck, X, Cloud, Loader2 } from 'lucide-
 import { cn, errorMessage } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import AdminLoginModal from '@/components/modals/AdminLoginModal'
-import { AdminModeBadge } from '@/components/effects/AdminModeBadge'
+import AdminLoginModal from '@/components/admin/AdminLoginModal'
+import { AdminModeBadge } from '@/components/admin/AdminModeBadge'
 import { PageMeta } from '@/seo/PageMeta'
 
 // Lazy-load DebridLibrary so the Real-Debrid bundle only loads when the tab is opened
-const DebridLibrary = lazy(() => import('@/components/media/DebridLibrary'))
+const DebridLibrary = lazy(() => import('@/components/downloads/DebridLibrary'))
 // Lazy-load DebridSearch
-const DebridSearch = lazy(() => import('@/components/media/DebridSearch'))
+const DebridSearch = lazy(() => import('@/components/downloads/DebridSearch'))
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { X, Loader2, ShieldCheck, Hash } from 'lucide-react'
 import { adminLogin, setAdminToken } from '@/lib/api'
 import { cn, errorMessage } from '@/lib/utils'
-import { AdminActivationEffect } from '@/components/effects/AdminActivationEffect'
+import { AdminActivationEffect } from '@/components/admin/AdminActivationEffect'
 
 interface AdminLoginModalProps {
   isOpen: boolean

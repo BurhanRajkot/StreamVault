@@ -4,7 +4,7 @@ import { ArrowLeft, Clapperboard, Crown, Heart, Search, Shield, X } from 'lucide
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaMode, MODE_PATHS } from '@/lib/config'
 import { cn } from '@/lib/utils'
-import { useIsMobile } from '@/mobile-ui/use-mobile'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from './ThemeToggle'
 import { AccountMenuPlaceholder } from './AccountMenuPlaceholder'

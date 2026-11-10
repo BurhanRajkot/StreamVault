@@ -26,7 +26,7 @@
 
 import { Router, Request, Response } from 'express'
 import { checkAuth, optionalAuth } from '../middleware/auth'
-import { downloadRateLimiter } from '../middleware/rateLimiter'
+import { downloadRateLimiter } from '../cybersecurity/rateLimiter'
 import { logger } from '../lib/logger'
 import { getUserId } from '../utils/auth'
 import { isPaidUser } from '../lib/subscription'

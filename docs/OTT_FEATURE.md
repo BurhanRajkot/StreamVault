@@ -10,7 +10,7 @@ This feature allows users to filter movies and TV shows by streaming platform (O
 src/
 ├── lib/
 │   └── ottProviders.ts          # Central config for all OTT providers
-├── components/
+├── components/shared/
 │   └── PlatformSelector.tsx     # UI component for provider selection
 ├── hooks/
 │   └── useMedia.ts              # Hook that handles provider filtering

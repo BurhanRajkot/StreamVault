@@ -15,7 +15,6 @@ This file is automatically read by Claude Code at the start of each session to m
   - React Context for global state (Favorites, Dislikes, Auth)
 - **UI Components**: shadcn/ui (Radix UI primitives)
 - **Animations**: Framer Motion
-- **Forms**: React Hook Form + Zod validation
 - **Testing**: Playwright (E2E), Bun test (unit tests)
 - **Auth**: Auth0 (@auth0/auth0-react)
 - **Theme**: next-themes for dark mode
@@ -44,26 +43,45 @@ This file is automatically read by Claude Code at the start of each session to m
 
 ```
 src/
-├── auth/              # Auth0 integration, login, protected routes
-├── components/        # React components
-│   ├── ui/           # shadcn/ui components (DO NOT modify unless necessary)
-│   └── ...           # Feature components
-├── context/          # React Context providers (Favorites, Dislikes)
-├── hooks/            # Custom React hooks
-├── lib/              # Utilities, API clients, helpers
-├── pages/            # Route pages
-├── seo/              # SEO meta tags, JSON-LD
-└── main.tsx          # App entry point
+├── auth/                 # Auth0 provider, login/signup pages, mock Auth0 for E2E
+├── components/
+│   ├── admin/            # Admin login modal, admin-mode badge + activation effect
+│   ├── downloads/        # Debrid search, library, download sheet
+│   ├── layout/           # Header, Footer, MobileNav, account menu, error boundary
+│   ├── media/            # Cards, grid, rating, hover preview
+│   ├── modals/           # Title detail (+ movie-detail/ parts), quick view, disclaimer
+│   ├── onboarding/       # CineMatch first-run onboarding
+│   ├── player/           # Premium player: video, controls, seek preview, loading
+│   ├── sections/         # Home page rows (hero, continue watching, recommendations)
+│   ├── shared/           # Small cross-page pieces (platform selector, promo banner)
+│   └── ui/               # shadcn/ui primitives (DO NOT modify unless necessary)
+├── context/              # React Context providers (Favorites, Dislikes)
+├── data/                 # Static curated data (Author's Choice lists)
+├── hooks/                # Custom React hooks (useIsMobile, useMedia, ...)
+├── lib/                  # API clients, utilities, playback helpers (+ *.test.ts)
+├── pages/                # Route pages (admin/ for the dashboard)
+├── seo/                  # SEO meta tags, JSON-LD
+└── main.tsx              # App entry point
 
 backend/
 ├── src/
-│   ├── routes/           # API routes
-│   ├── cinematch/        # Recommendation engine
-│   ├── cybersecurity/    # Security middleware
-│   ├── admin/           # Admin routes + middleware
-│   └── services/        # Business logic
+│   ├── admin/            # Admin auth (TOTP/JWT), middleware, routes
+│   ├── cinematch/        # Recommendation engine (candidates → filter → rank → mix)
+│   ├── cybersecurity/    # Helmet, CORS, HTTPS, all rate limiters
+│   ├── lib/              # Supabase, TMDB, Real-Debrid/Torrentio clients, logger
+│   ├── middleware/       # Auth0 JWT check
+│   ├── routes/           # REST API routes
+│   ├── services/         # Cache (Redis + local), TMDB limiter
+│   └── types/
+├── ml-pipeline/          # Python embedding training/upload for CineMatch
+├── scripts/              # One-off admin scripts (TOTP setup)
+└── supabase/             # Schema migration + verify script
 
-e2e/                  # Playwright E2E tests
+e2e/                      # Playwright E2E (specs/, fixtures/, pages/)
+infrastructure/           # docker/, k8s/ (kustomize + ArgoCD), nginx/
+audit/                    # Promptfoo AI red-team audit (reports/ is gitignored)
+scripts/                  # Repo scripts (gen-csp.ts)
+docs/                     # CLAUDE.md, usage guide, security, testing, setup
 ```
 
 ## Coding Conventions
@@ -154,7 +172,7 @@ npm run lint            # ESLint check (automatically runs on file save)
 4. **React Query caching** - Configured with staleTime/cacheTime
 
 ### Dependencies
-1. **Lock file** - Use `bun.lockb` (Bun) and `package-lock.json` (npm)
+1. **Lock file** - Keep `bun.lock` (Bun, read by CI) and `package-lock.json` (npm, used by the Docker image) in sync. Write `bun.lock` with the Bun version pinned in `ci.yml` (`BUN_VERSION`), since a newer Bun writes a lockfile format CI can't read
 2. **Overrides** - Security overrides are in package.json
 3. **Updates** - Check for security updates regularly
 

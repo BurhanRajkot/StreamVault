@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { getAdminToken, isAdminAuthenticated } from '@/lib/api'
-import AdminLoginModal from '@/components/modals/AdminLoginModal'
-import { AdminModeBadge } from '@/components/effects/AdminModeBadge'
+import AdminLoginModal from '@/components/admin/AdminLoginModal'
+import { AdminModeBadge } from '@/components/admin/AdminModeBadge'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 

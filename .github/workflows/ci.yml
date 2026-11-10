@@ -97,7 +97,7 @@ jobs:
               - "infrastructure/docker/Dockerfile"
               - "backend/Dockerfile"
               - "infrastructure/docker/docker-compose*.yml"
-              - "infrastructure/docker/.dockerignore"
+              - "infrastructure/docker/Dockerfile.dockerignore"
             infra:
               - "infrastructure/**"
               - ".github/workflows/**"
