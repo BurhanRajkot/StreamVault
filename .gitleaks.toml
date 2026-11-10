@@ -50,6 +50,6 @@ useDefault = true
   # Only apply the override to test and mock files
   [rules.allowlist]
     paths = [
-      '''e2e/fixtures/mocks\.ts''',
+      '''e2e/fixtures/mock-api\.ts''',
       '''src/auth/mock-auth0\.tsx''',
     ]

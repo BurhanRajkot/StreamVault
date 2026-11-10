@@ -9,7 +9,7 @@
 infrastructure/docker/Dockerfile              @dragon-manner
 backend/Dockerfile                            @dragon-manner
 infrastructure/nginx/nginx.conf               @dragon-manner
-infrastructure/docker/.dockerignore           @dragon-manner
+infrastructure/docker/Dockerfile.dockerignore @dragon-manner
 
 # Kubernetes & Infrastructure
 infrastructure/k8s/                           @dragon-manner
@@ -20,5 +20,5 @@ backend/supabase/                             @dragon-manner
 
 # Security-sensitive configuration
 .env.example                                  @dragon-manner
-infrastructure/vercel.json                    @dragon-manner
-infrastructure/netlify.toml                   @dragon-manner
+vercel.json                                   @dragon-manner
+netlify.toml                                  @dragon-manner

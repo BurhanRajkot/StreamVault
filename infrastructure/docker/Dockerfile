@@ -29,7 +29,6 @@ COPY package*.json ./
 COPY tsconfig*.json ./
 COPY vite.config.ts ./
 COPY eslint.config.js ./
-COPY postcss.config.js ./
 COPY components.json ./
 
 # Install dependencies for building
