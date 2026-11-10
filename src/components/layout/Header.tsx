@@ -33,7 +33,8 @@ const NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
   { label: 'TV Shows', value: 'tv' },
   { label: 'Anime', value: 'anime' },
   { label: 'Docs', value: 'documentary' },
-  { label: 'Downloads', value: 'downloads' },
+  // Downloads stopped for now.
+  // { label: 'Downloads', value: 'downloads' },
 ]
 
 /** Category pills shown on mobile — Downloads lives in the bottom tab bar instead. */

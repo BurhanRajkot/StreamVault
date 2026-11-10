@@ -1,5 +1,5 @@
-import { useState, useCallback, lazy, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useCallback, /* lazy, */ useEffect, useRef } from 'react'
+import { Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { PageMeta } from '@/seo/PageMeta'
 import { Media, MediaMode, MODE_PATHS, modeFromPath } from '@/lib/config'
 import { useMedia } from '@/hooks/useMedia'
@@ -26,7 +26,8 @@ import { useContextualRecommendations } from '@/hooks/useContextualRecommendatio
 import { SEOContent } from '@/components/shared/SEOContent'
 import { FreePremiumAnnouncement } from '@/components/shared/FreePremiumAnnouncement'
 
-const Downloads = lazy(() => import('./Downloads'))
+// Downloads stopped for now.
+// const Downloads = lazy(() => import('./Downloads'))
 
 const SECTION_META: Record<MediaMode, { title: string; description: string; noindex?: boolean }> = {
   home: {
@@ -223,7 +224,9 @@ const Index = () => {
         {/* WIDER CONTAINER FOR LARGE MONITORS */}
         <main className="w-full flex-1 px-3 pt-[var(--sv-header-h)] pb-2 pb-tabbar sm:px-4">
           {mode === 'downloads' ? (
-            <Downloads />
+            // Downloads stopped for now.
+            // <Downloads />
+            <Navigate to="/" replace />
           ) : (
             <>
               {!searchQuery && (
