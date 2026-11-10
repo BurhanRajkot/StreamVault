@@ -36,5 +36,6 @@ export { corsMiddleware, corsPreflightHandler } from './cors'
 export {
   apiRateLimiter,
   strictRateLimiter,
-  authRateLimiter
+  authRateLimiter,
+  downloadRateLimiter
 } from './rateLimiter'

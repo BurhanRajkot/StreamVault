@@ -1,21 +1,14 @@
+# Dependencies and build output
 node_modules
 dist
-# Keep environment variables out of version control
-.env
 
-/generated/prisma
 # Environment variables
 .env
-.env.local
-.env.*.local
-# Environment variables (root + backend)
-.env
 .env.*
-backend/.env
-backend/.env.*
+!.env.example
 
-# Torrent Files
-public/downloads/*.torrent
+# Supabase CLI local state
+supabase/.temp/
 
 # Generated test reports
 test-results.xml

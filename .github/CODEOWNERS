@@ -9,7 +9,7 @@
 infrastructure/docker/Dockerfile              @BurhanRajkot
 backend/Dockerfile                            @BurhanRajkot
 infrastructure/nginx/nginx.conf               @BurhanRajkot
-infrastructure/docker/.dockerignore           @BurhanRajkot
+infrastructure/docker/Dockerfile.dockerignore @BurhanRajkot
 
 # Kubernetes & Infrastructure
 infrastructure/k8s/                           @BurhanRajkot
@@ -20,5 +20,5 @@ backend/supabase/                             @BurhanRajkot
 
 # Security-sensitive configuration
 .env.example                                  @BurhanRajkot
-infrastructure/vercel.json                    @BurhanRajkot
-infrastructure/netlify.toml                   @BurhanRajkot
+vercel.json                                   @BurhanRajkot
+netlify.toml                                  @BurhanRajkot
