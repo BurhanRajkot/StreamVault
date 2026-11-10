@@ -514,6 +514,15 @@ export type PlaybackResult =
       /** Real-Debrid's direct link — supports range requests, so the browser can seek freely. */
       directUrl: string
       /**
+       * The download's full id, host suffix included (e.g. "3ZCYELW6PS42W44").
+       * Real-Debrid hands out a download server near whoever asked — our
+       * backend, not the viewer — but its regional servers (Mumbai,
+       * Singapore, Los Angeles, ...) serve any download as
+       * `/d/<downloadId>/<file>`, so the browser can move the link to the one
+       * nearest the viewer (src/lib/debridHost.ts).
+       */
+      downloadId: string
+      /**
        * Real-Debrid's own HLS transcode of the preferred-language audio track:
        * always H.264 + AAC, whatever the source codecs. Null when Real-Debrid
        * couldn't produce one (non-video file, etc.).
@@ -612,6 +621,7 @@ async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult
     fileSize: unrestricted.filesize,
     mimeType: unrestricted.mimeType,
     directUrl: unrestricted.download,
+    downloadId: unrestricted.id,
     hls,
     media,
   }

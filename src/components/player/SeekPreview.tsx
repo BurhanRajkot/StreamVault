@@ -3,12 +3,13 @@
  * (or the thumb being dragged), the way streaming apps show it.
  *
  * Nothing pre-renders thumbnails for a Real-Debrid file, so they're grabbed
- * on demand from the file itself (lib/frameGrabber). A seek on a Real-Debrid
- * link takes ~1-2s, so while one is on its way the nearest frame already
- * grabbed stands in, dimmed, or a spinner.
+ * from the file itself (lib/frameGrabber): across the whole film in the
+ * background while it plays (with a mouse), and the spot pointed at on
+ * demand. A seek on a Real-Debrid link takes ~1-2s, so while one is on its
+ * way the nearest frame already grabbed stands in, dimmed, or a spinner.
  *
- * Nothing loads until the viewer first points at the seek bar
- * (hooks/useFrameGrabber).
+ * Nothing loads until playback is under way, or — on a touch screen — the
+ * viewer first scrubs (hooks/useFrameGrabber).
  */
 
 import { useEffect, useRef } from 'react'

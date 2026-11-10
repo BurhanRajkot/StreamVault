@@ -36,11 +36,13 @@ import {
   type DebridReadyPlayback,
 } from '@/lib/debridApi'
 import {
+  declaresBrowserAudio,
   detectBrowserVideoSupport,
   isLikelyDirectPlayable,
   planPlaybackModes,
   rankReleasesForPlayback,
 } from '@/lib/releasePlayback'
+import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases } from '@/lib/premiumSearch'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
@@ -148,6 +150,16 @@ const MAX_AUTO_RELEASE_ATTEMPTS = 8
  */
 const MAX_DIRECT_PLAY_PROBES = 2
 
+/**
+ * Of those, how many are asked about alongside the first pick, before it's
+ * known whether it needs the transcode — when its name doesn't promise
+ * browser-safe audio, it often does (Dolby audio in a name that doesn't say
+ * so, a second language first). That saves the second round trip (~2.5s,
+ * the "Looking for a release your browser can play directly" step on
+ * Sinners, 2026-11-10) at the cost of one extra lookup when it didn't.
+ */
+const SPECULATIVE_DIRECT_PLAY_PROBES = 1
+
 /** One release, as Real-Debrid answered for it (see streamRelease). */
 type Attempt =
   | { kind: 'ready'; playback: DebridReadyPlayback; direct: boolean }
@@ -195,6 +207,8 @@ export function DebridPlayerPane({
   const [resumeToast, setResumeToast] = useState(false)
   /** The current file has shown its first frame. */
   const [videoStarted, setVideoStarted] = useState(false)
+  /** Real-Debrid's download server nearest this viewer — measured while the release is found (lib/debridHost). */
+  const [edge, setEdge] = useState<EdgeChoice | undefined>(() => knownEdge())
   /** The star/coffee prompt, shown in place of the video until dismissed (see lib/supportPrompt). */
   const [supportPrompt, setSupportPrompt] = useState(false)
   /** The title/episode last counted as a Premium play — switching release or retrying doesn't count again. */
@@ -220,6 +234,17 @@ export function DebridPlayerPane({
   const uncachedFallbackRef = useRef<DebridRelease | null>(null)
 
   const episodeOpts = useMemo(() => (mediaType === 'tv' ? { season, episode } : {}), [mediaType, season, episode])
+
+  // ~1s, in parallel with finding and starting a release (3s and more).
+  useEffect(() => {
+    let live = true
+    void nearestEdge().then((e) => {
+      if (live) setEdge(e)
+    })
+    return () => {
+      live = false
+    }
+  }, [])
 
   /** Resume-point key for this title, or this episode. */
   const storageKey = useMemo(
@@ -410,18 +435,51 @@ export function DebridPlayerPane({
         return { kind: 'skipped' }
       }
 
+      /** Each release is asked about once per run: one asked ahead (speculatively) is reused when its turn comes. */
+      const answers = new Map<string, Promise<Attempt>>()
+      const ask = (rel: DebridRelease): Promise<Attempt> => {
+        let answer = answers.get(rel.info_hash)
+        if (!answer) {
+          answer = attempt(rel)
+          answers.set(rel.info_hash, answer)
+        }
+        return answer
+      }
+      /** Releases whose answer this loop has acted on. */
+      const settled = new Set<string>()
+      /** Not acted on yet, and either already asked about or still untried. */
+      const open = (r: DebridRelease) =>
+        !settled.has(r.info_hash) && (answers.has(r.info_hash) || !triedReleasesRef.current.has(r.info_hash))
+
       let current: DebridRelease | null = release
+      let speculated = !opts.preferDirect
       while (current) {
+        const playing: DebridRelease = current
         setStatus('loading-stream')
         setStatusMessage(
           autoAttemptsRef.current > 0
-            ? `Trying another release (${parseTorrentQuality(current.name)})…`
-            : `Starting the ${parseTorrentQuality(current.name)} stream…`
+            ? `Trying another release (${parseTorrentQuality(playing.name)})…`
+            : `Starting the ${parseTorrentQuality(playing.name)} stream…`
         )
         setPlaybackFailed(false)
-        setActiveRelease(current)
+        setActiveRelease(playing)
 
-        const result = await attempt(current)
+        const answer = ask(playing)
+        if (!speculated) {
+          speculated = true
+          // A name that promises browser-safe audio usually plays directly;
+          // any other may well need the transcode, so ask about the next
+          // likely-direct release at the same time.
+          if (!(declaresBrowserAudio(playing.name) && isLikelyDirectPlayable(playing.name, support))) {
+            releaseQueueRef.current
+              .filter((r) => r.info_hash !== playing.info_hash && open(r) && isLikelyDirectPlayable(r.name, support))
+              .slice(0, Math.max(0, Math.min(SPECULATIVE_DIRECT_PLAY_PROBES, MAX_AUTO_RELEASE_ATTEMPTS - autoAttemptsRef.current)))
+              .forEach((r) => void ask(r))
+          }
+        }
+
+        const result = await answer
+        settled.add(playing.info_hash)
         if (generationRef.current !== generation) return
         if (result.kind === 'stop') {
           setStatus(result.status)
@@ -430,36 +488,45 @@ export function DebridPlayerPane({
         }
         if (result.kind === 'ready') {
           if (result.direct || !opts.preferDirect) {
-            showPlayback(current, result.playback)
+            showPlayback(playing, result.playback)
             return
           }
-          const budget = Math.min(MAX_DIRECT_PLAY_PROBES, MAX_AUTO_RELEASE_ATTEMPTS - autoAttemptsRef.current)
-          const candidates = releaseQueueRef.current
-            .filter((r) => !triedReleasesRef.current.has(r.info_hash) && isLikelyDirectPlayable(r.name, support))
-            .slice(0, Math.max(0, budget))
+          // Those already asked about first, then fresh ones while the attempt budget lasts.
+          let fresh = Math.max(0, MAX_AUTO_RELEASE_ATTEMPTS - autoAttemptsRef.current)
+          const candidates: DebridRelease[] = []
+          for (const r of releaseQueueRef.current) {
+            if (candidates.length >= MAX_DIRECT_PLAY_PROBES) break
+            if (r.info_hash === playing.info_hash || !open(r) || !isLikelyDirectPlayable(r.name, support)) continue
+            if (answers.has(r.info_hash)) candidates.push(r)
+            else if (fresh > 0) {
+              fresh--
+              candidates.push(r)
+            }
+          }
           if (candidates.length > 0) {
             setStatusMessage('Looking for a release your browser can play directly…')
             // Whatever turns up, the transcode is still the likeliest outcome: have its player ready.
             void import('hls.js').catch(() => {})
-            const answers = candidates.map(attempt)
+            const pending = candidates.map(ask)
             // Best-ranked first, even if a later one answers sooner.
             for (let i = 0; i < candidates.length; i++) {
-              const answer = await answers[i]
+              const candidate = await pending[i]
+              settled.add(candidates[i].info_hash)
               if (generationRef.current !== generation) return
-              if (answer.kind === 'ready' && answer.direct) {
-                showPlayback(candidates[i], answer.playback)
+              if (candidate.kind === 'ready' && candidate.direct) {
+                showPlayback(candidates[i], candidate.playback)
                 return
               }
             }
           }
-          showPlayback(current, result.playback)
+          showPlayback(playing, result.playback)
           return
         }
 
         current =
-          autoAttemptsRef.current < MAX_AUTO_RELEASE_ATTEMPTS
-            ? releaseQueueRef.current.find((r) => !triedReleasesRef.current.has(r.info_hash)) ?? null
-            : null
+          releaseQueueRef.current.find(
+            (r) => open(r) && (answers.has(r.info_hash) || autoAttemptsRef.current < MAX_AUTO_RELEASE_ATTEMPTS)
+          ) ?? null
       }
 
       // TS can't see the assignment inside `attempt`.
@@ -760,6 +827,7 @@ export function DebridPlayerPane({
         onSourceChange={selectRelease}
         episodes={episodes}
         onStarted={() => setVideoStarted(true)}
+        edge={edge}
         loadingScreen={(message) => (
           <PremiumLoading
             backdropUrl={backdropUrl}
