@@ -5,7 +5,7 @@ import {
   AUTHORS_CHOICE_DOCUMENTARIES,
   AUTHORS_CHOICE_ANIME,
   type AuthorsChoiceItem,
-} from '@/Data/authorsChoice'
+} from '@/data/authorsChoice'
 import { fetchMediaSummaries } from '@/lib/api'
 import { Media } from '@/lib/config'
 import { MediaRow } from './MediaRow'
