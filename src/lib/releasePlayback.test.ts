@@ -159,6 +159,14 @@ describe('rankReleasesForPlayback — audio languages', () => {
     expect(rankReleasesForPlayback(sinners, noHevc)[0].name).toContain('YTS')
   })
 
+  it('treats a language pair like "iTA-ENG" as dual audio too, IMAX or not', () => {
+    const ranked = rankReleasesForPlayback(
+      [release('I.Peccatori.2025.iTA-ENG.iMAX.Bluray.1080p.x264-CYBER.mkv', { seeders: 50 }), release('Sinners (2025) 1080p BluRay 5.1-LAMA', { seeders: 10 })],
+      noHevc
+    )
+    expect(ranked[0].name).toContain('LAMA')
+  })
+
   it('still prefers 1080p over resolution-less or 720p single-language releases', () => {
     const ranked = rankReleasesForPlayback([release('Movie.2024.720p.WEB.x264.AAC'), release('Movie.2024.1080p.WEB-DL.MULTi.x264')], noHevc)
     expect(ranked[0].name).toContain('1080p')
@@ -191,6 +199,15 @@ describe('isLikelyDirectPlayable', () => {
     expect(isLikelyDirectPlayable('Sinners.2025.IMAX.1080p.WEB-DL.H.264.Dual.YG', noHevc)).toBe(false)
     expect(isLikelyDirectPlayable('Movie.2024.1080p.WEB-DL.MULTi.x264', noHevc)).toBe(false)
     expect(isLikelyDirectPlayable('Movie.2024.1080p.Dual-Audio.x264', noHevc)).toBe(false)
+    // Language pairs, as Torrentio lists file names (Sinners, 2026-11-10: Italian AC3 first)
+    expect(isLikelyDirectPlayable('I.Peccatori.2025.iTA-ENG.iMAX.Bluray.1080p.x264-CYBER.mkv', noHevc)).toBe(false)
+    expect(isLikelyDirectPlayable('Breaking.Bad.S02E03.1080p.WEB-DL.5xRus.Ukr.Eng.x264', noHevc)).toBe(false)
+    // English alone is just English
+    expect(isLikelyDirectPlayable('Movie.2024.1080p.WEB-DL.ENG.x264', noHevc)).toBe(true)
+  })
+  it('never counts on a cam/telesync, which would then be played over a converted proper copy', () => {
+    expect(isLikelyDirectPlayable('Sinners.2025.1080p.TeleSync.X264.COLLECTiVE', noHevc)).toBe(false)
+    expect(isLikelyDirectPlayable('Movie.2025.HDCAM.x264', noHevc)).toBe(false)
   })
 })
 

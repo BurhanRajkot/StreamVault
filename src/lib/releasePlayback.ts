@@ -87,14 +87,21 @@ export function declaresBrowserAudio(name: string): boolean {
   return audioRank(name) === 0
 }
 
+/** Audio languages a release name may list next to English ("iTA-ENG", "5xRus.Ukr.Eng", "Hindi + English"). */
+const OTHER_LANGUAGE_RE =
+  /\b(ITA|iTALiAN|FRE|FRENCH|TRUEFRENCH|GER|GERMAN|SPA|SPANISH|ESP|LATINO|RUS|UKR|POL|HIN|Hindi|TAM|Tamil|TEL|Telugu|KOR|JAP|JPN)\b/i
+
 /**
  * Two or more audio languages. Which one comes first — the only one a
  * <video> element plays — is a coin toss: "Dual" releases are often Hindi
- * first (the IMAX WEB-DL "Dual" that topped Sinners' list, 2026-11-10), and
- * then the English track only plays through Real-Debrid's transcode.
+ * first (the IMAX WEB-DL "Dual" that topped Sinners' list), "iTA-ENG" ones
+ * Italian first (the IMAX BluRay picked next, after "Dual" was handled —
+ * both 2026-11-10), and then the English track only plays through
+ * Real-Debrid's transcode.
  */
 function isMultiAudio(name: string): boolean {
-  return /\b(Dual|MULTi)([ ._-]?Audio)?\b/i.test(name)
+  if (/\b(Dual|MULTi)([ ._-]?Audio)?\b/i.test(name)) return true
+  return /(\b|\d)(ENG|English)\b/i.test(name) && OTHER_LANGUAGE_RE.test(name.replace(/(\d)x(?=[A-Z])/gi, '$1 '))
 }
 
 /**
@@ -142,12 +149,20 @@ export function isBrowserPlayable(name: string, support: BrowserVideoSupport): b
 /**
  * Whether a release is worth resolving in the hope that it plays straight
  * from its file — nothing in its name says it would need Real-Debrid's
- * transcode (a codec this browser can't decode, Dolby/DTS audio, a remux).
- * The player only spends extra resolves on these when its first pick turns
- * out to need the transcode.
+ * transcode (a codec this browser can't decode, Dolby/DTS audio, a remux,
+ * a second language that may come first). The player spends extra resolves
+ * on these in case its first pick needs the transcode — and they'd then be
+ * played instead of it, so a cam/telesync never counts: a converted copy of
+ * the film beats a direct one filmed in a cinema.
  */
 export function isLikelyDirectPlayable(name: string, support: BrowserVideoSupport): boolean {
-  return isBrowserPlayable(name, support) && audioRank(name) !== 2 && !isRemux(name) && !isMultiAudio(name)
+  return (
+    isBrowserPlayable(name, support) &&
+    audioRank(name) !== 2 &&
+    !isRemux(name) &&
+    !isMultiAudio(name) &&
+    !isTheatricalRip(name)
+  )
 }
 
 /**
