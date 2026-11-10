@@ -27,6 +27,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
+import { forgetEdge, nearestDirectUrl, type EdgeChoice } from '@/lib/debridHost'
 import {
   convertedStreamUrl,
   detectBrowserVideoSupport,
@@ -68,6 +69,12 @@ interface DebridVideoProps extends ChromeProps {
   loadingScreen?: (message: string) => ReactNode
   /** The first frame is on screen. */
   onStarted?: () => void
+  /**
+   * Real-Debrid's download server nearest the viewer (lib/debridHost), as
+   * known when the file mounts — the direct link plays from there, with the
+   * link as given right behind it.
+   */
+  edge?: EdgeChoice
   className?: string
 }
 
@@ -131,10 +138,14 @@ export function DebridVideo({
   poster,
   loadingScreen,
   onStarted,
+  edge,
   className,
   ...chrome
 }: DebridVideoProps) {
-  const modes = useMemo(() => planPlaybackModes(playback, detectBrowserVideoSupport()), [playback])
+  // The server is settled for the life of the file: a measurement landing
+  // mid-film mustn't swap the link under the viewer.
+  const [nearUrl] = useState(() => nearestDirectUrl(playback, edge))
+  const modes = useMemo(() => planPlaybackModes(playback, detectBrowserVideoSupport(), nearUrl), [playback, nearUrl])
   const [modeIndex, setModeIndex] = useState(0)
   const mode = modes[modeIndex] as PlaybackMode | undefined
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -173,7 +184,12 @@ export function DebridVideo({
   /** Starting is taking longer than it should. */
   const [slowStart, setSlowStart] = useState(false)
   const fullDuration = playback.media?.duration ?? 0
-  const previewUrl = useMemo(() => previewStreamUrl(playback, detectBrowserVideoSupport()), [playback])
+  // Previews come from the direct link playing — or, while the transcode
+  // plays, the one that would — so they use the same, nearest, server.
+  const previewUrl = useMemo(() => {
+    if (!previewStreamUrl(playback, detectBrowserVideoSupport())) return null
+    return mode?.kind === 'direct' ? mode.url : (modes.find((m) => m.kind === 'direct')?.url ?? null)
+  }, [playback, mode, modes])
   const onStartedRef = useRef(onStarted)
   onStartedRef.current = onStarted
   /** The file has shown a frame, in any mode. */
@@ -207,6 +223,8 @@ export function DebridVideo({
     (reason: string) => {
       pendingSeekRef.current = positionRef.current > 0 ? positionRef.current : pendingSeekRef.current
       convertedAtRef.current = pendingSeekRef.current ?? 0
+      // The nearest server let this viewer down: measure again next time.
+      if (nearUrl && modes[modeIndex]?.url === nearUrl) forgetEdge()
       if (modeIndex + 1 < modes.length) {
         console.warn(`Debrid ${modes[modeIndex]?.label} failed (${reason}), trying ${modes[modeIndex + 1].label}`)
         setModeIndex(modeIndex + 1)
@@ -217,7 +235,7 @@ export function DebridVideo({
       console.error(`Debrid playback failed (${reason})`)
       onExhaustedRef.current(reason, positionRef.current)
     },
-    [modeIndex, modes]
+    [modeIndex, modes, nearUrl]
   )
   /** Latest `advance` for effects that shouldn't re-subscribe (and rebuild hls.js) when it changes. */
   const advanceRef = useRef(advance)
@@ -486,8 +504,16 @@ export function DebridVideo({
     let timer: ReturnType<typeof setTimeout> | null = null
     let hedgeTimer: ReturnType<typeof setTimeout> | null = null
     let hedged = false
-    /** A hidden element loading the same link's metadata over a connection of its own. */
+    /** A hidden element loading the link's metadata over a connection of its own. */
     let racer: HTMLVideoElement | null = null
+    /**
+     * The same file on another server — the next mode, when that's direct
+     * too (the link as Real-Debrid gave it, behind the nearest server's). A
+     * server that sits on a connection usually sits on the next one as well,
+     * so the race goes there; with nothing else, to the same link.
+     */
+    const next = modes[modeIndex + 1]
+    const alternate = mode.kind === 'direct' && next?.kind === 'direct' ? next : null
 
     const check = () => {
       timer = null
@@ -505,8 +531,9 @@ export function DebridVideo({
       racer = null
     }
     // The player's own connection keeps going; whichever answers first wins.
-    // Should the racer win, the player reloads — and reads what the racer
-    // fetched from the browser's media cache, which both share for one URL.
+    // Should the racer win, the player reloads — from the racer's link — and
+    // reads what the racer fetched from the browser's media cache, which
+    // elements share for one URL.
     const hedge = () => {
       hedgeTimer = null
       if (startedRef.current || document.hidden || hedged) return
@@ -519,13 +546,24 @@ export function DebridVideo({
         'loadedmetadata',
         () => {
           if (racer !== r || startedRef.current || video.readyState >= HTMLMediaElement.HAVE_METADATA) return
+          if (alternate) {
+            console.warn('Debrid direct link: the other server answered first — switching to it')
+            // Kept alive a moment, so the switched-to element finds the racer's bytes in the cache.
+            racer = null
+            setTimeout(() => {
+              r.removeAttribute('src')
+              r.load()
+            }, 5000)
+            advanceRef.current('slower to answer than the other server')
+            return
+          }
           console.warn('Debrid direct link: a second connection answered first — reloading from it')
           // A pending resume point survives: it's applied on loadedmetadata.
           video.load()
         },
         { once: true }
       )
-      r.src = mode.url
+      r.src = alternate?.url ?? mode.url
       racer = r
     }
     video.addEventListener('loadedmetadata', dropRacer)
@@ -554,7 +592,7 @@ export function DebridVideo({
       video.removeEventListener('loadedmetadata', dropRacer)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [mode])
+  }, [mode, modes, modeIndex])
 
   // "Plays fine, no sound" — an audio codec the browser can't decode doesn't
   // fire `error`; the track is just dropped. `webkitAudioDecodedByteCount`

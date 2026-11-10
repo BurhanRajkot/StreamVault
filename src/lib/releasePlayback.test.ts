@@ -13,6 +13,7 @@ import {
   isTheatricalRip,
   isLikelyDirectPlayable,
   previewStreamUrl,
+  declaresBrowserAudio,
 } from './releasePlayback'
 import type { DebridRelease, DebridReadyPlayback, DebridMediaSummary } from './debridApi'
 
@@ -146,6 +147,24 @@ describe('rankReleasesForPlayback', () => {
   })
 })
 
+describe('rankReleasesForPlayback — audio languages', () => {
+  // The shape of Sinners' list on 2026-11-10: a Hindi-first "Dual" WEB-DL
+  // (IMAX, so it won every other tie) over a single-language YTS encode.
+  const sinners = [
+    release('Sinners.2025.IMAX.1080p.WEB-DL.H.264.Dual.YG', { size: 7.6 * GB, seeders: 97 }),
+    release('Sinners (2025) [1080p] [WEBRip] [5.1] [YTS.MX]', { size: 2.5 * GB, seeders: 343 }),
+  ]
+
+  it('puts a one-language release ahead of a dual-audio one of the same resolution', () => {
+    expect(rankReleasesForPlayback(sinners, noHevc)[0].name).toContain('YTS')
+  })
+
+  it('still prefers 1080p over resolution-less or 720p single-language releases', () => {
+    const ranked = rankReleasesForPlayback([release('Movie.2024.720p.WEB.x264.AAC'), release('Movie.2024.1080p.WEB-DL.MULTi.x264')], noHevc)
+    expect(ranked[0].name).toContain('1080p')
+  })
+})
+
 describe('isTheatricalRip', () => {
   it.each(['Movie.2024.HDCAM.x264', 'Movie 2024 1080p HD-TS X264', 'Movie.2024.TELESYNC.XviD', 'Movie.2024.HDTC.x264', 'Movie.2024.DVDScr.XviD', 'Movie 2024 CAMRip'])(
     'flags %s',
@@ -167,6 +186,23 @@ describe('isLikelyDirectPlayable', () => {
     expect(isLikelyDirectPlayable('Movie.2024.1080p.BDRemux.AVC', noHevc)).toBe(false)
     expect(isLikelyDirectPlayable('Show.S01E01.1080p.WEB.x265.AAC', noHevc)).toBe(false)
     expect(isLikelyDirectPlayable('Show.S01E01.1080p.WEB.x265.AAC', withHevc)).toBe(true)
+  })
+  it('expects a dual- or multi-language release may need the transcode for its English track', () => {
+    expect(isLikelyDirectPlayable('Sinners.2025.IMAX.1080p.WEB-DL.H.264.Dual.YG', noHevc)).toBe(false)
+    expect(isLikelyDirectPlayable('Movie.2024.1080p.WEB-DL.MULTi.x264', noHevc)).toBe(false)
+    expect(isLikelyDirectPlayable('Movie.2024.1080p.Dual-Audio.x264', noHevc)).toBe(false)
+  })
+})
+
+describe('declaresBrowserAudio', () => {
+  it('trusts AAC/Opus/MP3 in the name, and YTS/YIFY encodes (always AAC)', () => {
+    expect(declaresBrowserAudio('Show.S01E01.1080p.WEB.x264.AAC')).toBe(true)
+    expect(declaresBrowserAudio('Sinners (2025) [1080p] [WEBRip] [5.1] [YTS.MX]')).toBe(true)
+    expect(declaresBrowserAudio('Movie (2010) 1080p BrRip x264 - YIFY')).toBe(true)
+  })
+  it('promises nothing for undeclared or Dolby/DTS audio', () => {
+    expect(declaresBrowserAudio('Show.S01E01.1080p.WEB.x264')).toBe(false)
+    expect(declaresBrowserAudio('Show.S01E01.1080p.WEB.DDP5.1.x264')).toBe(false)
   })
 })
 
@@ -213,6 +249,20 @@ describe('planPlaybackModes', () => {
       ],
     })
     expect(kinds(playback(dubFirst))[0]).toBe('RD stream')
+  })
+
+  it('plays from the nearest server first, with the link as given behind it', () => {
+    const near = 'https://mum1.download.real-debrid.com/d/ID44/Movie.mkv'
+    expect(planPlaybackModes(playback(media()), noHevc, near).map((m) => m.url)).toEqual([
+      near,
+      playback(null).directUrl,
+      playback(null).hls,
+    ])
+    // Both direct links stay behind the transcode when it has to go first
+    const eac3 = media({ audioTracks: [{ id: 'eng1', lang: 'English', langIso: 'eng', codec: 'eac3', channels: 6 }] })
+    expect(planPlaybackModes(playback(eac3), noHevc, near).map((m) => m.kind)).toEqual(['hls', 'direct', 'direct'])
+    // Not listed twice when it's the same link
+    expect(planPlaybackModes(playback(media()), noHevc, playback(null).directUrl)).toHaveLength(2)
   })
 
   it('tries direct first when there is no media info', () => {

@@ -85,6 +85,8 @@ export interface DebridReadyPlayback {
   mimeType: string
   /** Real-Debrid's direct link — range requests, instant seeking. */
   directUrl: string
+  /** The download's full id, which Real-Debrid's regional servers accept (see lib/debridHost). Missing from an older backend. */
+  downloadId?: string
   /** Real-Debrid's own HLS transcode: always H.264 video + AAC audio. */
   hls: string | null
   media: DebridMediaSummary | null

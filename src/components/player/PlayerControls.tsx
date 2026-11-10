@@ -122,6 +122,12 @@ const VOLUME_STEP = 0.1
 const HIDE_AFTER_MS = 3000
 /** A stall shorter than this shows no spinner — avoids flicker on every tiny rebuffer. */
 const SPINNER_DELAY_MS = 400
+/**
+ * Playing smoothly this long (with a mouse), the seek-bar previews start
+ * loading (see useFrameGrabber) — late enough to leave the film's own first
+ * seconds of buffering alone, early enough to beat the first hover.
+ */
+const PREVIEW_WARM_DELAY_MS = 8000
 const DOUBLE_TAP_MS = 300
 /** Seeks this close together add up in one "+30s" indicator. */
 const SEEK_RIPPLE_MS = 800
@@ -306,8 +312,18 @@ export function PlayerControls({
   const [hover, setHover] = useState<{ time: number; x: number } | null>(null)
   /** The seek bar's width, for placing the preview card. */
   const [barWidth, setBarWidth] = useState(0)
-  /** The viewer has pointed at the seek bar — previews may start loading. */
+  /** Previews may start loading: playback is under way (with a mouse), or the viewer has pointed at the seek bar. */
   const [previewArmed, setPreviewArmed] = useState(false)
+  /**
+   * Grab preview frames across the film ahead of the pointer — with a mouse,
+   * where hovering shows them, and not when the viewer asked to save data.
+   * A phone only shows them while scrubbing, and pays for every megabyte.
+   */
+  const [backgroundPreviews] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
+    return window.matchMedia('(pointer: fine)').matches && !saveData
+  })
   /** Show the time left instead of the time played. */
   const [showRemaining, setShowRemaining] = useState(() => readFlag(REMAINING_STORAGE_KEY))
   /** Zoomed to fill the screen (a sideways phone), cropping the picture's edges. */
@@ -441,7 +457,20 @@ export function PlayerControls({
     video.style.objectFit = filled ? 'cover' : ''
   }, [video, filled])
 
-  const { grabber, version: previewVersion } = useFrameGrabber(previewUrl, snap.duration, previewArmed)
+  // With a mouse, the file's header loads for previews a few seconds into
+  // playback rather than on the first hover (3.5-4.5s from Real-Debrid's
+  // main servers) — by then the film's own start is out of the way.
+  const previewsDue = backgroundPreviews && !!previewUrl && !starting && !snap.starved && snap.duration > 0
+  useEffect(() => {
+    if (previewArmed || !previewsDue) return
+    const timer = setTimeout(() => setPreviewArmed(true), PREVIEW_WARM_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [previewArmed, previewsDue])
+
+  const { grabber, version: previewVersion } = useFrameGrabber(previewUrl, snap.duration, previewArmed, {
+    main: video,
+    background: backgroundPreviews,
+  })
 
   // ── Auto-hide ────────────────────────────────────────────────────────────
   const pinned = snap.paused || scrubTime !== null || menu !== null || countdown !== null
