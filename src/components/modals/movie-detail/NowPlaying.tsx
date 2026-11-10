@@ -4,7 +4,7 @@ import { CONFIG, DEBRID_SERVER_ID, type MediaMode } from '@/lib/config'
 import type { EpisodeSummary } from '@/lib/api'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import type { SeasonSummary } from '@/lib/episodeNavigation'
-import type { ReleaseControls } from '@/components/media/DebridPlayerPane'
+import type { ReleaseControls } from '@/components/player/DebridPlayerPane'
 import { cn } from '@/lib/utils'
 import { DownloadButton, ReleaseSelect, SeasonSelect, ServerSelect } from './PlaybackPickers'
 

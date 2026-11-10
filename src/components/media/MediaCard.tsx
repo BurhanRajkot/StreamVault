@@ -6,7 +6,7 @@ import { cn, genreIdsOf } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
-import { useIsMobile } from '@/mobile-ui/use-mobile'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 import { QuickViewModal } from '@/components/modals/QuickViewModal'
 

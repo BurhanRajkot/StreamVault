@@ -1,0 +1,20 @@
+# Build-context excludes for infrastructure/docker/Dockerfile.
+# BuildKit only reads an ignore file named <Dockerfile>.dockerignore next to the
+# Dockerfile (or a .dockerignore at the context root, which is the repo root
+# here), so this file must keep the Dockerfile.dockerignore name.
+
+**/node_modules
+dist
+dist-e2e
+backend
+.git
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+coverage
+.vscode
+.playwright-mcp
+e2e/test-results
+e2e/playwright-report

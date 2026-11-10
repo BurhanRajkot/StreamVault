@@ -97,4 +97,21 @@ export const authRateLimiter = rateLimit({
   validate: { trustProxy: false },
 })
 
+/**
+ * Limiter for file downloads and debrid link resolution
+ * 50 requests per 15 minutes per IP (bandwidth abuse protection)
+ */
+export const downloadRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Too many download requests',
+    message: 'Please wait before downloading more files',
+    retryAfter: '15 minutes',
+  },
+  validate: { trustProxy: false },
+})
+
 export default apiRateLimiter

@@ -40,7 +40,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import VideoPlayerModal from '@/components/media/VideoPlayerModal'
+import VideoPlayerModal from '@/components/player/VideoPlayerModal'
 
 // ---------------------------------------------------------------------------
 // Types
