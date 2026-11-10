@@ -73,12 +73,28 @@ export function isTheatricalRip(name: string): boolean {
 /**
  * 0 = name declares audio every browser decodes (so the direct link plays
  * as-is, with instant seeking), 2 = declares audio that needs Real-Debrid's
- * HLS transcode, 1 = doesn't say.
+ * HLS transcode, 1 = doesn't say. YTS/YIFY releases are always AAC, though
+ * their names only say "5.1".
  */
 function audioRank(name: string): number {
   if (/\bDTS(-?HD|-?X)?\b|\bTrueHD\b|\bAtmos\b|\bE-?AC-?3\b|\bAC-?3\b|\bDD[P+]?(?:\d(?:\.\d)?)?\b/i.test(name)) return 2
-  if (/\b(AAC|Opus|MP3)(\d(\.\d)?)?\b/i.test(name)) return 0
+  if (/\b(AAC|Opus|MP3)(\d(\.\d)?)?\b/i.test(name) || /\b(YTS|YIFY)\b/i.test(name)) return 0
   return 1
+}
+
+/** The name says the audio is something every browser decodes. */
+export function declaresBrowserAudio(name: string): boolean {
+  return audioRank(name) === 0
+}
+
+/**
+ * Two or more audio languages. Which one comes first — the only one a
+ * <video> element plays — is a coin toss: "Dual" releases are often Hindi
+ * first (the IMAX WEB-DL "Dual" that topped Sinners' list, 2026-11-10), and
+ * then the English track only plays through Real-Debrid's transcode.
+ */
+function isMultiAudio(name: string): boolean {
+  return /\b(Dual|MULTi)([ ._-]?Audio)?\b/i.test(name)
 }
 
 /**
@@ -131,15 +147,15 @@ export function isBrowserPlayable(name: string, support: BrowserVideoSupport): b
  * out to need the transcode.
  */
 export function isLikelyDirectPlayable(name: string, support: BrowserVideoSupport): boolean {
-  return isBrowserPlayable(name, support) && audioRank(name) !== 2 && !isRemux(name)
+  return isBrowserPlayable(name, support) && audioRank(name) !== 2 && !isRemux(name) && !isMultiAudio(name)
 }
 
 /**
  * Order releases for automatic playback, best first:
  *   decodable by this browser → cached → not a cam/telesync → audio not
- *   declared as Dolby/DTS → 1080p over 4K over 720p → likely English → not
- *   a remux → audio declared browser-safe → IMAX → seeders → smaller file
- *   (lower bitrate, less buffering).
+ *   declared as Dolby/DTS → 1080p over 4K over 720p → likely English → one
+ *   audio language → not a remux → audio declared browser-safe → IMAX →
+ *   seeders → smaller file (lower bitrate, less buffering).
  *
  * Real-Debrid's HLS transcode can rescue an undecodable file (it always
  * outputs H.264 + AAC), but a jump outside what it has loaded restarts the
@@ -160,6 +176,7 @@ export function rankReleasesForPlayback(
       audioRank(r.name) === 2 ? 1 : 0,
       resolutionRank(r.name),
       isLikelyNonEnglishRelease(r.name) ? 1 : 0,
+      isMultiAudio(r.name) ? 1 : 0,
       isRemux(r.name) ? 1 : 0,
       audioRank(r.name),
       isImaxRelease(r.name) ? 0 : 1,
@@ -218,13 +235,23 @@ export interface PlaybackMode {
  * plays) — and that track is the preferred-language one. Otherwise
  * Real-Debrid's HLS transcode goes first. With no media info, direct is
  * simply tried first.
+ *
+ * `nearUrl` is the same file on the download server nearest the viewer (see
+ * lib/debridHost): played first, with the link as Real-Debrid gave it right
+ * behind, should that server let the viewer down.
  */
-export function planPlaybackModes(playback: DebridReadyPlayback, support: BrowserVideoSupport): PlaybackMode[] {
-  const direct: PlaybackMode = { kind: 'direct', url: playback.directUrl, label: 'Direct' }
+export function planPlaybackModes(
+  playback: DebridReadyPlayback,
+  support: BrowserVideoSupport,
+  nearUrl?: string | null
+): PlaybackMode[] {
+  const issued: PlaybackMode = { kind: 'direct', url: playback.directUrl, label: 'Direct' }
+  const direct: PlaybackMode[] =
+    nearUrl && nearUrl !== playback.directUrl ? [{ kind: 'direct', url: nearUrl, label: 'Direct' }, issued] : [issued]
   const hls: PlaybackMode[] = playback.hls ? [{ kind: 'hls', url: playback.hls, label: 'RD stream' }] : []
 
   const media = playback.media
-  if (!media) return [direct, ...hls]
+  if (!media) return [...direct, ...hls]
 
   const firstAudio = media.audioTracks[0]
   const directPlayable =
@@ -235,7 +262,7 @@ export function planPlaybackModes(playback: DebridReadyPlayback, support: Browse
 
   // Direct stays as the last resort even when it's expected to fail: picture
   // without sound beats nothing if Real-Debrid's transcode is down.
-  return directPlayable ? [direct, ...hls] : [...hls, direct]
+  return directPlayable ? [...direct, ...hls] : [...hls, ...direct]
 }
 
 /**

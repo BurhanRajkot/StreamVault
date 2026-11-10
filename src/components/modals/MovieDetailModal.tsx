@@ -21,6 +21,7 @@ import { nowPlayingMeta } from './movie-detail/types'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { prefetchPremiumReleases } from '@/lib/premiumSearch'
+import { warmNearestEdge } from '@/lib/debridHost'
 import type { PlaybackControls } from './movie-detail/types'
 import {
   nextEpisode,
@@ -546,6 +547,8 @@ export function MovieDetailModal({
     if (prefetchSeason === undefined || prefetchEpisode === undefined) return
     const timer = setTimeout(
       () => {
+        // And which of Real-Debrid's servers is nearest (lib/debridHost) — measured once every few hours.
+        warmNearestEdge()
         void getDebridToken().then((token) =>
           prefetchPremiumReleases(
             { title, year: display.year, imdbId, mediaType: debridMediaType, season: prefetchSeason, episode: prefetchEpisode },
