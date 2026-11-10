@@ -1,4 +1,4 @@
-import { Download, Heart, Home, Search } from 'lucide-react'
+import { /* Download, */ Heart, Home, Search } from 'lucide-react'
 import { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -57,13 +57,14 @@ export function MobileNav({ mode, onModeChange, onSearchOpen, searchOpen = false
         else navigate('/', { state: { openSearch: true } })
       },
     },
-    {
-      id: 'downloads',
-      label: 'Downloads',
-      icon: Download,
-      isActive: isDownloads,
-      action: () => onModeChange('downloads'),
-    },
+    // Downloads stopped for now.
+    // {
+    //   id: 'downloads',
+    //   label: 'Downloads',
+    //   icon: Download,
+    //   isActive: isDownloads,
+    //   action: () => onModeChange('downloads'),
+    // },
     {
       id: 'favorites',
       label: 'My List',

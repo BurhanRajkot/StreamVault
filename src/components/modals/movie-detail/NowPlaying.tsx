@@ -6,7 +6,7 @@ import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import type { SeasonSummary } from '@/lib/episodeNavigation'
 import type { ReleaseControls } from '@/components/media/DebridPlayerPane'
 import { cn } from '@/lib/utils'
-import { DownloadButton, ReleaseSelect, SeasonSelect, ServerSelect } from './PlaybackPickers'
+import { /* DownloadButton, */ ReleaseSelect, SeasonSelect, ServerSelect } from './PlaybackPickers'
 
 /**
  * The pieces under (or beside) the player while something plays — what's on,
@@ -123,11 +123,13 @@ export function SourcePickers({
             compact={phone}
             className={phone ? 'h-10 min-w-0 flex-1 rounded-full px-4 text-[13px]' : 'h-11 w-72'}
           />
+          {/* Downloads stopped for now.
           <DownloadButton
             download={releaseControls.download}
             iconOnly={phone}
             className={phone ? 'h-10 w-10 shrink-0 rounded-full' : 'h-11 px-4'}
           />
+          */}
         </>
       )}
     </div>
