@@ -1,6 +1,6 @@
 import { useState, type ReactNode, type Ref } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, Download, Play, Plus, Share2, ThumbsUp } from 'lucide-react'
+import { Check, /* Download, */ Play, Plus, Share2, ThumbsUp } from 'lucide-react'
 import { cn, slugify } from '@/lib/utils'
 import { getImageUrl } from '@/lib/api'
 import type { Media } from '@/lib/config'
@@ -20,7 +20,7 @@ interface MobileDetailSheetProps {
   isCopied: boolean
   onShare: () => void
   /** Open the download sheet — for the title, or one episode of it. */
-  onDownload: (season?: number, episode?: number, episodeName?: string) => void
+  onDownload?: (season?: number, episode?: number, episodeName?: string) => void
   /** Play this episode straight away. */
   onPlayEpisode: (season: number, episode: number) => void
   /** Titles like this one (TMDB's "similar"), for the bottom of the page. */
@@ -119,6 +119,7 @@ export function MobileDetailSheet({
           <Play className="h-5 w-5 fill-current" />
           Play
         </button>
+        {/* Downloads stopped for now.
         <button
           onClick={() => onDownload(isTv ? season : undefined, isTv ? episode : undefined)}
           className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white/[0.14] text-[15px] font-semibold text-white tap-scale"
@@ -126,6 +127,7 @@ export function MobileDetailSheet({
           <Download className="h-5 w-5" />
           Download{isTv ? ` S${season}:E${episode}` : ''}
         </button>
+        */}
 
         {/* Synopsis */}
         <p className={cn('mt-4 text-[14px] leading-relaxed text-foreground/85', !isOverviewExpanded && 'line-clamp-3')}>
@@ -195,7 +197,7 @@ export function MobileDetailSheet({
           episode={episode}
           episodeCount={episodeCount}
           onPick={onPlayEpisode}
-          onDownload={(s, ep, name) => onDownload(s, ep, name)}
+          onDownload={onDownload}
           markCurrent={false}
           density="comfortable"
           className="mt-6 px-4"
