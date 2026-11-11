@@ -195,7 +195,9 @@ test.describe('Premium server', () => {
     expect(played, 'starts on the 1080p release the browser decodes, then switches').toEqual([hd.info_hash, uhd.info_hash])
   })
 
-  test('under the player, the release can be switched and the playing file downloaded', async ({ page, watch, mockApi }) => {
+  // Downloads are stopped for now (34dbfc9): the Download link that sat beside
+  // this picker is hidden. When it's back, assert its href follows the release.
+  test('under the player, the release can be switched', async ({ page, watch, mockApi }) => {
     test.skip(test.info().project.name === 'mobile', 'A phone plays full screen — the same choices are in the player’s menus')
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
     const uhd = release({ name: 'Inception.2010.2160p.UHD.BluRay.x265.HDR.AAC-UHD' })
@@ -210,16 +212,13 @@ test.describe('Premium server', () => {
     await watch.expectPremiumPlaying()
 
     const releasePicker = page.getByRole('combobox', { name: 'Release' })
-    const download = page.getByRole('link', { name: /^Download/ })
     await expect(releasePicker).toContainText('1080p')
-    await expect(download).toHaveAttribute('href', `${SAMPLE_VIDEO_URL}?file=Inception.1080p.mkv`)
 
     await releasePicker.click()
     await page.getByRole('option', { name: /^4K/ }).click()
 
     await watch.expectPremiumPlaying()
     await expect(releasePicker).toContainText('4K')
-    await expect(download).toHaveAttribute('href', `${SAMPLE_VIDEO_URL}?file=Inception.2160p.mkv`)
     const played = mockApi.calls('POST', '/debrid/play').map((c) => (c.body as { hash: string }).hash)
     expect(played).toEqual([hd.info_hash, uhd.info_hash])
   })
@@ -390,6 +389,7 @@ test.describe('Downloads', () => {
   })
 
   test('the title page downloads a release without playing it', async ({ page, watch, mockApi }) => {
+    test.skip(true, 'Downloads are stopped for now (34dbfc9): the title page has no Download button')
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
     mockApi.on('GET', '/debrid/media-search', { json: { data: [hd] } })
     mockApi.on('POST', '/debrid/play', { json: readyPlayback({ fileName: 'Inception.1080p.mkv', directUrl: `${SAMPLE_VIDEO_URL}?file=dl` }) })
@@ -411,14 +411,14 @@ test.describe('on a phone', () => {
     test.skip(test.info().project.name !== 'mobile', 'The phone title page and full-screen player')
   })
 
-  test('the title page offers Play and Download, and a show’s episodes', async ({ page, watch }) => {
+  // Downloads are stopped for now (34dbfc9). When they're back, this page also
+  // offers "Download S1:E1" under Play and a "Download episode N" per episode.
+  test('the title page offers Play and a show’s episodes', async ({ page, watch }) => {
     await watch.goto(SHOW)
 
     await expect(watch.playButton).toBeVisible()
-    await expect(watch.root.getByRole('button', { name: /^Download S1:E1$/ })).toBeVisible()
     const episodes = page.getByRole('region', { name: 'Episodes' })
     await expect(episodes.getByRole('listitem')).toHaveCount(7)
-    await expect(episodes.getByRole('button', { name: 'Download episode 4' })).toBeVisible()
   })
 
   test('playing leaves nothing else on screen, and the player’s Episodes panel switches episode', async ({ page, watch, mockApi }) => {
