@@ -1,13 +1,19 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import {
   addonSearchPath,
+  belongsTo,
+  commonFrameRate,
   fetchSubtitleFile,
+  fileFingerprint,
   findSubtitles,
   fromAddonSubtitle,
   fromRestResult,
   looksLikeSubtitles,
+  osHash,
   rankSubtitles,
   releaseGroupOf,
+  releaseKey,
+  restHashPath,
   restSearchPath,
   sourceKind,
   SubtitleFileError,
@@ -34,11 +40,36 @@ function sub(overrides: Partial<SubtitleCandidate> = {}): SubtitleCandidate {
     lastCue: 8439,
     releaseGroup: '',
     source: 'BluRay',
+    fps: 23.976,
+    hashMatch: false,
+    imdb: '1375666',
+    parentImdb: null,
+    season: null,
+    episode: null,
     ...overrides,
   }
 }
 
 const BLURAY_FILE = { name: 'Inception.2010.1080p.BluRay.x264-SPARKS.mkv', duration: 8880 }
+const RD_LINK = 'https://mum1-4.download.real-debrid.com/d/BQTVHNM3GNSPG22/Inception.2010.1080p.BluRay.x264-SPARKS.mkv'
+
+/** A fake file of `size` bytes, served by Real-Debrid with Range support. */
+function fakeDebridFile(size: number) {
+  const bytes = new Uint8Array(size).map((_, i) => (i * 31 + 7) % 256)
+  const ranges: string[] = []
+  const serve = (range: string | null) => {
+    ranges.push(range ?? '')
+    const [, s, e] = range?.match(/^bytes=(\d+)-(\d+)$/) ?? []
+    const start = Number(s)
+    const end = Math.min(Number(e), size - 1)
+    return new Response(bytes.slice(start, end + 1), {
+      status: 206,
+      headers: { 'Content-Range': `bytes ${start}-${end}/${size}` },
+    })
+  }
+  const expectedHash = osHash(size, bytes.slice(0, 65_536), bytes.slice(size - 65_536))
+  return { serve, ranges, expectedHash }
+}
 
 describe('restSearchPath', () => {
   it('drops "tt" and leading zeros, and orders the parameters alphabetically', () => {
@@ -94,6 +125,108 @@ describe('fromRestResult', () => {
   it('rejects a record without a usable file id or language', () => {
     expect(fromRestResult({ IDSubtitleFile: 'abc', SubLanguageID: 'eng' })).toBeNull()
     expect(fromRestResult({ IDSubtitleFile: '123', SubLanguageID: 'english' })).toBeNull()
+  })
+
+  it('reads the frame rate, a fingerprint match and the title it’s for', () => {
+    const c = fromRestResult({
+      IDSubtitleFile: '1',
+      SubLanguageID: 'eng',
+      MatchedBy: 'moviehash',
+      MovieFPS: '25.000',
+      IDMovieImdb: '1480055',
+      SeriesIMDBParent: '0944947',
+      SeriesSeason: '1',
+      SeriesEpisode: '1',
+    })
+    expect(c).toMatchObject({ fps: 25, hashMatch: true, imdb: '1480055', parentImdb: '944947', season: 1, episode: 1 })
+    expect(fromRestResult({ IDSubtitleFile: '2', SubLanguageID: 'eng', MovieFPS: '0.000', MatchedBy: 'imdbid' })).toMatchObject({
+      fps: null,
+      hashMatch: false,
+    })
+  })
+})
+
+describe('osHash', () => {
+  // Expected values from the reference implementation on OpenSubtitles' wiki.
+  it('adds the size and every 64-bit word of both ends, wrapping at 64 bits', () => {
+    const head = new Uint8Array(65_536).map((_, i) => (i * 31 + 7) % 256)
+    const tail = new Uint8Array(65_536).map((_, i) => (i * 13 + 200) % 256)
+    expect(osHash(734_003_200, head, tail)).toBe('ff8000802c3fe000')
+    expect(osHash(131_072, new Uint8Array(65_536), new Uint8Array(65_536))).toBe('0000000000020000')
+  })
+})
+
+describe('restHashPath', () => {
+  it('orders the parameters alphabetically', () => {
+    expect(restHashPath({ size: '12909756', hash: '8e245d9679d31e12' }, 'eng')).toBe(
+      'moviebytesize-12909756/moviehash-8e245d9679d31e12/sublanguageid-eng'
+    )
+  })
+})
+
+describe('fileFingerprint', () => {
+  const realFetch = globalThis.fetch
+  afterEach(async () => {
+    globalThis.fetch = realFetch
+    await cache.subtitles.flush()
+  })
+
+  it('reads only a Real-Debrid download link', async () => {
+    let fetched = false
+    globalThis.fetch = (async () => {
+      fetched = true
+      return new Response('', { status: 500 })
+    }) as unknown as typeof fetch
+    for (const link of [
+      'http://169.254.169.254/latest/meta-data/',
+      'https://evil.example.com/d/ABCDEFGH/x.mkv',
+      'https://mum1.download.real-debrid.com.evil.example/d/ABCDEFGH/x.mkv',
+      'https://mum1.download.real-debrid.com/d/ABCDEFGH/x.mkv?redirect=http://internal',
+    ]) {
+      expect(await fileFingerprint(link, 1_000_000)).toBeNull()
+    }
+    expect(fetched).toBe(false)
+  })
+
+  it('reads both ends of the file at once when its size is given', async () => {
+    const file = fakeDebridFile(1_000_000)
+    globalThis.fetch = (async (_url: string, init?: RequestInit) =>
+      file.serve(new Headers(init?.headers).get('range'))) as unknown as typeof fetch
+    expect(await fileFingerprint(RD_LINK, 1_000_000)).toEqual({ size: '1000000', hash: file.expectedHash })
+    expect(file.ranges.sort()).toEqual(['bytes=0-65535', 'bytes=934464-999999'])
+  })
+
+  it('finds the size from the first read when it isn’t given, or is wrong', async () => {
+    const file = fakeDebridFile(1_000_000)
+    globalThis.fetch = (async (_url: string, init?: RequestInit) =>
+      file.serve(new Headers(init?.headers).get('range'))) as unknown as typeof fetch
+    expect(await fileFingerprint(RD_LINK, 2_000_000)).toEqual({ size: '1000000', hash: file.expectedHash })
+  })
+})
+
+describe('belongsTo', () => {
+  it('keeps a fingerprint match only for this movie, or this very episode', () => {
+    expect(belongsTo(sub({ imdb: '1375666' }), { imdbId: 'tt1375666', mediaType: 'movie' })).toBe(true)
+    expect(belongsTo(sub({ imdb: '86999' }), { imdbId: 'tt1375666', mediaType: 'movie' })).toBe(false)
+    const episode = sub({ imdb: '1480055', parentImdb: '944947', season: 1, episode: 1 })
+    expect(belongsTo(episode, { imdbId: 'tt0944947', mediaType: 'tv', season: 1, episode: 1 })).toBe(true)
+    expect(belongsTo(episode, { imdbId: 'tt0944947', mediaType: 'tv', season: 1, episode: 2 })).toBe(false)
+  })
+})
+
+describe('releaseKey', () => {
+  it('reads a file name and a release name alike', () => {
+    expect(releaseKey('Inception.2010.1080p.BluRay.x264-SPARKS.mkv')).toBe(releaseKey(' Inception 2010 1080p BluRay x264-SPARKS'))
+  })
+})
+
+describe('commonFrameRate', () => {
+  it('is the clear majority’s, counting 23.976 and 23.98 as one', () => {
+    expect(commonFrameRate([sub({ fps: 23.976 }), sub({ fps: 23.98 }), sub({ fps: 25, downloads: 10 })])).toBe(23.976)
+  })
+
+  it('is unknown when the subtitles are split', () => {
+    expect(commonFrameRate([sub({ fps: 23.976 }), sub({ fps: 25 })])).toBeNull()
   })
 })
 
@@ -159,7 +292,7 @@ describe('rankSubtitles', () => {
   })
 
   it('favours the timing most subtitles share', () => {
-    const odd = sub({ id: '1', downloads: 5000, timingGroup: '7', release: 'Inception.2010.720p.x264' })
+    const odd = sub({ id: '1', downloads: 5000, timingGroup: '7', release: 'Inception.2010.720p.x264-OTHER' })
     const common = [
       sub({ id: '2', downloads: 3000, timingGroup: '1', release: 'Inception.2010.DVDRip', source: 'DVD' }),
       sub({ id: '3', downloads: 3000, timingGroup: '1', hearingImpaired: true, release: 'Inception.2010.DVDRip', source: 'DVD' }),
@@ -200,6 +333,36 @@ describe('rankSubtitles', () => {
   it('lists English first, then the other languages by name', () => {
     const langs = rankSubtitles([sub({ lang: 'spa' }), sub({ lang: 'ara' }), sub({ lang: 'eng' }), sub({ lang: 'pob' })])
     expect(langs.map((l) => l.name)).toEqual(['English', 'Arabic', 'Portuguese (Brazil)', 'Spanish'])
+  })
+
+  it('puts a subtitle matched to the file’s fingerprint first, above the most popular', () => {
+    const popular = sub({ id: '1', downloads: 900_000, trusted: true, release: 'Inception.2010.1080p.BluRay.x264-SPARKS' })
+    const matched = sub({ id: '2', downloads: 10, hashMatch: true, timingGroup: '9', release: 'Inception.2010.720p.WEB' })
+    const [eng] = rankSubtitles([popular, matched], BLURAY_FILE)
+    expect(eng.options[0].id).toBe('2')
+  })
+
+  it('pushes back a subtitle timed to another frame rate, however popular', () => {
+    const pal = sub({ id: '1', fps: 25, downloads: 500_000, trusted: true, timingGroup: '2' })
+    const film = [sub({ id: '2', downloads: 2000 }), sub({ id: '3', downloads: 2000, timingGroup: '3' }), sub({ id: '4', downloads: 2000, timingGroup: '4' })]
+    const [eng] = rankSubtitles([pal, ...film], { name: 'Inception.2010.1080p.WEB-DL.mkv', duration: 8880 })
+    expect(eng.options[0].id).not.toBe('1')
+    expect(eng.options[eng.options.length - 1].id).toBe('1')
+  })
+
+  it('takes the frame rate from fingerprint matches over what most subtitles say', () => {
+    const matched = sub({ id: '1', lang: 'spa', fps: 25, hashMatch: true })
+    const ntsc = sub({ id: '2', fps: 23.976, downloads: 900_000 })
+    const pal = sub({ id: '3', fps: 25, downloads: 10, timingGroup: '5' })
+    const langs = rankSubtitles([matched, ntsc, ntsc, pal], BLURAY_FILE)
+    expect(langs.find((l) => l.code === 'eng')?.options[0].id).toBe('3')
+  })
+
+  it('prefers the subtitle made for a release of exactly this name', () => {
+    const group = sub({ id: '1', downloads: 50_000, release: 'Inception.2010.720p.BluRay.x264-SPARKS' })
+    const exact = sub({ id: '2', downloads: 100, timingGroup: '4', release: 'Inception 2010 1080p BluRay x264-SPARKS' })
+    const [eng] = rankSubtitles([group, exact], BLURAY_FILE)
+    expect(eng.options[0].id).toBe('2')
   })
 
   it('gives each id once, keeping the first record of it', () => {
@@ -259,5 +422,56 @@ describe('findSubtitles', () => {
       ['fre', ['22']],
     ])
     expect(asked.some((u) => u.endsWith('/search/imdbid-1375666'))).toBe(true)
+  })
+
+  it('leads with subtitles matched to the playing file, dropping matches for other titles', async () => {
+    const file = fakeDebridFile(1_000_000)
+    const record = (id: string, extra: Record<string, string>) => ({
+      IDSubtitleFile: id,
+      SubLanguageID: 'eng',
+      SubFormat: 'srt',
+      SubLastTS: '02:20:39',
+      MovieFPS: '23.976',
+      ...extra,
+    })
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url === RD_LINK) return file.serve(new Headers(init?.headers).get('range'))
+      if (url.includes(`/search/moviebytesize-1000000/moviehash-${file.expectedHash}`)) {
+        return Response.json([
+          record('31', { MatchedBy: 'moviehash', IDMovieImdb: '1375666', SubTSGroup: '7', MovieReleaseName: 'some.other.name' }),
+          record('32', { MatchedBy: 'moviehash', IDMovieImdb: '86999', SubTSGroup: '8', MovieReleaseName: 'Breakin 2' }),
+        ])
+      }
+      if (url.includes('/search/imdbid-1375666')) {
+        return Response.json([
+          record('11', { MatchedBy: 'imdbid', IDMovieImdb: '1375666', SubTSGroup: '1', SubDownloadsCnt: '300000', SubFromTrusted: '1' }),
+        ])
+      }
+      if (url.includes('opensubtitles-v3')) return Response.json({ subtitles: [] })
+      return new Response('unexpected', { status: 500 })
+    }) as unknown as typeof fetch
+
+    const [eng] = await findSubtitles({
+      imdbId: 'tt1375666',
+      mediaType: 'movie',
+      file: { ...BLURAY_FILE, link: RD_LINK, size: 1_000_000 },
+    })
+    expect(eng.options.map((o) => o.id)).toEqual(['31', '11'])
+    expect(eng.options[0].matched).toBe(true)
+    expect(eng.options[1].matched).toBeUndefined()
+  })
+
+  it('still answers when the file can’t be read', async () => {
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url === RD_LINK) return new Response('gone', { status: 503 })
+      if (url.includes('/search/imdbid-1375666/sublanguageid-eng')) {
+        return Response.json([{ IDSubtitleFile: '11', SubLanguageID: 'eng', SubFormat: 'srt', SubLastTS: '02:20:39' }])
+      }
+      return Response.json([])
+    }) as unknown as typeof fetch
+    const [eng] = await findSubtitles({ imdbId: 'tt1375666', mediaType: 'movie', file: { ...BLURAY_FILE, link: RD_LINK } })
+    expect(eng.options.map((o) => o.id)).toEqual(['11'])
   })
 })

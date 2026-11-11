@@ -150,6 +150,7 @@ export function SubtitleVersionsPage({ subtitles, onBack }: { subtitles: PlayerS
                 <span className="flex items-baseline gap-2">
                   <span className="font-semibold">{i === 0 ? 'Best match' : `Version ${i + 1}`}</span>
                   {o.hearingImpaired && <span className="text-xs text-white/60">SDH</span>}
+                  {o.matched && <span className="text-xs text-emerald-300/90">Synced to this file</span>}
                 </span>
                 <span className="mt-0.5 block truncate text-[11px] text-white/40">{o.release}</span>
               </span>
