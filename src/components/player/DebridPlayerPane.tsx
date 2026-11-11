@@ -45,6 +45,7 @@ import {
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases } from '@/lib/premiumSearch'
 import { useDebridToken } from '@/hooks/useDebridToken'
+import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { formatPromoDate, useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { recordPremiumPlay } from '@/lib/supportPrompt'
@@ -198,6 +199,9 @@ export function DebridPlayerPane({
   const [playback, setPlayback] = useState<DebridReadyPlayback | null>(null)
   const [instantReleases, setInstantReleases] = useState<DebridRelease[]>([])
   const [activeRelease, setActiveRelease] = useState<DebridRelease | null>(null)
+  // Subtitle tracks are found the way releases are — by IMDb id (+ episode) —
+  // so they survive a release switch; cue times are the film's own.
+  const subtitles = useSubtitles({ imdbId, mediaType, season, episode, active: status === 'ready' })
   const [playbackFailed, setPlaybackFailed] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
   /** Where the current file starts, in seconds. */
@@ -825,6 +829,8 @@ export function DebridPlayerPane({
         sources={sources}
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}
+        subtitles={subtitles.menu}
+        subtitleCues={subtitles.cues}
         episodes={episodes}
         onStarted={() => setVideoStarted(true)}
         edge={edge}

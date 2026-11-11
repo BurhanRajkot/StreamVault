@@ -45,6 +45,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatPlayerTime } from '@/lib/playbackPosition'
+import type { SubtitleTrack } from '@/lib/subtitles'
 import { useFrameGrabber } from '@/hooks/useFrameGrabber'
 import { SeekPreview } from './SeekPreview'
 
@@ -78,6 +79,18 @@ export interface PlayerTimeline {
   restarting: boolean
 }
 
+/** The Subtitles menu — list, selection and the loading that backs them (see useSubtitles). */
+export interface PlayerSubtitles {
+  /** Null until the list has been fetched (see onOpen). */
+  tracks: SubtitleTrack[] | null
+  loading: boolean
+  error: string | null
+  activeId: string | null
+  onSelect: (id: string | null) => void
+  /** Called when the menu opens — fetches the list the first time. */
+  onOpen: () => void
+}
+
 export interface PlayerControlsProps {
   video: HTMLVideoElement | null
   container: HTMLDivElement | null
@@ -88,6 +101,8 @@ export interface PlayerControlsProps {
    * own back button isn't on screen: a phone turned sideways, or fullscreen.
    */
   onBack?: () => void
+  /** Subtitle tracks, from the settings menu. Omit where there's nothing to search by. */
+  subtitles?: PlayerSubtitles | null
   /** Files the viewer can switch between, from the settings menu. */
   sources?: PlayerSource[]
   activeSourceId?: string | null
@@ -264,7 +279,7 @@ type WebkitPresentationVideo = HTMLVideoElement & {
   webkitPresentationMode?: string
 }
 
-type MenuView = 'main' | 'quality' | 'speed' | 'episodes'
+type MenuView = 'main' | 'quality' | 'speed' | 'subtitles' | 'episodes'
 
 interface SeekRipple {
   side: 'back' | 'forward'
@@ -282,6 +297,7 @@ export function PlayerControls({
   title,
   subtitle,
   onBack,
+  subtitles,
   sources = [],
   activeSourceId = null,
   onSourceChange,
@@ -869,6 +885,7 @@ export function PlayerControls({
     ((document.pictureInPictureEnabled && !!video.requestPictureInPicture) ||
       !!(video as WebkitPresentationVideo).webkitSupportsPresentationMode?.('picture-in-picture'))
   const activeSource = sources.find((s) => s.id === activeSourceId) ?? null
+  const activeSubtitle = subtitles?.tracks?.find((t) => t.id === subtitles.activeId) ?? null
   const qualityBadge = activeSource ? (activeSource.label === '4K' ? '4K' : /^(1080p|720p)$/.test(activeSource.label) ? 'HD' : null) : null
   const inCredits =
     hasNext && snap.duration >= CREDITS_MIN_DURATION_S && snap.duration - snap.time <= CREDITS_WINDOW_S && !snap.ended
@@ -1403,6 +1420,17 @@ export function PlayerControls({
                 <MenuRow onClick={() => setMenu('quality')} label="Quality" value={activeSource?.label ?? 'Auto'} chevron />
               )}
               <MenuRow onClick={() => setMenu('speed')} label="Playback speed" value={speedLabel(snap.rate)} chevron />
+              {subtitles && (
+                <MenuRow
+                  onClick={() => {
+                    subtitles.onOpen()
+                    setMenu('subtitles')
+                  }}
+                  label="Subtitles"
+                  value={activeSubtitle?.label ?? (subtitles.activeId ? '…' : 'Off')}
+                  chevron
+                />
+              )}
               {canPip && (
                 <MenuRow
                   onClick={() => {
@@ -1476,6 +1504,53 @@ export function PlayerControls({
                     </button>
                   )
                 })}
+              </div>
+            </>
+          )}
+
+          {menu === 'subtitles' && subtitles && (
+            <>
+              <MenuHeader title="Subtitles" onBack={() => setMenu('main')} />
+              <div className="overflow-y-auto overscroll-contain">
+                <button
+                  onClick={() => {
+                    setMenu(null)
+                    subtitles.onSelect(null)
+                  }}
+                  aria-current={subtitles.activeId === null || undefined}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                >
+                  <Check className={cn('h-4 w-4 shrink-0', subtitles.activeId === null ? 'opacity-100' : 'opacity-0')} />
+                  Off
+                </button>
+                {(subtitles.tracks ?? []).map((track) => {
+                  const selected = track.id === subtitles.activeId
+                  return (
+                    <button
+                      key={track.id}
+                      onClick={() => {
+                        setMenu(null)
+                        if (!selected) subtitles.onSelect(track.id)
+                      }}
+                      aria-current={selected || undefined}
+                      title={track.release}
+                      className="flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                    >
+                      <Check className={cn('mt-0.5 h-4 w-4 shrink-0', selected ? 'opacity-100' : 'opacity-0')} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold">{track.label}</span>
+                        {track.release && <span className="mt-0.5 block truncate text-[11px] text-white/40">{track.release}</span>}
+                      </span>
+                    </button>
+                  )
+                })}
+                {subtitles.loading && <p className="px-4 py-2.5 text-white/50">Finding subtitles…</p>}
+                {!subtitles.loading && subtitles.error && (
+                  <p className="px-4 py-2.5 text-xs leading-relaxed text-amber-300/90">{subtitles.error}</p>
+                )}
+                {!subtitles.loading && !subtitles.error && subtitles.tracks?.length === 0 && (
+                  <p className="px-4 py-2.5 text-white/50">No subtitles found for this title.</p>
+                )}
               </div>
             </>
           )}

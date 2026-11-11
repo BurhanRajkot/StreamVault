@@ -37,12 +37,14 @@ import {
   type PlaybackMode,
 } from '@/lib/releasePlayback'
 import { cn } from '@/lib/utils'
+import type { SubtitleCue } from '@/lib/subtitles'
 import { PlayerControls, type PlayerControlsProps, type PlayerTimeline } from './PlayerControls'
+import { SubtitleOverlay } from './SubtitleOverlay'
 
-/** What the caller can put in the controls: title, release picker, next episode, ... */
+/** What the caller can put in the controls: title, release picker, subtitles menu, next episode, ... */
 type ChromeProps = Pick<
   PlayerControlsProps,
-  'title' | 'subtitle' | 'onBack' | 'sources' | 'activeSourceId' | 'onSourceChange' | 'onNext' | 'nextLabel' | 'overlay' | 'episodes'
+  'title' | 'subtitle' | 'onBack' | 'subtitles' | 'sources' | 'activeSourceId' | 'onSourceChange' | 'onNext' | 'nextLabel' | 'overlay' | 'episodes'
 >
 
 /**
@@ -59,6 +61,8 @@ interface DebridVideoProps extends ChromeProps {
   startAt?: number
   /** Position/duration, every few seconds while playing and on pause, end and unmount. */
   onProgress?: (position: number, duration: number) => void
+  /** Cues of the chosen subtitle track (seconds into the file), drawn over the picture. */
+  subtitleCues?: SubtitleCue[] | null
   /** Artwork shown until the first frame (when there's no `loadingScreen`). */
   poster?: string | null
   /**
@@ -135,6 +139,7 @@ export function DebridVideo({
   onModeChange,
   startAt,
   onProgress,
+  subtitleCues,
   poster,
   loadingScreen,
   onStarted,
@@ -678,6 +683,9 @@ export function DebridVideo({
         className="absolute inset-0 h-full w-full bg-black object-contain"
         onError={handleError}
       />
+      {videoEl && subtitleCues && subtitleCues.length > 0 && (
+        <SubtitleOverlay video={videoEl} cues={subtitleCues} offset={offset} />
+      )}
       <PlayerControls
         video={videoEl}
         container={container}
