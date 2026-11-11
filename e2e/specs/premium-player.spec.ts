@@ -389,21 +389,23 @@ test.describe('Downloads', () => {
     )
   })
 
-  test('the title page downloads a release without playing it', async ({ page, watch, mockApi }) => {
-    test.skip(true, 'Downloads are stopped for now (34dbfc9): the title page has no Download button')
+  test('the title page hands out a magnet link, never a Real-Debrid one', async ({ page, watch, mockApi }) => {
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
-    mockApi.on('GET', '/debrid/media-search', { json: { data: [hd] } })
-    mockApi.on('POST', '/debrid/play', { json: readyPlayback({ fileName: 'Inception.1080p.mkv', directUrl: `${SAMPLE_VIDEO_URL}?file=dl` }) })
+    const unshared = release({ name: 'Inception.2010.720p.WEB.x264-NOONE', seeders: '0' })
+    mockApi.on('GET', '/debrid/media-search', { json: { data: [hd, unshared] } })
 
     await watch.goto(MOVIE)
     await watch.root.getByRole('button', { name: /^Download/ }).click()
 
     const sheet = page.getByRole('dialog', { name: 'Download' })
-    await sheet.getByRole('button', { name: /1080p/ }).click()
-    await expect(sheet.getByRole('link', { name: /^Save 1080p/ })).toHaveAttribute('href', `${SAMPLE_VIDEO_URL}?file=dl`)
+    await expect(sheet.getByRole('link', { name: 'Open 1080p in torrent app' })).toHaveAttribute(
+      'href',
+      new RegExp(`^magnet:\\?xt=urn:btih:${hd.info_hash.toLowerCase()}&dn=`)
+    )
+    await expect(sheet.getByRole('button', { name: 'Copy 1080p magnet link' })).toBeVisible()
+    await expect(sheet.getByText(unshared.name), 'a release no one is sharing isn’t offered').toHaveCount(0)
     await expect(watch.premiumVideo, 'nothing plays').toHaveCount(0)
-    const [play] = mockApi.calls('POST', '/debrid/play')
-    expect((play.body as { instantOnly?: boolean }).instantOnly).toBe(true)
+    expect(mockApi.calls('POST', '/debrid/play'), 'Real-Debrid is never asked for the file').toHaveLength(0)
   })
 })
 
@@ -412,14 +414,14 @@ test.describe('on a phone', () => {
     test.skip(test.info().project.name !== 'mobile', 'The phone title page and full-screen player')
   })
 
-  // Downloads are stopped for now (34dbfc9). When they're back, this page also
-  // offers "Download S1:E1" under Play and a "Download episode N" per episode.
-  test('the title page offers Play and a show’s episodes', async ({ page, watch }) => {
+  test('the title page offers Play and Download, and a show’s episodes', async ({ page, watch }) => {
     await watch.goto(SHOW)
 
     await expect(watch.playButton).toBeVisible()
+    await expect(watch.root.getByRole('button', { name: /^Download S1:E1$/ })).toBeVisible()
     const episodes = page.getByRole('region', { name: 'Episodes' })
     await expect(episodes.getByRole('listitem')).toHaveCount(7)
+    await expect(episodes.getByRole('button', { name: 'Download episode 4' })).toBeVisible()
   })
 
   test('playing leaves nothing else on screen, and the player’s Episodes panel switches episode', async ({ page, watch, mockApi }) => {

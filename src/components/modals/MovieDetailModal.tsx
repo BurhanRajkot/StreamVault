@@ -12,8 +12,8 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { MobileDetailSheet } from './movie-detail/MobileDetailSheet'
-// Downloads stopped for now.
-// import { DownloadSheet, type DownloadTarget } from '@/components/downloads/DownloadSheet'
+// Downloads are magnet links now (a torrent app, not Real-Debrid) — see DownloadSheet.
+import { DownloadSheet, type DownloadTarget } from '@/components/downloads/DownloadSheet'
 import { enterPlaybackFullscreen, exitPlaybackFullscreen } from '@/lib/playbackFullscreen'
 import { DetailPanel } from './movie-detail/DetailPanel'
 import { EpisodeList, NowPlayingHeading, SourcePickers } from './movie-detail/NowPlaying'
@@ -117,7 +117,7 @@ export function MovieDetailModal({
       stopPlaying()
     }
   }
-  // const [downloadTarget, setDownloadTarget] = useState<DownloadTarget | null>(null)
+  const [downloadTarget, setDownloadTarget] = useState<DownloadTarget | null>(null)
   /** The phone title page has scrolled past its artwork — the top bar turns solid. */
   const [sheetScrolled, setSheetScrolled] = useState(false)
 
@@ -515,17 +515,16 @@ export function MovieDetailModal({
   }
 
   const imdbId = media.imdb_id ?? media.external_ids?.imdb_id
-  // Downloads stopped for now.
-  // const openDownload = (s?: number, ep?: number, episodeName?: string) =>
-  //   setDownloadTarget({
-  //     title,
-  //     year: display.year,
-  //     imdbId,
-  //     mediaType: typedMode,
-  //     season: mode === 'tv' ? s : undefined,
-  //     episode: mode === 'tv' ? ep : undefined,
-  //     label: mode === 'tv' && s !== undefined && ep !== undefined ? [`S${s} · E${ep}`, episodeName].filter(Boolean).join(' · ') : undefined,
-  //   })
+  const openDownload = (s?: number, ep?: number, episodeName?: string) =>
+    setDownloadTarget({
+      title,
+      year: display.year,
+      imdbId,
+      mediaType: typedMode,
+      season: mode === 'tv' ? s : undefined,
+      episode: mode === 'tv' ? ep : undefined,
+      label: mode === 'tv' && s !== undefined && ep !== undefined ? [`S${s} · E${ep}`, episodeName].filter(Boolean).join(' · ') : undefined,
+    })
   const playEpisode = (s: number, ep: number) => {
     setSeason(s)
     setEpisode(ep)
@@ -683,7 +682,7 @@ export function MovieDetailModal({
               onToggleLike={handleLikeToggle}
               isCopied={isCopied}
               onShare={handleShare}
-              // onDownload={openDownload}
+              onDownload={openDownload}
               onPlayEpisode={playEpisode}
               similar={media.similar?.results ?? []}
               serverTriggerRef={mobileServerSelectTriggerRef}
@@ -702,7 +701,7 @@ export function MovieDetailModal({
                 display={display}
                 playback={playbackControls}
                 isPrePlay
-                // onDownload={() => openDownload(season, episode)}
+                onDownload={() => openDownload(season, episode)}
                 isLiked={isLiked}
                 onToggleLike={handleLikeToggle}
                 disliked={disliked}
@@ -932,14 +931,12 @@ export function MovieDetailModal({
         </div>
       )}
 
-      {/* Downloads stopped for now.
       <DownloadSheet
         target={downloadTarget}
         onOpenChange={(open) => {
           if (!open) setDownloadTarget(null)
         }}
       />
-      */}
     </div>
   )
 }
