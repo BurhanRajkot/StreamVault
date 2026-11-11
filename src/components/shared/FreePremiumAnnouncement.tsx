@@ -59,7 +59,7 @@ export function FreePremiumAnnouncement() {
           <Zap className="h-[18px] w-[18px] fill-yellow-400 text-yellow-400 md:h-5 md:w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-bold leading-snug md:text-[15px]">Premium servers are free for 6 months</p>
+          <p className="text-sm font-bold leading-snug md:text-[15px]">Premium servers are free for 11 months</p>
           <p className="mt-0.5 text-xs leading-relaxed text-white/65 md:mt-1">
             <span className="hidden md:inline">Stream in 4K and 1080p on the Premium server — free for everyone, </span>
             <span className="md:hidden">4K and 1080p for everyone — </span>

@@ -1,15 +1,16 @@
 import { logger } from './logger'
 
 /**
- * Real-Debrid streaming is free for everyone until this instant — a six-month
- * promotion that started 2026-10-11 (guests included since 2026-10-16, for
- * the player routes; see debridAccess). After it passes, the
- * subscription check applies again on its own; no deploy is needed to end it.
+ * Real-Debrid streaming is free for everyone until this instant. The promotion
+ * started 2026-10-11 for six months (guests included since 2026-10-16, for
+ * the player routes; see debridAccess) and on 2026-11-12 was extended to run
+ * eleven months from that day. After it passes, the subscription check
+ * applies again on its own; no deploy is needed to end it.
  *
- * `DEBRID_FREE_UNTIL` (any string `Date` parses, e.g. "2027-04-11") overrides
+ * `DEBRID_FREE_UNTIL` (any string `Date` parses, e.g. "2027-10-12") overrides
  * it — set a past date to end the promotion early, or a later one to extend it.
  */
-const DEFAULT_FREE_UNTIL = '2027-04-11T00:00:00Z'
+const DEFAULT_FREE_UNTIL = '2027-10-12T00:00:00Z'
 
 function parseFreeUntil(raw: string | undefined): Date {
   if (raw) {
