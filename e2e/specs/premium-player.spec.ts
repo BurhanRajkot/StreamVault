@@ -375,6 +375,7 @@ test.describe('fits the screen', () => {
 
 test.describe('Downloads', () => {
   test('the player’s settings offer the playing file', async ({ page, watch }) => {
+    test.skip(true, 'Downloads are stopped for now: the player’s Settings menu has no Download row')
     await watch.goto(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()

@@ -26,7 +26,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
+// Downloads stopped for now.
+// import { formatBytes } from '@/lib/debridApi'
+import type { DebridReadyPlayback } from '@/lib/debridApi'
 import { forgetEdge, nearestDirectUrl, type EdgeChoice } from '@/lib/debridHost'
 import {
   convertedStreamUrl,
@@ -692,11 +694,13 @@ export function DebridVideo({
         video={videoEl}
         container={container}
         externalUrl={playback.directUrl}
-        download={{
-          url: playback.directUrl,
-          fileName: playback.fileName,
-          size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null,
-        }}
+        // Downloads stopped for now: without this the player's Settings menu
+        // has no Download row.
+        // download={{
+        //   url: playback.directUrl,
+        //   fileName: playback.fileName,
+        //   size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null,
+        // }}
         streamNote={mode.kind === 'hls' ? 'Real-Debrid converts this file as it plays, so a jump takes a few seconds to start.' : null}
         timeline={timeline}
         previewUrl={previewUrl}
