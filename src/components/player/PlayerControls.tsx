@@ -14,7 +14,10 @@
  * further); pinching out on a sideways phone zooms the picture to fill the
  * screen (pinch in to fit it again). Keyboard (anywhere outside a text
  * field): Space/K play, ←/→ or J/L ∓10s, ↑/↓ volume, M mute, F fullscreen,
- * 0–9 jump to 0–90%, Shift+N next episode.
+ * C subtitles on/off, 0–9 jump to 0–90%, Shift+N next episode.
+ *
+ * Subtitles (when the caller has them) are drawn here too — see
+ * SubtitleOverlay — so they can move up out of the controls' way.
  *
  * Pointing at the seek bar (or dragging its thumb) shows a frame from that
  * spot when the file allows it — see SeekPreview.
@@ -23,9 +26,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
+  Captions,
+  CaptionsOff,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Expand,
   ExternalLink,
@@ -46,7 +49,11 @@ import {
 import { cn } from '@/lib/utils'
 import { formatPlayerTime } from '@/lib/playbackPosition'
 import { useFrameGrabber } from '@/hooks/useFrameGrabber'
+import type { PlayerSubtitles } from '@/hooks/useSubtitles'
+import { MenuHeader, MenuRow } from './PlayerMenuParts'
 import { SeekPreview } from './SeekPreview'
+import { SubtitleLanguagesPage, SubtitleVersionsPage } from './SubtitleMenu'
+import { SubtitleOverlay } from './SubtitleOverlay'
 
 /** One file the viewer can switch to, as the settings menu lists it. */
 export interface PlayerSource {
@@ -115,6 +122,8 @@ export interface PlayerControlsProps {
    * back button shows, and pointer events reach the loading screen.
    */
   starting?: boolean
+  /** The file's subtitles: drawn over the picture, chosen from the settings menu. */
+  subtitles?: PlayerSubtitles | null
 }
 
 const SEEK_STEP_S = 10
@@ -264,7 +273,7 @@ type WebkitPresentationVideo = HTMLVideoElement & {
   webkitPresentationMode?: string
 }
 
-type MenuView = 'main' | 'quality' | 'speed' | 'episodes'
+type MenuView = 'main' | 'quality' | 'speed' | 'subtitles' | 'subtitle-versions' | 'episodes'
 
 interface SeekRipple {
   side: 'back' | 'forward'
@@ -295,6 +304,7 @@ export function PlayerControls({
   episodes,
   previewUrl,
   starting = false,
+  subtitles = null,
 }: PlayerControlsProps) {
   const [snap, setSnap] = useState<Snapshot>(() => snapshotOf(video, timeline))
   /** Latest timeline, for listeners that outlive a render. */
@@ -646,6 +656,11 @@ export function PlayerControls({
   useEffect(() => {
     onNextRef.current = onNext
   }, [onNext])
+  const toggleSubtitles = subtitles?.status === 'ready' ? subtitles.toggle : undefined
+  const toggleSubtitlesRef = useRef(toggleSubtitles)
+  useEffect(() => {
+    toggleSubtitlesRef.current = toggleSubtitles
+  }, [toggleSubtitles])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -699,6 +714,11 @@ export function PlayerControls({
           break
         case 'N':
           if (e.shiftKey && onNextRef.current) onNextRef.current()
+          else handled = false
+          break
+        case 'c':
+        case 'C':
+          if (toggleSubtitlesRef.current) toggleSubtitlesRef.current()
           else handled = false
           break
         case 'Escape':
@@ -1043,6 +1063,19 @@ export function PlayerControls({
         </div>
       )}
 
+      {subtitles && subtitles.language && (
+        <SubtitleOverlay
+          video={video}
+          track={subtitles.track}
+          offset={timeline?.offset ?? 0}
+          delay={subtitles.delay}
+          size={subtitles.size}
+          language={subtitles.language}
+          lifted={shown}
+          compact={compact}
+        />
+      )}
+
       {/* Spinner */}
       {showSpinner && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -1310,6 +1343,18 @@ export function PlayerControls({
               </button>
             )}
 
+            {toggleSubtitles && (
+              <button
+                onClick={toggleSubtitles}
+                aria-label="Subtitles (c)"
+                aria-pressed={!!subtitles?.language}
+                title={subtitles?.language ? 'Turn subtitles off (c)' : 'Turn subtitles on (c)'}
+                className={iconButton}
+              >
+                {subtitles?.language ? <Captions className="h-6 w-6" /> : <CaptionsOff className="h-6 w-6 opacity-80" />}
+              </button>
+            )}
+
             <button
               ref={settingsButtonRef}
               onClick={(e) => {
@@ -1402,6 +1447,9 @@ export function PlayerControls({
               {sources.length > 0 && (
                 <MenuRow onClick={() => setMenu('quality')} label="Quality" value={activeSource?.label ?? 'Auto'} chevron />
               )}
+              {subtitles && (
+                <MenuRow onClick={() => setMenu('subtitles')} label="Subtitles" value={subtitles.summary} chevron />
+              )}
               <MenuRow onClick={() => setMenu('speed')} label="Playback speed" value={speedLabel(snap.rate)} chevron />
               {canPip && (
                 <MenuRow
@@ -1480,6 +1528,18 @@ export function PlayerControls({
             </>
           )}
 
+          {menu === 'subtitles' && subtitles && (
+            <SubtitleLanguagesPage
+              subtitles={subtitles}
+              onBack={() => setMenu('main')}
+              onVersions={() => setMenu('subtitle-versions')}
+            />
+          )}
+
+          {menu === 'subtitle-versions' && subtitles && (
+            <SubtitleVersionsPage subtitles={subtitles} onBack={() => setMenu('subtitles')} />
+          )}
+
           {menu === 'speed' && (
             <>
               <MenuHeader title="Playback speed" onBack={() => setMenu('main')} />
@@ -1506,46 +1566,6 @@ export function PlayerControls({
       </>
       )}
     </div>
-  )
-}
-
-function MenuRow({
-  label,
-  value,
-  chevron,
-  icon,
-  onClick,
-}: {
-  label: string
-  value?: string
-  chevron?: boolean
-  icon?: ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
-    >
-      <span>{label}</span>
-      <span className="flex items-center gap-1 text-white/60">
-        {value}
-        {chevron && <ChevronRight className="h-4 w-4" />}
-        {icon}
-      </span>
-    </button>
-  )
-}
-
-function MenuHeader({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <button
-      onClick={onBack}
-      className="mb-1 flex w-full shrink-0 items-center gap-2 border-b border-white/10 px-3 pb-2.5 pt-1.5 text-left font-semibold transition-colors hover:text-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/60"
-    >
-      <ChevronLeft className="h-4 w-4" />
-      {title}
-    </button>
   )
 }
 

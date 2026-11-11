@@ -154,6 +154,12 @@ export const seasons = createNamespace('season', 3600)
 export const debrid = createNamespace('debrid', 60 * 60)
 
 /**
+ * Subtitle searches and files (OpenSubtitles): 12 hours default. A title's
+ * subtitles change slowly, and a file never changes once uploaded.
+ */
+export const subtitles = createNamespace('subtitles', 12 * 60 * 60)
+
+/**
  * Clear all caches completely
  */
 export async function clearAllCaches(): Promise<void> {
