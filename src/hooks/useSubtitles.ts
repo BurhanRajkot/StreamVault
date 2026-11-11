@@ -56,6 +56,9 @@ interface UseSubtitlesParams {
   fileName?: string | null
   /** Its length in seconds. */
   duration?: number | null
+  /** Its Real-Debrid link and size in bytes — for subtitles matched to this very file. */
+  fileUrl?: string | null
+  fileSize?: number | null
 }
 
 /** Per-file state: the version picked in each language, and the timing nudge. */
@@ -70,7 +73,7 @@ interface FileState {
 const EMPTY_FILE_STATE: FileState = { file: null, versions: {}, delay: 0, broken: [] }
 
 export function useSubtitles(
-  { imdbId, mediaType, season, episode, fileName, duration }: UseSubtitlesParams,
+  { imdbId, mediaType, season, episode, fileName, duration, fileUrl, fileSize }: UseSubtitlesParams,
   getToken: () => Promise<string | undefined>
 ): PlayerSubtitles {
   const [prefs, setPrefs] = useState<SubtitlePrefs>(readSubtitlePrefs)
@@ -93,7 +96,7 @@ export function useSubtitles(
   const roundedDuration = duration && duration > 0 ? Math.round(duration) : 0
 
   const list = useQuery({
-    queryKey: ['subtitles', imdbId, mediaType, season ?? null, episode ?? null, file, roundedDuration, deepLanguage],
+    queryKey: ['subtitles', imdbId, mediaType, season ?? null, episode ?? null, file, roundedDuration, deepLanguage, fileUrl ?? null, fileSize ?? null],
     queryFn: async ({ signal }) =>
       fetchSubtitles(
         {
@@ -103,6 +106,8 @@ export function useSubtitles(
           episode,
           fileName: file ?? undefined,
           duration: roundedDuration || null,
+          fileUrl: fileUrl ?? undefined,
+          fileSize,
           languages: deepLanguage ? [deepLanguage] : [],
         },
         await getToken(),
