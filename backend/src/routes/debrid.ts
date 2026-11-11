@@ -108,6 +108,17 @@ function optionalInt(value: unknown): number | undefined {
   return Number.isInteger(n) && n >= 0 ? n : undefined
 }
 
+/**
+ * A season or episode number that goes into an outside URL's path: digits
+ * only, checked as text rather than parsed leniently like optionalInt, so
+ * nothing but a number can reach the path.
+ */
+function pathNumber(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined
+  if (!/^\d{1,4}$/.test(value)) return undefined
+  return Number(value)
+}
+
 // ---------------------------------------------------------------------------
 // GET /debrid/status — public, no auth needed
 // ---------------------------------------------------------------------------
@@ -300,8 +311,8 @@ router.get('/subtitles', optionalAuth, async (req: Request, res: Response) => {
 
   const imdbId = typeof req.query.imdb === 'string' ? req.query.imdb.trim() : ''
   const mediaType = req.query.type === 'tv' ? 'tv' : 'movie'
-  const season = optionalInt(req.query.season)
-  const episode = optionalInt(req.query.episode)
+  const season = pathNumber(req.query.season)
+  const episode = pathNumber(req.query.episode)
   if (!/^tt\d{5,10}$/.test(imdbId)) {
     return res.status(400).json({ error: 'imdb must be a valid IMDb id (e.g. tt1375666)' })
   }
