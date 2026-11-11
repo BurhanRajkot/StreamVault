@@ -293,6 +293,60 @@ export async function searchDebridMedia(
   return (await handleResponse<{ data: DebridRelease[] }>(res)).data ?? []
 }
 
+/** One version of a language's subtitles (mirrors backend/src/lib/subtitles.ts). */
+export interface SubtitleOption {
+  /** OpenSubtitles file id. */
+  id: string
+  /** The release the subtitle was made for. */
+  release: string
+  /** For the deaf and hard of hearing — with sound cues like "[door slams]". */
+  hearingImpaired: boolean
+}
+
+export interface SubtitleLanguage {
+  /** OpenSubtitles language code, e.g. "eng", "pob". */
+  code: string
+  name: string
+  /** Best match for the playing file first. */
+  options: SubtitleOption[]
+}
+
+export interface SubtitleSearchParams {
+  imdbId: string
+  mediaType: 'movie' | 'tv'
+  season?: number
+  episode?: number
+  /** The playing file — its release name and length decide which version fits best. */
+  fileName?: string
+  duration?: number | null
+  /** Languages to search in depth besides English. */
+  languages?: string[]
+}
+
+/** Subtitles for a movie or episode, by language, ranked for the playing file. */
+export async function fetchSubtitles(params: SubtitleSearchParams, token?: string, signal?: AbortSignal): Promise<SubtitleLanguage[]> {
+  const query = new URLSearchParams({ imdb: params.imdbId, type: params.mediaType })
+  if (params.season != null) query.set('season', String(params.season))
+  if (params.episode != null) query.set('episode', String(params.episode))
+  if (params.fileName) query.set('fileName', params.fileName)
+  if (params.duration && params.duration > 0) query.set('duration', String(Math.round(params.duration)))
+  if (params.languages?.length) query.set('langs', params.languages.join(','))
+  const res = await fetch(`${API_BASE}/debrid/subtitles?${query}`, { headers: authHeaders(token), signal })
+  return (await handleResponse<{ languages?: SubtitleLanguage[] }>(res)).languages ?? []
+}
+
+/** One subtitle file's text (SubRip, WebVTT or SubStation Alpha). */
+export async function fetchSubtitleText(id: string, token?: string, signal?: AbortSignal): Promise<string> {
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${API_BASE}/debrid/subtitles/file/${encodeURIComponent(id)}`, { headers, signal })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new DebridRequestError(body.error || `Request failed: ${res.status}`, res.status)
+  }
+  return res.text()
+}
+
 // ---------------------------------------------------------------------------
 // Formatting / parsing helpers
 // ---------------------------------------------------------------------------

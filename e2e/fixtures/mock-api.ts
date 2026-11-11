@@ -54,6 +54,8 @@ export interface MockRequest {
 export interface MockResponse {
   status?: number
   json?: unknown
+  /** A plain-text body instead of JSON (a subtitle file). */
+  text?: string
   headers?: Record<string, string>
   /** Hold the response back — for asserting loading states. */
   delayMs?: number
@@ -174,9 +176,9 @@ export class MockApi {
       return route
         .fulfill({
           status: res.status ?? 200,
-          contentType: 'application/json',
+          contentType: res.text !== undefined ? 'text/plain; charset=utf-8' : 'application/json',
           headers: { ...corsHeaders(headers), ...res.headers },
-          body: res.json === undefined ? '' : JSON.stringify(res.json),
+          body: res.text ?? (res.json === undefined ? '' : JSON.stringify(res.json)),
         })
         .catch(() => {
           // The page navigated away while the response was delayed.
@@ -332,6 +334,9 @@ export class MockApi {
     })
     this.on('POST', '/debrid/play', ok(readyPlayback()))
     this.on('GET', '/debrid/play/:torrentId', ok(readyPlayback()))
+    // No subtitles unless a test brings some (see subtitlesFor in data.ts)
+    this.on('GET', '/debrid/subtitles', ok({ languages: [] }))
+    this.on('GET', '/debrid/subtitles/file/:id', { status: 404, json: { error: 'Subtitle not found' } })
   }
 }
 

@@ -13,6 +13,8 @@
  *   GET    /debrid/media-search                   — search by IMDb id (player: premium or admin)
  *   POST   /debrid/play                           — add/reuse a release and resolve its streams (player: premium or admin)
  *   GET    /debrid/play/:torrentId                — poll a release that is still downloading (player: premium or admin)
+ *   GET    /debrid/subtitles                      — subtitles for the playing file, by language (player: premium or admin)
+ *   GET    /debrid/subtitles/file/:id             — one subtitle file's text (player: premium or admin)
  *   GET    /debrid/torrents                       — the account's torrents (premium or admin)
  *   GET    /debrid/torrents/:torrentId            — one torrent with its files (premium or admin)
  *   GET    /debrid/torrents/:torrentId/files/:fileId/stream — streams for one library file (premium or admin)
@@ -32,6 +34,7 @@ import { getUserId } from '../utils/auth'
 import { isPaidUser } from '../lib/subscription'
 import { debridAccess, debridFreeUntil } from '../lib/debridPromo'
 import * as debrid from '../lib/debrid'
+import * as subtitles from '../lib/subtitles'
 
 const router = Router()
 
@@ -103,6 +106,17 @@ function sendDebridFailure(res: Response, err: unknown, error: string) {
 function optionalInt(value: unknown): number | undefined {
   const n = typeof value === 'string' ? parseInt(value, 10) : typeof value === 'number' ? value : NaN
   return Number.isInteger(n) && n >= 0 ? n : undefined
+}
+
+/**
+ * A season or episode number that goes into an outside URL's path: digits
+ * only, checked as text rather than parsed leniently like optionalInt, so
+ * nothing but a number can reach the path.
+ */
+function pathNumber(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined
+  if (!/^\d{1,4}$/.test(value)) return undefined
+  return Number(value)
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +293,85 @@ router.get('/play/:torrentId', optionalAuth, async (req: Request, res: Response)
   } catch (err: unknown) {
     logger.warn('Debrid play poll failed', { torrentId, error: errorMessage(err) })
     return sendDebridFailure(res, err, 'Failed to check download')
+  }
+})
+
+// ---------------------------------------------------------------------------
+// GET /debrid/subtitles?imdb=tt...&type=movie|tv[&season=&episode=]
+//                      [&fileName=][&duration=][&langs=spa,fre] — player
+//
+// Subtitles from OpenSubtitles, by language, each language's versions ranked
+// for the file playing (its release name and length). English and `langs`
+// are searched in depth. Answers { languages: [{ code, name, options }] }.
+// ---------------------------------------------------------------------------
+
+router.get('/subtitles', optionalAuth, async (req: Request, res: Response) => {
+  const denied = await authorizeDebridAccess(req, PLAYER)
+  if (denied) return res.status(denied.status).json(denied.body)
+
+  const imdbId = typeof req.query.imdb === 'string' ? req.query.imdb.trim() : ''
+  const mediaType = req.query.type === 'tv' ? 'tv' : 'movie'
+  const season = pathNumber(req.query.season)
+  const episode = pathNumber(req.query.episode)
+  if (!/^tt\d{5,10}$/.test(imdbId)) {
+    return res.status(400).json({ error: 'imdb must be a valid IMDb id (e.g. tt1375666)' })
+  }
+  if (mediaType === 'tv' && (season === undefined || episode === undefined)) {
+    return res.status(400).json({ error: 'season and episode are required for a show' })
+  }
+  const fileName = typeof req.query.fileName === 'string' ? req.query.fileName.slice(0, 300) : undefined
+  const duration = typeof req.query.duration === 'string' ? Number(req.query.duration) : NaN
+  const languages =
+    typeof req.query.langs === 'string'
+      ? req.query.langs
+          .split(',')
+          .map((l) => l.trim().toLowerCase())
+          .filter((l) => /^[a-z]{3}$/.test(l))
+          .slice(0, 2)
+      : []
+
+  try {
+    const found = await subtitles.findSubtitles({
+      imdbId,
+      mediaType,
+      season,
+      episode,
+      languages,
+      file: { name: fileName, duration: Number.isFinite(duration) && duration > 0 && duration < 86_400 ? duration : null },
+    })
+    res.set('Cache-Control', 'private, max-age=600')
+    return res.json({ languages: found })
+  } catch (err: unknown) {
+    logger.error('Subtitle search failed', { imdbId, mediaType, season, episode, error: errorMessage(err) })
+    return res.status(502).json({ error: 'Subtitle search failed' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// GET /debrid/subtitles/file/:id — player
+//
+// One subtitle file as UTF-8 text (SubRip, WebVTT or SubStation Alpha), by
+// the OpenSubtitles file id /debrid/subtitles listed. A file never changes.
+// ---------------------------------------------------------------------------
+
+router.get('/subtitles/file/:id', optionalAuth, async (req: Request, res: Response) => {
+  const denied = await authorizeDebridAccess(req, PLAYER)
+  if (denied) return res.status(denied.status).json(denied.body)
+
+  const { id } = req.params
+  if (!subtitles.SUBTITLE_FILE_ID_RE.test(id)) {
+    return res.status(400).json({ error: 'Invalid subtitle id' })
+  }
+
+  try {
+    const text = await subtitles.fetchSubtitleFile(id)
+    res.set('Cache-Control', 'private, max-age=604800, immutable')
+    res.type('text/plain; charset=utf-8')
+    return res.send(text)
+  } catch (err: unknown) {
+    const status = err instanceof subtitles.SubtitleFileError ? err.status : 502
+    logger.warn('Subtitle file failed', { id, error: errorMessage(err) })
+    return res.status(status).json({ error: status === 404 ? 'Subtitle not found' : 'Subtitle download failed' })
   }
 })
 

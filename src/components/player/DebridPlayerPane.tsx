@@ -45,6 +45,7 @@ import {
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases } from '@/lib/premiumSearch'
 import { useDebridToken } from '@/hooks/useDebridToken'
+import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { formatPromoDate, useDebridFreeUntil } from '@/hooks/useDebridPromo'
 import { recordPremiumPlay } from '@/lib/supportPrompt'
@@ -234,6 +235,12 @@ export function DebridPlayerPane({
   const uncachedFallbackRef = useRef<DebridRelease | null>(null)
 
   const episodeOpts = useMemo(() => (mediaType === 'tv' ? { season, episode } : {}), [mediaType, season, episode])
+
+  // Searched once a file is ready to play: the versions are ranked for it.
+  const subtitles = useSubtitles(
+    { imdbId, mediaType, season, episode, fileName: playback?.fileName, duration: playback?.media?.duration },
+    getToken
+  )
 
   // ~1s, in parallel with finding and starting a release (3s and more).
   useEffect(() => {
@@ -826,6 +833,7 @@ export function DebridPlayerPane({
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}
         episodes={episodes}
+        subtitles={subtitles}
         onStarted={() => setVideoStarted(true)}
         edge={edge}
         loadingScreen={(message) => (
