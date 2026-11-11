@@ -42,7 +42,17 @@ import { PlayerControls, type PlayerControlsProps, type PlayerTimeline } from '.
 /** What the caller can put in the controls: title, release picker, next episode, ... */
 type ChromeProps = Pick<
   PlayerControlsProps,
-  'title' | 'subtitle' | 'onBack' | 'sources' | 'activeSourceId' | 'onSourceChange' | 'onNext' | 'nextLabel' | 'overlay' | 'episodes'
+  | 'title'
+  | 'subtitle'
+  | 'onBack'
+  | 'sources'
+  | 'activeSourceId'
+  | 'onSourceChange'
+  | 'onNext'
+  | 'nextLabel'
+  | 'overlay'
+  | 'episodes'
+  | 'subtitles'
 >
 
 /**
