@@ -16,9 +16,9 @@ test('tells visitors Premium is free with no sign-in needed', async ({ home }) =
   await home.goto()
 
   await expect(home.promoAnnouncement).toBeVisible()
-  await expect(home.promoAnnouncement).toContainText('Premium servers are free for 6 months')
+  await expect(home.promoAnnouncement).toContainText('Premium servers are free for 11 months')
   await expect(home.promoAnnouncement).toContainText('no sign-in needed')
-  await expect(home.promoAnnouncement).toContainText('Apr 11, 2027')
+  await expect(home.promoAnnouncement).toContainText('Oct 12, 2027')
   await expect(home.promoAnnouncement.getByRole('link', { name: /sign in/i })).toHaveCount(0)
 })
 
