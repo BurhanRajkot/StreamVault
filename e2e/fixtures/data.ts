@@ -258,3 +258,28 @@ export function convertedPlayback() {
     },
   })
 }
+
+/** What /debrid/subtitles lists for a title: two English versions and one Spanish, best first. */
+export const SUBTITLE_LANGUAGES = [
+  {
+    code: 'eng',
+    name: 'English',
+    options: [
+      { id: '101', release: 'Inception.2010.1080p.BluRay.x264.AAC-GROUP', hearingImpaired: false },
+      { id: '102', release: 'Inception.2010.DVDRip.XviD-OTHER', hearingImpaired: true },
+    ],
+  },
+  { code: 'spa', name: 'Spanish', options: [{ id: '201', release: 'Inception.2010.1080p.BluRay.x264.AAC-GROUP', hearingImpaired: false }] },
+]
+
+/** The one line each subtitle file above holds. */
+export const SUBTITLE_LINES: Record<string, string> = {
+  '101': 'You mustn’t be afraid to dream a little bigger.',
+  '102': '[THUNDER RUMBLING] Dream a little bigger.',
+  '201': 'No debes tener miedo de soñar un poco más.',
+}
+
+/** A SubRip file whose one line stays up through the whole sample clip. */
+export function subtitleFile(line: string): string {
+  return `1\r\n00:00:00,000 --> 00:10:00,000\r\n${line}\r\n`
+}
