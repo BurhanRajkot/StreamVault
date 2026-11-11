@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PageMeta } from '@/seo/PageMeta'
-import { Check, Sparkles, Repeat, Loader2, QrCode, ShieldCheck, Download, Clock, Clapperboard, Zap } from 'lucide-react'
+import { Check, Sparkles, Repeat, Loader2, QrCode, ShieldCheck, /* Download, */ Clock, Clapperboard, Zap } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/layout/Footer'
@@ -37,7 +37,8 @@ interface Plan {
 
 const BENEFITS = [
   { icon: Sparkles, label: '4K Ultra HD' },
-  { icon: Download, label: 'Unlimited Downloads' },
+  // Downloads stopped for now.
+  // { icon: Download, label: 'Unlimited Downloads' },
   { icon: ShieldCheck, label: 'No Card Required' },
   { icon: Clock, label: 'Approved in ~1-2 hrs' },
 ]
@@ -158,7 +159,8 @@ export default function Pricing() {
             <div className="mb-10 text-center">
               <h1 className="mb-4 text-4xl font-bold text-foreground md:text-5xl">Unlock Premium Streaming</h1>
               <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-                4K and 1080p on the Premium server, plus downloads. Pay once by UPI — no card, no auto-renewal.
+                {/* Downloads stopped for now — was "…on the Premium server, plus downloads." */}
+                4K and 1080p on the Premium server. Pay once by UPI — no card, no auto-renewal.
               </p>
             </div>
 
@@ -170,13 +172,14 @@ export default function Pricing() {
                   <span className="font-semibold text-foreground">
                     Premium streaming is free for everyone until {formatPromoDate(freeUntil)}.
                   </span>{' '}
-                  You don&apos;t need a plan to watch. A plan adds downloads, and keeps Premium after the offer ends.
+                  {/* Downloads stopped for now — was "A plan adds downloads, and keeps Premium…" */}
+                  You don&apos;t need a plan to watch. A plan keeps Premium after the offer ends.
                 </p>
               </div>
             )}
 
             {/* ── Benefits strip ── */}
-            <div className="mx-auto mb-14 grid max-w-2xl grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4">
+            <div className="mx-auto mb-14 grid max-w-2xl grid-cols-3 gap-x-4 gap-y-6">
               {BENEFITS.map(({ icon: Icon, label }) => (
                 <div key={label} className="flex flex-col items-center gap-2 text-center">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">

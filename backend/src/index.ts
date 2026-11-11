@@ -20,7 +20,8 @@ import { httpsEnforcement } from './cybersecurity/httpsEnforcement'
 import subscriptionAdminRouter from './routes/admin'
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
-import downloadsRouter from './routes/downloads'
+// Downloads stopped for now.
+// import downloadsRouter from './routes/downloads'
 import subscriptionsRouter from './routes/subscriptions'
 import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
@@ -115,7 +116,7 @@ app.get('/cache-stats', requireAdminAuth, (_req, res) => {
 
 // ROUTES
 app.use('/tmdb', tmdbRouter)
-app.use('/downloads', downloadsRouter)
+// app.use('/downloads', downloadsRouter) // Downloads stopped for now.
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
 app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin routes first

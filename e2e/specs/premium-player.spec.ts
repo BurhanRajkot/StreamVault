@@ -390,6 +390,7 @@ test.describe('Downloads', () => {
   })
 
   test('the title page hands out a magnet link, never a Real-Debrid one', async ({ page, watch, mockApi }) => {
+    test.skip(true, 'Downloads are stopped for now: the title page has no Download button')
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
     const unshared = release({ name: 'Inception.2010.720p.WEB.x264-NOONE', seeders: '0' })
     mockApi.on('GET', '/debrid/media-search', { json: { data: [hd, unshared] } })
@@ -414,14 +415,15 @@ test.describe('on a phone', () => {
     test.skip(test.info().project.name !== 'mobile', 'The phone title page and full-screen player')
   })
 
-  test('the title page offers Play and Download, and a show’s episodes', async ({ page, watch }) => {
+  // Downloads are stopped for now. When they're back, this page also offers
+  // "Download S1:E1" under Play and a "Download episode N" per episode.
+  test('the title page offers Play and a show’s episodes, and no Download', async ({ page, watch }) => {
     await watch.goto(SHOW)
 
     await expect(watch.playButton).toBeVisible()
-    await expect(watch.root.getByRole('button', { name: /^Download S1:E1$/ })).toBeVisible()
     const episodes = page.getByRole('region', { name: 'Episodes' })
     await expect(episodes.getByRole('listitem')).toHaveCount(7)
-    await expect(episodes.getByRole('button', { name: 'Download episode 4' })).toBeVisible()
+    await expect(watch.root.getByRole('button', { name: /^Download/ })).toHaveCount(0)
   })
 
   test('playing leaves nothing else on screen, and the player’s Episodes panel switches episode', async ({ page, watch, mockApi }) => {
