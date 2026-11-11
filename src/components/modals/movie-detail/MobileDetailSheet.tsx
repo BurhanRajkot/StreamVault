@@ -1,6 +1,6 @@
 import { useState, type ReactNode, type Ref } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, /* Download, */ Play, Plus, Share2, ThumbsUp } from 'lucide-react'
+import { Check, Download, Play, Plus, Share2, ThumbsUp } from 'lucide-react'
 import { cn, slugify } from '@/lib/utils'
 import { getImageUrl } from '@/lib/api'
 import type { Media } from '@/lib/config'
@@ -119,15 +119,15 @@ export function MobileDetailSheet({
           <Play className="h-5 w-5 fill-current" />
           Play
         </button>
-        {/* Downloads stopped for now.
-        <button
-          onClick={() => onDownload(isTv ? season : undefined, isTv ? episode : undefined)}
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white/[0.14] text-[15px] font-semibold text-white tap-scale"
-        >
-          <Download className="h-5 w-5" />
-          Download{isTv ? ` S${season}:E${episode}` : ''}
-        </button>
-        */}
+        {onDownload && (
+          <button
+            onClick={() => onDownload(isTv ? season : undefined, isTv ? episode : undefined)}
+            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white/[0.14] text-[15px] font-semibold text-white tap-scale"
+          >
+            <Download className="h-5 w-5" />
+            Download{isTv ? ` S${season}:E${episode}` : ''}
+          </button>
+        )}
 
         {/* Synopsis */}
         <p className={cn('mt-4 text-[14px] leading-relaxed text-foreground/85', !isOverviewExpanded && 'line-clamp-3')}>
