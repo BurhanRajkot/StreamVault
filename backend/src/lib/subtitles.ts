@@ -22,13 +22,14 @@
  * offers no way to fetch one as text: filling the transcode's {subtitles}
  * slot can only burn it into the converted stream.
  *
- * Sync: a title search knows only release names, and a subtitle timed to
- * another cut, intro or frame rate shows the wrong lines. So the playing
- * file's OpenSubtitles fingerprint (its size and its first and last 64 KB —
- * the hash VLC, Kodi and Stremio use) is read too, and subtitles people
- * matched to that very file come first. Failing that, subtitles timed to a
- * different frame rate than most (25 fps PAL against 23.976 fps film drifts
- * ~4%, minutes by the end) are pushed down.
+ * Sync: a subtitle timed to another cut, intro or frame rate shows the wrong
+ * lines. A subtitle made for a release of exactly the file's name ranks
+ * high, and one timed to a different frame rate than most (25 fps PAL
+ * against 23.976 fps film drifts ~4%, minutes by the end) is pushed down.
+ *
+ * The server never reads the playing file itself (for OpenSubtitles' file
+ * hash, say): Real-Debrid takes its links used from the server's IP and the
+ * viewer's at once for account sharing, and limits the account.
  */
 
 import * as cache from '../services/cache'
@@ -45,12 +46,7 @@ function userAgent(): string {
 }
 
 const SEARCH_TIMEOUT_MS = 8000
-const FILE_TIMEOUT_MS = 15_000
-/** Reading a file's two fingerprint chunks; past this the subtitles go without. */
-const FINGERPRINT_TIMEOUT_MS = 4000
-/** The fingerprint reads this much from each end of the file. */
-const FINGERPRINT_CHUNK = 65_536
-/** A real subtitle file is 30-200 KB; anything this big is something else. */
+const FILE_TIMEOUT_MS = 15_000/** A real subtitle file is 30-200 KB; anything this big is something else. */
 const MAX_FILE_BYTES = 3 * 1024 * 1024
 /** Versions offered per language. */
 const MAX_OPTIONS_PER_LANGUAGE = 6
@@ -59,14 +55,6 @@ const MAX_DEEP_LANGUAGES = 3
 
 export const SUBTITLE_FILE_ID_RE = /^\d{1,12}$/
 const LANGUAGE_CODE_RE = /^[a-z]{3}$/
-/**
- * A Real-Debrid download link — the only address a fingerprint is read from.
- * Anchored, with no wildcards, so nothing else can pass for one.
- */
-const DEBRID_DOWNLOAD_LINK_RE =
-  /^https:\/\/[a-z0-9-]{1,30}\.download\.real-debrid\.com\/d\/[A-Za-z0-9]{6,32}\/[A-Za-z0-9\-._~%!$&'()*+,;=:@]{1,500}$/
-const FINGERPRINT_HASH_RE = /^[0-9a-f]{16}$/
-const FINGERPRINT_SIZE_RE = /^\d{6,15}$/
 
 const PLAYABLE_FORMATS = new Set(['srt', 'vtt', 'ass', 'ssa'])
 
@@ -312,10 +300,6 @@ export interface PlayingFile {
   name?: string
   /** Its length in seconds. */
   duration?: number | null
-  /** Its Real-Debrid download link — read for the fingerprint. */
-  link?: string
-  /** Its size in bytes, when known: both fingerprint chunks are then read at once. */
-  size?: number | null
 }
 
 /** "Inception.2010.1080p.BluRay.x264-SPARKS.mkv" and "Inception 2010 1080p BluRay x264-SPARKS" → the same. */
@@ -544,90 +528,6 @@ export function addonSearchPath(q: Pick<SubtitleSearch, 'imdbId' | 'mediaType' |
     : `subtitles/movie/${q.imdbId}.json`
 }
 
-// ---------------------------------------------------------------------------
-// Fingerprint — OpenSubtitles' hash of the playing file
-// ---------------------------------------------------------------------------
-
-/** A file's OpenSubtitles fingerprint: its exact size and hash, as the legacy search takes them. */
-export interface FileFingerprint {
-  size: string
-  hash: string
-}
-
-/**
- * OpenSubtitles' hash: the file size plus every little-endian 64-bit word of
- * its first and last 64 KB, wrapping at 64 bits, as 16 hex digits.
- */
-export function osHash(size: number, head: Uint8Array, tail: Uint8Array): string {
-  let hash = BigInt(size)
-  for (const chunk of [head, tail]) {
-    const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength)
-    for (let i = 0; i + 8 <= chunk.byteLength; i += 8) hash = BigInt.asUintN(64, hash + view.getBigUint64(i, true))
-  }
-  return hash.toString(16).padStart(16, '0')
-}
-
-/** The legacy API's path for subtitles matched to a file's fingerprint (parameters alphabetical). */
-export function restHashPath(fp: FileFingerprint, lang?: string): string {
-  return [`moviebytesize-${fp.size}`, `moviehash-${fp.hash}`, ...(lang ? [`sublanguageid-${lang}`] : [])].join('/')
-}
-
-/** Bytes `start`-`end` of a file, and the file's total size from Content-Range. */
-async function readRange(link: string, start: number, end: number): Promise<{ bytes: Uint8Array; total: number }> {
-  const res = await fetch(link, {
-    headers: { Range: `bytes=${start}-${end}` },
-    signal: AbortSignal.timeout(FINGERPRINT_TIMEOUT_MS),
-  })
-  if (res.status !== 206) {
-    await res.body?.cancel()
-    throw new Error(`Range read failed: ${res.status}`)
-  }
-  const total = Number(res.headers.get('content-range')?.match(/\/(\d+)$/)?.[1])
-  const bytes = new Uint8Array(await res.arrayBuffer())
-  if (!Number.isSafeInteger(total) || bytes.byteLength !== end - start + 1) throw new Error('Unexpected range response')
-  return { bytes, total }
-}
-
-/**
- * The playing file's fingerprint, read from its Real-Debrid download link —
- * 128 KB, two small range requests. Null for anything but such a link.
- */
-export async function fileFingerprint(link: string, size?: number | null): Promise<FileFingerprint | null> {
-  if (!DEBRID_DOWNLOAD_LINK_RE.test(link)) return null
-  const key = `fingerprint:${link}`
-  const hit = await cache.subtitles.get<FileFingerprint>(key)
-  if (hit) return hit
-
-  const tailOf = (total: number) => readRange(link, total - FINGERPRINT_CHUNK, total - 1)
-  const head = readRange(link, 0, FINGERPRINT_CHUNK - 1)
-  // With the size given, both ends at once; otherwise the start says it.
-  const known = size && Number.isSafeInteger(size) && size >= 2 * FINGERPRINT_CHUNK ? size : null
-  const early = known ? tailOf(known) : null
-  early?.catch(() => {}) // unused if the size given turns out wrong
-  const first = await head
-  if (first.total < 2 * FINGERPRINT_CHUNK) return null
-  const last = early && known === first.total ? await early : await tailOf(first.total)
-  if (last.total !== first.total) return null
-
-  const hash = osHash(first.total, first.bytes, last.bytes)
-  const sizeText = String(first.total)
-  if (!FINGERPRINT_HASH_RE.test(hash) || !FINGERPRINT_SIZE_RE.test(sizeText)) return null
-  const fingerprint = { size: sizeText, hash }
-  await cache.subtitles.set(key, fingerprint)
-  return fingerprint
-}
-
-/**
- * A fingerprint match for this title (and episode). People match files to
- * subtitles by hand, and a hash can carry another title's subtitles too.
- */
-export function belongsTo(c: SubtitleCandidate, q: Pick<SubtitleSearch, 'imdbId' | 'mediaType' | 'season' | 'episode'>): boolean {
-  const imdb = imdbNumber(q.imdbId)
-  if (!imdb) return false
-  if (q.mediaType === 'movie') return c.imdb === imdb
-  return c.parentImdb === imdb && c.season === q.season && c.episode === q.episode
-}
-
 async function searchRest(path: string): Promise<SubtitleCandidate[]> {
   const res = await fetch(`${OS_REST_BASE}/search/${path}`, {
     headers: { 'User-Agent': userAgent(), 'X-User-Agent': userAgent(), Accept: 'application/json' },
@@ -672,31 +572,10 @@ function bestEffort(label: string, lookup: Promise<SubtitleCandidate[]>): Promis
   })
 }
 
-/** Subtitles matched to the playing file's fingerprint, in the deep languages and a sweep of all. */
-async function searchByFingerprint(q: SubtitleSearch, deep: string[]): Promise<SubtitleCandidate[]> {
-  const link = q.file?.link
-  if (!link) return []
-  const fingerprint = await fileFingerprint(link, q.file?.size).catch((err: unknown) => {
-    logger.warn('Subtitle fingerprint failed', { error: err instanceof Error ? err.message : String(err) })
-    return null
-  })
-  if (!fingerprint) return []
-  const found = await Promise.all(
-    [...deep.map((l) => restHashPath(fingerprint, l)), restHashPath(fingerprint)].map((path) =>
-      bestEffort('opensubtitles-hash', cachedSearch(`rest:${path}`, () => searchRest(path)))
-    )
-  )
-  return found
-    .flat()
-    .filter((c) => belongsTo(c, q))
-    .map((c) => ({ ...c, hashMatch: true }))
-}
-
 /**
  * Every subtitle there is for a movie or episode, ranked for the file
- * playing. Subtitles matched to the file's fingerprint lead; English and the
- * requested languages are searched in depth; a sweep of all languages and
- * the addon fill in the rest.
+ * playing. English and the requested languages are searched in depth; a sweep
+ * of all languages and the addon fill in the rest.
  */
 export async function findSubtitles(q: SubtitleSearch): Promise<SubtitleLanguage[]> {
   if (q.mediaType === 'tv' && (q.season == null || q.episode == null)) return []
@@ -708,9 +587,8 @@ export async function findSubtitles(q: SubtitleSearch): Promise<SubtitleLanguage
   const addonPath = addonSearchPath(q)
   const addonLookup = bestEffort('addon', cachedSearch(`addon:${addonPath}`, () => searchAddon(addonPath)))
 
-  const results = await Promise.all([searchByFingerprint(q, deep), ...restLookups, addonLookup])
-  // Fingerprint matches first (a subtitle's first record is the one kept),
-  // then OpenSubtitles' own records: the same file from the addon knows less.
+  const results = await Promise.all([...restLookups, addonLookup])
+  // OpenSubtitles' own records first: the same file from the addon knows less about it.
   return rankSubtitles(results.flat(), q.file)
 }
 
