@@ -238,7 +238,16 @@ export function DebridPlayerPane({
 
   // Searched once a file is ready to play: the versions are ranked for it.
   const subtitles = useSubtitles(
-    { imdbId, mediaType, season, episode, fileName: playback?.fileName, duration: playback?.media?.duration },
+    {
+      imdbId,
+      mediaType,
+      season,
+      episode,
+      fileName: playback?.fileName,
+      duration: playback?.media?.duration,
+      fileUrl: playback?.directUrl,
+      fileSize: playback?.fileSize,
+    },
     getToken
   )
 
