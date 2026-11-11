@@ -693,9 +693,10 @@ export function DebridVideo({
       <PlayerControls
         video={videoEl}
         container={container}
-        externalUrl={playback.directUrl}
-        // Downloads stopped for now: without this the player's Settings menu
-        // has no Download row.
+        // Downloads stopped for now. "Open in another player" handed out the
+        // same Real-Debrid download link, so it's off too; without these the
+        // player's Settings menu has neither row.
+        // externalUrl={playback.directUrl}
         // download={{
         //   url: playback.directUrl,
         //   fileName: playback.fileName,
