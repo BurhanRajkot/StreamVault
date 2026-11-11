@@ -1,19 +1,15 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import {
   addonSearchPath,
-  belongsTo,
   commonFrameRate,
   fetchSubtitleFile,
-  fileFingerprint,
   findSubtitles,
   fromAddonSubtitle,
   fromRestResult,
   looksLikeSubtitles,
-  osHash,
   rankSubtitles,
   releaseGroupOf,
   releaseKey,
-  restHashPath,
   restSearchPath,
   sourceKind,
   SubtitleFileError,
@@ -51,25 +47,6 @@ function sub(overrides: Partial<SubtitleCandidate> = {}): SubtitleCandidate {
 }
 
 const BLURAY_FILE = { name: 'Inception.2010.1080p.BluRay.x264-SPARKS.mkv', duration: 8880 }
-const RD_LINK = 'https://mum1-4.download.real-debrid.com/d/BQTVHNM3GNSPG22/Inception.2010.1080p.BluRay.x264-SPARKS.mkv'
-
-/** A fake file of `size` bytes, served by Real-Debrid with Range support. */
-function fakeDebridFile(size: number) {
-  const bytes = new Uint8Array(size).map((_, i) => (i * 31 + 7) % 256)
-  const ranges: string[] = []
-  const serve = (range: string | null) => {
-    ranges.push(range ?? '')
-    const [, s, e] = range?.match(/^bytes=(\d+)-(\d+)$/) ?? []
-    const start = Number(s)
-    const end = Math.min(Number(e), size - 1)
-    return new Response(bytes.slice(start, end + 1), {
-      status: 206,
-      headers: { 'Content-Range': `bytes ${start}-${end}/${size}` },
-    })
-  }
-  const expectedHash = osHash(size, bytes.slice(0, 65_536), bytes.slice(size - 65_536))
-  return { serve, ranges, expectedHash }
-}
 
 describe('restSearchPath', () => {
   it('drops "tt" and leading zeros, and orders the parameters alphabetically', () => {
@@ -143,74 +120,6 @@ describe('fromRestResult', () => {
       fps: null,
       hashMatch: false,
     })
-  })
-})
-
-describe('osHash', () => {
-  // Expected values from the reference implementation on OpenSubtitles' wiki.
-  it('adds the size and every 64-bit word of both ends, wrapping at 64 bits', () => {
-    const head = new Uint8Array(65_536).map((_, i) => (i * 31 + 7) % 256)
-    const tail = new Uint8Array(65_536).map((_, i) => (i * 13 + 200) % 256)
-    expect(osHash(734_003_200, head, tail)).toBe('ff8000802c3fe000')
-    expect(osHash(131_072, new Uint8Array(65_536), new Uint8Array(65_536))).toBe('0000000000020000')
-  })
-})
-
-describe('restHashPath', () => {
-  it('orders the parameters alphabetically', () => {
-    expect(restHashPath({ size: '12909756', hash: '8e245d9679d31e12' }, 'eng')).toBe(
-      'moviebytesize-12909756/moviehash-8e245d9679d31e12/sublanguageid-eng'
-    )
-  })
-})
-
-describe('fileFingerprint', () => {
-  const realFetch = globalThis.fetch
-  afterEach(async () => {
-    globalThis.fetch = realFetch
-    await cache.subtitles.flush()
-  })
-
-  it('reads only a Real-Debrid download link', async () => {
-    let fetched = false
-    globalThis.fetch = (async () => {
-      fetched = true
-      return new Response('', { status: 500 })
-    }) as unknown as typeof fetch
-    for (const link of [
-      'http://169.254.169.254/latest/meta-data/',
-      'https://evil.example.com/d/ABCDEFGH/x.mkv',
-      'https://mum1.download.real-debrid.com.evil.example/d/ABCDEFGH/x.mkv',
-      'https://mum1.download.real-debrid.com/d/ABCDEFGH/x.mkv?redirect=http://internal',
-    ]) {
-      expect(await fileFingerprint(link, 1_000_000)).toBeNull()
-    }
-    expect(fetched).toBe(false)
-  })
-
-  it('reads both ends of the file at once when its size is given', async () => {
-    const file = fakeDebridFile(1_000_000)
-    globalThis.fetch = (async (_url: string, init?: RequestInit) =>
-      file.serve(new Headers(init?.headers).get('range'))) as unknown as typeof fetch
-    expect(await fileFingerprint(RD_LINK, 1_000_000)).toEqual({ size: '1000000', hash: file.expectedHash })
-    expect(file.ranges.sort()).toEqual(['bytes=0-65535', 'bytes=934464-999999'])
-  })
-
-  it('finds the size from the first read when it isn’t given, or is wrong', async () => {
-    const file = fakeDebridFile(1_000_000)
-    globalThis.fetch = (async (_url: string, init?: RequestInit) =>
-      file.serve(new Headers(init?.headers).get('range'))) as unknown as typeof fetch
-    expect(await fileFingerprint(RD_LINK, 2_000_000)).toEqual({ size: '1000000', hash: file.expectedHash })
-  })
-})
-
-describe('belongsTo', () => {
-  it('keeps a fingerprint match only for this movie, or this very episode', () => {
-    expect(belongsTo(sub({ imdb: '1375666' }), { imdbId: 'tt1375666', mediaType: 'movie' })).toBe(true)
-    expect(belongsTo(sub({ imdb: '86999' }), { imdbId: 'tt1375666', mediaType: 'movie' })).toBe(false)
-    const episode = sub({ imdb: '1480055', parentImdb: '944947', season: 1, episode: 1 })
-    expect(belongsTo(episode, { imdbId: 'tt0944947', mediaType: 'tv', season: 1, episode: 1 })).toBe(true)
-    expect(belongsTo(episode, { imdbId: 'tt0944947', mediaType: 'tv', season: 1, episode: 2 })).toBe(false)
   })
 })
 
@@ -424,54 +333,15 @@ describe('findSubtitles', () => {
     expect(asked.some((u) => u.endsWith('/search/imdbid-1375666'))).toBe(true)
   })
 
-  it('leads with subtitles matched to the playing file, dropping matches for other titles', async () => {
-    const file = fakeDebridFile(1_000_000)
-    const record = (id: string, extra: Record<string, string>) => ({
-      IDSubtitleFile: id,
-      SubLanguageID: 'eng',
-      SubFormat: 'srt',
-      SubLastTS: '02:20:39',
-      MovieFPS: '23.976',
-      ...extra,
-    })
-    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input)
-      if (url === RD_LINK) return file.serve(new Headers(init?.headers).get('range'))
-      if (url.includes(`/search/moviebytesize-1000000/moviehash-${file.expectedHash}`)) {
-        return Response.json([
-          record('31', { MatchedBy: 'moviehash', IDMovieImdb: '1375666', SubTSGroup: '7', MovieReleaseName: 'some.other.name' }),
-          record('32', { MatchedBy: 'moviehash', IDMovieImdb: '86999', SubTSGroup: '8', MovieReleaseName: 'Breakin 2' }),
-        ])
-      }
-      if (url.includes('/search/imdbid-1375666')) {
-        return Response.json([
-          record('11', { MatchedBy: 'imdbid', IDMovieImdb: '1375666', SubTSGroup: '1', SubDownloadsCnt: '300000', SubFromTrusted: '1' }),
-        ])
-      }
-      if (url.includes('opensubtitles-v3')) return Response.json({ subtitles: [] })
-      return new Response('unexpected', { status: 500 })
-    }) as unknown as typeof fetch
-
-    const [eng] = await findSubtitles({
-      imdbId: 'tt1375666',
-      mediaType: 'movie',
-      file: { ...BLURAY_FILE, link: RD_LINK, size: 1_000_000 },
-    })
-    expect(eng.options.map((o) => o.id)).toEqual(['31', '11'])
-    expect(eng.options[0].matched).toBe(true)
-    expect(eng.options[1].matched).toBeUndefined()
-  })
-
-  it('still answers when the file can’t be read', async () => {
+  it('never reads the playing file: only OpenSubtitles and the addon are asked', async () => {
+    const asked: string[] = []
     globalThis.fetch = (async (input: string | URL | Request) => {
       const url = String(input)
-      if (url === RD_LINK) return new Response('gone', { status: 503 })
-      if (url.includes('/search/imdbid-1375666/sublanguageid-eng')) {
-        return Response.json([{ IDSubtitleFile: '11', SubLanguageID: 'eng', SubFormat: 'srt', SubLastTS: '02:20:39' }])
-      }
-      return Response.json([])
+      asked.push(url)
+      return url.includes('opensubtitles-v3') ? Response.json({ subtitles: [] }) : Response.json([])
     }) as unknown as typeof fetch
-    const [eng] = await findSubtitles({ imdbId: 'tt1375666', mediaType: 'movie', file: { ...BLURAY_FILE, link: RD_LINK } })
-    expect(eng.options.map((o) => o.id)).toEqual(['11'])
+    await findSubtitles({ imdbId: 'tt1375666', mediaType: 'movie', file: BLURAY_FILE })
+    expect(asked.length).toBeGreaterThan(0)
+    expect(asked.every((u) => u.startsWith('https://rest.opensubtitles.org/') || u.startsWith('https://opensubtitles-v3.strem.io/'))).toBe(true)
   })
 })

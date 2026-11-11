@@ -119,14 +119,6 @@ function pathNumber(value: unknown): number | undefined {
   return Number(value)
 }
 
-/** A whole number of up to `digits` digits, checked as text (a file size in bytes, ...). */
-function pathNumberOfDigits(value: unknown, digits: number): number | undefined {
-  if (typeof value !== 'string' || value.length > digits) return undefined
-  if (!/^\d+$/.test(value)) return undefined
-  const n = Number(value)
-  return Number.isSafeInteger(n) ? n : undefined
-}
-
 // ---------------------------------------------------------------------------
 // GET /debrid/status — public, no auth needed
 // ---------------------------------------------------------------------------
@@ -329,10 +321,6 @@ router.get('/subtitles', optionalAuth, async (req: Request, res: Response) => {
   }
   const fileName = typeof req.query.fileName === 'string' ? req.query.fileName.slice(0, 300) : undefined
   const duration = typeof req.query.duration === 'string' ? Number(req.query.duration) : NaN
-  // The file's Real-Debrid link and size, for its fingerprint. The link is
-  // read only if it is one (subtitles.fileFingerprint checks).
-  const link = typeof req.query.link === 'string' ? req.query.link.slice(0, 1000) : undefined
-  const size = pathNumberOfDigits(req.query.size, 15)
   const languages =
     typeof req.query.langs === 'string'
       ? req.query.langs
@@ -349,12 +337,9 @@ router.get('/subtitles', optionalAuth, async (req: Request, res: Response) => {
       season,
       episode,
       languages,
-      file: {
-        name: fileName,
-        duration: Number.isFinite(duration) && duration > 0 && duration < 86_400 ? duration : null,
-        link,
-        size: size ?? null,
-      },
+      // Never the file's Real-Debrid link, even if an old page sends one: the
+      // server reading it alongside the viewer looks like account sharing.
+      file: { name: fileName, duration: Number.isFinite(duration) && duration > 0 && duration < 86_400 ? duration : null },
     })
     res.set('Cache-Control', 'private, max-age=600')
     return res.json({ languages: found })

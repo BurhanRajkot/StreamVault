@@ -139,11 +139,43 @@ export class DebridError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly code?: number
+    readonly code?: number,
+    /** How long Real-Debrid asked to wait (its Retry-After header), when it said. */
+    readonly retryAfterMs?: number
   ) {
     super(message)
     this.name = 'DebridError'
   }
+}
+
+/**
+ * Real-Debrid's "slow down" answers: rate limiting (5, 34, HTTP 429) and its
+ * fair-usage throttle (36). They come in bursts — one Play asks about a few
+ * releases at once, each several calls — and are gone a moment later (a
+ * manual Try again a few seconds on works), so they're waited out, not
+ * reported.
+ */
+const THROTTLE_CODES = new Set([5, 34, 36])
+
+/** Waits before each retry of a throttled call. Each gets up to 40% more at random, so parallel calls don't retry in step. */
+let throttleBackoffMs = [1000, 2500, 4500]
+
+/** Tests wait for no one. */
+export function setThrottleBackoffForTests(ms: number[]): void {
+  throttleBackoffMs = ms
+}
+
+export function isThrottled(err: unknown): err is DebridError {
+  return err instanceof DebridError && (err.status === 429 || (err.code !== undefined && THROTTLE_CODES.has(err.code)))
+}
+
+/** Retry-After as milliseconds: "3" (seconds) or an HTTP date. */
+function retryAfterMs(header: string | null): number | undefined {
+  if (!header) return undefined
+  const seconds = Number(header)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+  const at = Date.parse(header)
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : undefined
 }
 
 /**
@@ -160,7 +192,7 @@ const ACCOUNT_ERROR_MESSAGES: Record<number, string> = {
   22: "Real-Debrid is blocking this server's IP address (datacenter IPs are not allowed).",
   23: 'The Real-Debrid account is out of traffic.',
   34: 'Real-Debrid is rate-limiting this server. Try again in a minute.',
-  36: "The Real-Debrid account hit its fair-usage limit.",
+  36: 'Real-Debrid is limiting this account right now (fair usage). Try again in a minute.',
   37: 'Real-Debrid has disabled this endpoint.',
 }
 
@@ -177,10 +209,34 @@ export function accountErrorMessage(err: unknown): string | null {
 // Internal fetch helper
 // ---------------------------------------------------------------------------
 
-async function debridFetch<T>(
-  path: string,
-  options: { method?: 'GET' | 'POST' | 'DELETE'; form?: Record<string, string> } = {}
-): Promise<T> {
+type DebridFetchOptions = { method?: 'GET' | 'POST' | 'DELETE'; form?: Record<string, string> }
+
+/**
+ * One Real-Debrid API call, waiting out its throttling: a call it refused
+ * with "slow down" (see THROTTLE_CODES) is retried a few times, a little
+ * later each time. Safe for every call here — a refused call did nothing.
+ */
+async function debridFetch<T>(path: string, options: DebridFetchOptions = {}): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await debridRequest<T>(path, options)
+    } catch (err: unknown) {
+      if (!isThrottled(err) || attempt >= throttleBackoffMs.length) throw err
+      const backoff = throttleBackoffMs[attempt] * (1 + Math.random() * 0.4)
+      const waitMs = Math.min(Math.max(err.retryAfterMs ?? 0, backoff), 10_000)
+      logger.warn('Real-Debrid throttled a call, retrying', {
+        path: path.split('?')[0],
+        status: err.status,
+        code: err.code,
+        retry: attempt + 1,
+        waitMs: Math.round(waitMs),
+      })
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
+  }
+}
+
+async function debridRequest<T>(path: string, options: DebridFetchOptions): Promise<T> {
   const key = debridKey()
   if (!key) {
     throw new Error('DEBRID_API_KEY is not configured in the environment')
@@ -197,10 +253,13 @@ async function debridFetch<T>(
 
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string; error_code?: number } | null
+    // The endpoint (without its id) says which call Real-Debrid refused, in the logs.
+    const endpoint = path.split('?')[0].replace(/\/[^/]*\d[^/]*$/, '/:id')
     throw new DebridError(
-      `Real-Debrid API error ${res.status}${body?.error_code !== undefined ? ` (code ${body.error_code})` : ''}: ${body?.error ?? res.statusText}`,
+      `Real-Debrid API error ${res.status}${body?.error_code !== undefined ? ` (code ${body.error_code})` : ''} on ${endpoint}: ${body?.error ?? res.statusText}`,
       res.status,
-      body?.error_code
+      body?.error_code,
+      retryAfterMs(res.headers.get('retry-after'))
     )
   }
 
