@@ -119,7 +119,7 @@ export class MockApi {
     dislikes: [] as { id: string; tmdbId: number; mediaType: string }[],
     continueWatching: [] as Record<string, unknown>[],
     /** End of the free Premium promotion; null when there is none. */
-    promoFreeUntil: '2027-04-11T00:00:00.000Z' as string | null,
+    promoFreeUntil: '2027-10-12T00:00:00.000Z' as string | null,
   }
 
   constructor() {

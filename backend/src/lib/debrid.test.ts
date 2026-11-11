@@ -190,9 +190,18 @@ describe('findEpisodeFile', () => {
 
 describe('accountErrorMessage', () => {
   it('flags a blocked server IP and other account-wide failures', () => {
-    expect(accountErrorMessage(new DebridError('x', 400, 22))).toContain('IP address')
-    expect(accountErrorMessage(new DebridError('x', 503, 23))).toContain('traffic')
-    expect(accountErrorMessage(new DebridError('x', 401))).toContain('token')
+    expect(accountErrorMessage(new DebridError('x', 400, 22))).toContain('down on our end')
+    expect(accountErrorMessage(new DebridError('x', 503, 23))).toContain('down on our end')
+    expect(accountErrorMessage(new DebridError('x', 401))).toContain('down on our end')
+    expect(accountErrorMessage(new DebridError('x', 429, 36))).toContain('Try again in a minute')
+  })
+
+  it("never tells a viewer they need premium when it's the shared account that's refused", () => {
+    for (const err of [new DebridError('x', 403, 9), new DebridError('x', 403), new DebridError('x', 403, 14)]) {
+      const message = accountErrorMessage(err)
+      expect(message).toContain('nothing you need to do')
+      expect(message).not.toMatch(/not premium|locked|subscri|upgrade/i)
+    }
   })
 
   it('leaves release-specific failures alone', () => {

@@ -179,21 +179,29 @@ function retryAfterMs(header: string | null): number | undefined {
 }
 
 /**
+ * What a viewer is told when the shared Real-Debrid account itself is refused
+ * (bad token, locked, not premium, IP blocked, out of traffic, ...). Premium
+ * is free for viewers, so nothing here may read as "you need to pay": it's
+ * our account, and the exact reason goes to the logs and the `detail` field.
+ */
+const ACCOUNT_DOWN_MESSAGE = "Premium is down on our end right now — nothing you need to do. Switch server to keep watching."
+
+/**
  * Real-Debrid error codes that are about the account or this server, not the
  * release — every other release would fail the same way, so the player
  * should stop and say why rather than work through its list.
  */
 const ACCOUNT_ERROR_MESSAGES: Record<number, string> = {
-  5: 'Real-Debrid is rate-limiting this server. Try again in a minute.',
-  8: "The server's Real-Debrid token is invalid or expired.",
-  9: 'Real-Debrid denied permission (account locked or not premium).',
-  14: 'The Real-Debrid account is locked.',
-  21: 'The Real-Debrid account has too many active downloads.',
-  22: "Real-Debrid is blocking this server's IP address (datacenter IPs are not allowed).",
-  23: 'The Real-Debrid account is out of traffic.',
-  34: 'Real-Debrid is rate-limiting this server. Try again in a minute.',
-  36: 'Real-Debrid is limiting this account right now (fair usage). Try again in a minute.',
-  37: 'Real-Debrid has disabled this endpoint.',
+  5: 'Premium is busy right now. Try again in a minute.',
+  8: ACCOUNT_DOWN_MESSAGE, // bad token
+  9: ACCOUNT_DOWN_MESSAGE, // permission denied: account locked or not premium
+  14: ACCOUNT_DOWN_MESSAGE, // account locked
+  21: 'Premium is busy right now. Try again in a minute.', // too many active downloads
+  22: ACCOUNT_DOWN_MESSAGE, // this server's IP is blocked
+  23: ACCOUNT_DOWN_MESSAGE, // out of traffic
+  34: 'Premium is busy right now. Try again in a minute.',
+  36: 'Premium is busy right now. Try again in a minute.', // fair-usage limit
+  37: ACCOUNT_DOWN_MESSAGE, // endpoint disabled
 }
 
 /** A viewer-facing reason when `err` is an account/server-wide Real-Debrid failure, else null. */

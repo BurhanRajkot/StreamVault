@@ -4,15 +4,16 @@ import { debridAccess, debridFreeUntil, isDebridFreeForEveryone, __test } from '
 const END = new Date(__test.DEFAULT_FREE_UNTIL).getTime()
 
 describe('debrid free promotion', () => {
-  it('ends six months after it started (2026-10-11)', () => {
-    expect(new Date(END).toISOString()).toBe('2027-04-11T00:00:00.000Z')
+  it('runs eleven months from its extension (2026-11-12)', () => {
+    expect(new Date(END).toISOString()).toBe('2027-10-12T00:00:00.000Z')
   })
 
   it('is active before the end date and over from it onwards', () => {
     expect(isDebridFreeForEveryone(Date.parse('2026-10-11T12:00:00Z'))).toBe(true)
+    expect(isDebridFreeForEveryone(Date.parse('2027-04-11T00:00:00Z'))).toBe(true)
     expect(isDebridFreeForEveryone(END - 1)).toBe(true)
     expect(isDebridFreeForEveryone(END)).toBe(false)
-    expect(isDebridFreeForEveryone(Date.parse('2027-06-01T00:00:00Z'))).toBe(false)
+    expect(isDebridFreeForEveryone(Date.parse('2027-12-01T00:00:00Z'))).toBe(false)
   })
 
   it('reports the end date only while active', () => {
