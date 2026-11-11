@@ -321,9 +321,6 @@ export interface SubtitleSearchParams {
   /** The playing file — its release name and length decide which version fits best. */
   fileName?: string
   duration?: number | null
-  /** Its Real-Debrid link and size in bytes: the backend reads its fingerprint for subtitles timed to this very file. */
-  fileUrl?: string
-  fileSize?: number | null
   /** Languages to search in depth besides English. */
   languages?: string[]
 }
@@ -335,8 +332,6 @@ export async function fetchSubtitles(params: SubtitleSearchParams, token?: strin
   if (params.episode != null) query.set('episode', String(params.episode))
   if (params.fileName) query.set('fileName', params.fileName)
   if (params.duration && params.duration > 0) query.set('duration', String(Math.round(params.duration)))
-  if (params.fileUrl) query.set('link', params.fileUrl)
-  if (params.fileSize && params.fileSize > 0) query.set('size', String(params.fileSize))
   if (params.languages?.length) query.set('langs', params.languages.join(','))
   const res = await fetch(`${API_BASE}/debrid/subtitles?${query}`, { headers: authHeaders(token), signal })
   return (await handleResponse<{ languages?: SubtitleLanguage[] }>(res)).languages ?? []

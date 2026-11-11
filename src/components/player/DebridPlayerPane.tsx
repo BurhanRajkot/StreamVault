@@ -245,8 +245,6 @@ export function DebridPlayerPane({
       episode,
       fileName: playback?.fileName,
       duration: playback?.media?.duration,
-      fileUrl: playback?.directUrl,
-      fileSize: playback?.fileSize,
     },
     getToken
   )
