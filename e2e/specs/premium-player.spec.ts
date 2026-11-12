@@ -23,7 +23,7 @@ test.describe('Premium server', () => {
 
     const options = page.getByRole('option')
     await expect(options.first()).toHaveText(/^Premium\s*4K\/1080p\s*Free$/)
-    await expect(options.nth(1)).toHaveText('Mercury')
+    await expect(options.nth(1)).toHaveText('Sirius')
   })
 
   test('a guest can play a movie without signing in', async ({ watch, mockApi }) => {
@@ -272,7 +272,7 @@ test.describe('Premium server', () => {
 
     await expect(page.getByText('No Premium stream available')).toBeVisible()
     await page.getByRole('button', { name: 'Switch server' }).first().click()
-    await page.getByRole('option', { name: 'Mercury' }).click()
+    await page.getByRole('option', { name: 'Sirius' }).click()
 
     await expect(watch.embed).toBeVisible()
     await expect(watch.embedFrame.getByText(EMBED_STUB_TEXT)).toBeVisible()
@@ -281,7 +281,7 @@ test.describe('Premium server', () => {
 
   test('a viewer can still pick an embed server up front', async ({ watch }) => {
     await watch.goto(MOVIE)
-    await watch.chooseServer('Venus')
+    await watch.chooseServer('Canopus')
     await watch.play()
 
     await expect(watch.embedFrame.getByText(EMBED_STUB_TEXT)).toBeVisible()
