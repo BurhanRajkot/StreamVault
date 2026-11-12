@@ -7,6 +7,7 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from '../fixtures/test'
 import { PREMIUM_PAUSED } from '../../src/lib/premiumPause'
+import { MOVIE, watchPath } from '../fixtures/data'
 
 test.use({ pausedNotice: true })
 test.skip(!PREMIUM_PAUSED, 'Premium is running — no pause notice')
@@ -65,5 +66,16 @@ test('Donate shows the UPI QR code and keeps the popup open', async ({ page }) =
 test('the ✕ closes it', async ({ page }) => {
   await openHome(page)
   await notice(page).getByRole('button', { name: 'Close' }).click()
+  await expect(notice(page)).toHaveCount(0)
+})
+
+test('also shows to someone who opens a title link, not just the home page', async ({ page, home }) => {
+  // Straight to the title page, the way a shared or searched link lands
+  await page.goto(watchPath(MOVIE))
+  await expect(notice(page)).toBeVisible()
+  await notice(page).getByRole('button', { name: 'Close' }).click()
+
+  // Seen once: going on to the home page doesn't bring it back
+  await home.goto()
   await expect(notice(page)).toHaveCount(0)
 })
