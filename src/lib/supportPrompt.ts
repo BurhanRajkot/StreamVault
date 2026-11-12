@@ -7,7 +7,15 @@
  * 15 — i.e. plays 5, 15, 35, 45, 60, 75, 90, …
  */
 
+import type { DonationDetails } from '@/lib/api'
+
 export const GITHUB_REPO_URL = 'https://github.com/BurhanRajkot/StreamVault'
+
+/** Opens a UPI app straight away on a phone, where scanning your own screen isn't an option. */
+export function upiPayUrl({ upiId, payeeName }: DonationDetails): string {
+  const params = new URLSearchParams({ pa: upiId, pn: payeeName, cu: 'INR', tn: 'Buy me a coffee - StreamVault' })
+  return `upi://pay?${params.toString()}`
+}
 
 const PLAYS_KEY = 'sv:premium-plays'
 
