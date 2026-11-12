@@ -25,6 +25,8 @@ import { useOnboarding } from '@/hooks/useOnboarding'
 import { useContextualRecommendations } from '@/hooks/useContextualRecommendations'
 import { SEOContent } from '@/components/shared/SEOContent'
 import { FreePremiumAnnouncement } from '@/components/shared/FreePremiumAnnouncement'
+import { PremiumPausedNotice } from '@/components/shared/PremiumPausedNotice'
+import { PREMIUM_PAUSED } from '@/lib/premiumPause'
 
 // Downloads stopped for now.
 // const Downloads = lazy(() => import('./Downloads'))
@@ -332,7 +334,8 @@ const Index = () => {
         <Footer />
 
         {/* After the disclaimer, never stacked on top of it or onboarding */}
-        {!showDisclaimer && !shouldShowOnboarding && <FreePremiumAnnouncement />}
+        {/* While Premium is paused, the "Premium is free" card would contradict the pause notice */}
+        {!showDisclaimer && !shouldShowOnboarding && (PREMIUM_PAUSED ? <PremiumPausedNotice /> : <FreePremiumAnnouncement />)}
 
         <DisclaimerModal
           isOpen={showDisclaimer}
