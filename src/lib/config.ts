@@ -12,9 +12,11 @@ export interface StreamProvider {
   /** Stable key used as the value of the server dropdown and in saved progress. */
   id: string
   /**
-   * Label shown in the server dropdown. Servers are named after the planets,
-   * in dropdown order (Mercury first), under the ⚡ Premium (Real-Debrid)
-   * server; the provider itself only shows in `id` and the URLs.
+   * Label shown in the server dropdown. Servers are named after the brightest
+   * stars in the night sky, brightest first (Sirius, Canopus, Arcturus, ...),
+   * so the brightest name is the best-tested server; they sit under the
+   * ⚡ Premium (Real-Debrid) server. The provider itself only shows in `id`
+   * and the URLs.
    */
   name: string
   /** URL template with {tmdbId}/{season}/{episode} placeholders. */
@@ -25,11 +27,12 @@ export interface StreamProvider {
   seekSupport: 'excellent' | 'good' | 'medium'
   description: string
   /**
-   * Origins this player may post playback telemetry from. Several providers
+   * Origins this player may post playback telemetry from. A provider can
    * redirect to a different origin than the iframe src (vidfast.pro ->
-   * vidfast.vc, 111movies.net -> player.vidlove.cc), so the embed URL's own
-   * origin is not a sufficient check on incoming messages. Empty means the
-   * player is silent — see `reportsPlayback`.
+   * vidfast.vc), so the embed URL's own origin is not a sufficient check on
+   * incoming messages. Any redirect target must be listed here too, so it
+   * lands in STREAMING_DOMAINS and the CSP frame-src. Empty means the player
+   * is silent — see `reportsPlayback`.
    */
   messageOrigins?: string[]
   /**
@@ -46,91 +49,89 @@ export interface StreamProvider {
  * serverOptions). The first entry is the default embed server — what plays
  * where Premium isn't offered, and what previews use; the rest are fallbacks
  * the user can switch to.
+ *
+ * Lineup and order come from a real-playback test on 2026-11-12: each server
+ * played in Chrome, framed from the production origin, across nine titles
+ * (Fight Club, Sinners, Breaking Bad, Severance, Frieren, Tokyo Story,
+ * 3 Idiots, Laapataa Ladies, Panchayat), reading the <video> element itself
+ * for start time, resolution and seek recovery. Ids are kept for servers that
+ * stayed, so saved continue-watching rows still resume on them.
+ *
+ * Dropped then, with the reason, so they aren't re-added blind:
+ * - 111movies.net now redirects to player.vidmario.net (outside our CSP) and
+ *   sat on "FETCHING MEDIA" for every title
+ * - player.videasy.to serves a self-signed DDoS-Guard certificate
+ * - vidsrc.pm answers 404 on its embed paths
+ * - nontongo.win shows a details page whose Play button does nothing
+ * - vidrock.to / vidrock.net: the first click turns the frame into a
+ *   full-page scam ad
+ * - vidup.to is on VidFast's CDN but failed 3 of 9 titles, so it adds no cover
  */
 export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   {
-    id: 'super111movies',
-    name: 'Mercury',
-    tv: 'https://111movies.net/tv/{tmdbId}/{season}/{episode}?autoplay=1&theme=23ddc36c',
-    movie: 'https://111movies.net/movie/{tmdbId}?autoplay=1&theme=23ddc36c',
-    quality: '🚫 Ads Free',
+    // Default server, and what hover previews use — it must autoplay.
+    id: 'vidfast_pro',
+    name: 'Sirius',
+    tv: 'https://vidfast.vc/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
+    movie: 'https://vidfast.vc/movie/{tmdbId}?autoPlay=true',
+    quality: '1080p, 4K where available',
     seekSupport: 'excellent',
-    description: 'Super 111movies — Ads free • Skip intro',
-    // 111movies.net serves a 302 to player.vidlove.cc, so the iframe ends up there.
-    messageOrigins: ['https://111movies.net', 'https://player.vidlove.cc'],
+    description: 'VidFast — played all 9 test titles in 1080p',
+    // vidfast.pro only redirects here; vidfast.domains lists .vc as current.
+    messageOrigins: ['https://vidfast.vc'],
     reportsPlayback: true,
   },
   {
-    id: 'vidfast_pro',
-    name: 'Venus',
-    tv: 'https://vidfast.pro/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
-    movie: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true',
-    quality: '⚡ Ultra Fast',
+    id: 'vidspark',
+    name: 'Canopus',
+    tv: 'https://vidspark.to/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://vidspark.to/movie/{tmdbId}',
+    quality: '1080p',
     seekSupport: 'excellent',
-    description: 'Lumina High-Speed',
-    // vidfast.pro redirects to vidfast.vc.
-    messageOrigins: ['https://vidfast.pro', 'https://vidfast.vc'],
+    description: 'VidSpark — played all 9 test titles, 7 in 1080p',
+    // Never autoplays (no URL flag for it): it waits on its own play button,
+    // so it stays out of reportsPlayback — the stall watchdog would otherwise
+    // tell a viewer who simply hasn't pressed play yet that it's stuck.
+  },
+  {
+    id: 'vidlink_pro',
+    name: 'Arcturus',
+    tv: 'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?autoplay=true',
+    movie: 'https://vidlink.pro/movie/{tmdbId}?autoplay=true',
+    quality: '1080p',
+    seekSupport: 'excellent',
+    description: 'VidLink — played 8 of 9 test titles, 6 in 1080p',
+    messageOrigins: ['https://vidlink.pro'],
     reportsPlayback: true,
+  },
+  {
+    id: 'vidsrc_pk',
+    name: 'Vega',
+    tv: 'https://embed.vidsrc.pk/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://embed.vidsrc.pk/movie/{tmdbId}',
+    quality: '720p–1080p',
+    seekSupport: 'good',
+    description: 'VidSrc.pk — quickest to start, played 8 of 9 test titles',
   },
   {
     id: 'vidzee',
-    name: 'Earth',
+    name: 'Capella',
     tv: 'https://player.vidzee.wtf/embed/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://player.vidzee.wtf/embed/movie/{tmdbId}',
-    quality: '⚡ Ultra Fast',
-    seekSupport: 'excellent',
-    description: 'Lightning fast initial load',
+    quality: '480p–1080p',
+    seekSupport: 'good',
+    description: 'VidZee — played all 9 test titles; quality varies',
     messageOrigins: ['https://player.vidzee.wtf'],
     reportsPlayback: true,
   },
   {
-    id: 'videasy',
-    name: 'Mars',
-    tv: 'https://player.videasy.to/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://player.videasy.to/movie/{tmdbId}',
-    quality: '✓ Smooth',
-    seekSupport: 'medium',
-    description: 'Horizon Versatile',
-    messageOrigins: ['https://player.videasy.to'],
-    reportsPlayback: true,
-  },
-  {
-    id: 'obsidian',
-    name: 'Jupiter',
-    tv: 'https://vidrock.to/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://vidrock.to/movie/{tmdbId}',
-    quality: '⚡ Elite Quality',
-    seekSupport: 'excellent',
-    description: 'Obsidian Premium Stream',
-  },
-  {
-    id: 'extra_2',
-    name: 'Saturn',
-    tv: 'https://vidsrc.pm/embed/tv?tmdb={tmdbId}&season={season}&episode={episode}',
-    movie: 'https://vidsrc.pm/embed/movie?tmdb={tmdbId}',
-    quality: '✓ Stable',
-    seekSupport: 'good',
-    description: 'VidSrc PM failover',
-  },
-  {
-    id: 'nontongo',
-    name: 'Uranus',
-    tv: 'https://nontongo.win/embed/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://nontongo.win/embed/movie/{tmdbId}',
-    quality: '⚡ Fast',
-    seekSupport: 'excellent',
-    description: 'Nontongo fast stream',
-    messageOrigins: ['https://nontongo.win'],
-  },
-  {
     id: 'vidcore',
-    name: 'Neptune',
+    name: 'Rigel',
     tv: 'https://vidcore.org/embed/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://vidcore.org/embed/movie/{tmdbId}',
-    quality: '⚡ Premium',
-    seekSupport: 'excellent',
-    description: 'VidCore premium stream',
-    messageOrigins: ['https://vidcore.org', 'https://www.vidcore.org'],
+    quality: '480p–1080p',
+    seekSupport: 'good',
+    description: 'VidCore — last resort, played 8 of 9 test titles',
   },
 ] as const
 
@@ -245,8 +246,8 @@ export const CONFIG = {
    *
    * 1. Each feature needs an explicit `*` allowlist, not the bare feature name.
    *    A bare `fullscreen` delegates only to the iframe's *original* src origin,
-   *    and several providers redirect (vidfast.pro -> vidfast.vc,
-   *    111movies.net -> player.vidlove.cc) or nest a second player frame. The
+   *    and providers redirect (vidfast.pro -> vidfast.vc) or nest a second
+   *    player frame (vidspark.to -> cdn.vidspark.to). The
    *    redirected/nested document then falls outside the allowlist and Chrome
    *    logs "Permissions policy violation: fullscreen is not allowed in this
    *    document" — the player loads but the fullscreen button is dead.
@@ -325,7 +326,7 @@ export const LEGACY_TORBOX_SERVER_ID = 'torbox'
 /** One entry in the server dropdown. */
 export interface ServerOption {
   id: string
-  /** "Premium", "Mercury" */
+  /** "Premium", "Sirius" */
   name: string
   /** The whole entry as plain text, for places that can't style parts of it (a native <select>). */
   label: string

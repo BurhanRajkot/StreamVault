@@ -17,6 +17,7 @@ import { CONFIG } from '../src/lib/config'
 // — including custom domains like stream-vault.jp.auth0.com.
 const EXTRA_FRAME_SRC = ['https://vercel.live', 'https://*.vercel.live', 'https://*.auth0.com']
 
-const frameSrc = ["'self'", CONFIG.CSP_FRAME_SRC, ...EXTRA_FRAME_SRC].join(' ')
+/** The whole directive, as vercel.json and netlify.toml must carry it (src/lib/csp.test.ts checks). */
+export const FRAME_SRC_DIRECTIVE = `frame-src ${["'self'", CONFIG.CSP_FRAME_SRC, ...EXTRA_FRAME_SRC].join(' ')}`
 
-console.log(`frame-src ${frameSrc};`)
+if (import.meta.main) console.log(`${FRAME_SRC_DIRECTIVE};`)
