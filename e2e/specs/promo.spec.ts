@@ -4,8 +4,13 @@
  */
 
 import { test, expect } from '../fixtures/test'
+import { PREMIUM_PAUSED } from '../../src/lib/premiumPause'
 
 test.use({ firstVisit: true })
+
+// The card is swapped for the "Premium is paused" popup while Premium is down
+// (premium-paused-notice.spec.ts); these come back when the flag is turned off.
+test.skip(PREMIUM_PAUSED, 'Premium is paused — the free-Premium card is hidden')
 
 test.beforeEach(async ({ page }) => {
   // Past the one-time disclaimer — this spec is about the announcement.

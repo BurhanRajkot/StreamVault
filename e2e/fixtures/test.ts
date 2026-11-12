@@ -38,6 +38,8 @@ interface Options {
   user: TestUser | null
   /** Keep first-visit UI (disclaimer, promo announcement) instead of pre-dismissing it. */
   firstVisit: boolean
+  /** Show the "Premium is paused" popup (src/lib/premiumPause.ts) — pre-dismissed unless a spec opts in. */
+  pausedNotice: boolean
 }
 
 interface Fixtures {
@@ -49,14 +51,18 @@ interface Fixtures {
 export const test = base.extend<Options & Fixtures>({
   user: [null, { option: true }],
   firstVisit: [false, { option: true }],
+  pausedNotice: [false, { option: true }],
 
-  context: async ({ context, baseURL, user, firstVisit }, use) => {
+  context: async ({ context, baseURL, user, firstVisit, pausedNotice }, use) => {
     await isolateNetwork(context, new URL(baseURL ?? 'http://localhost:4173').origin)
     await context.addInitScript(
-      ({ user, firstVisit }) => {
+      ({ user, firstVisit, pausedNotice }) => {
         if (!firstVisit) {
           sessionStorage.setItem('disclaimerAccepted', 'true')
           localStorage.setItem('sv:announce:debrid-free-2026-10-everyone', 'true')
+        }
+        if (!pausedNotice) {
+          sessionStorage.setItem('sv:notice:premium-paused-2026-11', 'true')
         }
         if (user) {
           localStorage.setItem('e2e_mock_authenticated', 'true')
@@ -64,7 +70,7 @@ export const test = base.extend<Options & Fixtures>({
           localStorage.setItem(`cinematch_onboarded_${user.sub}`, 'true')
         }
       },
-      { user, firstVisit }
+      { user, firstVisit, pausedNotice }
     )
     await use(context)
   },
