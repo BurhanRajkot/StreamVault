@@ -105,17 +105,9 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
     reportsPlayback: true,
   },
   {
-    id: 'vidsrc_pk',
-    name: 'Vega',
-    tv: 'https://embed.vidsrc.pk/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://embed.vidsrc.pk/movie/{tmdbId}',
-    quality: '720p–1080p',
-    seekSupport: 'good',
-    description: 'VidSrc.pk — quickest to start, played 8 of 9 test titles',
-  },
-  {
+    // Slow to start on some titles, but it played on every run on the live site.
     id: 'vidzee',
-    name: 'Capella',
+    name: 'Vega',
     tv: 'https://player.vidzee.wtf/embed/tv/{tmdbId}/{season}/{episode}',
     movie: 'https://player.vidzee.wtf/embed/movie/{tmdbId}',
     quality: '480p–1080p',
@@ -123,6 +115,17 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
     description: 'VidZee — played all 9 test titles; quality varies',
     messageOrigins: ['https://player.vidzee.wtf'],
     reportsPlayback: true,
+  },
+  {
+    // Quickest to start when it plays, but in 5 of 17 runs on the built and
+    // live app it sat at 00:00 with its player showing "playing".
+    id: 'vidsrc_pk',
+    name: 'Capella',
+    tv: 'https://embed.vidsrc.pk/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://embed.vidsrc.pk/movie/{tmdbId}',
+    quality: '720p–1080p',
+    seekSupport: 'good',
+    description: 'VidSrc.pk — quickest to start, played 8 of 9 test titles',
   },
   {
     id: 'vidcore',
