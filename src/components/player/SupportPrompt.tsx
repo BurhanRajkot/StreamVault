@@ -1,18 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Coffee, Heart, Star } from 'lucide-react'
-import { fetchDonationDetails, type DonationDetails } from '@/lib/api'
-import { GITHUB_REPO_URL } from '@/lib/supportPrompt'
+import { fetchDonationDetails } from '@/lib/api'
+import { GITHUB_REPO_URL, upiPayUrl } from '@/lib/supportPrompt'
 
 interface SupportPromptProps {
   /** Close the prompt and start the video — every way out ends here. */
   onDismiss: () => void
-}
-
-/** Opens a UPI app straight away on a phone, where scanning your own screen isn't an option. */
-function upiPayUrl({ upiId, payeeName }: DonationDetails): string {
-  const params = new URLSearchParams({ pa: upiId, pn: payeeName, cu: 'INR', tn: 'Buy me a coffee - StreamVault' })
-  return `upi://pay?${params.toString()}`
 }
 
 /**
