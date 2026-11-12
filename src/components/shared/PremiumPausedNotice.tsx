@@ -23,10 +23,10 @@ function markSeen() {
 }
 
 /**
- * "Premium is paused for a few days" popup, shown once per visit on the home
- * page while PREMIUM_PAUSED is on. It closes by itself after 7 seconds; the
- * countdown waits while the pointer is over it, and stops for good once the
- * viewer opens the donation QR code.
+ * "Premium is paused for a few days" popup, shown once per visit on whichever
+ * page someone opens first while PREMIUM_PAUSED is on. It closes by itself
+ * after 7 seconds; the countdown waits while the pointer is over it, and stops
+ * for good once the viewer opens the donation QR code.
  */
 export function PremiumPausedNotice() {
   const [open, setOpen] = useState(() => !wasSeen())
@@ -43,15 +43,18 @@ export function PremiumPausedNotice() {
     enabled: open,
   })
 
+  // Seen as soon as it shows, so moving to another page (where another copy
+  // is mounted — see App) doesn't bring it back
+  useEffect(() => {
+    if (open) markSeen()
+  }, [open])
+
   const counting = open && !hovered && !showQr
 
   useEffect(() => {
     if (!counting) return
     const startedAt = Date.now()
-    const timer = window.setTimeout(() => {
-      markSeen()
-      setOpen(false)
-    }, remainingMs.current)
+    const timer = window.setTimeout(() => setOpen(false), remainingMs.current)
     return () => {
       window.clearTimeout(timer)
       remainingMs.current = Math.max(0, remainingMs.current - (Date.now() - startedAt))
@@ -59,9 +62,7 @@ export function PremiumPausedNotice() {
   }, [counting])
 
   const onOpenChange = (next: boolean) => {
-    if (next) return
-    markSeen()
-    setOpen(false)
+    if (!next) setOpen(false)
   }
 
   return (
