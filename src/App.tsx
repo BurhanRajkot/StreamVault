@@ -3,7 +3,9 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
 import { MODE_PATHS } from './lib/config'
+import { PREMIUM_PAUSED } from './lib/premiumPause'
 import { applyPendingUpdate } from './lib/swUpdate'
+import { PremiumPausedNotice } from './components/shared/PremiumPausedNotice'
 import { HelmetProvider } from 'react-helmet-async'
 import { Routes, Route, useLocation } from 'react-router-dom'
 
@@ -60,6 +62,10 @@ const AppContent = () => {
     applyPendingUpdate(location.pathname)
   }, [location.pathname])
 
+  // The page underneath, even while the title page is open over it
+  const pagePath = (backgroundLocation || location).pathname
+  const homeShowsNotice = Object.values(MODE_PATHS).includes(pagePath)
+
   return (
     <Suspense fallback={<PageFallback />}>
       <Routes location={backgroundLocation || location}>
@@ -90,6 +96,11 @@ const AppContent = () => {
           <Route path="/watch/:mediaType/:idAndSlug" element={<Watch />} />
         </Routes>
       )}
+
+      {/* "Premium is paused" for people who arrive anywhere but the home page
+          (a shared or searched /watch link, say). The home page shows it
+          itself, so it can wait for the disclaimer and onboarding. */}
+      {PREMIUM_PAUSED && !homeShowsNotice && !pagePath.startsWith('/admin') && <PremiumPausedNotice />}
     </Suspense>
   )
 }
