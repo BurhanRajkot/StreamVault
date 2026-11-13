@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { QuickViewModal } from '@/components/modals/QuickViewModal'
-import { cn } from '@/lib/utils'
+import { cn, shouldHandleCardClick, watchPath } from '@/lib/utils'
 import type { Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet } from '@/lib/api'
 import { Star } from 'lucide-react'
@@ -117,7 +117,9 @@ export function GenericMediaCard({
         className
       )}
       style={{ scrollSnapAlign: 'start' }}
-      onClick={onClick}
+      onClick={(e) => {
+        if (shouldHandleCardClick(e)) onClick?.()
+      }}
       role={role}
       tabIndex={tabIndex}
       aria-label={ariaLabel || `Open ${title}`}
@@ -166,7 +168,8 @@ export function GenericMediaCard({
       {bottomOverlay ?? (
         // Title + one meta line under the art, like MediaCard
         <div className="px-0.5 pt-2" aria-hidden="true">
-          <p className="truncate text-[13px] font-medium leading-tight text-foreground/90 md:text-sm md:group-hover:text-foreground">{title}</p>
+          {/* A real link for crawlers and new tabs; the card is the control */}
+          <a href={watchPath(mediaType, id, title)} tabIndex={-1} className="block truncate text-[13px] font-medium leading-tight text-foreground/90 md:text-sm md:group-hover:text-foreground">{title}</a>
           <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-none text-muted-foreground md:text-xs">
             {voteAverage ? (
               <span className="flex items-center gap-1">

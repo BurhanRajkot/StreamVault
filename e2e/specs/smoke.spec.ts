@@ -18,7 +18,7 @@ const ROUTES: { path: string; heading: string | RegExp }[] = [
 
 test('home @smoke', async ({ home }) => {
   await home.goto()
-  await expect(home.header.getByRole('link', { name: 'StreamVault' })).toBeVisible()
+  await expect(home.header.getByRole('link', { name: /^StreamVault( home)?$/ })).toBeVisible()
 })
 
 for (const { path, heading } of ROUTES) {

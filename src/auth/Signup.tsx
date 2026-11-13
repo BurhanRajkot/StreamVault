@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Helmet } from 'react-helmet-async'
+import { PageMeta } from '@/seo/PageMeta'
 import { AuthButton, AuthLayout, BenefitList } from './AuthLayout'
 
 export default function Signup() {
@@ -22,9 +22,7 @@ export default function Signup() {
 
   return (
     <>
-      <Helmet>
-        <title>Sign Up – StreamVault</title>
-      </Helmet>
+      <PageMeta title="Sign Up" noindex />
 
       <AuthLayout>
         <h1 className="mb-3 text-[34px] font-bold leading-[1.1] tracking-tight text-white xl:text-[40px]">

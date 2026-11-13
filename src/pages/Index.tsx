@@ -30,29 +30,35 @@ import { PREMIUM_PAUSED } from '@/lib/premiumPause'
 // Downloads stopped for now.
 // const Downloads = lazy(() => import('./Downloads'))
 
-const SECTION_META: Record<MediaMode, { title: string; description: string; noindex?: boolean }> = {
+const SECTION_META: Record<MediaMode, { title: string; description: string; heading: string; noindex?: boolean }> = {
   home: {
-    title: 'Watch Movies, TV Shows & Anime',
-    description: 'StreamVault — Browse thousands of movies, TV shows, and anime. Stream instantly for free with no sign-up.',
+    title: 'Watch Movies, TV Shows & Anime Online Free in HD',
+    heading: 'Watch Movies, TV Shows & Anime Online Free',
+    description: 'Watch movies, TV shows and anime online free on StreamVault — HD and 4K streaming, every season and episode, smart recommendations, no sign-up required.',
   },
   movie: {
-    title: 'Movies',
-    description: 'Browse trending and popular movies on StreamVault. Stream instantly for free with no sign-up.',
+    title: 'Watch Movies Online Free in HD',
+    heading: 'Watch Movies Online Free',
+    description: 'Watch the latest and most popular movies online free in HD and 4K on StreamVault. Trending, top-rated and new releases — no sign-up, just press play.',
   },
   tv: {
-    title: 'TV Shows',
-    description: 'Browse trending and popular TV shows on StreamVault. Stream every season and episode for free.',
+    title: 'Watch TV Shows Online Free — Every Season & Episode',
+    heading: 'Watch TV Shows Online Free',
+    description: 'Watch TV shows and series online free on StreamVault — every season and episode in HD, with autoplay to the next episode. No sign-up required.',
   },
   anime: {
-    title: 'Anime',
-    description: 'Browse anime series and films on StreamVault. Stream instantly for free with no sign-up.',
+    title: 'Watch Anime Online Free — Series & Movies in HD',
+    heading: 'Watch Anime Online Free',
+    description: 'Watch anime online free on StreamVault — popular and top-rated anime series and films in HD, with English subtitles. No sign-up required.',
   },
   documentary: {
-    title: 'Documentaries',
-    description: 'Browse documentary films and series on StreamVault. Stream instantly for free with no sign-up.',
+    title: 'Watch Documentaries Online Free',
+    heading: 'Watch Documentaries Online Free',
+    description: 'Watch documentary films and docuseries online free on StreamVault — nature, history, true crime and more in HD. No sign-up required.',
   },
   downloads: {
     title: 'Downloads',
+    heading: 'Downloads',
     description: 'Your downloads on StreamVault.',
     noindex: true,
   },
@@ -202,7 +208,7 @@ const Index = () => {
           refreshRecommendations()
         }} />
       )}
-      <PageMeta {...SECTION_META[mode]} />
+      <PageMeta title={SECTION_META[mode].title} description={SECTION_META[mode].description} noindex={SECTION_META[mode].noindex} />
 
       <div className="flex min-h-screen flex-col">
         <Header
@@ -224,6 +230,9 @@ const Index = () => {
 
         {/* WIDER CONTAINER FOR LARGE MONITORS */}
         <main className="w-full flex-1 px-[var(--sv-gutter)] pt-[var(--sv-header-h)] pb-2 pb-tabbar">
+          {/* The section pages' H1 (home's is in SEOContent) — for screen
+              readers and search engines; the header pill shows it visually */}
+          {mode !== 'home' && <h1 className="sr-only">{SECTION_META[mode].heading}</h1>}
           {mode === 'downloads' ? (
             // Downloads stopped for now.
             // <Downloads />

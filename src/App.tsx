@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
 import { MODE_PATHS } from './lib/config'
 import { applyPendingUpdate } from './lib/swUpdate'
-import { HelmetProvider } from 'react-helmet-async'
 import { Routes, Route, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
@@ -150,13 +149,11 @@ export default function App() {
     <ErrorBoundary>
       <PrefetchRecommendations />
       <UserSwitchGuard />
-      <HelmetProvider>
-        <FavoritesProvider>
-          <DislikesProvider>
-            <AppContent />
-          </DislikesProvider>
-        </FavoritesProvider>
-      </HelmetProvider>
+      <FavoritesProvider>
+        <DislikesProvider>
+          <AppContent />
+        </DislikesProvider>
+      </FavoritesProvider>
     </ErrorBoundary>
   )
 }
