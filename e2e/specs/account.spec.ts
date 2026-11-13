@@ -8,12 +8,12 @@ import { MOVIE, titleOf } from '../fixtures/data'
 import { cardName } from '../pages/HomePage'
 
 test.describe('as a guest', () => {
-  test('the header offers sign in and sign up', async ({ home }) => {
-    test.skip(test.info().project.name === 'mobile', 'The mobile header has no account links')
+  test('the header offers one Sign in, and the login page links to sign up', async ({ page, home }) => {
     await home.goto()
 
-    await expect(home.header.getByRole('link', { name: 'Login', exact: true })).toHaveAttribute('href', '/login')
-    await expect(home.header.getByRole('link', { name: 'Sign Up' })).toHaveAttribute('href', '/signup')
+    await home.header.getByRole('link', { name: 'Sign in', exact: true }).click()
+    await expect(page).toHaveURL('/login')
+    await expect(page.getByRole('link', { name: 'Create an account' })).toHaveAttribute('href', '/signup')
   })
 
   test('saving a favorite asks them to log in, and saves nothing', async ({ page, watch, mockApi }) => {
@@ -41,7 +41,7 @@ test.describe('signed in', () => {
     await home.goto()
 
     await expect(home.header.getByRole('button', { name: 'Open account menu' })).toBeVisible()
-    await expect(home.header.getByRole('link', { name: 'Login', exact: true })).toHaveCount(0)
+    await expect(home.header.getByRole('link', { name: 'Sign in', exact: true })).toHaveCount(0)
   })
 
   test('a favorite saved on a title page is listed on Favorites, and can be removed', async ({ page, watch, mockApi }) => {

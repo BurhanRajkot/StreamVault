@@ -1,5 +1,5 @@
 import { useState, useRef, memo } from 'react'
-import { Play, Star, Heart, ThumbsDown, Film } from 'lucide-react'
+import { Play, Heart, ThumbsDown, Film } from 'lucide-react'
 import { CONFIG, Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet, logRecommendationInteraction } from '@/lib/api'
 import { cn, genreIdsOf, shouldHandleCardClick, watchPath } from '@/lib/utils'
@@ -213,23 +213,13 @@ function MediaCardComponent({
           )}
         </div>
 
-        {/* Title + one meta line under the art */}
+        {/* Just the title under the art — score and year are in the preview */}
         <div className="px-0.5 pt-2" aria-hidden="true">
           {/* A real link (out of the tab order — the card is the control) so
               crawlers can reach the title page from any list */}
-          <a href={watchPath(mediaType, media.id, title)} tabIndex={-1} className="block truncate text-[13px] font-medium leading-tight text-foreground/90 transition-colors md:text-sm md:group-hover:text-foreground">
+          <a href={watchPath(mediaType, media.id, title)} tabIndex={-1} className="block truncate text-[13px] font-medium leading-tight text-foreground/75 transition-colors md:text-sm md:group-hover:text-foreground">
             {title}
           </a>
-          <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-none text-muted-foreground md:text-xs">
-            {rating && (
-              <span className="flex items-center gap-1">
-                <Star className="h-3 w-3 fill-primary text-primary" />
-                {rating}
-              </span>
-            )}
-            {rating && cardYear && <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/70" />}
-            {cardYear && <span>{cardYear}</span>}
-          </p>
         </div>
 
         {/* Quick View Overlay — desktop only */}
@@ -266,7 +256,6 @@ export const MediaCardSkeleton = memo(function MediaCardSkeleton() {
         <div className="h-full w-full animate-shimmer" />
       </div>
       <div className="mt-2 h-3 w-3/4 rounded bg-card" />
-      <div className="mt-1.5 h-2.5 w-1/3 rounded bg-card" />
     </div>
   )
 })

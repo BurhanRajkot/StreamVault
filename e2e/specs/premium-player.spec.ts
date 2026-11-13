@@ -433,7 +433,7 @@ test.describe('on a phone', () => {
     await expect(watch.root.getByRole('button', { name: /^Download S1:E1$/ })).toBeVisible()
     const episodes = page.getByRole('region', { name: 'Episodes' })
     await expect(episodes.getByRole('listitem')).toHaveCount(7)
-    await expect(episodes.getByRole('button', { name: 'Download episode 4' })).toBeVisible()
+    await expect(episodes.getByRole('button', { name: /^Download episode/ }), 'one Download, not one per episode').toHaveCount(0)
   })
 
   test('playing leaves nothing else on screen, and the player’s Episodes panel switches episode', async ({ page, watch, mockApi }) => {

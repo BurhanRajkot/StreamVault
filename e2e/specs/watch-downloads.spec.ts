@@ -8,7 +8,7 @@ import { test, expect } from '../fixtures/test'
 import { MOVIE, SHOW } from '../fixtures/data'
 
 test.describe('Download while watching', () => {
-  test('a show offers the playing episode, and any other from the list', async ({ page, watch }) => {
+  test('a show offers the playing episode, and only that', async ({ page, watch }) => {
     test.skip(test.info().project.name === 'mobile', 'The desktop theater; the phone has its own test below')
     await watch.goto(SHOW)
     await watch.play()
@@ -21,9 +21,8 @@ test.describe('Download while watching', () => {
     await page.keyboard.press('Escape')
     await expect(sheet).toHaveCount(0)
 
-    // Every row of the episode list beside the player has its own
-    await watch.root.getByRole('button', { name: 'Download episode 3' }).click()
-    await expect(page.getByRole('dialog', { name: 'Download' })).toContainText('S1 · E3')
+    // One Download, for what's playing — the episode rows stay uncluttered
+    await expect(watch.root.getByRole('button', { name: /^Download episode/ })).toHaveCount(0)
     await expect(watch.embed, 'the episode keeps playing underneath').toBeVisible()
   })
 
