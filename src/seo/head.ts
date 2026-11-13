@@ -1,3 +1,5 @@
+import { SEO } from './constants'
+
 /**
  * A tiny document-head manager — what react-helmet-async did for us, minus
  * its React 19 failure.
@@ -64,8 +66,14 @@ export function mergeHead(specs: HeadSpec[]): MergedHead {
 const entries = new Map<number, HeadSpec>()
 let nextId = 1
 let staticTitle: string | null = null
-const ORIG = 'data-sv-orig'
 const MANAGED = 'data-sv-head'
+/** index.html's own tags we've overwritten, with their original value — kept here, not read back from the DOM. */
+const originalMeta = new Map<HTMLMetaElement, string>()
+/**
+ * What index.html's own links say, for when no page sets them. Constants on
+ * purpose: an href is never read back out of the DOM and written again.
+ */
+const STATIC_LINKS: Record<string, string> = { canonical: `${SEO.SITE_URL}/` }
 
 export function registerHead(): number {
   return nextId++
@@ -105,19 +113,20 @@ function apply(): void {
       else if (m.name) el.setAttribute('name', m.name)
       el.setAttribute(MANAGED, '')
       head.appendChild(el)
-    } else if (!el.hasAttribute(MANAGED) && !el.hasAttribute(ORIG)) {
-      el.setAttribute(ORIG, el.getAttribute('content') ?? '')
+    } else if (!el.hasAttribute(MANAGED) && !originalMeta.has(el)) {
+      originalMeta.set(el, el.content)
     }
     el.setAttribute('content', m.content)
   }
-  head.querySelectorAll<HTMLMetaElement>(`meta[${MANAGED}], meta[${ORIG}]`).forEach((el) => {
-    const key = el.hasAttribute('property') ? `property:${el.getAttribute('property')}` : `name:${el.getAttribute('name') ?? ''}`
-    if (seen.has(key)) return
-    if (el.hasAttribute(MANAGED)) el.remove()
-    else {
-      el.setAttribute('content', el.getAttribute(ORIG) ?? '')
-      el.removeAttribute(ORIG)
-    }
+  const metaKeyOf = (el: HTMLMetaElement) =>
+    el.hasAttribute('property') ? `property:${el.getAttribute('property')}` : `name:${el.getAttribute('name') ?? ''}`
+  head.querySelectorAll<HTMLMetaElement>(`meta[${MANAGED}]`).forEach((el) => {
+    if (!seen.has(metaKeyOf(el))) el.remove()
+  })
+  originalMeta.forEach((content, el) => {
+    if (seen.has(metaKeyOf(el))) return
+    el.setAttribute('content', content)
+    originalMeta.delete(el)
   })
 
   // Links (canonical)
@@ -130,18 +139,13 @@ function apply(): void {
       el.rel = rel
       el.setAttribute(MANAGED, '')
       head.appendChild(el)
-    } else if (!el.hasAttribute(MANAGED) && !el.hasAttribute(ORIG)) {
-      el.setAttribute(ORIG, el.getAttribute('href') ?? '')
     }
     el.setAttribute('href', href)
   }
-  head.querySelectorAll<HTMLLinkElement>(`link[${MANAGED}], link[${ORIG}]`).forEach((el) => {
+  head.querySelectorAll<HTMLLinkElement>('link[rel]').forEach((el) => {
     if (seenRel.has(el.rel)) return
     if (el.hasAttribute(MANAGED)) el.remove()
-    else {
-      el.setAttribute('href', el.getAttribute(ORIG) ?? '')
-      el.removeAttribute(ORIG)
-    }
+    else if (el.rel in STATIC_LINKS) el.setAttribute('href', STATIC_LINKS[el.rel])
   })
 
   // JSON-LD: managed blocks only; index.html's site-level block stays put
