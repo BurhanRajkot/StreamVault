@@ -19,7 +19,7 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
     media.media_type ||
     (media.first_air_date ? "tv" : "movie")
 
-  // Built through buildEmbedUrl against the configured default provider, rather
+  // Built through buildEmbedUrl against the configured preview provider, rather
   // than reaching into STREAM_PROVIDERS for a hardcoded `vidfast_pro` and
   // re-implementing placeholder substitution. The hand-rolled version pinned the
   // preview to one provider regardless of DEFAULT_PROVIDER, and would silently
@@ -27,7 +27,7 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
   // template ever gained a placeholder this copy didn't know about.
   const url = buildEmbedUrl(
     mediaType === "movie" ? "movie" : "tv",
-    CONFIG.DEFAULT_PROVIDER,
+    CONFIG.PREVIEW_PROVIDER,
     media.id,
     { season: 1, episode: 1 }
   )

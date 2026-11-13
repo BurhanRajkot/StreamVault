@@ -70,8 +70,8 @@
 
   /* Font families. Tailwind v4 reads --font-*; the v3-era --font-family-*
      names left `font-sans` on the system stack and `font-display` undefined. */
-  --font-sans: Archivo, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'Space Grotesk', Archivo, sans-serif;
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Keyframes */
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -97,57 +97,62 @@
 
 @layer base {
   :root {
-      /* LIGHT MODE VARIABLES (Blue/White/Slate Theme) */
-      --background: 210 40% 98%;
-      --foreground: 222 47% 11%;
+      /* LIGHT MODE — neutral greys, one red accent (2026-11-13 redesign,
+         after movy.sx: no tinted surfaces, the accent only where it means
+         something — the brand, a 4K badge, the current item). */
+      --background: 0 0% 98%;
+      --foreground: 0 0% 7%;
 
       --card: 0 0% 100%;
-      --card-foreground: 222 47% 11%;
+      --card-foreground: 0 0% 7%;
 
       --popover: 0 0% 100%;
-      --popover-foreground: 222 47% 11%;
+      --popover-foreground: 0 0% 7%;
 
-      --primary: 221 83% 53%;
-      --primary-foreground: 210 40% 98%;
+      --primary: 357 92% 47%;
+      --primary-foreground: 0 0% 100%;
 
-      --secondary: 210 40% 96%;
-      --secondary-foreground: 222 47% 11%;
+      --secondary: 0 0% 93%;
+      --secondary-foreground: 0 0% 9%;
 
-      --muted: 210 40% 96%;
-      --muted-foreground: 215 16% 47%;
+      --muted: 0 0% 94%;
+      --muted-foreground: 0 0% 40%;
 
-      --accent: 199 89% 48%;
-      --accent-foreground: 0 0% 100%;
+      /* shadcn's hover surface (menu items, ghost buttons) — neutral, not a colour */
+      --accent: 0 0% 92%;
+      --accent-foreground: 0 0% 9%;
 
-      --destructive: 0 84% 60%;
-      --destructive-foreground: 210 40% 98%;
+      --destructive: 0 84% 52%;
+      --destructive-foreground: 0 0% 100%;
 
-      --border: 214 32% 91%;
-      --input: 214 32% 91%;
-      --ring: 221 83% 53%;
+      --border: 0 0% 88%;
+      --input: 0 0% 86%;
+      --ring: 357 92% 47%;
 
       --radius: 0.75rem;
 
       /* Height of the fixed app header. Pages offset their content by this
          (pt-[var(--sv-header-h)]) and the hero pulls back under it, so the
          value only has to be changed in one place per breakpoint. */
-      --sv-header-h: 72px;
+      --sv-header-h: 76px;
       /* Height of the mobile bottom tab bar, excluding the safe-area inset. */
       --sv-tabbar-h: 60px;
+      /* Page side gutter — the hero bleeds past it, rows line up on it. */
+      --sv-gutter: 0.75rem;
 
-      /* Premium color palette */
-      --deep-purple: 221 83% 53%;
-      --golden-amber: 199 89% 48%;
-      --coral-pink: 350 85% 65%;
-      --emerald-teal: 170 75% 42%;
-      --vivid-orange: 28 100% 60%;
+      /* Brand palette (names kept from the old theme; values re-picked) */
+      --deep-purple: 357 92% 47%;
+      --golden-amber: 43 96% 56%;
+      --coral-pink: 357 92% 60%;
+      --emerald-teal: 152 60% 42%;
+      --vivid-orange: 24 95% 55%;
 
       /* Gradients (Light) */
-      --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%), hsl(199 89% 48%));
-      --gradient-hero: linear-gradient(135deg, hsl(210 40% 98%) 0%, hsl(215 30% 92%) 100%);
-      --gradient-sunset: linear-gradient(135deg, hsl(221 83% 53%), hsl(250 60% 60%));
-      --gradient-ocean: linear-gradient(135deg, hsl(221 83% 53%), hsl(190 90% 50%));
-      --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 40% 98%));
+      --gradient-primary: linear-gradient(135deg, hsl(357 92% 47%), hsl(350 85% 40%));
+      --gradient-hero: linear-gradient(180deg, hsl(0 0% 98%) 0%, hsl(0 0% 94%) 100%);
+      --gradient-sunset: linear-gradient(135deg, hsl(357 92% 47%), hsl(24 95% 55%));
+      --gradient-ocean: linear-gradient(135deg, hsl(357 92% 47%), hsl(330 80% 50%));
+      --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(0 0% 97%));
       --gradient-overlay: linear-gradient(
         180deg,
         transparent 0%,
@@ -156,80 +161,90 @@
       );
 
       /* Shadows (Light) */
-      --shadow-glow: 0 0 30px hsl(221 83% 53% / 0.15);
-      --shadow-glow-amber: 0 0 30px hsl(199 89% 48% / 0.15);
-      --shadow-card: 0 4px 6px -1px hsl(222 47% 11% / 0.05), 0 2px 4px -2px hsl(222 47% 11% / 0.05);
-      --shadow-elevated: 0 10px 15px -3px hsl(222 47% 11% / 0.08), 0 4px 6px -4px hsl(222 47% 11% / 0.08);
+      --shadow-glow: 0 0 30px hsl(357 92% 47% / 0.15);
+      --shadow-glow-amber: 0 0 30px hsl(43 96% 56% / 0.15);
+      --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.06), 0 2px 4px -2px hsl(0 0% 0% / 0.06);
+      --shadow-elevated: 0 12px 28px -6px hsl(0 0% 0% / 0.14), 0 4px 8px -4px hsl(0 0% 0% / 0.08);
 
       /* Sidebar */
-      --sidebar-background: 210 40% 98%;
-      --sidebar-foreground: 222 47% 11%;
-      --sidebar-primary: 221 83% 53%;
-      --sidebar-primary-foreground: 210 40% 98%;
-      --sidebar-accent: 210 40% 96%;
-      --sidebar-accent-foreground: 222 47% 11%;
-      --sidebar-border: 214 32% 91%;
-      --sidebar-ring: 221 83% 53%;
+      --sidebar-background: 0 0% 98%;
+      --sidebar-foreground: 0 0% 7%;
+      --sidebar-primary: 357 92% 47%;
+      --sidebar-primary-foreground: 0 0% 100%;
+      --sidebar-accent: 0 0% 93%;
+      --sidebar-accent-foreground: 0 0% 9%;
+      --sidebar-border: 0 0% 88%;
+      --sidebar-ring: 357 92% 47%;
+  }
+
+  @media (min-width: 768px) {
+    :root { --sv-gutter: 2rem; }
+  }
+  @media (min-width: 1024px) {
+    :root { --sv-gutter: 3rem; }
+  }
+  @media (min-width: 1536px) {
+    :root { --sv-gutter: 4.5rem; }
   }
 
   .dark {
-      /* DARK MODE VARIABLES */
-      --background: 224 71% 4%;
-      --foreground: 210 40% 98%;
+      /* DARK MODE — near-black, no blue cast */
+      --background: 0 0% 7%;
+      --foreground: 0 0% 98%;
 
-      --card: 222 47% 6%;
-      --card-foreground: 210 40% 98%;
+      --card: 0 0% 10%;
+      --card-foreground: 0 0% 98%;
 
-      --popover: 222 47% 8%;
-      --popover-foreground: 210 40% 98%;
+      --popover: 0 0% 11%;
+      --popover-foreground: 0 0% 98%;
 
-      --primary: 221 83% 53%;
+      --primary: 357 92% 47%;
       --primary-foreground: 0 0% 100%;
 
-      --secondary: 217 33% 15%;
-      --secondary-foreground: 210 40% 98%;
+      --secondary: 0 0% 15%;
+      --secondary-foreground: 0 0% 98%;
 
-      --muted: 217 33% 15%;
-      --muted-foreground: 215 20% 65%;
+      --muted: 0 0% 14%;
+      --muted-foreground: 0 0% 64%;
 
-      --accent: 199 89% 48%;
-      --accent-foreground: 222 47% 3%;
+      --accent: 0 0% 18%;
+      --accent-foreground: 0 0% 98%;
 
       --destructive: 0 72% 50%;
       --destructive-foreground: 0 0% 98%;
 
-      --border: 217 33% 20%;
-      --input: 217 33% 20%;
-      --ring: 221 83% 53%;
+      --border: 0 0% 17%;
+      --input: 0 0% 20%;
+      --ring: 357 92% 52%;
 
       /* Gradients (Dark) */
-      --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%), hsl(199 89% 48%));
-      --gradient-hero: linear-gradient(135deg, hsl(224 71% 4%) 0%, hsl(222 47% 10%) 100%);
-      --gradient-sunset: linear-gradient(135deg, hsl(221 83% 53%), hsl(260 70% 60%));
-      --gradient-ocean: linear-gradient(135deg, hsl(221 83% 53%), hsl(190 90% 50%));
-      --gradient-card: linear-gradient(180deg, hsl(222 47% 8%), hsl(222 47% 5%));
+      --gradient-primary: linear-gradient(135deg, hsl(357 92% 47%), hsl(350 85% 38%));
+      --gradient-hero: linear-gradient(180deg, hsl(0 0% 7%) 0%, hsl(0 0% 10%) 100%);
+      --gradient-sunset: linear-gradient(135deg, hsl(357 92% 47%), hsl(24 95% 55%));
+      --gradient-ocean: linear-gradient(135deg, hsl(357 92% 47%), hsl(330 80% 50%));
+      --gradient-card: linear-gradient(180deg, hsl(0 0% 11%), hsl(0 0% 8%));
       --gradient-overlay: linear-gradient(
         180deg,
         transparent 0%,
-        hsl(224 71% 4% / 0.9) 50%,
-        hsl(224 71% 4%) 100%
+        hsl(0 0% 7% / 0.9) 50%,
+        hsl(0 0% 7%) 100%
       );
 
       /* Shadows (Dark) */
-      --shadow-glow: 0 0 50px hsl(221 83% 53% / 0.2);
-      --shadow-glow-amber: 0 0 40px hsl(199 89% 48% / 0.2);
-      --shadow-card: 0 10px 40px -10px hsl(0 0% 0% / 0.5);
-      --shadow-elevated: 0 20px 40px -10px hsl(0 0% 0% / 0.6);
+      --shadow-glow: 0 0 50px hsl(357 92% 47% / 0.2);
+      --shadow-glow-amber: 0 0 40px hsl(43 96% 56% / 0.2);
+      --shadow-card: 0 10px 40px -10px hsl(0 0% 0% / 0.6);
+      --shadow-elevated: 0 24px 48px -12px hsl(0 0% 0% / 0.75);
 
       /* Sidebar (Dark) */
-      --sidebar-background: 222 47% 6%;
-      --sidebar-foreground: 210 40% 98%;
-      --sidebar-primary: 221 83% 53%;
+      --sidebar-background: 0 0% 9%;
+      --sidebar-foreground: 0 0% 98%;
+      --sidebar-primary: 357 92% 47%;
       --sidebar-primary-foreground: 0 0% 100%;
-      --sidebar-accent: 217 33% 15%;
-      --sidebar-accent-foreground: 210 40% 98%;
-      --sidebar-border: 217 33% 20%;
-      --sidebar-ring: 221 83% 53%;
+      --sidebar-accent: 0 0% 15%;
+      --sidebar-accent-foreground: 0 0% 98%;
+      --sidebar-border: 0 0% 17%;
+      --sidebar-ring: 357 92% 52%;
   }
 }
 
@@ -244,10 +259,11 @@
 
     body {
       @apply bg-background text-foreground antialiased;
-      font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-feature-settings: 'cv11', 'ss01';
       /* Fluid base font: scales from 15px @ 320px viewport → 17px @ 1920px viewport */
       font-size: clamp(0.9375rem, 0.875rem + 0.313vw, 1.0625rem);
-      letter-spacing: -0.015em;
+      letter-spacing: -0.011em;
 
       position: relative;
       min-height: 100vh;
@@ -262,7 +278,7 @@
        folded in since the header paints under it. */
     @media (max-width: 767.98px) {
       :root {
-        --sv-header-h: calc(104px + env(safe-area-inset-top, 0px));
+        --sv-header-h: calc(106px + env(safe-area-inset-top, 0px));
       }
 
       /* While searching, the header collapses to the single field row — pages
@@ -303,37 +319,13 @@
       pointer-events: none;
       transition: opacity 0.5s ease-in-out;
 
-      /* Creative Mesh Gradient (Light) */
-      background:
-        radial-gradient(at 0% 0%, hsl(210 40% 96%) 0%, transparent 50%),
-        radial-gradient(at 100% 0%, hsl(221 83% 90% / 0.3) 0%, transparent 50%),
-        radial-gradient(at 100% 100%, hsl(199 89% 90% / 0.3) 0%, transparent 50%),
-        radial-gradient(at 0% 100%, hsl(210 40% 96%) 0%, transparent 50%),
-        hsl(210 40% 98%);
-    }
-
-    /* Dark Mode Mesh Gradient */
-    .dark body::before {
-        background:
-            radial-gradient(circle at 15% 50%, hsl(221 83% 53% / 0.08), transparent 25%),
-            radial-gradient(circle at 85% 30%, hsl(199 89% 48% / 0.08), transparent 25%),
-            radial-gradient(circle at 50% 80%, hsl(250 60% 60% / 0.05), transparent 40%),
-            hsl(224 71% 4%);
-    }
-
-    /* Mobile: Simplified background for performance */
-    @media (max-width: 640px) {
-      body::before {
-        background: hsl(210 40% 98%);
-      }
-      .dark body::before {
-        background: hsl(224 71% 4%);
-      }
+      /* Flat, neutral ground (the old blue/cyan mesh made every surface look tinted) */
+      background: hsl(var(--background));
     }
 
     h1, h2, h3, h4, h5, h6 {
-      font-family: 'Space Grotesk', 'Archivo', sans-serif;
-      letter-spacing: -0.025em;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      letter-spacing: -0.022em;
     }
 
     /* Fluid heading scale — prevents microscopic text on narrow or massive text on ultrawide */
@@ -519,12 +511,6 @@
         to   { opacity: 1; }
       }
 
-      /* PremiumPausedNotice's auto-close bar */
-      @keyframes sv-countdown {
-        from { transform: scaleX(1); }
-        to   { transform: scaleX(0); }
-      }
-
       .animate-slide-up {
         animation: slide-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
@@ -707,6 +693,21 @@
   /* ── Hero Carousel Progress Bar (CSS-only, zero JS ticking) ──────────── */
   /* scaleX rather than width: a transform animates on the compositor, a
      width change re-runs layout every frame. */
+  /* Slow push-in on the featured artwork */
+  .hero-kenburns {
+    animation: hero-kenburns 14s ease-out both;
+    transform-origin: 60% 40%;
+  }
+
+  @keyframes hero-kenburns {
+    from { transform: scale(1.08); }
+    to   { transform: scale(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-kenburns { animation: none; }
+  }
+
   .hero-progress-bar {
     width: 100%;
     transform-origin: left center;
@@ -786,8 +787,8 @@
      below the bottom edge. */
   .player-shell {
     aspect-ratio: 16 / 9;
-    border-radius: 1rem;
-    box-shadow: 0 30px 90px -20px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.06);
+    border-radius: 0.75rem;
+    box-shadow: 0 30px 90px -20px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.07);
   }
 
   /* The picture and everything under it, sized so the whole 16:9 card fits
@@ -796,7 +797,7 @@
   @media (min-width: 768px) {
     .player-column {
       width: 100%;
-      max-width: calc((100svh - 6.5rem) * 16 / 9);
+      max-width: calc((100svh - 5.5rem) * 16 / 9);
       margin-inline: auto;
     }
   }

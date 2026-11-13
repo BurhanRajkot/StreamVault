@@ -1,3 +1,5 @@
+import { PREMIUM_PAUSED } from './premiumPause'
+
 /**
  * A single streaming provider, and everything the app needs to know about it.
  *
@@ -14,9 +16,9 @@ export interface StreamProvider {
   /**
    * Label shown in the server dropdown. Servers are named after the brightest
    * stars in the night sky, brightest first (Sirius, Canopus, Arcturus, ...),
-   * so the brightest name is the best-tested server; they sit under the
-   * ⚡ Premium (Real-Debrid) server. The provider itself only shows in `id`
-   * and the URLs.
+   * so the brightest name is the best-tested server; Sol (the Sun, brighter
+   * than all of them) is Vidy, on top. ⚡ Premium (Real-Debrid) sits last.
+   * The provider itself only shows in `id` and the URLs.
    */
   name: string
   /** URL template with {tmdbId}/{season}/{episode} placeholders. */
@@ -24,6 +26,8 @@ export interface StreamProvider {
   /** URL template with a {tmdbId} placeholder. */
   movie: string
   quality: string
+  /** A short tag drawn beside the name in the server list ("4K"). */
+  badge?: string
   seekSupport: 'excellent' | 'good' | 'medium'
   description: string
   /**
@@ -45,10 +49,9 @@ export interface StreamProvider {
 }
 
 /**
- * Ordered as they appear in the server dropdown, after ⚡ Premium (see
- * serverOptions). The first entry is the default embed server — what plays
- * where Premium isn't offered, and what previews use; the rest are fallbacks
- * the user can switch to.
+ * Ordered as they appear in the server dropdown, above ⚡ Premium, which sits
+ * last (see serverOptions). The first entry is the default server — what every
+ * playback starts on; the rest are fallbacks the user can switch to.
  *
  * Lineup and order come from a real-playback test on 2026-11-12: each server
  * played in Chrome, framed from the production origin, across nine titles
@@ -69,7 +72,26 @@ export interface StreamProvider {
  */
 export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   {
-    // Default server, and what hover previews use — it must autoplay.
+    // Default server since 2026-11-13: Vidy (vidy.st) is the embed player
+    // behind movy.sx — up to 4K, its own quality / location / audio /
+    // subtitle menus, and a public embed API (vidy.st → Docs). It redirects
+    // vidy.st → www.vidy.st, so the templates point at www directly. Flags:
+    // `color` is the accent (hex, no #), `autoplay=true` starts with sound once
+    // a stream is found. It posts MEDIA_DATA about once a second (JSON
+    // strings) while it plays, so the stall watchdog can use it.
+    id: 'vidy',
+    name: 'Sol',
+    tv: 'https://www.vidy.st/tv/{tmdbId}/{season}/{episode}?autoplay=true&color=E50914',
+    movie: 'https://www.vidy.st/movie/{tmdbId}?autoplay=true&color=E50914',
+    quality: '4K, 1080p',
+    badge: '4K',
+    seekSupport: 'excellent',
+    description: 'Vidy — up to 4K, pick quality, location, audio and subtitles in the player',
+    messageOrigins: ['https://www.vidy.st'],
+    reportsPlayback: true,
+  },
+  {
+    // What hover previews use — it must autoplay (see HoverVideoPlayer).
     id: 'vidfast_pro',
     name: 'Sirius',
     tv: 'https://vidfast.vc/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
@@ -201,11 +223,17 @@ export const CONFIG = {
   ) as Record<string, string>,
 
   /**
-   * The default embed server. Movies and TV start on ⚡ Premium instead (see
+   * The default embed server — what every playback starts on (see
    * defaultServer); everything else in PROVIDER_NAMES is a fallback the user
    * can switch to from the server dropdown.
    */
   DEFAULT_PROVIDER: STREAM_PROVIDER_LIST[0].id,
+
+  /**
+   * What the quick-view preview plays. Not the default server: Vidy starts
+   * with sound and never falls back to muted, which a preview must not do.
+   */
+  PREVIEW_PROVIDER: 'vidfast_pro',
 
   PROVIDER_NAMES: Object.fromEntries(
     STREAM_PROVIDER_LIST.map((p) => [p.id, p.name])
@@ -333,10 +361,12 @@ export interface ServerOption {
   name: string
   /** The whole entry as plain text, for places that can't style parts of it (a native <select>). */
   label: string
-  /** Premium only: what it streams in. */
+  /** What it streams in — Premium's "4K/1080p", Sol's "4K". */
   detail?: string
   /** Premium only: free for everyone right now. */
   free?: boolean
+  /** Premium only: not working right now (PREMIUM_PAUSED). Still listed, last. */
+  unavailable?: boolean
 }
 
 /**
@@ -344,26 +374,34 @@ export interface ServerOption {
  * and TV — search is matched by IMDb id (+ season/episode for TV, via
  * Torrentio) rather than fuzzy title text, so season packs vs per-episode
  * releases aren't the reliability problem they'd be with title matching alone.
+ * It comes last (2026-11-13): Sol (Vidy) first, then the stars, then Premium.
  */
 export function serverOptions(
   mode: MediaMode,
   { debridFree = false }: { debridFree?: boolean } = {}
 ): ServerOption[] {
-  const providers = Object.entries(CONFIG.PROVIDER_NAMES).map(([id, name]) => ({ id, name, label: name }))
+  const providers: ServerOption[] = STREAM_PROVIDER_LIST.map(({ id, name, badge }) => ({
+    id,
+    name,
+    detail: badge,
+    label: badge ? `${name} (${badge})` : name,
+  }))
   if (mode !== 'movie' && mode !== 'tv') return providers
+  const free = debridFree && !PREMIUM_PAUSED
   const premium: ServerOption = {
     id: DEBRID_SERVER_ID,
     name: 'Premium',
     detail: '4K/1080p',
-    free: debridFree,
-    label: debridFree ? 'Premium (4K/1080p) · Free' : 'Premium (4K/1080p)',
+    free,
+    unavailable: PREMIUM_PAUSED,
+    label: PREMIUM_PAUSED ? 'Premium (4K/1080p) · Paused' : free ? 'Premium (4K/1080p) · Free' : 'Premium (4K/1080p)',
   }
-  return [premium, ...providers]
+  return [...providers, premium]
 }
 
 /**
  * The server a playback starts on when nothing picked one: the first in the
- * dropdown — ⚡ Premium for movies and TV, the default embed server otherwise.
+ * dropdown — Sol (Vidy) everywhere.
  */
 export function defaultServer(mode: MediaMode): string {
   return serverOptions(mode)[0].id

@@ -53,7 +53,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
           <div className="flex shrink-0 items-center justify-center p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <Calendar className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
           </div>
-          <h2 className="truncate text-[17px] md:text-xl font-bold text-foreground">
+          <h2 className="truncate text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem]">
             {providerId ? (
               <>Recently Added on <span className="text-primary">{providerName}</span></>
             ) : (
@@ -101,7 +101,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       {/* Horizontal Scroll Row */}
       <div
         ref={rowRef}
-        className="flex gap-2 overflow-x-auto scroll-smooth pb-3 no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-4 md:mx-0 md:px-8 md:pb-4"
+        className="flex gap-2 overflow-x-auto scroll-smooth pb-3 no-scrollbar -mx-[var(--sv-gutter)] px-[var(--sv-gutter)] scroll-pl-[var(--sv-gutter)] sm:gap-3 md:pb-4 lg:gap-4"
       >
         {isLoading
           ? Array.from({ length: 8 }).map((_, i) => (

@@ -1,6 +1,7 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { adminLogin, getImageSrcSet, buildEmbedUrl, fetchAnimeRow, fetchMediaSummaries, fetchPopular, fetchTrending, isSearchResultWorthShowing, searchMedia } from './api';
-import { CONFIG, DEBRID_SERVER_ID, serverOptions, type Media } from './config';
+import { CONFIG, DEBRID_SERVER_ID, defaultServer, serverOptions, type Media } from './config';
+import { PREMIUM_PAUSED } from './premiumPause';
 
 const originalFetch = globalThis.fetch;
 
@@ -207,19 +208,29 @@ describe('stream provider registry', () => {
 });
 
 describe('serverOptions', () => {
-  it('puts Premium first for movies and TV, with the free tag only while the promotion runs', () => {
-    const free = serverOptions('movie', { debridFree: true })
-    expect(free[0]).toMatchObject({ id: DEBRID_SERVER_ID, name: 'Premium', detail: '4K/1080p', free: true })
-    expect(free[0].label).toBe('Premium (4K/1080p) · Free')
-
-    const paid = serverOptions('tv')
-    expect(paid[0]).toMatchObject({ id: DEBRID_SERVER_ID, free: false, label: 'Premium (4K/1080p)' })
+  it('starts on Sol (Vidy, 4K), then the stars, with Premium last for movies and TV', () => {
+    const options = serverOptions('movie', { debridFree: true })
+    expect(options[0]).toMatchObject({ id: 'vidy', name: 'Sol', detail: '4K', label: 'Sol (4K)' })
+    expect(options[1]).toMatchObject({ id: 'vidfast_pro', name: 'Sirius', label: 'Sirius' })
+    expect(options.at(-1)).toMatchObject({ id: DEBRID_SERVER_ID, name: 'Premium', detail: '4K/1080p' })
+    expect(defaultServer('movie')).toBe('vidy')
+    expect(defaultServer('tv')).toBe('vidy')
   })
 
-  it('offers only the embed servers, labelled by name, outside movies and TV', () => {
+  it('tags Premium paused while it is, and free only while the promotion runs and it works', () => {
+    const premium = (debridFree: boolean) => serverOptions('tv', { debridFree }).at(-1)!
+    if (PREMIUM_PAUSED) {
+      expect(premium(true)).toMatchObject({ unavailable: true, free: false, label: 'Premium (4K/1080p) · Paused' })
+    } else {
+      expect(premium(true)).toMatchObject({ free: true, label: 'Premium (4K/1080p) · Free' })
+      expect(premium(false)).toMatchObject({ free: false, label: 'Premium (4K/1080p)' })
+    }
+  })
+
+  it('offers only the embed servers outside movies and TV, labelled by name and tag', () => {
     const options = serverOptions('documentary')
     expect(options.some((o) => o.id === DEBRID_SERVER_ID)).toBe(false)
-    for (const o of options) expect(o.label).toBe(o.name)
+    for (const o of options) expect(o.label).toBe(o.detail ? `${o.name} (${o.detail})` : o.name)
   })
 
   it('never puts an emoji in a label — a native <select> shows them raw', () => {

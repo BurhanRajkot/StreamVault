@@ -16,24 +16,44 @@ import { seasonOptions } from './types'
  * come up light in the light theme.
  */
 const trigger =
-  'h-11 rounded-lg border-white/10 bg-white/[0.07] px-3.5 text-sm font-medium text-white ring-offset-black transition-colors hover:bg-white/[0.12] focus:ring-white/40'
+  'h-11 rounded-lg border-white/10 bg-white/[0.1] px-3.5 text-sm font-medium text-white ring-offset-black backdrop-blur-md transition-colors hover:bg-white/[0.16] focus:ring-white/40'
 const content =
-  'dark z-[200] max-h-[min(60vh,22rem)] rounded-xl border-white/10 bg-neutral-900 text-white shadow-2xl custom-scrollbar'
-const item = 'cursor-pointer py-2.5 text-sm focus:bg-white/10 focus:text-white'
+  'dark z-[200] max-h-[min(60vh,24rem)] rounded-xl border-white/[0.08] bg-[#181818] p-1 text-white shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)] custom-scrollbar'
+const item = 'cursor-pointer rounded-lg py-2.5 text-sm focus:bg-white/10 focus:text-white data-[state=checked]:bg-white/[0.06]'
 
-/** "Premium 4K/1080p Free" — the zap and the free tag are drawn, the rest is plain text. */
+/**
+ * "Sol 4K", "Premium 4K/1080p Free" — the tags and the zap are drawn, the
+ * rest is plain text.
+ */
 function ServerLabel({ option }: { option: ServerOption }) {
-  if (option.id !== DEBRID_SERVER_ID) return <>{option.name}</>
+  if (option.id !== DEBRID_SERVER_ID) {
+    if (!option.detail) return <>{option.name}</>
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span className="font-semibold">{option.name}</span>{' '}
+        <span className="rounded-[4px] bg-primary px-1.5 py-px text-[10px] font-extrabold leading-4 tracking-wide text-primary-foreground">
+          {option.detail}
+        </span>
+      </span>
+    )
+  }
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className={cn('inline-flex items-center gap-1.5', option.unavailable && 'opacity-60')}>
       <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" />
       <span className="font-semibold">{option.name}</span>{' '}
       <span className="text-white/55">{option.detail}</span>
-      {option.free && (
+      {option.unavailable ? (
         <>
           {' '}
-          <span className="rounded bg-emerald-400/15 px-1.5 text-xs font-semibold text-emerald-300">Free</span>
+          <span className="rounded bg-white/10 px-1.5 text-xs font-semibold text-white/70">Paused</span>
         </>
+      ) : (
+        option.free && (
+          <>
+            {' '}
+            <span className="rounded bg-emerald-400/15 px-1.5 text-xs font-semibold text-emerald-300">Free</span>
+          </>
+        )
       )}
     </span>
   )
@@ -76,6 +96,11 @@ export function ServerSelect({
                 <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" />
               )}
               <span className="truncate font-semibold">{selected.name}</span>
+              {selected.id !== DEBRID_SERVER_ID && selected.detail && (
+                <span className="rounded-[4px] bg-primary px-1 text-[9px] font-extrabold leading-[14px] text-primary-foreground">
+                  {selected.detail}
+                </span>
+              )}
             </span>
           </SelectValue>
         ) : (

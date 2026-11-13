@@ -25,7 +25,7 @@ export function MediaRow({ title, strapline, media, isPending, onMediaClick }: M
     <section aria-labelledby={headingId} className="group/row relative mb-6">
       {/* Header */}
       <div className="mb-2.5 flex flex-row items-end justify-between gap-4 sm:mb-4">
-        <h2 id={headingId} className="text-[17px] font-bold leading-tight text-foreground sm:text-2xl">{title}</h2>
+        <h2 id={headingId} className="text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem] leading-tight">{title}</h2>
         {/* The strapline costs a phone half its header width for no navigation value */}
         {strapline && (
           <p className="hidden shrink-0 text-right text-sm text-foreground/80 md:block">{strapline}</p>
@@ -59,7 +59,7 @@ export function MediaRow({ title, strapline, media, isPending, onMediaClick }: M
       {/* Horizontal scroll row */}
       <div
         ref={rowRef}
-        className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto scroll-smooth px-3 pb-3 sm:-mx-4 sm:gap-4 sm:px-4 md:mx-0 md:px-8 md:pb-4"
+        className="no-scrollbar -mx-[var(--sv-gutter)] px-[var(--sv-gutter)] scroll-pl-[var(--sv-gutter)] flex gap-2 overflow-x-auto scroll-smooth pb-3 sm:gap-3 md:pb-4 lg:gap-4"
         style={{ contain: 'layout' }}
       >
         {isPending

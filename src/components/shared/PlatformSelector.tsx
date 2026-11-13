@@ -15,10 +15,10 @@ const tileLabel = 'w-full truncate text-center text-xs font-medium transition-co
 export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) {
   return (
     /* No horizontal padding on mobile — the page gutter already provides it */
-    <div className="mb-4 mt-5 w-full md:px-10">
-      <h2 className="mb-3 text-[17px] font-bold text-foreground md:mb-4 md:text-xl">Browse by service</h2>
+    <div className="mb-6 mt-2 w-full">
+      <h2 className="mb-3 text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem] md:mb-4">Browse by service</h2>
 
-      <div className="no-scrollbar -mx-3 flex snap-x items-start gap-3 overflow-x-auto px-3 pb-2 pt-1 sm:-mx-4 sm:px-4 md:mx-0 md:flex-wrap md:gap-4 md:px-0">
+      <div className="no-scrollbar -mx-[var(--sv-gutter)] px-[var(--sv-gutter)] scroll-pl-[var(--sv-gutter)] flex snap-x items-start gap-3 overflow-x-auto pb-2 pt-1 md:flex-wrap md:gap-4">
         <button onClick={() => onSelect(null)} aria-pressed={selected === null} className={tileButton}>
           <span
             className={cn(

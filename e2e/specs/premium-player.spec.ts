@@ -1,6 +1,7 @@
 /**
- * ⚡ Premium (Real-Debrid) — the default server for every movie and episode,
- * free for everyone, guests included, while the promotion runs.
+ * ⚡ Premium (Real-Debrid) — the last server in the list since 2026-11-13
+ * (Sol, Vidy's player, is the default), free for everyone, guests included,
+ * while the promotion runs. These tests pick it, as a viewer would.
  */
 
 import type { Page } from '@playwright/test'
@@ -8,26 +9,38 @@ import { test, expect, SIGNED_IN } from '../fixtures/test'
 import { EMBED_STUB_TEXT } from '../fixtures/network'
 import { CONVERTED_STREAM_URL, MOVIE, SAMPLE_VIDEO_URL, SHOW, convertedPlayback, readyPlayback, release } from '../fixtures/data'
 
-test.describe('Premium server', () => {
-  test('is the server selected by default for movies and shows', async ({ watch }) => {
+test.describe('Server list', () => {
+  test('Sol is the server selected by default for movies and shows', async ({ watch }) => {
     await watch.goto(MOVIE)
-    await expect(watch.serverPicker).toContainText('Premium')
+    await expect(watch.serverPicker).toContainText('Sol')
 
     await watch.goto(SHOW)
-    await expect(watch.serverPicker).toContainText('Premium')
+    await expect(watch.serverPicker).toContainText('Sol')
   })
 
-  test('is listed first, ahead of every embed server, and labelled free', async ({ page, watch }) => {
+  test('lists Sol (4K) first, then the stars, and Premium last', async ({ page, watch }) => {
     await watch.goto(MOVIE)
     await watch.serverPicker.click()
 
     const options = page.getByRole('option')
-    await expect(options.first()).toHaveText(/^Premium\s*4K\/1080p\s*Free$/)
+    await expect(options.first()).toHaveText(/^Sol\s*4K$/)
     await expect(options.nth(1)).toHaveText('Sirius')
+    await expect(options.last()).toHaveText(/^Premium\s*4K\/1080p/)
   })
 
-  test('a guest can play a movie without signing in', async ({ watch, mockApi }) => {
+  test('Sol plays in an embed, from vidy.st', async ({ watch }) => {
     await watch.goto(MOVIE)
+    await watch.play()
+
+    await expect(watch.embed).toHaveAttribute('src', new RegExp(`^https://www\\.vidy\\.st/movie/${MOVIE.id}\\?`))
+    await expect(watch.embedFrame.getByText(EMBED_STUB_TEXT)).toBeVisible()
+    await expect(watch.premiumVideo).toHaveCount(0)
+  })
+})
+
+test.describe('Premium server', () => {
+  test('a guest can play a movie without signing in', async ({ watch, mockApi }) => {
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     await watch.expectPremiumPlaying()
@@ -40,7 +53,7 @@ test.describe('Premium server', () => {
   })
 
   test('a guest can play a TV episode, and the episode picked is the one requested', async ({ page, watch, mockApi }) => {
-    await watch.goto(SHOW)
+    await watch.gotoOnPremium(SHOW)
     if (test.info().project.name === 'mobile') {
       // A phone's title page lists the episodes; tapping one plays it
       await page.getByRole('region', { name: 'Episodes' }).getByRole('button', { name: /^Episode 3: / }).click()
@@ -62,7 +75,7 @@ test.describe('Premium server', () => {
     test.use({ user: SIGNED_IN })
 
     test('plays with the user’s token attached', async ({ watch, mockApi }) => {
-      await watch.goto(MOVIE)
+      await watch.gotoOnPremium(MOVIE)
       await watch.play()
 
       await watch.expectPremiumPlaying()
@@ -71,7 +84,7 @@ test.describe('Premium server', () => {
   })
 
   test('finds the releases while the details are still open, so Play starts one at once', async ({ watch, mockApi }) => {
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await expect.poll(() => mockApi.calls('GET', '/debrid/media-search').length, { message: 'searched before Play' }).toBe(1)
 
     await watch.play()
@@ -94,7 +107,7 @@ test.describe('Premium server', () => {
       return { json: readyPlayback() }
     })
 
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     const steps = watch.premiumLoading.getByRole('progressbar', { name: 'Loading the stream' })
@@ -130,7 +143,7 @@ test.describe('Premium server', () => {
         return { json: readyPlayback() }
       })
 
-      await watch.goto(MOVIE)
+      await watch.gotoOnPremium(MOVIE)
       await watch.play()
 
       await watch.expectPremiumPlaying()
@@ -148,7 +161,7 @@ test.describe('Premium server', () => {
         (body as { hash: string }).hash === first.info_hash ? { json: convertedPlayback() } : { json: readyPlayback() }
       )
 
-      await watch.goto(MOVIE)
+      await watch.gotoOnPremium(MOVIE)
       await watch.play()
 
       await watch.expectPremiumPlaying()
@@ -167,7 +180,7 @@ test.describe('Premium server', () => {
         : { json: readyPlayback() }
     })
 
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     await watch.expectPremiumPlaying()
@@ -180,7 +193,7 @@ test.describe('Premium server', () => {
     const uhd = release({ name: 'Inception.2010.2160p.UHD.BluRay.x265.HDR.AAC-UHD' })
     mockApi.on('GET', '/debrid/media-search', { json: { data: [uhd, hd] } })
 
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
     // Paused, the controls stay up — no racing their auto-hide.
@@ -207,7 +220,7 @@ test.describe('Premium server', () => {
       return { json: readyPlayback({ fileName: file, directUrl: `${SAMPLE_VIDEO_URL}?file=${file}` }) }
     })
 
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
 
@@ -236,7 +249,7 @@ test.describe('Premium server', () => {
 
     test('resumes mid-way, and a jump back before that point restarts the conversion there', async ({ page, watch }) => {
       await page.addInitScript((key) => localStorage.setItem(key, JSON.stringify({ t: 60, d: 90, at: Date.now() })), `sv:resume:${MOVIE.imdb_id}`)
-      await watch.goto(MOVIE)
+      await watch.gotoOnPremium(MOVIE)
 
       const resumed = nextPlaylistStart(page)
       await watch.play()
@@ -254,7 +267,7 @@ test.describe('Premium server', () => {
   })
 
   test('Back leaves the player for the title’s details', async ({ watch }) => {
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
 
@@ -267,7 +280,7 @@ test.describe('Premium server', () => {
   test('offers another server when it has no stream, and that server plays', async ({ page, watch, mockApi }) => {
     mockApi.on('GET', '/debrid/media-search', { json: { data: [] } })
 
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     await expect(page.getByText('No Premium stream available')).toBeVisible()
@@ -294,8 +307,7 @@ test.describe('Premium server', () => {
         authenticated ? { json: { data: [release()] } } : { status: 401, json: { error: 'Unauthorized' } }
       )
 
-      await watch.goto(MOVIE)
-      await expect(watch.serverPicker).toContainText('Premium')
+      await watch.gotoOnPremium(MOVIE)
       await expect(watch.serverPicker).not.toContainText('Free')
       await watch.play()
 
@@ -311,7 +323,7 @@ test.describe('Seek bar', () => {
   })
 
   test('pointing at it shows the frame and the time there', async ({ page, watch }) => {
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
     // Paused, the controls stay up — no racing their auto-hide.
@@ -334,7 +346,7 @@ test.describe('fits the screen', () => {
     })
 
     test('the whole 16:9 player, controls included, is on screen without scrolling', async ({ watch }) => {
-      await watch.goto(MOVIE)
+      await watch.gotoOnPremium(MOVIE)
       await watch.play()
       await watch.expectPremiumPlaying()
 
@@ -353,7 +365,7 @@ test.describe('fits the screen', () => {
     })
 
     test('fills the screen exactly, and the picture can be zoomed to fill it', async ({ page, watch }) => {
-      await watch.goto(MOVIE)
+      await watch.gotoOnPremium(MOVIE)
       await watch.play()
       await watch.expectPremiumPlaying()
 
@@ -376,7 +388,7 @@ test.describe('fits the screen', () => {
 test.describe('Downloads', () => {
   test('the player’s settings offer the playing file', async ({ page, watch }) => {
     test.skip(true, 'Downloads are stopped for now: the player’s Settings menu has no Download row')
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
     // Paused, the controls stay up — no racing their auto-hide.
@@ -390,7 +402,6 @@ test.describe('Downloads', () => {
   })
 
   test('the title page hands out a magnet link, never a Real-Debrid one', async ({ page, watch, mockApi }) => {
-    test.skip(true, 'Downloads are stopped for now: the title page has no Download button')
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
     const unshared = release({ name: 'Inception.2010.720p.WEB.x264-NOONE', seeders: '0' })
     mockApi.on('GET', '/debrid/media-search', { json: { data: [hd, unshared] } })
@@ -415,19 +426,18 @@ test.describe('on a phone', () => {
     test.skip(test.info().project.name !== 'mobile', 'The phone title page and full-screen player')
   })
 
-  // Downloads are stopped for now. When they're back, this page also offers
-  // "Download S1:E1" under Play and a "Download episode N" per episode.
-  test('the title page offers Play and a show’s episodes, and no Download', async ({ page, watch }) => {
+  test('the title page offers Play and Download, and a show’s episodes', async ({ page, watch }) => {
     await watch.goto(SHOW)
 
     await expect(watch.playButton).toBeVisible()
+    await expect(watch.root.getByRole('button', { name: /^Download S1:E1$/ })).toBeVisible()
     const episodes = page.getByRole('region', { name: 'Episodes' })
     await expect(episodes.getByRole('listitem')).toHaveCount(7)
-    await expect(watch.root.getByRole('button', { name: /^Download/ })).toHaveCount(0)
+    await expect(episodes.getByRole('button', { name: 'Download episode 4' })).toBeVisible()
   })
 
   test('playing leaves nothing else on screen, and the player’s Episodes panel switches episode', async ({ page, watch, mockApi }) => {
-    await watch.goto(SHOW)
+    await watch.gotoOnPremium(SHOW)
     await watch.play()
     await watch.expectPremiumPlaying()
 
