@@ -1,6 +1,6 @@
 import { useState, useRef, memo } from 'react'
 import { Play, Star, Heart, ThumbsDown, Film } from 'lucide-react'
-import { Media } from '@/lib/config'
+import { CONFIG, Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet, logRecommendationInteraction } from '@/lib/api'
 import { cn, genreIdsOf, shouldHandleCardClick, watchPath } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
@@ -71,9 +71,12 @@ function MediaCardComponent({
     // No hover interactions on mobile/touch — saves compositing cost
     if (isMobile) return
 
+    // Hover intent: the pointer has to rest on the poster. A card that merely
+    // passed under it while the page scrolled doesn't count.
+    const startY = window.scrollY
     hoverTimeout.current = setTimeout(() => {
-      setShowQuickView(true)
-    }, 2000)
+      if (Math.abs(window.scrollY - startY) < 4) setShowQuickView(true)
+    }, CONFIG.QUICK_VIEW_HOVER_DELAY_MS)
   }
 
   const handleMouseLeave = () => {

@@ -75,7 +75,7 @@ export function ContinueWatchingCard({
       ref={cardRef}
       className={cn(
         "group relative w-[34vw] min-w-[116px] max-w-[170px] flex-shrink-0 cursor-pointer",
-        "md:w-[clamp(160px,11vw,300px)] md:max-w-none",
+        "md:w-[clamp(170px,12.5vw,340px)] md:max-w-none",
         showQuickView ? "z-50" : "z-0"
       )}
       onMouseEnter={handleMouseEnter}
@@ -172,7 +172,7 @@ export function ContinueWatchingCard({
           height={750}
           loading="lazy"
           decoding="async"
-          className="aspect-[2/3] w-full object-cover rounded-lg md:aspect-auto md:h-[clamp(240px,16.5vw,450px)]"
+          className="aspect-[2/3] w-full object-cover rounded-lg md:aspect-auto md:h-[clamp(255px,18.75vw,510px)]"
           onError={(e) => {
             const target = e.currentTarget
             target.onerror = null // Prevent infinite loop

@@ -237,7 +237,7 @@ export function Header({
           `first()` lookup (and every screen reader) hits the hidden copy.
           ══════════════════════════════════════════════════════════════ */}
       {!isMobile && (
-        <div className="mx-auto hidden w-full max-w-[2560px] items-center justify-between gap-3 px-3 py-2 sm:px-6 md:flex xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16">
+        <div className="hidden w-full items-center justify-between gap-3 px-[var(--sv-gutter)] py-2 md:flex">
           <div>
             <a
               href="/"

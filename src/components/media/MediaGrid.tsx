@@ -19,11 +19,11 @@ interface MediaGridProps {
  *   4 cols  640–768px
  *   5 cols  768–1024px (md)
  *   6 cols  1024–1280px (lg)
- *   7 cols  1280–1536px (xl)
- *   8 cols  ≥ 1536px (2xl)
+ *   7 cols  1280–2200px — ~185px posters on a laptop, ~265px at 2000px
+ *   8 cols  ≥ 2200px
  */
 function getColCount(width: number): number {
-  if (width >= 1536) return 8
+  if (width >= 2200) return 8
   if (width >= 1280) return 7
   if (width >= 1024) return 6
   if (width >= 768)  return 5
