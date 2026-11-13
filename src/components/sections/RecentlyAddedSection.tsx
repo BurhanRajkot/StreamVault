@@ -105,12 +105,12 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
       >
         {isLoading
           ? Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="aspect-[2/3] w-[30vw] min-w-[104px] max-w-[150px] shrink-0 animate-pulse rounded-lg bg-muted md:aspect-auto md:h-[clamp(240px,13.5vw,450px)] md:w-[clamp(160px,9vw,300px)] md:max-w-none">
+            <div key={i} className="aspect-[2/3] w-[30vw] min-w-[104px] max-w-[150px] shrink-0 animate-pulse rounded-lg bg-muted md:aspect-auto md:h-[clamp(255px,18.75vw,510px)] md:w-[clamp(170px,12.5vw,340px)] md:max-w-none">
               <MediaCardSkeleton />
             </div>
           ))
           : items.map((media, index) => (
-            <div key={`${media.id || index}-${index}`} className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(160px,9vw,300px)] md:max-w-none">
+            <div key={`${media.id || index}-${index}`} className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(170px,12.5vw,340px)] md:max-w-none">
               <MediaCard media={media} onClick={onMediaClick} />
             </div>
           ))}

@@ -175,13 +175,13 @@
   }
 
   @media (min-width: 768px) {
-    :root { --sv-gutter: 2rem; }
+    :root { --sv-gutter: 1rem; }
   }
   @media (min-width: 1024px) {
-    :root { --sv-gutter: 3rem; }
+    :root { --sv-gutter: 1.25rem; }
   }
   @media (min-width: 1536px) {
-    :root { --sv-gutter: 4.5rem; }
+    :root { --sv-gutter: 1.5rem; }
   }
 
   .dark {

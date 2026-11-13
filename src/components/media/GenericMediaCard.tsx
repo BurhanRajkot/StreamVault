@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { QuickViewModal } from '@/components/modals/QuickViewModal'
 import { cn, shouldHandleCardClick, watchPath } from '@/lib/utils'
-import type { Media } from '@/lib/config'
+import { CONFIG, type Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet } from '@/lib/api'
 import { Star } from 'lucide-react'
 
@@ -70,9 +70,11 @@ export function GenericMediaCard({
 
   const handleMouseEnter = () => {
     if (window.innerWidth < 768) return
+    // Hover intent — see MediaCard
+    const startY = window.scrollY
     hoverTimeout.current = setTimeout(() => {
-      setShowQuickView(true)
-    }, 1500)
+      if (Math.abs(window.scrollY - startY) < 4) setShowQuickView(true)
+    }, CONFIG.QUICK_VIEW_HOVER_DELAY_MS)
   }
 
   const handleMouseLeave = () => {

@@ -230,10 +230,16 @@ export const CONFIG = {
   DEFAULT_PROVIDER: STREAM_PROVIDER_LIST[0].id,
 
   /**
-   * What the quick-view preview plays. Not the default server: Vidy starts
-   * with sound and never falls back to muted, which a preview must not do.
+   * What the hover (quick-view) preview plays: Sol, the default server, so the
+   * preview is the same picture Play opens. Vidy has no mute flag — with
+   * `autoplay=true` it starts WITH sound once the visitor has clicked anywhere
+   * on the site (the disclaimer's Accept counts), and otherwise shows its own
+   * play button. Closing the popup unmounts the frame, which stops the sound.
    */
-  PREVIEW_PROVIDER: 'vidfast_pro',
+  PREVIEW_PROVIDER: STREAM_PROVIDER_LIST[0].id,
+
+  /** How long a pointer has to rest on a poster before its preview opens. */
+  QUICK_VIEW_HOVER_DELAY_MS: 700,
 
   PROVIDER_NAMES: Object.fromEntries(
     STREAM_PROVIDER_LIST.map((p) => [p.id, p.name])
