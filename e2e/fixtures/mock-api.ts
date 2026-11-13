@@ -70,6 +70,17 @@ interface RouteEntry {
   handler: Handler
 }
 
+/** The slice of an e2e framework `WebRoute` that `MockApi.serve` uses. */
+export interface PlainRoute {
+  readonly request: {
+    readonly url: string
+    readonly method: string
+    readonly headers: Readonly<Record<string, string>>
+    readonly postData?: string
+  }
+  fulfill(response: { status: number; contentType?: string; headers?: Record<string, string>; body: string }): Promise<void>
+}
+
 export interface RecordedCall {
   method: Method
   path: string
@@ -141,6 +152,25 @@ export class MockApi {
 
   async attach(context: BrowserContext): Promise<void> {
     await context.route(`${MOCK_API_ORIGIN}/**`, (route) => this.handle(route))
+  }
+
+  /**
+   * Answer one request intercepted by the e2e framework's `browser.route`
+   * (e2e/tests/fixtures.ts), whose route exposes the request as plain fields.
+   */
+  serve(route: PlainRoute): Promise<void> {
+    const { url, method, headers, postData } = route.request
+    const request = {
+      url: () => url,
+      method: () => method,
+      headers: () => ({ ...headers }),
+      postData: () => postData ?? null,
+    }
+    return this.handle({
+      request: () => request,
+      fulfill: (res: { status: number; contentType?: string; headers?: Record<string, string>; body: string }) =>
+        route.fulfill(res),
+    } as unknown as Route)
   }
 
   private async handle(route: Route): Promise<void> {
