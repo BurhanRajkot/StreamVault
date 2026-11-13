@@ -3,6 +3,7 @@ import { QuickViewModal } from '@/components/modals/QuickViewModal'
 import { cn } from '@/lib/utils'
 import type { Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet } from '@/lib/api'
+import { Star } from 'lucide-react'
 
 export interface GenericMediaCardProps {
   id: number
@@ -110,12 +111,9 @@ export function GenericMediaCard({
       onMouseLeave={handleMouseLeave}
       onKeyDown={handleCardKeyDown}
       className={cn(
-        'group relative flex-shrink-0 cursor-pointer text-left',
-        // Border reads as grid noise at phone poster sizes
-        'rounded-lg bg-card md:rounded-xl md:border md:border-border/50',
-        'transition-[transform,opacity,box-shadow,border-color] duration-300 ease-in-out',
+        'group relative flex-shrink-0 cursor-pointer rounded-lg text-left outline-none',
         showQuickView ? 'z-50' : 'z-0',
-        isDisliked && 'grayscale contrast-125 opacity-70 hover:opacity-100',
+        isDisliked && 'grayscale contrast-125 opacity-60 hover:opacity-100',
         className
       )}
       style={{ scrollSnapAlign: 'start' }}
@@ -124,7 +122,14 @@ export function GenericMediaCard({
       tabIndex={tabIndex}
       aria-label={ariaLabel || `Open ${title}`}
     >
-      <div className={cn("relative overflow-hidden rounded-lg bg-secondary/30 md:rounded-t-xl md:rounded-b-none", aspectRatio)}>
+      <div
+        className={cn(
+          'relative overflow-hidden rounded-lg bg-card ring-1 ring-inset ring-foreground/[0.06] transition-[transform,box-shadow] duration-300 ease-out',
+          'group-focus-visible:ring-2 group-focus-visible:ring-foreground',
+          !showQuickView && 'md:group-hover:-translate-y-1 md:group-hover:shadow-[0_18px_40px_-14px_rgba(0,0,0,0.85)] active:scale-[0.97]',
+          aspectRatio
+        )}
+      >
         {imgSrc ? (
           <img
             src={imgSrc}
@@ -150,12 +155,30 @@ export function GenericMediaCard({
           </div>
         )}
 
+        {/* A ring that lights up on hover, drawn over the art */}
+        <div className="pointer-events-none absolute inset-0 rounded-lg ring-1 ring-inset ring-transparent transition-colors duration-300 md:group-hover:ring-white/25" />
+
         {overlay}
         {topRightOverlay}
         {bottomLeftOverlay}
       </div>
 
-      {bottomOverlay}
+      {bottomOverlay ?? (
+        // Title + one meta line under the art, like MediaCard
+        <div className="px-0.5 pt-2" aria-hidden="true">
+          <p className="truncate text-[13px] font-medium leading-tight text-foreground/90 md:text-sm md:group-hover:text-foreground">{title}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-none text-muted-foreground md:text-xs">
+            {voteAverage ? (
+              <span className="flex items-center gap-1">
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                {voteAverage.toFixed(1)}
+              </span>
+            ) : null}
+            {voteAverage && releaseDate ? <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/70" /> : null}
+            {releaseDate ? <span>{releaseDate.slice(0, 4)}</span> : null}
+          </p>
+        </div>
+      )}
 
       {showQuickView && (
         <QuickViewModal

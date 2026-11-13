@@ -20,7 +20,7 @@ const prompt = (page: Page) => page.getByRole('region', { name: 'StreamVault isn
 test.describe('Support prompt', () => {
   test('stays out of the way on a play that isn’t due one', async ({ page, watch }) => {
     await seedPlays(page, 5) // this play is the 6th
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     await watch.expectPremiumPlaying()
@@ -29,7 +29,7 @@ test.describe('Support prompt', () => {
 
   test('on the 5th play, asks first, and "Not now" plays the video', async ({ page, watch }) => {
     await seedPlays(page, 4)
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     await expect(prompt(page)).toBeVisible()
@@ -46,7 +46,7 @@ test.describe('Support prompt', () => {
 
   test('"Buy me a coffee" shows the UPI QR, then carries on to the video', async ({ page, watch }) => {
     await seedPlays(page, 14) // the 15th play is due one too
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     await page.getByRole('button', { name: 'Buy me a coffee' }).click()

@@ -41,7 +41,7 @@ test('title page', async ({ page, watch }, testInfo) => {
 })
 
 test('Premium player', async ({ page, watch }, testInfo) => {
-  await watch.goto(MOVIE)
+  await watch.gotoOnPremium(MOVIE)
   await watch.play()
   await watch.expectPremiumPlaying()
   await audit(page, testInfo)

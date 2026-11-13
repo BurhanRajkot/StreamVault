@@ -3,7 +3,8 @@ import { type MediaFixture, titleOf, watchPath } from '../fixtures/data'
 
 /**
  * The title page (/watch/:type/:id): details, server picker, and the player
- * — either ⚡ Premium's own <video> or an embed server's iframe.
+ * — either an embed server's iframe (Sol, the default, and the stars) or
+ * ⚡ Premium's own <video>.
  *
  * Desktop and mobile render different pre-play layouts ("Play Now" vs
  * "Play"), so locators here match both. Everything is scoped to the title
@@ -39,6 +40,17 @@ export class WatchPage {
   async goto(media: MediaFixture): Promise<void> {
     await this.page.goto(watchPath(media))
     await expect(this.heading(media)).toBeVisible()
+  }
+
+  /**
+   * Open the title page with ⚡ Premium picked. Since 2026-11-13 every title
+   * starts on Sol (Vidy) and Premium is the last server, so Premium's tests
+   * choose it, the way a viewer would.
+   */
+  async gotoOnPremium(media: MediaFixture): Promise<void> {
+    await this.goto(media)
+    await this.chooseServer(/^Premium/)
+    await expect(this.serverPicker).toContainText('Premium')
   }
 
   async play(): Promise<void> {
