@@ -938,7 +938,6 @@ export function MovieDetailModal({
                   episode={episode}
                   episodeCount={currentSeasonEpisodes}
                   onPick={(s, ep) => goToEpisode({ season: s, episode: ep })}
-                  onDownload={openDownload}
                   density="comfortable"
                   className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.07] xl:sticky xl:top-20 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:max-h-[calc(100vh-6.5rem)]"
                   listClassName="custom-scrollbar -mx-1.5 grid gap-1 overflow-y-auto px-0 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-1"

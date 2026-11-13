@@ -197,7 +197,6 @@ export function MobileDetailSheet({
           episode={episode}
           episodeCount={episodeCount}
           onPick={onPlayEpisode}
-          onDownload={onDownload}
           markCurrent={false}
           density="comfortable"
           className="mt-6 px-4"

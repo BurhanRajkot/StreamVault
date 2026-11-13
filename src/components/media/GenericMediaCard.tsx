@@ -3,7 +3,6 @@ import { QuickViewModal } from '@/components/modals/QuickViewModal'
 import { cn, shouldHandleCardClick, watchPath } from '@/lib/utils'
 import { CONFIG, type Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet } from '@/lib/api'
-import { Star } from 'lucide-react'
 
 export interface GenericMediaCardProps {
   id: number
@@ -171,17 +170,7 @@ export function GenericMediaCard({
         // Title + one meta line under the art, like MediaCard
         <div className="px-0.5 pt-2" aria-hidden="true">
           {/* A real link for crawlers and new tabs; the card is the control */}
-          <a href={watchPath(mediaType, id, title)} tabIndex={-1} className="block truncate text-[13px] font-medium leading-tight text-foreground/90 md:text-sm md:group-hover:text-foreground">{title}</a>
-          <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-none text-muted-foreground md:text-xs">
-            {voteAverage ? (
-              <span className="flex items-center gap-1">
-                <Star className="h-3 w-3 fill-primary text-primary" />
-                {voteAverage.toFixed(1)}
-              </span>
-            ) : null}
-            {voteAverage && releaseDate ? <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/70" /> : null}
-            {releaseDate ? <span>{releaseDate.slice(0, 4)}</span> : null}
-          </p>
+          <a href={watchPath(mediaType, id, title)} tabIndex={-1} className="block truncate text-[13px] font-medium leading-tight text-foreground/75 transition-colors md:text-sm md:group-hover:text-foreground">{title}</a>
         </div>
       )}
 

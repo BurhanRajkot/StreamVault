@@ -1,12 +1,11 @@
 import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clapperboard, Crown, Github, Heart, Search, Shield, Star, X } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Crown, Github, Heart, Search, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaMode, MODE_PATHS } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { GITHUB_REPO_URL } from '@/lib/supportPrompt'
-import { Button } from '@/components/ui/button'
 import { ThemeToggle } from './ThemeToggle'
 import { AccountMenuPlaceholder } from './AccountMenuPlaceholder'
 
@@ -211,8 +210,8 @@ export function Header({
 
   const mutedInteractiveClass = 'text-muted-foreground hover:text-foreground'
 
-  const upgradeButtonClass =
-    'h-9 rounded-full border-golden-amber/35 bg-golden-amber/10 px-3 text-[11px] font-semibold tracking-[0.02em] text-golden-amber/85 shadow-none transition-none hover:border-golden-amber/50 hover:bg-golden-amber/16 hover:text-golden-amber'
+  const iconButtonClass =
+    'inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
   const accountMenu = (
     <Suspense fallback={<AccountMenuPlaceholder />}>
@@ -280,22 +279,20 @@ export function Header({
             })}
           </nav>
 
-          <div className="flex shrink-0 items-center gap-1 lg:gap-3">
+          {/* Right side: icons for the quiet things, one button for the one ask */}
+          <div className="flex shrink-0 items-center gap-0.5 lg:gap-1">
             {mode !== 'downloads' && (
               <div ref={searchRef} className="relative flex items-center">
                 <div
                   className={cn(
-                    'flex items-center overflow-hidden rounded-full border backdrop-blur-md h-12',
-                    isSearchOpen
-                      ? 'border-slate-400/25 bg-slate-400/10'
-                      : 'border-slate-400/12 bg-transparent',
-                    isSearchOpen ? 'w-[220px]' : 'w-12'
+                    'flex h-10 items-center overflow-hidden rounded-full transition-[width,background-color] duration-200',
+                    isSearchOpen ? 'w-[240px] bg-foreground/[0.07] ring-1 ring-inset ring-foreground/10' : 'w-10'
                   )}
                 >
                   {isSearchOpen && (
                     <input
                       type="text"
-                      placeholder="Search titles..."
+                      placeholder="Search titles…"
                       value={searchQuery}
                       onChange={(e) => onSearch(e.target.value)}
                       onPaste={(e) => {
@@ -306,8 +303,7 @@ export function Header({
                         }
                       }}
                       aria-label="Search movies and TV shows"
-                      className="w-full bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                      style={{ paddingLeft: '14px' }}
+                      className="w-full min-w-0 bg-transparent py-2 pl-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                       autoFocus
                     />
                   )}
@@ -315,27 +311,17 @@ export function Header({
                   <button
                     type="button"
                     onClick={handleSearchToggle}
-                    className={cn(
-                      'inline-flex h-12 w-12 items-center justify-center',
-                      isSearchOpen ? 'text-foreground' : mutedInteractiveClass
-                    )}
+                    className={cn(iconButtonClass, 'shrink-0', isSearchOpen && 'text-foreground hover:bg-transparent')}
                     aria-label={isSearchOpen ? 'Close search' : 'Open search'}
                   >
-                    {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+                    {isSearchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
                   </button>
                 </div>
               </div>
             )}
 
-            <Link
-              to="/favorites"
-              className={cn(
-                'hidden h-11 w-11 items-center justify-center rounded-full sm:inline-flex',
-                'text-muted-foreground hover:text-coral-pink'
-              )}
-              aria-label="Favorites"
-            >
-              <Heart className="h-5 w-5" />
+            <Link to="/favorites" className={iconButtonClass} aria-label="Favorites" title="My List">
+              <Heart className="h-[18px] w-[18px]" />
             </Link>
 
             {/* Star the repo: the site is free and open source, a star is the ask */}
@@ -345,60 +331,30 @@ export function Header({
               rel="noopener noreferrer"
               aria-label="Star StreamVault on GitHub"
               title="Star StreamVault on GitHub"
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-2.5 text-[12px] font-semibold text-foreground/85 transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-foreground xl:px-3"
+              className={iconButtonClass}
             >
-              <Github className="h-4 w-4" aria-hidden="true" />
-              <Star className="hidden h-3.5 w-3.5 fill-amber-400 text-amber-400 xl:block" aria-hidden="true" />
-              <span className="hidden xl:inline">Star</span>
+              <Github className="h-[18px] w-[18px]" aria-hidden="true" />
             </a>
 
-            <Link to="/pricing" className="hidden lg:block">
-              <Button
-                size="sm"
-                variant="outline"
-                className={cn(
-                  'flex items-center gap-1.5 focus-visible:ring-golden-amber/45 focus-visible:ring-offset-0',
-                  upgradeButtonClass
-                )}
-              >
-                <Crown className="h-3.5 w-3.5" />
-                Upgrade
-              </Button>
-            </Link>
+            <ThemeToggle compact />
 
             <Link
-              to="/admin/dashboard"
-              className="hidden h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:text-foreground lg:inline-flex"
-              aria-label="Admin login"
+              to="/pricing"
+              className="ml-1 hidden h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-amber-400/90 transition-colors hover:bg-amber-400/10 hover:text-amber-300 lg:inline-flex"
             >
-              <Shield className="h-5 w-5" />
+              <Crown className="h-4 w-4" aria-hidden="true" />
+              Upgrade
             </Link>
 
-            <ThemeToggle />
-
             {isAuthenticated ? (
-              accountMenu
+              <div className="ml-1">{accountMenu}</div>
             ) : (
-              <div className="hidden items-center gap-2 sm:flex">
-                <Link to="/login">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-full px-4 font-medium text-muted-foreground hover:bg-transparent hover:text-foreground"
-                  >
-                    Login
-                  </Button>
-                </Link>
-                {/* Below lg there is room for one: returning viewers sign in */}
-                <Link to="/signup" className="hidden lg:block">
-                  <Button
-                    size="sm"
-                    className="rounded-full bg-primary bg-none px-5 font-medium text-primary-foreground shadow-none transition-colors hover:bg-primary/90 hover:shadow-none hover:scale-100 active:scale-100"
-                  >
-                    Sign Up
-                  </Button>
-                </Link>
-              </div>
+              <Link
+                to="/login"
+                className="ml-1 inline-flex h-10 items-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Sign in
+              </Link>
             )}
           </div>
         </div>

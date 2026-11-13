@@ -75,7 +75,6 @@ export function AuthorsChoiceSection({ onMediaClick, mode = 'movie' }: Props) {
   return (
     <MediaRow
       title={TITLES[mode]}
-      strapline="Hand-picked recommendations by the creator of StreamVault"
       media={media}
       isPending={isPending}
       onMediaClick={onMediaClick}

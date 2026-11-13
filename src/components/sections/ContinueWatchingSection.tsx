@@ -124,8 +124,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   return (
     <section className="group/row relative mb-5 sm:mb-6">
       <div className="mb-2.5 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem]">Continue Watching</h2>
-        <span className="hidden text-sm text-foreground/80 sm:block">Pick up where you left off</span>
+        <h2 className="text-[17px] font-semibold tracking-tight text-foreground sm:text-lg lg:text-[1.375rem]">Continue Watching</h2>
       </div>
 
       {/* Row arrows — revealed by CSS group-hover, never by state (see useScrollArrows) */}
