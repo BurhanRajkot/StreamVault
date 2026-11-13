@@ -19,6 +19,8 @@
     "e2e:all-browsers": "E2E_ALL_BROWSERS=1 playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:report": "playwright show-report e2e/playwright-report",
+    "test:e2e": "e2e run",
+    "test:e2e:smoke": "e2e run --tag smoke --target desktop",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p backend/tsconfig.json --noEmit",
     "gen:csp": "bun run scripts/gen-csp.ts"
   },
@@ -57,6 +59,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
+    "@e2e-dev/web": "^0.16.0",
     "@eslint/js": "^10.0.1",
     "@ghostery/adblocker-playwright": "^2.20.1",
     "@happy-dom/global-registrator": "^20.10.6",
@@ -73,6 +76,7 @@
     "@vitejs/plugin-react-swc": "^4.3.3",
     "concurrently": "^10.0.6",
     "cross-fetch": "^4.1.0",
+    "e2e": "^0.23.1",
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.5.7",
