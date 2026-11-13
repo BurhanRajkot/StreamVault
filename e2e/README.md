@@ -1,5 +1,51 @@
 # End-to-end tests
 
+## New tests: the e2e framework
+
+**Write new end-to-end tests with [e2e](https://e2e.com/docs)**, an agentic
+testing framework built on Playwright. They live in `e2e/tests/*.e2e.ts`,
+configured in `e2e.config.ts`, and run in CI next to the Playwright suite
+below, which stays in place until each spec is migrated
+([migration guide](https://e2e.com/docs/migrate/playwright)).
+
+```bash
+npm run test:e2e            # desktop + mobile (builds + serves on :4174 itself)
+npm run test:e2e:smoke      # smoke-tagged tests, desktop only
+npx e2e run smoke --target mobile    # one file, one target
+npx e2e guide               # the framework's own guide (docs ship in node_modules/e2e/docs)
+```
+
+First time: `npx e2e-web install chromium`.
+
+```ts
+import { expect } from 'e2e'
+import { test } from './fixtures'          // returning guest
+// also: firstVisitTest, signedInTest
+
+test('pricing renders', { tags: ['smoke'] }, async ({ app, screen, mockApi }) => {
+  mockApi.on('GET', '/ping', { json: { ok: true } })   // same MockApi as Playwright
+  await app.open('/pricing')
+  await expect(screen.getByRole('heading', 'Unlock Premium Streaming', { level: 1 })).toBeVisible()
+})
+```
+
+- **Hermetic and deterministic.** `e2e/tests/fixtures.ts` puts the same
+  `MockApi` and network policy behind `browser.route`. The tests use no
+  `agent` steps, so CI needs no model key. If a flow keeps breaking on
+  UI changes, an `agent.act(goal)` step can replace its scripted clicks, but
+  that needs a model configured under `agents` in `e2e.config.ts` and a key
+  in CI.
+- **Differences from Playwright** that matter here: string names are
+  **exact**, so pass a RegExp or `{ exact: false }` for a fragment. Locators
+  are strict, so use `.first()` when several elements match. There is no
+  `page` (use `screen`, `app` and `browser`), no `test.use` (pick the
+  `test`/`firstVisitTest`/`signedInTest` export instead), and tags are
+  `{ tags: ['smoke'] }`.
+- **Failures:** the `e2e-results` CI artifact has a `trace.md` page per
+  failed test, and `.e2e/logs/app.log` has the build and server output.
+
+## The Playwright suite
+
 Playwright tests that drive the **production build** in a real browser, the
 way a viewer uses it. They are hermetic: the backend is an in-browser mock,
 TMDB images and streaming embeds are stand-ins, and every other outside

@@ -15,7 +15,7 @@ This file is automatically read by Claude Code at the start of each session to m
   - React Context for global state (Favorites, Dislikes, Auth)
 - **UI Components**: shadcn/ui (Radix UI primitives)
 - **Animations**: Framer Motion
-- **Testing**: Playwright (E2E), Bun test (unit tests)
+- **Testing**: [e2e](https://e2e.com/docs) for new E2E tests (`e2e/tests/`), legacy Playwright suite (`e2e/specs/`), Bun test (unit tests)
 - **Auth**: Auth0 (@auth0/auth0-react)
 - **Theme**: next-themes for dark mode
 
@@ -139,7 +139,9 @@ npm run build:dev       # Development build
 ```bash
 npm test                # Run frontend unit tests
 npm run test:backend    # Run backend tests
-npm run e2e             # Playwright E2E — desktop + mobile Chromium (see e2e/README.md)
+npm run test:e2e        # e2e framework — e2e/tests/*.e2e.ts, desktop + mobile (see e2e/README.md)
+npm run test:e2e:smoke  # smoke-tagged e2e tests, desktop
+npm run e2e             # Playwright E2E (legacy suite) — desktop + mobile Chromium
 npm run e2e:smoke       # @smoke tests only (~20s)
 npm run e2e:all-browsers # + Firefox / WebKit
 npm run e2e:ui          # Playwright UI mode (interactive)
@@ -160,7 +162,7 @@ npm run lint            # ESLint check (automatically runs on file save)
 5. **HTTPS** - Enforced in production
 
 ### Testing
-1. **E2E tests** - Write E2E tests for critical user flows, one spec per journey in `e2e/specs/` (conventions in `e2e/README.md`)
+1. **E2E tests** - Write NEW E2E tests with the e2e framework (`import { test } from './fixtures'`, `import { expect } from 'e2e'`), one `*.e2e.ts` per journey in `e2e/tests/` (conventions in `e2e/README.md`). Keep them deterministic (no `agent` steps) unless a model is configured. The Playwright specs in `e2e/specs/` still run; port one to `e2e/tests/` when you touch it
 2. **Selectors** - Roles and accessible names first; `data-testid` only where there's no accessible handle
 3. **Hermetic** - E2E runs the prod build against `MockApi` (`e2e/fixtures/mock-api.ts`); a new backend endpoint the app calls needs a mock handler or the test fails
 4. **No flakes** - No sleeps; fix a test that's flaky on retry rather than skipping it
@@ -257,7 +259,7 @@ const media = await fetchMediaDetails('movie', tmdbId)
 
 ### E2E Tests Failing
 - Playwright builds + serves the app itself (`dist-e2e/`, port 4173) — free the port if something else holds it
-- Run one file: `npx playwright test premium-player --project=desktop`, or debug in `npm run e2e:ui`
+- Run one file: `npx e2e run smoke --target desktop` (e2e framework; `.e2e/results/<test>/trace.md` on failure, `.e2e/logs/app.log` for the server), or `npx playwright test premium-player --project=desktop` / `npm run e2e:ui` (Playwright)
 - Open the trace of a failure: `npx playwright show-trace e2e/test-results/<test>/trace.zip`
 
 ### Backend Not Starting
@@ -273,7 +275,7 @@ const media = await fetchMediaDetails('movie', tmdbId)
 ## Git Workflow
 
 1. Work on feature branches
-2. Run tests before committing: `npm run e2e`
+2. Run tests before committing: `npm run test:e2e` and `npm run e2e`
 3. Commit with a co-author trailer naming the Claude model that did the work, e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 4. Create PR with clear description
 5. Wait for CI checks to pass

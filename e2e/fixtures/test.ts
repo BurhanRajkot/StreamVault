@@ -18,20 +18,9 @@ import { MockApi } from './mock-api'
 import { isolateNetwork } from './network'
 import { HomePage } from '../pages/HomePage'
 import { WatchPage } from '../pages/WatchPage'
+import { SIGNED_IN, type TestUser } from './users'
 
-export interface TestUser {
-  sub: string
-  name: string
-  email: string
-  picture: string
-}
-
-export const SIGNED_IN: TestUser = {
-  sub: 'auth0|e2e-user',
-  name: 'Riley Tester',
-  email: 'riley@streamvault.test',
-  picture: '',
-}
+export { SIGNED_IN, type TestUser }
 
 interface Options {
   /** Signed-in user, or null for a guest. */
