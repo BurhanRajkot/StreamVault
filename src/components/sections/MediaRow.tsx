@@ -8,14 +8,13 @@ import { useScrollArrows } from '@/hooks/useScrollArrows'
 interface MediaRowProps {
   title: string
   /** Beside the title, on desktop only. */
-  strapline?: string
   media: Media[]
   isPending: boolean
   onMediaClick: (media: Media) => void
 }
 
 /** A titled, horizontally scrolling row of posters. Renders nothing once loaded empty. */
-export function MediaRow({ title, strapline, media, isPending, onMediaClick }: MediaRowProps) {
+export function MediaRow({ title, media, isPending, onMediaClick }: MediaRowProps) {
   const headingId = useId()
   const { ref: rowRef, showLeftButton, showRightButton, scrollBy } = useScrollArrows([media])
 
@@ -25,11 +24,7 @@ export function MediaRow({ title, strapline, media, isPending, onMediaClick }: M
     <section aria-labelledby={headingId} className="group/row relative mb-6">
       {/* Header */}
       <div className="mb-2.5 flex flex-row items-end justify-between gap-4 sm:mb-4">
-        <h2 id={headingId} className="text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem] leading-tight">{title}</h2>
-        {/* The strapline costs a phone half its header width for no navigation value */}
-        {strapline && (
-          <p className="hidden shrink-0 text-right text-sm text-foreground/80 md:block">{strapline}</p>
-        )}
+        <h2 id={headingId} className="text-[17px] font-semibold tracking-tight text-foreground sm:text-lg lg:text-[1.375rem] leading-tight">{title}</h2>
       </div>
 
       {/* Row arrows — revealed by CSS group-hover, never by state */}

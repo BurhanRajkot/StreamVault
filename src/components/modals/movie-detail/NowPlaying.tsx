@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Ref } from 'react'
-import { Check, Download, Heart, Play, Share2 } from 'lucide-react'
+import { Check, Heart, Play, Share2 } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID, type MediaMode } from '@/lib/config'
 import type { EpisodeSummary } from '@/lib/api'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
@@ -170,8 +170,6 @@ interface EpisodeListProps {
   listClassName?: string
   /** Mark the current episode as playing — off on the title page, where nothing plays yet. */
   markCurrent?: boolean
-  /** A download button on every row. */
-  onDownload?: (season: number, episode: number, name: string) => void
 }
 
 /** Today, as TMDB writes air dates — for telling which episodes are out yet. */
@@ -195,7 +193,6 @@ export function EpisodeList({
   className,
   listClassName,
   markCurrent = true,
-  onDownload,
 }: EpisodeListProps) {
   // Picking a season here only browses it; the playing episode changes on a
   // tap. The choice is remembered against the season that was playing when it
@@ -333,16 +330,6 @@ export function EpisodeList({
                   )}
                 </div>
               </button>
-              {onDownload && (
-                <button
-                  onClick={() => onDownload(browseSeason, ep.episode_number, name)}
-                  aria-label={`Download episode ${ep.episode_number}`}
-                  title="Download"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
-                >
-                  <Download className="h-[18px] w-[18px]" />
-                </button>
-              )}
             </li>
           )
         })}

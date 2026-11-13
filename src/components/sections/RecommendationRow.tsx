@@ -4,13 +4,6 @@ import {
   ChevronRight,
   Play,
   ThumbsDown,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Gem,
-  Clock,
-  Tag,
-  UserCircle,
 } from 'lucide-react'
 import { RecoSection, RecoItem } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -22,19 +15,6 @@ interface RecommendationRowProps {
   onCardClick: (item: RecoItem, index: number, source: string) => void
   onDislike?: (item: RecoItem) => void
   isLoading?: boolean
-}
-
-/** Pick a section-appropriate icon */
-function SectionIcon({ source }: { source: string }) {
-  if (source === 'collaborative') return <Users size={15} className="text-primary flex-shrink-0" />
-  if (source === 'hidden_gems')   return <Gem  size={15} className="text-primary flex-shrink-0" />
-  if (source === 'new_releases')  return <Clock size={15} className="text-primary flex-shrink-0" />
-  if (source === 'trending')      return <TrendingUp size={15} className="text-primary flex-shrink-0" />
-  if (source === 'genre_discovery') return <Sparkles size={15} className="text-purple-400 flex-shrink-0" />
-  if (source === 'keyword_discovery') return <Tag size={15} className="text-emerald-400 flex-shrink-0" />
-  if (source === 'cast_discovery')  return <UserCircle size={15} className="text-blue-400 flex-shrink-0" />
-  if (source === 'tmdb_similar' || source === 'tmdb_recommendations') return <Play size={15} className="text-primary flex-shrink-0" />
-  return <Sparkles size={15} className="text-primary flex-shrink-0" />
 }
 
 // ── Skeleton card ──────────────────────────────────────────
@@ -69,8 +49,7 @@ export function RecommendationRow({
       {/* ── Header ─────────────────────────────────────── */}
       <div className="mb-2.5 flex items-center justify-between sm:mb-3">
         <div className="flex items-center gap-2 min-w-0 sm:gap-2.5">
-          <SectionIcon source={section.source} />
-          <h2 className="text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem] leading-tight truncate">
+          <h2 className="text-[17px] font-semibold tracking-tight text-foreground sm:text-lg lg:text-[1.375rem] leading-tight truncate">
             {section.title}
           </h2>
         </div>

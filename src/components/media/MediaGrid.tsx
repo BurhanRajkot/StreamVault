@@ -83,11 +83,11 @@ export function MediaGrid({
   // Slot gap in px (matches Tailwind gap-2/gap-3/gap-4 at each breakpoint)
   const gap = containerWidth >= 768 ? 16 : containerWidth >= 640 ? 12 : 8
 
-  // Poster is 2:3, plus the title and meta lines under it (~44px). The row is
+  // Poster is 2:3, plus the title line under it (~28px). The row is
   // measured once rendered; this estimate only has to be close so the first
   // paint doesn't jump.
   const cardWidth  = (containerWidth - gap * (cols - 1)) / cols
-  const rowHeight  = Math.round((cardWidth / 2) * 3) + 44
+  const rowHeight  = Math.round((cardWidth / 2) * 3) + 28
 
   // Chunk media into rows of `cols`
   const rows = useMemo(() => {
@@ -150,7 +150,7 @@ export function MediaGrid({
   return (
     <section className="animate-fade-in">
       {title && (
-        <h2 className="mb-2 text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem] sm:mb-4">
+        <h2 className="mb-2 text-[17px] font-semibold tracking-tight text-foreground sm:text-lg lg:text-[1.375rem] sm:mb-4">
           {title}
         </h2>
       )}

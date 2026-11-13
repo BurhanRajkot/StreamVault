@@ -53,7 +53,7 @@ export function RecentlyAddedSection({ mode, providerId, onMediaClick }: Recentl
           <div className="flex shrink-0 items-center justify-center p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <Calendar className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
           </div>
-          <h2 className="truncate text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem]">
+          <h2 className="truncate text-[17px] font-semibold tracking-tight text-foreground sm:text-lg lg:text-[1.375rem]">
             {providerId ? (
               <>Recently Added on <span className="text-primary">{providerName}</span></>
             ) : (
