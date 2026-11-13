@@ -40,7 +40,7 @@ function SectionIcon({ source }: { source: string }) {
 // ── Skeleton card ──────────────────────────────────────────
 function RecoCardSkeleton() {
   return (
-    <div className="flex-shrink-0 w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(110px,10vw,320px)] md:max-w-none">
+    <div className="flex-shrink-0 w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(170px,12.5vw,340px)] md:max-w-none">
       <div className="aspect-[2/3] rounded-xl animate-shimmer bg-card border border-border/30" />
     </div>
   )
@@ -180,7 +180,7 @@ function RecoCard({ item, index, source, onClick, onDislike, isDisliked = false 
       releaseDate={item.releaseDate}
       mediaType={item.mediaType}
       isDisliked={isDisliked}
-      className="w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(160px,9vw,300px)] md:max-w-none"
+      className="w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(170px,12.5vw,340px)] md:max-w-none"
       imageClassName="transition-[transform,filter] duration-500 ease-out md:group-hover:scale-[1.04] md:group-hover:brightness-[0.8]"
       onClick={handleClick}
       overlay={

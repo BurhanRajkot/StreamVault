@@ -64,14 +64,14 @@ export function MediaRow({ title, strapline, media, isPending, onMediaClick }: M
       >
         {isPending
           ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(160px,9vw,300px)] md:max-w-none">
+              <div key={i} className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(170px,12.5vw,340px)] md:max-w-none">
                 <MediaCardSkeleton />
               </div>
             ))
           : media.map((item) => (
               <div
                 key={`${item.media_type}-${item.id}`}
-                className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(160px,9vw,300px)] md:max-w-none"
+                className="w-[30vw] min-w-[104px] max-w-[150px] flex-shrink-0 md:w-[clamp(170px,12.5vw,340px)] md:max-w-none"
               >
                 <MediaCard media={item} onClick={onMediaClick} />
               </div>

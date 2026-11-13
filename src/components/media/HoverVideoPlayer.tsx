@@ -1,5 +1,4 @@
-import { useState, useRef } from "react"
-import { Volume2, VolumeX } from "lucide-react"
+import { useState } from "react"
 import { Media, CONFIG } from "@/lib/config"
 import { buildEmbedUrl, getImageUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -10,10 +9,7 @@ interface HoverVideoPlayerProps {
 
 export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
 
-  const [muted, setMuted] = useState(true)
   const [loaded, setLoaded] = useState(false)
-
-  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const mediaType =
     media.media_type ||
@@ -52,8 +48,8 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
 
       {/* iframe */}
       <iframe
-        ref={iframeRef}
         src={url}
+        title={`${media.title || media.name || 'Title'} preview`}
         // Same embed contract as the full player. This frame previously carried
         // no referrerPolicy at all, so it inherited the document default and
         // providers that verify the embedding domain could reject it.
@@ -68,25 +64,6 @@ export function HoverVideoPlayer({ media }: HoverVideoPlayerProps) {
 
       {/* gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
-
-      {/* controls */}
-      <div className="absolute bottom-3 right-3 flex gap-2">
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setMuted(!muted)
-          }}
-          className="bg-black/60 hover:bg-black p-2 rounded-full transition backdrop-blur"
-        >
-          {muted ? (
-            <VolumeX size={16} />
-          ) : (
-            <Volume2 size={16} />
-          )}
-        </button>
-
-      </div>
 
       {/* loading shimmer */}
       {!loaded && (
