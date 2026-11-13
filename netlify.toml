@@ -20,6 +20,12 @@
 # equivalent rewrite in vercel.json; keep the two in step.
 # Must stay last: Netlify applies the first matching rule, so an earlier /*
 # would shadow every rule below it.
+# Title sitemap is built by the backend; served on the site's own domain
+[[redirects]]
+  from = "/sitemap-titles.xml"
+  to = "https://streamvault-backend-bq9p.onrender.com/sitemap-titles.xml"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

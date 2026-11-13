@@ -28,6 +28,7 @@ import adminRouter from './admin/routes'
 import recommendationsRouter from './routes/recommendations'
 import dislikesRouter from './routes/dislikes'
 import debridRouter from './routes/debrid'
+import sitemapRouter from './routes/sitemap'
 import { requireAdminAuth } from './admin/middleware'
 import { getCacheStatus } from './services/cache'
 import { closeRedis } from './services/cache/redisPrimary'
@@ -125,6 +126,8 @@ app.use('/admin', adminRouter)
 app.use('/recommendations', recommendationsRouter)
 app.use('/dislikes', dislikesRouter)
 app.use('/debrid', debridRouter)
+// /sitemap-titles.xml — proxied by the frontend host onto the site's domain
+app.use('/', sitemapRouter)
 
 // 404 — must come after every route so it only catches genuinely unknown paths.
 app.use((req, res) => {

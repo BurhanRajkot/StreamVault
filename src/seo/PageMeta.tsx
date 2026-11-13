@@ -6,8 +6,9 @@
  *   <PageMeta title="Pricing" description="Choose a plan..." />
  */
 
-import { Helmet } from 'react-helmet-async'
 import { SEO } from './constants'
+import { absoluteUrl } from './text'
+import { useDocumentHead } from './useDocumentHead'
 
 interface PageMetaProps {
   /** Page title. " • StreamVault" is appended automatically. */
@@ -36,87 +37,58 @@ export function PageMeta({
     ? `${title}${SEO.TITLE_SEPARATOR}${SEO.SITE_NAME}`
     : `${SEO.SITE_NAME} — Watch Movies, TV Shows & Anime`
 
-  // Resolve canonical dynamically so og:url always matches the real page URL.
+  // Canonical is the production URL of this path — never the preview host,
+  // and never with ?query or #hash, which would split one page into many.
   const resolvedCanonical =
-    canonical ?? (typeof window !== 'undefined' ? window.location.href : SEO.SITE_URL)
+    canonical ??
+    (typeof window !== 'undefined'
+      ? `${SEO.SITE_URL}${window.location.pathname.replace(/(.)\/+$/, '$1')}`
+      : SEO.SITE_URL)
+  const image = absoluteUrl(ogImage)
 
-  return (
-    <Helmet>
-      <title>{fullTitle}</title>
-      <meta name="description" content={description} />
+  useDocumentHead({
+    title: fullTitle,
+    meta: [
+      { name: 'description', content: description },
+      {
+        name: 'robots',
+        content: noindex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
+      },
+      { property: 'og:site_name', content: SEO.SITE_NAME },
+      { property: 'og:locale', content: 'en_US' },
+      { property: 'og:title', content: fullTitle },
+      { property: 'og:description', content: description },
+      { property: 'og:image', content: image },
+      { property: 'og:image:alt', content: fullTitle },
+      { property: 'og:url', content: resolvedCanonical },
+      { property: 'og:type', content: ogType },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: fullTitle },
+      { name: 'twitter:description', content: description },
+      { name: 'twitter:image', content: image },
+    ],
+    links: [{ rel: 'canonical', href: resolvedCanonical }],
+    // Who runs the site, and the site itself (index.html carries the same
+    // site-level graph for non-JS crawlers). Only facts — made-up addresses,
+    // phone numbers or social profiles are "misleading structured data" to
+    // Google and can cost rich results.
+    jsonLd: [
+      {
+        id: 'page',
+        data: {
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          '@id': `${resolvedCanonical}#webpage`,
+          url: resolvedCanonical,
+          name: fullTitle,
+          description,
+          isPartOf: { '@id': `${SEO.SITE_URL}/#website` },
+          publisher: { '@id': `${SEO.SITE_URL}/#organization` },
+          inLanguage: 'en',
+        },
+      },
+    ],
+  })
 
-      {/* Indexing control */}
-      {noindex ? (
-        <meta name="robots" content="noindex, nofollow" />
-      ) : (
-        <meta name="robots" content="index, follow" />
-      )}
-
-      {/* Canonical */}
-      <link rel="canonical" href={resolvedCanonical} />
-
-      {/* Open Graph */}
-      <meta property="og:site_name" content={SEO.SITE_NAME} />
-      <meta property="og:title" content={fullTitle} />
-      <meta property="og:description" content={description} />
-      <meta property="og:image" content={ogImage} />
-      <meta property="og:url" content={resolvedCanonical} />
-      <meta property="og:type" content={ogType} />
-
-      {/* Twitter Card */}
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:site" content={`@${SEO.TWITTER_HANDLE}`} />
-      <meta name="twitter:title" content={fullTitle} />
-      <meta name="twitter:description" content={description} />
-      <meta name="twitter:image" content={ogImage} />
-
-      {/* JSON-LD Schema Markup */}
-      <script type="application/ld+json">
-        {JSON.stringify({
-          "@context": "https://schema.org",
-          "@graph": [
-            {
-              "@type": "Organization",
-              "@id": `${SEO.SITE_URL}/#organization`,
-              "name": SEO.SITE_NAME,
-              "url": SEO.SITE_URL,
-              "logo": {
-                "@type": "ImageObject",
-                "url": `${SEO.SITE_URL}/og-image.png`
-              },
-              "sameAs": [
-                "https://facebook.com/streamvault",
-                "https://instagram.com/streamvault",
-                "https://linkedin.com/company/streamvault",
-                "https://youtube.com/c/streamvault",
-                `https://twitter.com/${SEO.TWITTER_HANDLE}`
-              ],
-              "contactPoint": {
-                "@type": "ContactPoint",
-                "telephone": "+1-555-123-4567",
-                "contactType": "customer service"
-              },
-              "address": {
-                "@type": "PostalAddress",
-                "streetAddress": "123 Streaming Blvd, Suite 400",
-                "addressLocality": "Los Angeles",
-                "addressRegion": "CA",
-                "postalCode": "90028",
-                "addressCountry": "US"
-              }
-            },
-            {
-              "@type": "WebSite",
-              "@id": `${SEO.SITE_URL}/#website`,
-              "url": SEO.SITE_URL,
-              "name": SEO.SITE_NAME,
-              "publisher": {
-                "@id": `${SEO.SITE_URL}/#organization`
-              }
-            }
-          ]
-        })}
-      </script>
-    </Helmet>
-  )
+  return null
 }

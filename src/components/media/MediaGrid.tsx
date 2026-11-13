@@ -83,9 +83,11 @@ export function MediaGrid({
   // Slot gap in px (matches Tailwind gap-2/gap-3/gap-4 at each breakpoint)
   const gap = containerWidth >= 768 ? 16 : containerWidth >= 640 ? 12 : 8
 
-  // Aspect ratio 2:3 — compute row height from column width
+  // Poster is 2:3, plus the title and meta lines under it (~44px). The row is
+  // measured once rendered; this estimate only has to be close so the first
+  // paint doesn't jump.
   const cardWidth  = (containerWidth - gap * (cols - 1)) / cols
-  const rowHeight  = Math.round((cardWidth / 2) * 3) // 2:3 ratio
+  const rowHeight  = Math.round((cardWidth / 2) * 3) + 44
 
   // Chunk media into rows of `cols`
   const rows = useMemo(() => {
@@ -173,7 +175,11 @@ export function MediaGrid({
                 right: 0,
                 transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
                 display: 'grid',
-                gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                // minmax(0, 1fr), not 1fr: a bare 1fr track can't shrink below
+                // its content's min-content width, so one long nowrap title
+                // widened its column, the 2:3 poster grew with it, and the row
+                // spilled past the screen and over the rows below.
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                 gap: `${gap}px`,
               }}
             >

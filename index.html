@@ -26,23 +26,35 @@
         }
       }, true);
     </script>
-    <title>StreamVault • Watch Movies, TV Shows &amp; Anime Online Free</title>
-    <meta name="description" content="StreamVault is your ultimate destination to watch movies, TV shows, and anime online for free. Enjoy high-quality streaming with no sign-up required." />
-    <meta name="keywords" content="movies, tv shows, anime, streaming, tmdb, watch online, free streaming" />
+    <title>StreamVault • Watch Movies, TV Shows &amp; Anime Online Free in HD</title>
+    <meta name="description" content="Watch movies, TV shows and anime online free on StreamVault — HD and 4K streaming, every season and episode, smart recommendations, no sign-up required." />
+    <meta name="keywords" content="watch movies online free, watch tv shows online, watch anime online, free movie streaming, stream movies hd, 4k movies online, streamvault, stream vault, free streaming site, watch series online free" />
     <meta name="author" content="Burhanuddin Rajkotwala" />
-    <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#121212" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#0a0b0f" />
+    <meta name="application-name" content="StreamVault" />
+    <link rel="canonical" href="https://stream-vault-7u6q.vercel.app/" />
 
-    <meta property="og:title" content="StreamVault • Watch Movies, TV Shows &amp; Anime Online Free" />
-    <meta property="og:description" content="StreamVault is your ultimate destination to watch movies, TV shows, and anime online for free. Enjoy high-quality streaming with no sign-up required." />
+    <meta property="og:site_name" content="StreamVault" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="StreamVault • Watch Movies, TV Shows &amp; Anime Online Free in HD" />
+    <meta property="og:description" content="Watch movies, TV shows and anime online free on StreamVault — HD and 4K streaming, every season and episode, smart recommendations, no sign-up required." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/og-image.png" />
-    <meta property="og:url" content="https://stream-vault-7u6q.vercel.app" />
+    <meta property="og:image" content="https://stream-vault-7u6q.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="StreamVault — watch movies, TV shows and anime online free" />
+    <meta property="og:url" content="https://stream-vault-7u6q.vercel.app/" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="StreamVault • Watch Movies, TV Shows &amp; Anime Online Free" />
-    <meta name="twitter:description" content="StreamVault is your ultimate destination to watch movies, TV shows, and anime online for free. Enjoy high-quality streaming with no sign-up required." />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:title" content="StreamVault • Watch Movies, TV Shows &amp; Anime Online Free in HD" />
+    <meta name="twitter:description" content="Watch movies, TV shows and anime online free on StreamVault — HD and 4K streaming, every season and episode, smart recommendations, no sign-up required." />
+    <meta name="twitter:image" content="https://stream-vault-7u6q.vercel.app/og-image.png" />
+
+    <!-- Site-level structured data, readable without running the app -->
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://stream-vault-7u6q.vercel.app/#website","url":"https://stream-vault-7u6q.vercel.app/","name":"StreamVault","alternateName":["Stream Vault"],"description":"Watch movies, TV shows and anime online free on StreamVault — HD and 4K streaming, every season and episode, smart recommendations, no sign-up required.","inLanguage":"en"},{"@type":"Organization","@id":"https://stream-vault-7u6q.vercel.app/#organization","name":"StreamVault","url":"https://stream-vault-7u6q.vercel.app/","logo":"https://stream-vault-7u6q.vercel.app/icons/icon-512.png","sameAs":["https://github.com/BurhanRajkot/StreamVault"]}]}
+    </script>
 
     <!-- PWA Support -->
     <link rel="manifest" href="/manifest.json" />
@@ -52,7 +64,8 @@
     <meta name="apple-mobile-web-app-title" content="StreamVault" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
 
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
 
     <!-- Preconnect to Google Fonts (non-blocking font loading) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -83,7 +96,25 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- What a crawler that doesn't run JavaScript sees; React replaces it on load -->
+      <!-- Fades in only if the app hasn't started within 2s, so a normal load never flashes it -->
+      <style>#sv-static{opacity:0;animation:sv-static-in .3s ease-out 2s forwards}@keyframes sv-static-in{to{opacity:1}}#sv-static a{color:#60a5fa}</style>
+      <main id="sv-static" style="max-width:860px;margin:0 auto;padding:48px 20px;font-family:system-ui,sans-serif;color:#e2e8f0">
+        <h1>StreamVault — Watch Movies, TV Shows &amp; Anime Online Free</h1>
+        <p>Stream thousands of movies, TV series and anime in HD and 4K. Every season and every episode, smart recommendations from CineMatch, and no sign-up needed to start watching.</p>
+        <nav aria-label="Browse">
+          <ul>
+            <li><a href="/movies">Watch movies online</a></li>
+            <li><a href="/tv">Watch TV shows online</a></li>
+            <li><a href="/anime">Watch anime online</a></li>
+            <li><a href="/documentaries">Watch documentaries online</a></li>
+            <li><a href="/pricing">Premium plans</a></li>
+          </ul>
+        </nav>
+        <noscript><p>StreamVault needs JavaScript to play video. Please enable it and reload.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
