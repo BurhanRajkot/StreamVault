@@ -1,10 +1,12 @@
 import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clapperboard, Crown, Film, Heart, Home, Search, Sparkles, Tv, Video, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Crown, Github, Heart, Search, Shield, Star, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { MediaMode, MODE_PATHS } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { GITHUB_REPO_URL } from '@/lib/supportPrompt'
+import { Button } from '@/components/ui/button'
 import { ThemeToggle } from './ThemeToggle'
 import { AccountMenuPlaceholder } from './AccountMenuPlaceholder'
 
@@ -26,12 +28,14 @@ interface HeaderProps {
   onMobileSearchOpenChange?: (open: boolean) => void
 }
 
-const NAV_ITEMS: Array<{ label: string; value: MediaMode; icon: LucideIcon }> = [
-  { label: 'Home', value: 'home', icon: Home },
-  { label: 'Movies', value: 'movie', icon: Film },
-  { label: 'TV Shows', value: 'tv', icon: Tv },
-  { label: 'Anime', value: 'anime', icon: Sparkles },
-  { label: 'Docs', value: 'documentary', icon: Video },
+const NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
+  { label: 'Home', value: 'home' },
+  { label: 'Movies', value: 'movie' },
+  { label: 'TV Shows', value: 'tv' },
+  { label: 'Anime', value: 'anime' },
+  { label: 'Docs', value: 'documentary' },
+  // Downloads stopped for now.
+  // { label: 'Downloads', value: 'downloads' },
 ]
 
 /** Category pills shown on mobile — Downloads lives in the bottom tab bar instead. */
@@ -74,16 +78,6 @@ export function Header({
   // Phones have little vertical room; a 100px bar pinned over every scroll
   // costs a fifth of the screen for something needed only between browses.
   const [isHeaderHidden, setIsHeaderHidden] = useState(false)
-  // Past the top of the page the header gets a surface; at the top it sits
-  // straight on the hero (dark theme), like movy's.
-  const [isScrolled, setIsScrolled] = useState(false)
-
-  useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 24)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -212,18 +206,13 @@ export function Header({
     setMobileSearchOpen(false)
   }
 
-  // Light theme keeps a frosted bar throughout: its dark text can't sit on
-  // the hero's artwork. Dark theme drops it at the top of the page.
-  const atTop = !isScrolled && !isMobileSearchOpen
-  const headerSurfaceClass = atTop
-    ? 'bg-background/85 backdrop-blur-xl dark:bg-transparent dark:backdrop-blur-none'
-    : 'bg-background/85 backdrop-blur-xl shadow-[0_1px_0_hsl(var(--border)/0.55)]'
+  const headerSurfaceClass =
+    'border-border/45 bg-gradient-to-b from-background/88 via-background/82 to-background/76 shadow-[0_10px_24px_rgba(2,6,23,0.22)] backdrop-blur-md'
 
-  const navItemClass =
-    'relative inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 xl:px-3.5'
+  const mutedInteractiveClass = 'text-muted-foreground hover:text-foreground'
 
-  const iconButtonClass =
-    'inline-flex h-10 w-10 items-center justify-center rounded-xl text-foreground/70 transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60'
+  const upgradeButtonClass =
+    'h-9 rounded-full border-golden-amber/35 bg-golden-amber/10 px-3 text-[11px] font-semibold tracking-[0.02em] text-golden-amber/85 shadow-none transition-none hover:border-golden-amber/50 hover:bg-golden-amber/16 hover:text-golden-amber'
 
   const accountMenu = (
     <Suspense fallback={<AccountMenuPlaceholder />}>
@@ -234,85 +223,79 @@ export function Header({
   return (
     <header
       className={cn(
-        'fixed top-0 left-0 right-0 z-50',
+        'fixed top-0 left-0 right-0 z-50 border-b',
         headerSurfaceClass,
-        'transition-[transform,background-color,box-shadow] duration-300 ease-out will-change-transform',
+        'transition-transform duration-300 ease-out will-change-transform',
         isHeaderHidden && '-translate-y-full'
       )}
     >
-      {/* At the top of the page (dark theme) the bar is a fade over the hero, not a surface */}
-      <div
-        aria-hidden="true"
-        className={cn(
-          'pointer-events-none absolute inset-x-0 top-0 -z-10 h-[140%] bg-gradient-to-b from-black/70 via-black/25 to-transparent opacity-0 transition-opacity duration-300',
-          atTop && 'dark:opacity-100'
-        )}
-      />
       {/* ══════════════════════════════════════════════════════════════
-          DESKTOP (md+) — logo left, one floating pill right (after movy.sx)
+          DESKTOP (md+) — unchanged layout
 
           Only one of the two bars is mounted. Rendering both and hiding one
           with CSS leaves a full duplicate of every control in the DOM — every
           `first()` lookup (and every screen reader) hits the hidden copy.
           ══════════════════════════════════════════════════════════════ */}
       {!isMobile && (
-        <div className="hidden h-[var(--sv-header-h)] w-full items-center justify-between gap-4 px-[var(--sv-gutter)] md:flex">
-          <a
-            href="/"
-            onClick={handleLogoClick}
-            // Named outright: below lg the wordmark is hidden and the
-            // icon alone would leave the link with no name
-            aria-label="StreamVault"
-            className="group flex shrink-0 items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-primary text-primary-foreground shadow-[0_6px_20px_-6px_hsl(var(--primary)/0.8)] transition-transform duration-300 group-hover:scale-105">
-              <Clapperboard className="h-5 w-5" strokeWidth={2.5} />
-            </span>
-            <span className="hidden text-[1.35rem] font-extrabold tracking-[-0.03em] text-foreground lg:block">
-              Stream<span className="text-primary">Vault</span>
-            </span>
-          </a>
+        <div className="mx-auto hidden w-full max-w-[2560px] items-center justify-between gap-3 px-3 py-2 sm:px-6 md:flex xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16">
+          <div>
+            <a
+              href="/"
+              onClick={handleLogoClick}
+              // Named outright: below lg the wordmark is hidden and the
+              // icon alone would leave the link with no name
+              aria-label="StreamVault"
+              className="group flex items-center gap-2.5"
+            >
+              <Clapperboard className="h-6 w-6 text-primary group-hover:text-accent" strokeWidth={2.5} />
+              <span className="hidden text-xl font-bold tracking-tight text-foreground lg:block">
+                Stream<span className="text-primary">Vault</span>
+              </span>
+            </a>
+          </div>
 
-          {/* One floating glass pill: sections, then search and account */}
-          <div className="flex min-w-0 items-center gap-1 rounded-2xl bg-background/55 p-1.5 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.55)] ring-1 ring-inset ring-foreground/[0.09] backdrop-blur-2xl">
-            <nav aria-label="Browse" className="flex min-w-0 items-center gap-0.5">
-              {NAV_ITEMS.map((item) => {
-                const isActive = mode === item.value
-                const Icon = item.icon
-                return (
-                  <Link
-                    key={item.value}
-                    to={MODE_PATHS[item.value]}
-                    aria-current={isActive ? 'page' : undefined}
-                    aria-label={item.label}
-                    className={cn(
-                      navItemClass,
-                      isActive
-                        ? 'bg-foreground/[0.12] text-foreground'
-                        : 'text-foreground/65 hover:bg-foreground/[0.07] hover:text-foreground'
-                    )}
-                  >
-                    <Icon className={cn('h-[18px] w-[18px] shrink-0', isActive && 'text-primary')} strokeWidth={2.1} aria-hidden="true" />
-                    <span className="hidden lg:inline">{item.label}</span>
-                  </Link>
-                )
-              })}
-            </nav>
+          <nav className="hidden min-w-0 items-center gap-0.5 md:flex lg:gap-1">
+            {NAV_ITEMS.map((item) => {
+              const isActive = mode === item.value
+              return (
+                <Link
+                  key={item.value}
+                  to={MODE_PATHS[item.value]}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    // Tighter on a tablet, where six pills, search and sign-in
+                    // share ~768px; nowrap so "TV Shows" never breaks in two
+                    'relative whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-medium lg:px-4 lg:text-sm',
+                    isActive ? 'text-foreground' : mutedInteractiveClass
+                  )}
+                >
+                  {isActive && (
+                    <div
+                      className="absolute inset-0 rounded-full bg-primary/15"
+                    />
+                  )}
+                  <span className="relative z-10">{item.label}</span>
+                </Link>
+              )
+            })}
+          </nav>
 
-            <span className="mx-1 h-6 w-px shrink-0 bg-foreground/15" aria-hidden="true" />
-
+          <div className="flex shrink-0 items-center gap-1 lg:gap-3">
             {mode !== 'downloads' && (
               <div ref={searchRef} className="relative flex items-center">
                 <div
                   className={cn(
-                    'flex h-10 items-center overflow-hidden rounded-xl transition-[width,background-color] duration-300 ease-out',
-                    isSearchOpen ? 'w-[min(260px,24vw)] bg-foreground/[0.08] ring-1 ring-inset ring-foreground/15' : 'w-10'
+                    'flex items-center overflow-hidden rounded-full border backdrop-blur-md h-12',
+                    isSearchOpen
+                      ? 'border-slate-400/25 bg-slate-400/10'
+                      : 'border-slate-400/12 bg-transparent',
+                    isSearchOpen ? 'w-[220px]' : 'w-12'
                   )}
                 >
                   {isSearchOpen && (
                     <input
                       type="text"
-                      placeholder="Search titles…"
+                      placeholder="Search titles..."
                       value={searchQuery}
                       onChange={(e) => onSearch(e.target.value)}
                       onPaste={(e) => {
@@ -323,7 +306,8 @@ export function Header({
                         }
                       }}
                       aria-label="Search movies and TV shows"
-                      className="w-full min-w-0 bg-transparent py-2 pl-3.5 text-sm text-foreground placeholder:text-foreground/45 focus:outline-none"
+                      className="w-full bg-transparent py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      style={{ paddingLeft: '14px' }}
                       autoFocus
                     />
                   )}
@@ -331,46 +315,88 @@ export function Header({
                   <button
                     type="button"
                     onClick={handleSearchToggle}
-                    className={cn(iconButtonClass, 'shrink-0', isSearchOpen && 'text-foreground hover:bg-transparent')}
+                    className={cn(
+                      'inline-flex h-12 w-12 items-center justify-center',
+                      isSearchOpen ? 'text-foreground' : mutedInteractiveClass
+                    )}
                     aria-label={isSearchOpen ? 'Close search' : 'Open search'}
                   >
-                    {isSearchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
+                    {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                   </button>
                 </div>
               </div>
             )}
 
-            <Link to="/favorites" className={cn(iconButtonClass, 'hover:text-primary')} aria-label="Favorites">
-              <Heart className="h-[18px] w-[18px]" />
+            <Link
+              to="/favorites"
+              className={cn(
+                'hidden h-11 w-11 items-center justify-center rounded-full sm:inline-flex',
+                'text-muted-foreground hover:text-coral-pink'
+              )}
+              aria-label="Favorites"
+            >
+              <Heart className="h-5 w-5" />
+            </Link>
+
+            {/* Star the repo: the site is free and open source, a star is the ask */}
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Star StreamVault on GitHub"
+              title="Star StreamVault on GitHub"
+              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-secondary/40 px-2.5 text-[12px] font-semibold text-foreground/85 transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-foreground xl:px-3"
+            >
+              <Github className="h-4 w-4" aria-hidden="true" />
+              <Star className="hidden h-3.5 w-3.5 fill-amber-400 text-amber-400 xl:block" aria-hidden="true" />
+              <span className="hidden xl:inline">Star</span>
+            </a>
+
+            <Link to="/pricing" className="hidden lg:block">
+              <Button
+                size="sm"
+                variant="outline"
+                className={cn(
+                  'flex items-center gap-1.5 focus-visible:ring-golden-amber/45 focus-visible:ring-offset-0',
+                  upgradeButtonClass
+                )}
+              >
+                <Crown className="h-3.5 w-3.5" />
+                Upgrade
+              </Button>
             </Link>
 
             <Link
-              to="/pricing"
-              aria-label="Upgrade"
-              title="Upgrade"
-              className={cn(iconButtonClass, 'hidden text-golden-amber/85 hover:bg-golden-amber/10 hover:text-golden-amber lg:inline-flex')}
+              to="/admin/dashboard"
+              className="hidden h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:text-foreground lg:inline-flex"
+              aria-label="Admin login"
             >
-              <Crown className="h-[18px] w-[18px]" />
+              <Shield className="h-5 w-5" />
             </Link>
 
-            <ThemeToggle compact />
+            <ThemeToggle />
 
             {isAuthenticated ? (
-              <div className="pl-0.5">{accountMenu}</div>
+              accountMenu
             ) : (
-              <div className="flex items-center gap-1 pl-0.5">
-                <Link
-                  to="/login"
-                  className="inline-flex h-10 items-center rounded-xl px-3.5 text-sm font-medium text-foreground/75 transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60"
-                >
-                  Login
+              <div className="hidden items-center gap-2 sm:flex">
+                <Link to="/login">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full px-4 font-medium text-muted-foreground hover:bg-transparent hover:text-foreground"
+                  >
+                    Login
+                  </Button>
                 </Link>
                 {/* Below lg there is room for one: returning viewers sign in */}
-                <Link
-                  to="/signup"
-                  className="hidden h-10 items-center rounded-xl bg-foreground px-4 text-sm font-semibold text-background transition-all hover:bg-foreground/85 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:inline-flex"
-                >
-                  Sign Up
+                <Link to="/signup" className="hidden lg:block">
+                  <Button
+                    size="sm"
+                    className="rounded-full bg-primary bg-none px-5 font-medium text-primary-foreground shadow-none transition-colors hover:bg-primary/90 hover:shadow-none hover:scale-100 active:scale-100"
+                  >
+                    Sign Up
+                  </Button>
                 </Link>
               </div>
             )}
@@ -395,7 +421,7 @@ export function Header({
                 <ArrowLeft className="h-5 w-5" />
               </button>
 
-              <div className="flex h-11 flex-1 items-center gap-2 rounded-xl bg-foreground/[0.08] px-4 ring-1 ring-inset ring-foreground/10">
+              <div className="flex h-11 flex-1 items-center gap-2 rounded-full border border-border/60 bg-secondary/60 px-4">
                 <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <input
                   ref={mobileSearchInputRef}
@@ -430,10 +456,8 @@ export function Header({
                   className="flex min-w-0 items-center gap-2"
                   aria-label="StreamVault home"
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-primary text-primary-foreground">
-                    <Clapperboard className="h-[18px] w-[18px]" strokeWidth={2.5} />
-                  </span>
-                  <span className="truncate text-lg font-extrabold tracking-[-0.03em] text-foreground">
+                  <Clapperboard className="h-6 w-6 shrink-0 text-primary" strokeWidth={2.5} />
+                  <span className="truncate text-lg font-bold tracking-tight text-foreground">
                     Stream<span className="text-primary">Vault</span>
                   </span>
                 </a>
@@ -444,7 +468,7 @@ export function Header({
                       type="button"
                       onClick={() => setMobileSearchOpen(true)}
                       aria-label="Open search"
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground tap-scale"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground tap-scale"
                     >
                       <Search className="h-[22px] w-[22px]" />
                     </button>
@@ -453,14 +477,27 @@ export function Header({
                   {/* No admin link here: on a 390px bar it pushed "Sign in"
                       onto two lines and cut the logo to "StreamVa…". The
                       desktop header keeps it; /admin/dashboard still works. */}
-                  <ThemeToggle compact />
+                  <a
+                    href={GITHUB_REPO_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Star StreamVault on GitHub"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground tap-scale"
+                  >
+                    <Github className="h-[21px] w-[21px]" />
+                  </a>
+
+                  {/* Under 375px there isn't room for the logo and every icon */}
+                  <span className="contents max-[374px]:hidden">
+                    <ThemeToggle compact />
+                  </span>
 
                   {isAuthenticated ? (
                     accountMenu
                   ) : (
                     <Link
                       to="/login"
-                      className="ml-1 inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg bg-foreground px-4 text-sm font-semibold text-background tap-scale"
+                      className="ml-1 inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full bg-primary px-3.5 text-sm font-semibold text-primary-foreground tap-scale"
                     >
                       Sign in
                     </Link>
@@ -485,10 +522,10 @@ export function Header({
                       data-active={isActive}
                       onClick={() => onModeChange(item.value)}
                       className={cn(
-                        'h-9 shrink-0 rounded-full px-4 text-[13px] font-semibold whitespace-nowrap tap-scale transition-colors',
+                        'h-9 shrink-0 rounded-full border px-4 text-[13px] font-semibold whitespace-nowrap tap-scale',
                         isActive
-                          ? 'bg-foreground text-background'
-                          : 'bg-foreground/[0.08] text-foreground/75 ring-1 ring-inset ring-foreground/10 backdrop-blur-md'
+                          ? 'border-transparent bg-foreground text-background'
+                          : 'border-border/60 bg-secondary/40 text-muted-foreground'
                       )}
                     >
                       {item.label}

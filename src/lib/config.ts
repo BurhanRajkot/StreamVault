@@ -81,8 +81,8 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
     // strings) while it plays, so the stall watchdog can use it.
     id: 'vidy',
     name: 'Sol',
-    tv: 'https://www.vidy.st/tv/{tmdbId}/{season}/{episode}?autoplay=true&color=E50914',
-    movie: 'https://www.vidy.st/movie/{tmdbId}?autoplay=true&color=E50914',
+    tv: 'https://www.vidy.st/tv/{tmdbId}/{season}/{episode}?autoplay=true&color=2563EB',
+    movie: 'https://www.vidy.st/movie/{tmdbId}?autoplay=true&color=2563EB',
     quality: '4K, 1080p',
     badge: '4K',
     seekSupport: 'excellent',

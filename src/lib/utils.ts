@@ -29,6 +29,27 @@ export function genreIdsOf(media: Pick<Media, 'genres'>): number[] | undefined {
   return media.genres?.map((g) => g.id).filter(Boolean);
 }
 
+/**
+ * The title page's path, e.g. /watch/tv/1398-the-sopranos — what every card
+ * links to so search engines can follow from a list into the title.
+ */
+export function watchPath(mediaType: 'movie' | 'tv', id: number, title: string): string {
+  const slug = slugify(title)
+  return `/watch/${mediaType}/${id}${slug ? `-${slug}` : ''}`
+}
+
+/**
+ * A card's click: open the title in the app, or — Ctrl/⌘-click on its link —
+ * let the browser open it in a new tab. Returns whether the app should handle it.
+ */
+export function shouldHandleCardClick(e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; target: EventTarget | null; preventDefault: () => void }): boolean {
+  const onLink = e.target instanceof Element && e.target.closest('a[href]') !== null
+  if (onLink && (e.ctrlKey || e.metaKey || e.shiftKey)) return false
+  // The link is for crawlers and new tabs; a plain click stays in the app
+  e.preventDefault()
+  return true
+}
+
 export function slugify(text: string): string {
   if (!text) return '';
   return text

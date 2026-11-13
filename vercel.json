@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/sitemap-titles.xml",
+      "destination": "https://streamvault-backend-bq9p.onrender.com/sitemap-titles.xml"
+    },
+    {
       "source": "/assets/(.*)",
       "destination": "/assets/$1"
     },
@@ -17,11 +21,11 @@
       "destination": "/error-images/$1"
     },
     {
-      "source": "/(sw\\.js|workbox-.*\\.js|registerSW\\.js|manifest\\.json|robots\\.txt|sitemap\\.xml|placeholder\\.svg)",
+      "source": "/(sw\\.js|workbox-.*\\.js|registerSW\\.js|manifest\\.json|robots\\.txt|sitemap\\.xml|favicon\\.svg|og-image\\.png|placeholder\\.svg)",
       "destination": "/$1"
     },
     {
-      "source": "/((?!assets/|icons/|logos/|error-images/|sw\\.js|workbox-|registerSW\\.js|manifest\\.json|robots\\.txt|sitemap\\.xml|placeholder\\.svg).*)",
+      "source": "/((?!assets/|icons/|logos/|error-images/|sw\\.js|workbox-|registerSW\\.js|manifest\\.json|robots\\.txt|sitemap\\.xml|sitemap-titles\\.xml|favicon\\.svg|og-image\\.png|placeholder\\.svg).*)",
       "destination": "/index.html"
     }
   ],

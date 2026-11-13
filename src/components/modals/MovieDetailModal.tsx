@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { ChevronLeft, Share2, Heart, SkipForward, SkipBack, Check } from 'lucide-react'
+import { ChevronLeft, Download, Share2, Heart, SkipForward, SkipBack, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { Media, MediaMode, CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, defaultServer, serverOptions } from '@/lib/config'
 import { DebridPlayerPane, type ReleaseControls } from '@/components/player/DebridPlayerPane'
@@ -570,13 +570,16 @@ export function MovieDetailModal({
   const isDesktopShow = !isMobile && mode === 'tv'
   // Shares its query with the episode list, so naming the episode is free
   const { data: playingSeasonEpisodes } = useSeasonEpisodes(media.id, season, isPlaying && mode === 'tv')
+  const playingEpisodeName = playingSeasonEpisodes?.find((e) => e.episode_number === episode)?.name
   const desktopMetaLine = nowPlayingMeta(
     mode === 'tv',
     season,
     episode,
-    playingSeasonEpisodes?.find((e) => e.episode_number === episode)?.name,
+    playingEpisodeName,
     [display.year, display.durationStr, display.contentRating]
   )
+  /** Download what's on screen right now — the film, or the playing episode. */
+  const downloadPlaying = () => openDownload(season, episode, playingEpisodeName)
 
   const episodeStepButton =
     'flex shrink-0 items-center justify-center rounded-lg bg-white/[0.07] text-white transition-colors hover:bg-white/[0.12] disabled:pointer-events-none disabled:opacity-30'
@@ -768,6 +771,17 @@ export function MovieDetailModal({
                       </p>
                     )}
                   </div>
+                  {/* Phones: the player takes the whole screen, so the
+                      download sits beside Back instead of under the picture */}
+                  {isMobile && (
+                    <button
+                      onClick={downloadPlaying}
+                      aria-label={mode === 'tv' ? `Download S${season} E${episode}` : 'Download'}
+                      className="pointer-events-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors active:bg-white/10"
+                    >
+                      <Download className="h-5 w-5" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="player-frame">
@@ -901,6 +915,14 @@ export function MovieDetailModal({
                       releaseControls={releaseControls}
                       size="desktop"
                     />
+                    <button
+                      onClick={downloadPlaying}
+                      title={mode === 'tv' ? `Download S${season} · E${episode}` : 'Download'}
+                      className={cn(episodeStepButton, 'h-11 gap-2 px-4 text-sm font-semibold')}
+                    >
+                      <Download className="h-[18px] w-[18px]" aria-hidden="true" />
+                      {mode === 'tv' ? `Download S${season}:E${episode}` : 'Download'}
+                    </button>
                   </div>
                 </>
               )}
@@ -916,6 +938,7 @@ export function MovieDetailModal({
                   episode={episode}
                   episodeCount={currentSeasonEpisodes}
                   onPick={(s, ep) => goToEpisode({ season: s, episode: ep })}
+                  onDownload={openDownload}
                   density="comfortable"
                   className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.07] xl:sticky xl:top-20 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:max-h-[calc(100vh-6.5rem)]"
                   listClassName="custom-scrollbar -mx-1.5 grid gap-1 overflow-y-auto px-0 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-1"

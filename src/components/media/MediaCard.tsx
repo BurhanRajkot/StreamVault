@@ -2,7 +2,7 @@ import { useState, useRef, memo } from 'react'
 import { Play, Star, Heart, ThumbsDown, Film } from 'lucide-react'
 import { Media } from '@/lib/config'
 import { getImageUrl, getImageSrcSet, logRecommendationInteraction } from '@/lib/api'
-import { cn, genreIdsOf } from '@/lib/utils'
+import { cn, genreIdsOf, shouldHandleCardClick, watchPath } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useDislikes } from '@/context/DislikesContext'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -124,7 +124,7 @@ function MediaCardComponent({
         ref={cardRef}
         onClick={(e) => {
           e.stopPropagation()
-          onClick(media)
+          if (shouldHandleCardClick(e)) onClick(media)
         }}
         onKeyDown={handleCardKeyDown}
         onMouseEnter={handleMouseEnter}
@@ -135,7 +135,7 @@ function MediaCardComponent({
         aria-label={rating ? `Open ${title}, rated ${rating}` : `Open ${title}`}
         data-testid="media-card"
         className={cn(
-          'group relative cursor-pointer rounded-lg outline-none',
+          'group relative min-w-0 cursor-pointer rounded-lg outline-none',
           showQuickView && 'z-50',
           disliked && 'grayscale contrast-125 opacity-60 hover:opacity-100'
         )}
@@ -212,9 +212,11 @@ function MediaCardComponent({
 
         {/* Title + one meta line under the art */}
         <div className="px-0.5 pt-2" aria-hidden="true">
-          <p className="truncate text-[13px] font-medium leading-tight text-foreground/90 transition-colors md:text-sm md:group-hover:text-foreground">
+          {/* A real link (out of the tab order — the card is the control) so
+              crawlers can reach the title page from any list */}
+          <a href={watchPath(mediaType, media.id, title)} tabIndex={-1} className="block truncate text-[13px] font-medium leading-tight text-foreground/90 transition-colors md:text-sm md:group-hover:text-foreground">
             {title}
-          </p>
+          </a>
           <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-none text-muted-foreground md:text-xs">
             {rating && (
               <span className="flex items-center gap-1">

@@ -5,7 +5,7 @@ import { fetchMediaDetails } from '@/lib/api'
 import { MediaMode } from '@/lib/config'
 import { MovieDetailModal } from '@/components/modals/MovieDetailModal'
 import { MovieMeta } from '@/seo/MovieMeta'
-import { MovieJsonLd, VideoObjectJsonLd, WatchActionJsonLd } from '@/seo/JsonLd'
+import { BreadcrumbJsonLd, MovieJsonLd, VideoObjectJsonLd, WatchActionJsonLd } from '@/seo/JsonLd'
 import { slugify } from '@/lib/utils'
 
 const Watch = () => {
@@ -78,6 +78,7 @@ const Watch = () => {
 
       {/* Schema.org structured data for Google rich results */}
       <MovieJsonLd media={media} mediaType={typedMediaType} />
+      <BreadcrumbJsonLd media={media} mediaType={typedMediaType} />
       <VideoObjectJsonLd media={media} mediaType={typedMediaType} />
       <WatchActionJsonLd media={media} mediaType={typedMediaType} />
 

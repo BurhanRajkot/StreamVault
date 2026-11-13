@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '../fixtures/test'
-import { MOVIE, SECOND_MOVIE, SHOW, titleOf, watchPath } from '../fixtures/data'
+import { CATALOGUE, MOVIE, SECOND_MOVIE, SHOW, page as listPage, titleOf, watchPath } from '../fixtures/data'
 import { cardName } from '../pages/HomePage'
 
 test.describe('Home', () => {
@@ -50,6 +50,34 @@ test.describe('Home', () => {
     await page.goBack()
     await expect(page).toHaveURL('/')
     await expect(home.card(titleOf(SHOW))).toBeVisible()
+  })
+
+  test('keeps every poster in the catalogue the same size, however long its title', async ({ page, home, mockApi }) => {
+    // One long, unbreakable title used to widen its whole grid column, and the
+    // 2:3 poster grew with it — rows spilled off-screen and over each other.
+    const longTitle = { ...SECOND_MOVIE, id: 900001, title: 'Puella Magi Madoka Magica the Movie -Walpurgisnacht: Rising- Extended Theatrical Edition' }
+    const catalogue = [...CATALOGUE, longTitle]
+    mockApi.on('GET', '/tmdb/trending/:mode', { json: listPage(catalogue) })
+    mockApi.on('GET', '/tmdb/discover/:mode', { json: listPage(catalogue) })
+
+    await home.goto()
+    await expect(home.card(longTitle.title)).toBeVisible()
+
+    // The catalogue grid's cards (its virtualised rows carry data-index)
+    const widths = await page
+      .locator('[data-index] [data-testid="media-card"]')
+      .evaluateAll((cards) => cards.map((c) => Math.round(c.getBoundingClientRect().width)))
+    expect(new Set(widths).size, `card widths: ${widths.join(', ')}`).toBe(1)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow, 'the page never scrolls sideways').toBeLessThanOrEqual(0)
+  })
+
+  test('offers a GitHub star from the header', async ({ home }) => {
+    await home.goto()
+    await expect(home.header.getByRole('link', { name: 'Star StreamVault on GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/BurhanRajkot/StreamVault'
+    )
   })
 })
 
