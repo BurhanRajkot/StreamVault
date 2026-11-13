@@ -43,34 +43,33 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
   }, [media.id, mode])
 
   useLayoutEffect(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const scrollY = window.scrollY
+    const scrollX = window.scrollX
 
-      const modalWidth = 420
+    // Grows with the poster it opens from: ~2.2× its width, 400–600px
+    const modalWidth = Math.round(Math.min(600, Math.max(400, rect.width * 2.2)))
+    // 16:9 picture plus the details under it (approximate; only used to keep it on screen)
+    const modalHeight = modalWidth * (9 / 16) + 210
+    const margin = 16
+    const headerH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sv-header-h')) || 72
 
-      // Calculate top and left to center over the trigger
-      // Taking into account current scroll position
-      const scrollY = window.scrollY || window.pageYOffset
-      const scrollX = window.scrollX || window.pageXOffset
+    // Centred on the poster, then nudged back inside the window: never under
+    // the header, never off the bottom or the sides
+    let left = scrollX + rect.left + rect.width / 2 - modalWidth / 2
+    let top = scrollY + rect.top + rect.height / 2 - modalHeight / 2
+    left = Math.min(Math.max(left, scrollX + margin), scrollX + window.innerWidth - modalWidth - margin)
+    top = Math.min(top, scrollY + window.innerHeight - modalHeight - margin)
+    top = Math.max(top, scrollY + headerH + 8)
 
-      let left = scrollX + rect.left + (rect.width / 2) - (modalWidth / 2)
-      const top = scrollY + rect.top - (modalWidth * 0.5) // Approximate height shift
-
-      // Prevent clipping on left/right screen edges
-      const margin = 20
-      if (left < scrollX + margin) left = scrollX + margin
-      if (left + modalWidth > scrollX + window.innerWidth - margin) {
-        left = scrollX + window.innerWidth - modalWidth - margin
-      }
-
-      setModalStyle({
-        position: 'absolute',
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${modalWidth}px`,
-        zIndex: 1000,
-      })
-    }
+    setModalStyle({
+      position: 'absolute',
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${modalWidth}px`,
+      zIndex: 1000,
+    })
   }, [triggerRef])
 
   const handleFeedback = async (type: 'rate' | 'dislike') => {
@@ -97,7 +96,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
 
   const title = media.title || media.name
   const year = media.release_date?.split('-')[0] || media.first_air_date?.split('-')[0]
-  const rating = (media.vote_average * 10).toFixed(0)
+  const rating = media.vote_average ? (media.vote_average * 10).toFixed(0) : null
 
   return createPortal(
     <div
@@ -116,29 +115,30 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
       <div className="relative aspect-video w-full bg-background">
         <HoverVideoPlayer media={media} />
 
-        {/* Close Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose()
-          }}
-          aria-label="Close quick view"
-          className="absolute top-2 right-2 z-50 rounded-full bg-background/80 hover:bg-foreground hover:text-background p-1.5 transition-colors"
-        >
-          <X size={18} />
-        </button>
       </div>
 
       {/* Info Section */}
       <div className="p-4 space-y-3">
-        {/* Title */}
-        <h3 className="text-xl font-bold text-foreground leading-tight">
-          {title}
-        </h3>
+        {/* Title, and close — kept off the picture, where the player has its own buttons */}
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-xl font-bold text-foreground leading-tight">
+            {title}
+          </h3>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            aria-label="Close quick view"
+            className="-mr-1 -mt-1 shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <X size={18} />
+          </button>
+        </div>
 
         {/* Metadata */}
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-emerald-400 font-semibold">{rating}% Match</span>
+          {rating && <span className="text-emerald-400 font-semibold">{rating}% Match</span>}
           <span className="text-muted-foreground">{year}</span>
           <span className="border border-border px-1 text-xs text-muted-foreground">HD</span>
           {details?.genres?.[0] && (
