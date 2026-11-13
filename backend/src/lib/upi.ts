@@ -15,7 +15,7 @@ export const UPI_CONFIG = {
 export const SUBSCRIPTION_PLANS = {
   intro: {
     name: 'New Member Offer — 3 Months',
-    price: 100, // ₹100
+    price: 150, // ₹150 — ₹50/month for 3 months
     currency: 'INR',
     period: 'quarterly',
     durationDays: 90,
@@ -30,7 +30,7 @@ export const SUBSCRIPTION_PLANS = {
   },
   monthly: {
     name: '1 Month Premium',
-    price: 175, // ₹175
+    price: 100, // ₹100
     currency: 'INR',
     period: 'monthly',
     durationDays: 30,

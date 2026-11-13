@@ -136,7 +136,7 @@ export default function Pricing() {
     <>
       <PageMeta
         title="Pricing — Choose Your Plan"
-        description="Unlock premium streaming on StreamVault. New members get 3 months for ₹100, then ₹175/month — unlimited access to movies, TV shows, and anime."
+        description="Unlock premium streaming on StreamVault. New members get 3 months at ₹50/month (₹150), then ₹100/month — unlimited access to movies, TV shows, and anime."
       />
 
       <div className="flex min-h-screen flex-col bg-background">
@@ -236,11 +236,14 @@ export default function Pricing() {
 
                         <div className="mb-2">
                           <div className="flex items-baseline gap-1">
-                            <span className="text-4xl font-bold">₹{plan.price}</span>
+                            <span className="text-4xl font-bold">₹{plan.period === 'monthly' ? plan.price : Math.round(plan.price / 3)}</span>
                             <span className="text-muted-foreground">
-                              {plan.period === 'monthly' ? '/month' : ' for 3 months'}
+                              {plan.period === 'monthly' ? '/month' : '/month for 3 months'}
                             </span>
                           </div>
+                          {plan.period !== 'monthly' && (
+                            <p className="mt-1 text-sm text-muted-foreground">₹{plan.price} paid once for all 3 months</p>
+                          )}
                         </div>
 
                         <p className="mb-6 text-xs text-muted-foreground">
