@@ -22,7 +22,7 @@ test.describe('Premium subtitles', () => {
   test.beforeEach(({ mockApi }) => serveSubtitles(mockApi))
 
   test('show in English by default, for the file playing, and can be changed or turned off in Settings', async ({ page, watch, mockApi }) => {
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
 
@@ -45,7 +45,9 @@ test.describe('Premium subtitles', () => {
     await expect(subtitles).toHaveCount(0)
 
     // Remembered for the next play — and C brings back the last language.
+    // (A reload starts on the default server again, so Premium is picked anew.)
     await page.reload()
+    await watch.chooseServer(/^Premium/)
     await watch.play()
     await watch.expectPremiumPlaying()
     const captions = watch.root.getByRole('button', { name: 'Subtitles (c)' })
@@ -57,7 +59,7 @@ test.describe('Premium subtitles', () => {
   })
 
   test('an out-of-sync version can be swapped for another, and the timing nudged', async ({ page, watch }) => {
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
     const subtitles = watch.root.getByTestId('player-subtitles')
@@ -87,7 +89,7 @@ test.describe('Premium subtitles', () => {
   })
 
   test('a show’s subtitles are searched for the episode playing', async ({ watch, mockApi }) => {
-    await watch.goto(SHOW)
+    await watch.gotoOnPremium(SHOW)
     await watch.play()
     await watch.expectPremiumPlaying()
     await expect(watch.root.getByTestId('player-subtitles')).toBeVisible()
@@ -100,7 +102,7 @@ test.describe('Premium subtitles', () => {
 
   test('without any, the player says so and carries on', async ({ page, watch, mockApi }) => {
     mockApi.on('GET', '/debrid/subtitles', { json: { languages: [] } })
-    await watch.goto(MOVIE)
+    await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
 

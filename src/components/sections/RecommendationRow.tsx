@@ -70,7 +70,7 @@ export function RecommendationRow({
       <div className="mb-2.5 flex items-center justify-between sm:mb-3">
         <div className="flex items-center gap-2 min-w-0 sm:gap-2.5">
           <SectionIcon source={section.source} />
-          <h2 className="text-[17px] sm:text-xl font-bold text-foreground leading-tight truncate">
+          <h2 className="text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem] leading-tight truncate">
             {section.title}
           </h2>
         </div>
@@ -97,13 +97,13 @@ export function RecommendationRow({
         </div>
 
         <div
-          className="overflow-hidden pb-4"
+          className="-mx-[var(--sv-gutter)] overflow-hidden pb-4"
           style={{ contain: 'layout' }}
         >
         {/* ── Inner Track (Native Scroll) ────────────────────────── */}
         <div
           ref={rowRef}
-          className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-2 -mx-3 px-3 sm:-mx-4 sm:px-4 sm:gap-3 md:mx-0 md:px-0 md:pr-10"
+          className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-2 px-[var(--sv-gutter)] scroll-pl-[var(--sv-gutter)] sm:gap-3 lg:gap-4"
         >
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="snap-start shrink-0"><RecoCardSkeleton /></div>)
@@ -180,17 +180,14 @@ function RecoCard({ item, index, source, onClick, onDislike, isDisliked = false 
       releaseDate={item.releaseDate}
       mediaType={item.mediaType}
       isDisliked={isDisliked}
-      className={cn(
-        'w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(120px,11vw,340px)] md:max-w-none',
-        'hover:scale-[1.04] hover:shadow-elevated hover:shadow-primary/10 hover:border-primary/40 active:scale-[0.97] overflow-hidden'
-      )}
-      imageClassName="group-hover:scale-110 group-hover:brightness-110"
+      className="w-[30vw] min-w-[104px] max-w-[150px] md:w-[clamp(160px,9vw,300px)] md:max-w-none"
+      imageClassName="transition-[transform,filter] duration-500 ease-out md:group-hover:scale-[1.04] md:group-hover:brightness-[0.8]"
       onClick={handleClick}
       overlay={
         !isDisliked && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
-            <div className="rounded-full bg-white/90 p-3 shadow-lg shadow-black/30 transform scale-75 group-hover:scale-100 transition-all duration-300 pointer-events-auto hover:scale-110 hover:bg-white">
-              <Play className="h-6 w-6 text-black fill-black ml-0.5" />
+          <div className="pointer-events-none absolute inset-0 z-10 hidden items-center justify-center opacity-0 transition-opacity duration-300 md:flex md:group-hover:opacity-100">
+            <div className="pointer-events-auto flex h-12 w-12 scale-90 items-center justify-center rounded-full bg-white/95 shadow-lg shadow-black/40 transition-transform duration-300 hover:scale-105 md:group-hover:scale-100">
+              <Play className="ml-0.5 h-5 w-5 fill-black text-black" />
             </div>
           </div>
         )
@@ -203,11 +200,9 @@ function RecoCard({ item, index, source, onClick, onDislike, isDisliked = false 
             className={cn(
               // Desktop-only: on touch it was an invisible tap target sitting
               // over the artwork, and "not interested" belongs in the detail view
-              'absolute right-2 top-2 z-10 hidden rounded-full bg-background/90 shadow-lg md:block',
-              'p-2',
+              'absolute right-2 top-2 z-10 hidden h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md md:flex',
               'opacity-0 group-hover:opacity-100 transition-all duration-200',
-              'hover:scale-110 active:scale-95',
-              'hover:bg-background cursor-pointer'
+              'hover:scale-110 hover:bg-black/80 active:scale-95 cursor-pointer'
             )}
           >
             <ThumbsDown

@@ -124,7 +124,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
   return (
     <section className="group/row relative mb-5 sm:mb-6">
       <div className="mb-2.5 flex flex-col gap-1 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-[17px] font-bold sm:text-xl">Continue Watching</h2>
+        <h2 className="text-[17px] font-bold tracking-tight text-foreground sm:text-xl lg:text-[1.5rem]">Continue Watching</h2>
         <span className="hidden text-sm text-foreground/80 sm:block">Pick up where you left off</span>
       </div>
 
@@ -154,7 +154,7 @@ export function ContinueWatchingSection({ onMediaClick, refreshKey = 0 }: Props)
 
       <div
         ref={rowRef}
-        className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto scroll-smooth px-3 pb-2 sm:-mx-4 sm:gap-4 sm:px-4 md:mx-0 md:px-0"
+        className="no-scrollbar -mx-[var(--sv-gutter)] px-[var(--sv-gutter)] scroll-pl-[var(--sv-gutter)] flex gap-2 overflow-x-auto scroll-smooth pb-2 sm:gap-3 lg:gap-4"
       >
         {entries.map(({ media, item }) => (
           <ContinueWatchingCard
