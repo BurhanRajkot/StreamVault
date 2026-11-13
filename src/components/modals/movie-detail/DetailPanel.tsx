@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Download, Play, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { CircularRating } from '@/components/media/CircularRating'
+import { Download, Play, Star, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MediaDisplay } from '@/lib/mediaDisplay'
 import type { PlaybackControls } from './types'
@@ -66,35 +65,48 @@ export function DetailPanel({
           </div>
         )}
 
-        {/* Rating and facts */}
-        <div className="animate-rise flex flex-wrap items-center gap-x-6 gap-y-3" style={riseDelay(1)}>
-          <div className="flex items-center gap-3">
-            <CircularRating rating={rating} />
-            <span className="text-sm font-medium text-white/85 md:text-base">{match} match</span>
-          </div>
-          <div className="hidden h-6 w-px bg-white/15 sm:block" />
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-white/70 md:text-base">
-            {meta.map((item, i) => (
+        {/* Rating and facts — one line, like the home page's hero */}
+        <div className="space-y-2.5">
+          <div
+            className="animate-rise flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[15px] font-medium text-white/90 md:text-lg"
+            style={riseDelay(1)}
+          >
+            {rating > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Star className="h-[1.05em] w-[1.05em] fill-primary text-primary" aria-hidden="true" />
+                <span>{rating.toFixed(1)}</span>
+              </span>
+            )}
+            {rating > 0 && (
+              <span className="flex items-center gap-3 font-semibold text-emerald-400">
+                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-white/40" />
+                {match} match
+              </span>
+            )}
+            {meta.map((item) => (
               <span key={item} className="flex items-center gap-3">
-                {i > 0 && <span aria-hidden="true" className="h-1 w-1 rounded-full bg-white/35" />}
+                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-white/40" />
                 {item}
               </span>
             ))}
-            <span className="rounded border border-white/25 px-1.5 py-px text-xs font-semibold text-white/75">
-              {contentRating}
-            </span>
-          </div>
-        </div>
-
-        {genres.length > 0 && (
-          <div className="animate-rise flex flex-wrap gap-2" style={riseDelay(2)}>
-            {genres.slice(0, 4).map((genre) => (
-              <span key={genre} className="rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1 text-sm text-white/80">
-                {genre}
+            {contentRating && (
+              <span className="rounded-[5px] px-1.5 py-px text-xs font-bold text-white/85 ring-1 ring-inset ring-white/40">
+                {contentRating}
               </span>
-            ))}
+            )}
           </div>
-        )}
+
+          {genres.length > 0 && (
+            <p className="animate-rise flex flex-wrap items-center gap-x-2.5 text-sm text-white/55 md:text-base" style={riseDelay(2)}>
+              {genres.slice(0, 4).map((genre, i) => (
+                <span key={genre} className="flex items-center gap-2.5">
+                  {i > 0 && <span aria-hidden="true" className="h-1 w-1 rounded-full bg-white/30" />}
+                  {genre}
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
 
         <p
           style={riseDelay(3)}
@@ -124,7 +136,7 @@ export function DetailPanel({
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={onPlay}
-                className="flex h-12 items-center gap-2.5 rounded-lg bg-white px-8 text-base font-semibold text-black transition-[background-color,transform] hover:bg-white/90 active:scale-[0.97]"
+                className="flex h-12 items-center gap-2.5 rounded-lg bg-white px-7 text-base font-semibold text-black transition-[background-color,transform] hover:bg-white/85 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
                 <Play className="h-5 w-5 fill-current" />
                 Play Now
@@ -133,24 +145,24 @@ export function DetailPanel({
               {onDownload && (
                 <button
                   onClick={onDownload}
-                  className="flex h-12 items-center gap-2.5 rounded-lg bg-white/[0.12] px-6 text-base font-semibold text-white transition-[background-color,transform] hover:bg-white/[0.2] active:scale-[0.97]"
+                  className="flex h-12 items-center gap-2.5 rounded-lg bg-white/[0.16] px-5 text-base font-semibold text-white backdrop-blur-md transition-[background-color,transform] hover:bg-white/[0.26] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
                   <Download className="h-5 w-5" />
                   Download
                 </button>
               )}
 
-              <ServerSelect mode={mode} value={server} onChange={onServerChange} className="h-12 w-56" />
+              <ServerSelect mode={mode} value={server} onChange={onServerChange} className="h-12 w-52" />
 
               <button
                 onClick={onToggleLike}
                 aria-label={isLiked ? 'Remove like' : 'Like this title'}
                 aria-pressed={isLiked}
                 className={cn(
-                  'flex h-11 w-11 items-center justify-center rounded-full border transition-colors',
+                  'flex h-11 w-11 items-center justify-center rounded-full border transition-[colors,transform] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                   isLiked
                     ? 'border-primary/60 bg-primary/15 text-primary'
-                    : 'border-white/15 text-white/60 hover:border-white/35 hover:text-white'
+                    : 'border-white/20 bg-black/20 text-white/70 backdrop-blur-md hover:border-white/50 hover:text-white'
                 )}
               >
                 <ThumbsUp className={cn('h-4 w-4', isLiked && 'fill-current')} />
@@ -160,10 +172,10 @@ export function DetailPanel({
                 aria-label={disliked ? 'Remove dislike' : 'Dislike this title'}
                 aria-pressed={disliked}
                 className={cn(
-                  'flex h-11 w-11 items-center justify-center rounded-full border transition-colors',
+                  'flex h-11 w-11 items-center justify-center rounded-full border transition-[colors,transform] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                   disliked
                     ? 'border-red-500/60 bg-red-500/10 text-red-400'
-                    : 'border-white/15 text-white/60 hover:border-white/35 hover:text-white'
+                    : 'border-white/20 bg-black/20 text-white/70 backdrop-blur-md hover:border-white/50 hover:text-white'
                 )}
               >
                 <ThumbsDown className={cn('h-4 w-4', disliked && 'fill-current')} />

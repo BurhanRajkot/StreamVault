@@ -25,7 +25,6 @@ import { useOnboarding } from '@/hooks/useOnboarding'
 import { useContextualRecommendations } from '@/hooks/useContextualRecommendations'
 import { SEOContent } from '@/components/shared/SEOContent'
 import { FreePremiumAnnouncement } from '@/components/shared/FreePremiumAnnouncement'
-import { PremiumPausedNotice } from '@/components/shared/PremiumPausedNotice'
 import { PREMIUM_PAUSED } from '@/lib/premiumPause'
 
 // Downloads stopped for now.
@@ -224,7 +223,7 @@ const Index = () => {
         />
 
         {/* WIDER CONTAINER FOR LARGE MONITORS */}
-        <main className="w-full flex-1 px-3 pt-[var(--sv-header-h)] pb-2 pb-tabbar sm:px-4">
+        <main className="w-full flex-1 px-[var(--sv-gutter)] pt-[var(--sv-header-h)] pb-2 pb-tabbar">
           {mode === 'downloads' ? (
             // Downloads stopped for now.
             // <Downloads />
@@ -232,9 +231,8 @@ const Index = () => {
           ) : (
             <>
               {!searchQuery && (
-                /* Hero bleeds past the page gutter on phones — a 12px margin
-                   around a full-bleed image reads as a rendering mistake. */
-                <div className="-mx-3 -mt-[var(--sv-header-h)] sm:-mx-4 md:mx-0">
+                /* The hero bleeds past the page gutter and under the header */
+                <div className="-mx-[var(--sv-gutter)] -mt-[var(--sv-header-h)]">
                   <HeroCarousel
                     items={trending}
                     onMediaClick={handleMediaClick}
@@ -333,9 +331,9 @@ const Index = () => {
 
         <Footer />
 
-        {/* After the disclaimer, never stacked on top of it or onboarding */}
-        {/* While Premium is paused, the "Premium is free" card would contradict the pause notice */}
-        {!showDisclaimer && !shouldShowOnboarding && (PREMIUM_PAUSED ? <PremiumPausedNotice /> : <FreePremiumAnnouncement />)}
+        {/* After the disclaimer, never stacked on top of it or onboarding.
+            Hidden while Premium isn't working — it would promise a server that can't start. */}
+        {!showDisclaimer && !shouldShowOnboarding && !PREMIUM_PAUSED && <FreePremiumAnnouncement />}
 
         <DisclaimerModal
           isOpen={showDisclaimer}

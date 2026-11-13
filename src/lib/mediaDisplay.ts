@@ -60,7 +60,7 @@ function formatDuration(media: Media): string {
  * Pick a title logo: English first, then one tagged with no language (usually
  * a wordless treatment that reads in any locale), then whatever exists.
  */
-function pickLogo(media: Media): string | null {
+export function pickLogo(media: Media): string | null {
   const logos = media.images?.logos || []
   if (logos.length === 0) return null
 

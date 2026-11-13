@@ -12,9 +12,8 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { MobileDetailSheet } from './movie-detail/MobileDetailSheet'
-// Downloads stopped for now. When they're back they're magnet links (a torrent
-// app, not Real-Debrid) — see DownloadSheet.
-// import { DownloadSheet, type DownloadTarget } from '@/components/downloads/DownloadSheet'
+// Downloads are magnet links (a torrent app, not Real-Debrid) — see DownloadSheet.
+import { DownloadSheet, type DownloadTarget } from '@/components/downloads/DownloadSheet'
 import { enterPlaybackFullscreen, exitPlaybackFullscreen } from '@/lib/playbackFullscreen'
 import { DetailPanel } from './movie-detail/DetailPanel'
 import { EpisodeList, NowPlayingHeading, SourcePickers } from './movie-detail/NowPlaying'
@@ -79,10 +78,16 @@ export function MovieDetailModal({
     // A saved server id can outlive the provider it named (renamed/removed in
     // STREAM_PROVIDER_LIST — see config.ts), which otherwise leaves the player
     // silently blank with no matching dropdown entry. Fall back rather than
-    // trust a stale id. The debrid server was "torbox" before Real-Debrid.
-    if (initialServer === LEGACY_TORBOX_SERVER_ID) return DEBRID_SERVER_ID
+    // trust a stale id.
+    //
+    // ⚡ Premium (Real-Debrid, once "torbox") isn't working right now
+    // (2026-11-13), so a row saved on it starts on the default server
+    // instead of a player that can't start. It stays in the dropdown, last.
+    if (initialServer === LEGACY_TORBOX_SERVER_ID || initialServer === DEBRID_SERVER_ID) {
+      return defaultServer(mode)
+    }
     // A saved server (continue watching, quick view) is kept — that's where
-    // the viewer's progress is. Anything else starts on ⚡ Premium.
+    // the viewer's progress is. Anything else starts on Sol (Vidy).
     if (initialServer && serverOptions(mode).some(({ id }) => id === initialServer)) {
       return initialServer
     }
@@ -118,8 +123,7 @@ export function MovieDetailModal({
       stopPlaying()
     }
   }
-  // Downloads stopped for now.
-  // const [downloadTarget, setDownloadTarget] = useState<DownloadTarget | null>(null)
+  const [downloadTarget, setDownloadTarget] = useState<DownloadTarget | null>(null)
   /** The phone title page has scrolled past its artwork — the top bar turns solid. */
   const [sheetScrolled, setSheetScrolled] = useState(false)
 
@@ -517,18 +521,17 @@ export function MovieDetailModal({
   }
 
   const imdbId = media.imdb_id ?? media.external_ids?.imdb_id
-  // Downloads stopped for now. Without onDownload the title page, the phone
-  // sheet and its episode rows draw no Download button.
-  // const openDownload = (s?: number, ep?: number, episodeName?: string) =>
-  //   setDownloadTarget({
-  //     title,
-  //     year: display.year,
-  //     imdbId,
-  //     mediaType: typedMode,
-  //     season: mode === 'tv' ? s : undefined,
-  //     episode: mode === 'tv' ? ep : undefined,
-  //     label: mode === 'tv' && s !== undefined && ep !== undefined ? [`S${s} · E${ep}`, episodeName].filter(Boolean).join(' · ') : undefined,
-  //   })
+  const openDownload = (s?: number, ep?: number, episodeName?: string) =>
+    setDownloadTarget({
+      title,
+      year: display.year,
+      imdbId,
+      tmdbId: media.id,
+      mediaType: typedMode,
+      season: mode === 'tv' ? s : undefined,
+      episode: mode === 'tv' ? ep : undefined,
+      label: mode === 'tv' && s !== undefined && ep !== undefined ? [`S${s} · E${ep}`, episodeName].filter(Boolean).join(' · ') : undefined,
+    })
   const playEpisode = (s: number, ep: number) => {
     setSeason(s)
     setEpisode(ep)
@@ -686,7 +689,7 @@ export function MovieDetailModal({
               onToggleLike={handleLikeToggle}
               isCopied={isCopied}
               onShare={handleShare}
-              // onDownload={openDownload}
+              onDownload={openDownload}
               onPlayEpisode={playEpisode}
               similar={media.similar?.results ?? []}
               serverTriggerRef={mobileServerSelectTriggerRef}
@@ -705,7 +708,7 @@ export function MovieDetailModal({
                 display={display}
                 playback={playbackControls}
                 isPrePlay
-                // onDownload={() => openDownload(season, episode)}
+                onDownload={() => openDownload(season, episode)}
                 isLiked={isLiked}
                 onToggleLike={handleLikeToggle}
                 disliked={disliked}
@@ -719,8 +722,10 @@ export function MovieDetailModal({
           LAYER 2 — THEATER
           ══════════════════════════════════════════ */}
       {isPlaying && (
-        <div className="custom-scrollbar absolute inset-0 z-10 overflow-y-auto overflow-x-hidden max-md:overflow-hidden max-md:bg-black">
-          <div className="mx-auto w-full max-w-[1800px] px-4 pb-8 pt-20 max-md:px-0 max-md:pb-0 max-md:pt-0 md:px-10 md:pb-16 md:pt-20 xl:px-14">
+        // Theater: black, the picture as big as the window allows (movy-style);
+        // the details follow below it for whoever scrolls.
+        <div className="custom-scrollbar absolute inset-0 z-10 overflow-y-auto overflow-x-hidden bg-black max-md:overflow-hidden">
+          <div className="mx-auto w-full max-w-[2000px] px-4 pb-8 pt-20 max-md:px-0 max-md:pb-0 max-md:pt-0 md:px-8 md:pb-16 md:pt-[4.5rem] xl:px-12">
             {/* Opacity only: a transform here would capture the phone
                 player's position:fixed takeover while it ran.
 
@@ -935,14 +940,12 @@ export function MovieDetailModal({
         </div>
       )}
 
-      {/* Downloads stopped for now.
       <DownloadSheet
         target={downloadTarget}
         onOpenChange={(open) => {
           if (!open) setDownloadTarget(null)
         }}
       />
-      */}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 /**
  * The Anime tab: a section of its own where everything is anime — films and
- * series both — and every title plays on ⚡ Premium like any other.
+ * series both — and every title plays on ⚡ Premium like any other, once picked.
  */
 
 import { test, expect } from '../fixtures/test'
@@ -59,7 +59,7 @@ test.describe('Anime tab', () => {
 
     await expect(page).toHaveURL(watchPath(ANIME_SHOW))
     await expect(watch.heading(ANIME_SHOW)).toBeVisible()
-    await expect(watch.serverPicker).toContainText('Premium')
+    await watch.chooseServer(/^Premium/)
 
     await watch.play()
     await watch.expectPremiumPlaying()
@@ -72,8 +72,7 @@ test.describe('Anime tab', () => {
   })
 
   test('plays an anime film on Premium', async ({ watch, mockApi }) => {
-    await watch.goto(ANIME_MOVIE)
-    await expect(watch.serverPicker).toContainText('Premium')
+    await watch.gotoOnPremium(ANIME_MOVIE)
 
     await watch.play()
     await watch.expectPremiumPlaying()

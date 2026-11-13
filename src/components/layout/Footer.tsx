@@ -1,10 +1,11 @@
-import { Heart, Facebook, Instagram, Linkedin, Youtube } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Heart, Facebook, Instagram, Linkedin, Youtube, Shield } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="mt-auto border-t border-border/40 bg-gradient-to-b from-background to-card/30">
+    <footer className="mt-auto border-t border-border/50 bg-background">
       {/* pb-tabbar keeps the last line clear of the mobile bottom tab bar */}
-      <div className="container mx-auto px-4 py-8 pb-tabbar">
+      <div className="w-full px-[var(--sv-gutter)] py-10 pb-tabbar">
         <div className="flex flex-col md:flex-row justify-between gap-8 text-sm text-muted-foreground mb-8">
           <div className="space-y-4">
             <h3 className="text-foreground font-semibold">StreamVault</h3>
@@ -35,7 +36,13 @@ export function Footer() {
         </div>
 
         <div className="pt-6 border-t border-border/40 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
-          <p>© 2025 StreamVault. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <p>© 2025 StreamVault. All rights reserved.</p>
+            <Link to="/admin/dashboard" aria-label="Admin login" className="inline-flex items-center gap-1 transition-colors hover:text-foreground">
+              <Shield className="h-3.5 w-3.5" />
+              Admin
+            </Link>
+          </div>
           <p className="flex items-center gap-1">
             Developed with <Heart className="h-3 w-3 fill-red-500 text-red-500" /> by Burhanuddin Rajkotwala
           </p>

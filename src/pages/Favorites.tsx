@@ -30,7 +30,7 @@ const SORT_OPTIONS: { key: SortOption; label: string; icon: typeof Clock }[] = [
   { key: 'rating', label: 'Top Rated', icon: Star },
 ]
 
-const pageGutter = 'mx-auto w-full max-w-[2560px] px-3 sm:px-6 xl:px-8 2xl:px-12 [@media(min-width:2000px)]:px-16'
+const pageGutter = 'mx-auto w-full max-w-[2560px] px-[var(--sv-gutter)]'
 
 const Favorites = () => {
   const { isAuthenticated, isLoading: authLoading, loginWithRedirect } = useAuth0()
