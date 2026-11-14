@@ -2,10 +2,15 @@ import { Router, Request, Response } from 'express'
 import rateLimit from 'express-rate-limit'
 import { validateAdminCode, generateAdminToken, isAdminConfigured, TOKEN_EXPIRATION } from './auth'
 import { requireAdminAuth } from './middleware'
+import { FailureBudget, GLOBAL_FAILED_LOGIN_LIMIT, GLOBAL_FAILED_LOGIN_WINDOW_MS } from './loginThrottle'
+import { logger } from '../lib/logger'
 
 const router = Router()
 
 const failedAttempts = new Map<string, { count: number; lastAttempt: number }>()
+
+/** Wrong codes from every address together — see loginThrottle.ts. */
+const globalFailures = new FailureBudget(GLOBAL_FAILED_LOGIN_LIMIT, GLOBAL_FAILED_LOGIN_WINDOW_MS)
 
 const adminLoginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -93,10 +98,28 @@ router.post('/login', adminLoginRateLimiter, async (req: Request, res: Response)
       })
     }
 
+    // Checked before the code is looked at, so a locked-out guesser learns
+    // nothing — not even whether a guess would have been right.
+    if (globalFailures.exhausted()) {
+      const retryAfter = globalFailures.retryAfterSeconds()
+      res.set('Retry-After', String(retryAfter))
+      return res.status(429).json({
+        error: 'Too many failed attempts',
+        message: `Admin sign-in is paused after too many wrong codes. Try again in ${Math.ceil(retryAfter / 60)} minutes.`,
+      })
+    }
+
     const isValid = validateAdminCode(code)
 
     if (!isValid) {
       recordFailedAttempt(clientIP)
+      globalFailures.recordFailure()
+      if (globalFailures.exhausted()) {
+        logger.warn('Admin sign-in paused: too many wrong codes across all addresses', {
+          limit: GLOBAL_FAILED_LOGIN_LIMIT,
+          windowMinutes: GLOBAL_FAILED_LOGIN_WINDOW_MS / 60_000,
+        })
+      }
 
       return res.status(401).json({
         error: 'Authentication failed',

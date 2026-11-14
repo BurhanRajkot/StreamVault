@@ -3,7 +3,7 @@
  * instead.
  */
 
-import { test, expect, SIGNED_IN } from '../fixtures/test'
+import { test, expect, isPhone, SIGNED_IN } from '../fixtures/test'
 import { MOVIE, titleOf } from '../fixtures/data'
 import { cardName } from '../pages/HomePage'
 
@@ -36,7 +36,7 @@ test.describe('signed in', () => {
   test.use({ user: SIGNED_IN })
 
   test('the header shows their account', async ({ home }) => {
-    test.skip(test.info().project.name === 'mobile', 'The mobile header has no account menu')
+    test.skip(isPhone(), 'The mobile header has no account menu')
     await home.goto()
 
     await expect(home.header.getByRole('button', { name: 'Open account menu' })).toBeVisible()
