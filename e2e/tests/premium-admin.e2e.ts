@@ -66,3 +66,26 @@ adminTest('the admin dashboard reports the Premium account', async ({ app, scree
   const status = screen.getByRole('region', 'Premium server status')
   await expect(status.getByRole('status')).toHaveText('Working')
 })
+
+test('the header signs the admin in, and its menu signs them out again', async ({ app, screen, browser }) => {
+  await app.open('/')
+  const header = screen.getByRole('banner')
+  // A phone shows the shield once signed in; signing in starts from the footer there.
+  if ((await browser.evaluate(() => window.innerWidth)) < 768) {
+    await app.open('/admin/dashboard')
+    await screen.getByRole('button', 'Log In as Admin').tap()
+  } else {
+    await header.getByRole('button', 'Sign in as admin').tap()
+  }
+
+  const dialog = screen.getByRole('dialog', 'Admin Access')
+  await dialog.getByLabel('Authenticator Code').fill(ADMIN_CODE)
+  await dialog.getByRole('button', 'Login').tap()
+  await expect(dialog).toBeHidden()
+
+  await app.open('/')
+  await header.getByRole('button', 'Admin menu').first().tap()
+  await screen.getByRole('menuitem', 'Sign out of admin').tap()
+  await expect(header.getByRole('button', 'Admin menu')).toHaveCount(0)
+  expect(await browser.evaluate(() => localStorage.getItem('adminToken'))).toBe(null)
+})
