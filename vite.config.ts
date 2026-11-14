@@ -61,6 +61,12 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         // Precache compiled JS/CSS/HTML shell — the app core
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
+        // ...but not the admin-only code. The service worker downloads every
+        // precached file in the background on a visitor's first load; the
+        // Premium player, hls.js and the dashboard were 720 kB of that
+        // (a third of the precache) for code only the admin ever runs.
+        // They still load on demand, straight from the network.
+        globIgnores: ['**/hls-*.js', '**/DebridPlayerPane-*.js', '**/Dashboard-*.js'],
         // Skip caching oversized chunks (they shouldn't need offline)
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
 

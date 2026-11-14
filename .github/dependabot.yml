@@ -2,7 +2,9 @@
 #
 # Covers all four ecosystems present in this repo:
 #   1. npm  — frontend (root package.json)
-#   2. npm  — backend  (backend/package.json + bun.lock)
+#   2. bun  — backend  (backend/package.json + backend/bun.lock — the
+#      backend runs on Bun, so its lockfile is the one that has to move.
+#      As "npm" this only ever updated a package-lock.json nothing used.)
 #   3. docker — Dockerfile base images (node:24-slim, nginx:1.30-alpine)
 #   4. github-actions — SHA-pinned action refs in .github/workflows/ AND
 #      in .github/actions/*/ (composite actions need their own entry —
@@ -145,7 +147,7 @@ updates:
   # ──────────────────────────────────────────────────────────────
   # 2. BACKEND — backend/package.json
   # ──────────────────────────────────────────────────────────────
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/backend"
     schedule:
       interval: "weekly"
@@ -160,7 +162,6 @@ updates:
       - "automated"
     commit-message:
       prefix: "chore(deps/backend)"
-      prefix-development: "chore(dev-deps/backend)"
       include: "scope"
     groups:
       # Express framework + middleware

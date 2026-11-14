@@ -29,7 +29,8 @@ This file is automatically read by Claude Code at the start of each session to m
   - Trie-based search autocomplete
   - Favorites/Dislikes system
   - Continue watching tracking
-  - Download management
+  - Premium (Real-Debrid) server — admin-only
+  - Public release search for magnet-link downloads
   - Admin dashboard
 
 ### Infrastructure
@@ -45,15 +46,15 @@ This file is automatically read by Claude Code at the start of each session to m
 src/
 ├── auth/                 # Auth0 provider, login/signup pages, mock Auth0 for E2E
 ├── components/
-│   ├── admin/            # Admin login modal, admin-mode badge + activation effect
-│   ├── downloads/        # Debrid search, library, download sheet
+│   ├── admin/            # Admin login modal, admin-mode badge, Premium status card
+│   ├── downloads/        # Download sheet (magnet links + subtitles)
 │   ├── layout/           # Header, Footer, MobileNav, account menu, error boundary
 │   ├── media/            # Cards, grid, rating, hover preview
 │   ├── modals/           # Title detail (+ movie-detail/ parts), quick view, disclaimer
 │   ├── onboarding/       # CineMatch first-run onboarding
 │   ├── player/           # Premium player: video, controls, seek preview, loading
 │   ├── sections/         # Home page rows (hero, continue watching, recommendations)
-│   ├── shared/           # Small cross-page pieces (platform selector, promo banner)
+│   ├── shared/           # Small cross-page pieces (platform selector, SEO copy)
 │   └── ui/               # shadcn/ui primitives (DO NOT modify unless necessary)
 ├── context/              # React Context providers (Favorites, Dislikes)
 ├── data/                 # Static curated data (Author's Choice lists)
@@ -174,7 +175,7 @@ npm run lint            # ESLint check (automatically runs on file save)
 4. **React Query caching** - Configured with staleTime/cacheTime
 
 ### Dependencies
-1. **Lock file** - Keep `bun.lock` (Bun, read by CI) and `package-lock.json` (npm, used by the Docker image) in sync. Write `bun.lock` with the Bun version pinned in `ci.yml` (`BUN_VERSION`), since a newer Bun writes a lockfile format CI can't read
+1. **Lock file** - Frontend (root): keep `package-lock.json` (npm — CI and the Docker image install with it) and `bun.lock` in sync. Backend: `backend/bun.lock` is the only lockfile (Dependabot updates it through the `bun` ecosystem). CI pins Bun in `ci.yml` (`BUN_VERSION`) to the same 1.4 line as the backend image; write lockfiles with that version or older, since a newer Bun can write a format CI can't read
 2. **Overrides** - Security overrides are in package.json
 3. **Updates** - Check for security updates regularly
 
@@ -235,6 +236,16 @@ const { data, isLoading, error } = useQuery({
 // Use Favorites Context
 const { addFavorite, removeFavorite, isFavorite } = useFavorites()
 ```
+
+### Premium (Real-Debrid) is admin-only
+Every `/debrid/*` backend route sits behind `requireAdminAuth`
+(`backend/src/routes/debrid.ts`); there is no guest, signed-in or subscriber
+path. In the UI, Premium is always the last server; `useIsAdmin()` says
+whether this browser holds an admin token, `PremiumPane` shows the player to
+an admin and a notice with the admin sign-in to everyone else. The Download
+sheet's magnet links come from the public `GET /releases`, which never
+touches the Real-Debrid account. In E2E, `test.use({ admin: true })`
+(Playwright) or `adminTest` (e2e framework) holds an admin session.
 
 ### Protected Routes
 Admin pages guard themselves rather than being wrapped in a route element —

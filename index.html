@@ -89,8 +89,9 @@
     <!-- The backend API's preconnect is injected at build time from
          VITE_API_URL (see vite.config.ts). -->
 
-    <!-- Embed servers (fallbacks to Premium) — DNS hints only -->
-    <!-- vidfast.vc is the default server and powers hover previews -->
+    <!-- Embed servers — DNS hints only. vidy.st is Sol, the default server;
+         vidfast.vc powers the hover previews. -->
+    <link rel="dns-prefetch" href="https://www.vidy.st" />
     <link rel="dns-prefetch" href="https://vidfast.vc" />
     <link rel="dns-prefetch" href="https://vidspark.to" />
   </head>
