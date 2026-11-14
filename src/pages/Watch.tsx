@@ -22,7 +22,7 @@ const Watch = () => {
   // Backend caches this same response for 2hrs (Redis + Cache-Control), so
   // matching staleTime here means revisiting a title you already opened is
   // instant — no re-fetch, no loading-spinner flash.
-  const { data: media, isError, isLoading: loading } = useQuery({
+  const { data: media, isError, isLoading: loading, refetch, isFetching } = useQuery({
     queryKey: ['mediaDetails', mediaType, tmdbId],
     queryFn: () => fetchMediaDetails(mediaType as MediaMode, Number(tmdbId)),
     enabled: !!mediaType && !!tmdbId,
@@ -47,21 +47,38 @@ const Watch = () => {
   }, [media, mediaType, idAndSlug, navigate])
 
   if (error) {
+    // The details call answers null for a missing title and for a backend
+    // hiccup alike (a cold start on Render is the usual one), so don't claim
+    // a 404 — offer a retry, which fixes the common case.
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] text-white">
-        <h1 className="text-4xl font-bold mb-4">404 - Not Found</h1>
-        <p className="text-zinc-400">Failed to load media or media not found.</p>
-        <button onClick={() => navigate('/')} className="mt-6 px-6 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-500 transition-colors">
-          Go Home
-        </button>
+      <div className="dark flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center text-foreground">
+        <h1 className="mb-3 text-2xl font-bold sm:text-3xl">Couldn&apos;t load this title</h1>
+        <p className="max-w-md text-sm text-muted-foreground">
+          It may not exist, or the server is waking up. Trying again usually works.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+          >
+            {isFetching ? 'Trying…' : 'Try again'}
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg bg-secondary px-5 py-2.5 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+          >
+            Go home
+          </button>
+        </div>
       </div>
     )
   }
 
   if (loading || !media) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="dark flex min-h-screen items-center justify-center bg-background" role="status" aria-label="Loading">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
       </div>
     )
   }
