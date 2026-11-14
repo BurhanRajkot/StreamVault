@@ -33,9 +33,9 @@ export function Footer() {
         <div className="pt-6 border-t border-border/40 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
             <p>© {new Date().getFullYear()} StreamVault. All rights reserved.</p>
-            <Link to="/admin/dashboard" aria-label="Admin login" className="inline-flex items-center gap-1 transition-colors hover:text-foreground">
-              <Shield className="h-3.5 w-3.5" />
-              Admin
+            <Link to="/admin/dashboard" className="inline-flex items-center gap-1 transition-colors hover:text-foreground">
+              <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+              Admin sign-in
             </Link>
           </div>
           <p className="flex items-center gap-1">
