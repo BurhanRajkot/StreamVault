@@ -30,7 +30,11 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      // hls.js's package.json `exports` has no "types" condition, so whether
+      // an editor finds its typings depends on that TypeScript's fallback
+      // lookup — some show `import('hls.js')` in red. Point at them directly.
+      "hls.js": ["./node_modules/hls.js/dist/hls.d.ts"]
     },
     "types": ["bun"]
   },
