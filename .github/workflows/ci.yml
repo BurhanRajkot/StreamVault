@@ -420,6 +420,18 @@ jobs:
       - name: Build
         run: npm run build
 
+      # The build "succeeds" with an empty precache when workbox's globbing
+      # breaks — a minimatch 11 bump did exactly that under glob 11 (2026-11-15)
+      # and nothing else noticed. An empty precache means no offline app shell.
+      - name: Service worker precaches the app shell
+        run: |
+          entries=$(grep -o 'assets/[A-Za-z0-9_.-]*\.js' dist/sw.js | sort -u | wc -l)
+          echo "Precached JS chunks: $entries"
+          if ! grep -q 'index.html' dist/sw.js || [ "$entries" -lt 3 ]; then
+            echo "::error title=PWA precache::dist/sw.js precaches no app shell — check workbox/glob/minimatch versions."
+            exit 1
+          fi
+
       - name: Check bundle size
         run: |
           BUNDLE_KB=$(du -sk dist/ | cut -f1)
