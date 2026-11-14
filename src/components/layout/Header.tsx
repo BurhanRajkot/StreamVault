@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { ThemeToggle } from './ThemeToggle'
 import { AccountMenuPlaceholder } from './AccountMenuPlaceholder'
+import { AdminButton } from '@/components/admin/AdminButton'
+import { useIsAdmin } from '@/hooks/useIsAdmin'
 
 const AccountMenu = lazy(() => import('./AccountMenu'))
 
@@ -207,6 +209,7 @@ export function Header({
 
   const mutedInteractiveClass = 'text-muted-foreground hover:text-foreground'
 
+  const isAdmin = useIsAdmin()
   const iconButtonClass =
     'inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
@@ -331,6 +334,8 @@ export function Header({
               <Github className="h-[18px] w-[18px]" aria-hidden="true" />
             </a>
 
+            <AdminButton />
+
             <ThemeToggle compact />
 
             {isAuthenticated ? (
@@ -415,18 +420,22 @@ export function Header({
                     <Search className="h-[22px] w-[22px]" />
                   </button>
 
-                  {/* No admin link here: on a 390px bar it pushed "Sign in"
-                      onto two lines and cut the logo to "StreamVa…". The
-                      desktop header keeps it; /admin/dashboard still works. */}
-                  <a
-                    href={GITHUB_REPO_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Star StreamVault on GitHub"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground tap-scale"
-                  >
-                    <Github className="h-[21px] w-[21px]" />
-                  </a>
+                  {/* A 390px bar has room for one more icon, not two: the
+                      admin gets their shield there in place of the GitHub
+                      star; everyone else signs in as admin from the footer. */}
+                  {isAdmin ? (
+                    <AdminButton />
+                  ) : (
+                    <a
+                      href={GITHUB_REPO_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Star StreamVault on GitHub"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground tap-scale"
+                    >
+                      <Github className="h-[21px] w-[21px]" />
+                    </a>
+                  )}
 
                   {/* Under 375px there isn't room for the logo and every icon */}
                   <span className="contents max-[374px]:hidden">
