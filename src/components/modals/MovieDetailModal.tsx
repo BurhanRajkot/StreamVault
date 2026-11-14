@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from 'react'
 import { ChevronLeft, Download, Share2, Heart, SkipForward, SkipBack, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { Media, MediaMode, CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, defaultServer, serverOptions } from '@/lib/config'
-import { DebridPlayerPane, type ReleaseControls } from '@/components/player/DebridPlayerPane'
-import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress } from '@/lib/api'
+import type { ReleaseControls } from '@/components/player/DebridPlayerPane'
+import { PremiumPane } from '@/components/player/PremiumPane'
+import { fetchTVSeasons, buildEmbedUrl, logRecommendationInteraction, updateContinueWatching, saveGuestProgress, isAdminAuthenticated } from '@/lib/api'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFavorites } from '@/context/FavoritesContext'
@@ -20,6 +21,7 @@ import { EpisodeList, NowPlayingHeading, SourcePickers } from './movie-detail/No
 import { nowPlayingMeta } from './movie-detail/types'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { useDebridToken } from '@/hooks/useDebridToken'
+import { useIsAdmin } from '@/hooks/useIsAdmin'
 import { prefetchPremiumReleases } from '@/lib/premiumSearch'
 import { warmNearestEdge } from '@/lib/debridHost'
 import type { PlaybackControls } from './movie-detail/types'
@@ -80,11 +82,11 @@ export function MovieDetailModal({
     // silently blank with no matching dropdown entry. Fall back rather than
     // trust a stale id.
     //
-    // ⚡ Premium (Real-Debrid, once "torbox") isn't working right now
-    // (2026-11-13), so a row saved on it starts on the default server
-    // instead of a player that can't start. It stays in the dropdown, last.
+    // ⚡ Premium (Real-Debrid, once "torbox") is admin-only: a row saved on
+    // it resumes there for an admin, and on the default server for anyone
+    // else rather than on a notice. It stays in the dropdown, last.
     if (initialServer === LEGACY_TORBOX_SERVER_ID || initialServer === DEBRID_SERVER_ID) {
-      return defaultServer(mode)
+      return isAdminAuthenticated() && (mode === 'movie' || mode === 'tv') ? DEBRID_SERVER_ID : defaultServer(mode)
     }
     // A saved server (continue watching, quick view) is kept — that's where
     // the viewer's progress is. Anything else starts on Sol (Vidy).
@@ -545,8 +547,9 @@ export function MovieDetailModal({
   // details, so Play goes straight to starting one — and, a little way into
   // an episode, the next episode's, so "Next episode" does too.
   const getDebridToken = useDebridToken()
+  const isAdmin = useIsAdmin()
   const debridMediaType = mode === 'tv' ? 'tv' : 'movie'
-  const prefetch = server !== DEBRID_SERVER_ID ? null : !isPlaying ? position : nextTarget
+  const prefetch = server !== DEBRID_SERVER_ID || !isAdmin ? null : !isPlaying ? position : nextTarget
   const prefetchSeason = prefetch?.season
   const prefetchEpisode = prefetch?.episode
   useEffect(() => {
@@ -786,7 +789,7 @@ export function MovieDetailModal({
 
                 <div className="player-frame">
                   {server === DEBRID_SERVER_ID ? (
-                    <DebridPlayerPane
+                    <PremiumPane
                       title={title}
                       year={display.year}
                       imdbId={media.imdb_id ?? media.external_ids?.imdb_id}

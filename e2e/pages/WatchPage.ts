@@ -43,9 +43,9 @@ export class WatchPage {
   }
 
   /**
-   * Open the title page with ⚡ Premium picked. Since 2026-11-13 every title
-   * starts on Sol (Vidy) and Premium is the last server, so Premium's tests
-   * choose it, the way a viewer would.
+   * Open the title page with ⚡ Premium picked. Every title starts on Sol
+   * (Vidy) and Premium is the last server, so Premium's tests choose it, the
+   * way a viewer would. It only plays for an admin: `test.use({ admin: true })`.
    */
   async gotoOnPremium(media: MediaFixture): Promise<void> {
     await this.goto(media)

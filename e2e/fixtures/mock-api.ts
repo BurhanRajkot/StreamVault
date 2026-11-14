@@ -31,12 +31,9 @@ import {
   seasonEpisodes,
   titleOf,
 } from './data'
+import { ADMIN_CODE, ADMIN_TOKEN } from './users'
 
 export const MOCK_API_ORIGIN = 'http://api.e2e.test'
-
-/** Stand-in for the "buy me a coffee" UPI QR — a 1×1 PNG. */
-const DONATION_QR =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -49,6 +46,8 @@ export interface MockRequest {
   body: unknown
   /** True when the request carried `Authorization: Bearer …`. */
   authenticated: boolean
+  /** True when that bearer token is the admin's (see ADMIN_TOKEN). */
+  admin: boolean
 }
 
 export interface MockResponse {
@@ -87,6 +86,8 @@ export interface RecordedCall {
   query: URLSearchParams
   body: unknown
   authenticated: boolean
+  /** True when the bearer token was the admin's. */
+  admin: boolean
 }
 
 /**
@@ -129,8 +130,6 @@ export class MockApi {
     favorites: [] as { id: string; tmdbId: number; mediaType: string; addedAt: string }[],
     dislikes: [] as { id: string; tmdbId: number; mediaType: string }[],
     continueWatching: [] as Record<string, unknown>[],
-    /** End of the free Premium promotion; null when there is none. */
-    promoFreeUntil: '2027-10-12T00:00:00.000Z' as string | null,
   }
 
   constructor() {
@@ -184,9 +183,11 @@ export class MockApi {
       return route.fulfill({ status: 204, headers: corsHeaders(headers) })
     }
 
-    const authenticated = (headers['authorization'] ?? '').startsWith('Bearer ')
+    const authorization = headers['authorization'] ?? ''
+    const authenticated = authorization.startsWith('Bearer ')
+    const admin = authorization === `Bearer ${ADMIN_TOKEN}`
     const body = parseBody(request)
-    this.requests.push({ method, path: url.pathname, query: url.searchParams, body, authenticated })
+    this.requests.push({ method, path: url.pathname, query: url.searchParams, body, authenticated, admin })
 
     for (const entry of this.routes) {
       if (entry.method !== method) continue
@@ -201,6 +202,7 @@ export class MockApi {
         headers,
         body,
         authenticated,
+        admin,
       })
       if (res.delayMs) await new Promise((r) => setTimeout(r, res.delayMs))
       return route
@@ -225,7 +227,7 @@ export class MockApi {
   }
 
   // -------------------------------------------------------------------------
-  // Defaults: a healthy backend with a small catalogue, a guest-friendly
+  // Defaults: a healthy backend with a small catalogue, an admin-only
   // Premium server and one instantly playable release per title.
   // -------------------------------------------------------------------------
 
@@ -331,27 +333,18 @@ export class MockApi {
     this.on('GET', '/continue-watching/:tmdbId/:mediaType', requireAuth(() => ({ status: 404, json: { error: 'Not found' } })))
     this.on('DELETE', '/continue-watching/:tmdbId/:mediaType', requireAuth(() => ok({ ok: true })))
 
-    // — Subscriptions —
-    this.on(
-      'GET',
-      '/subscriptions/plans',
-      ok({
-        plans: [
-          { id: 'basic', name: 'Basic', price: 199, currency: 'INR', features: ['HD streaming'] },
-          { id: 'premium', name: 'Premium', price: 499, currency: 'INR', features: ['4K streaming', 'Downloads'] },
-        ],
-        upiConfig: { payeeName: 'StreamVault', upiId: 'streamvault@upi' },
-        donation: { qrCode: DONATION_QR, upiId: 'streamvault@upi', payeeName: 'StreamVault' },
-      })
+    // — Admin —
+    this.on('POST', '/admin/login', ({ body }) =>
+      (body as { code?: string } | undefined)?.code === ADMIN_CODE
+        ? ok({ success: true, token: ADMIN_TOKEN, expiresIn: '30d' })
+        : { status: 401, json: { error: 'Authentication failed', message: 'Invalid authenticator code' } }
     )
-    this.on('GET', '/downloads', ({ authenticated }) =>
-      authenticated ? { status: 403, json: { error: 'Upgrade required' } } : { status: 401, json: { error: 'Unauthorized' } }
+    this.on('GET', '/subscriptions/admin/requests', ({ admin }) =>
+      admin ? ok([]) : { status: 401, json: { error: 'Authentication required' } }
     )
 
-    // — Premium (Real-Debrid) —
-    this.on('GET', '/debrid/promo', () => ok({ freeUntil: this.state.promoFreeUntil }))
-    this.on('GET', '/debrid/status', ok({ connected: true, premium: true, expiration: null, note: null }))
-    this.on('GET', '/debrid/media-search', ({ query }) => {
+    // — Releases: the public search behind the Download sheet's magnet links —
+    const releasesFor = (query: URLSearchParams): MockResponse => {
       const isShow = query.get('type') === 'tv'
       const title = isShow ? titleOf(SHOW).replace(/ /g, '.') : titleOf(MOVIE)
       return ok({
@@ -361,12 +354,21 @@ export class MockApi {
           }),
         ],
       })
-    })
-    this.on('POST', '/debrid/play', ok(readyPlayback()))
-    this.on('GET', '/debrid/play/:torrentId', ok(readyPlayback()))
+    }
+    this.on('GET', '/releases', ({ query }) => releasesFor(query))
+
+    // — Premium (Real-Debrid): admin-only, like the real backend's router —
+    const adminOnly =
+      (handler: Handler): Handler =>
+      (req) =>
+        req.admin ? handler(req) : { status: 401, json: { error: 'Authentication required', message: 'Admin token missing' } }
+    this.on('GET', '/debrid/status', adminOnly(() => ok({ connected: true, premium: true, expiration: null, note: null })))
+    this.on('GET', '/debrid/media-search', adminOnly(({ query }) => releasesFor(query)))
+    this.on('POST', '/debrid/play', adminOnly(() => ok(readyPlayback())))
+    this.on('GET', '/debrid/play/:torrentId', adminOnly(() => ok(readyPlayback())))
     // No subtitles unless a test brings some (see subtitlesFor in data.ts)
-    this.on('GET', '/debrid/subtitles', ok({ languages: [] }))
-    this.on('GET', '/debrid/subtitles/file/:id', { status: 404, json: { error: 'Subtitle not found' } })
+    this.on('GET', '/debrid/subtitles', adminOnly(() => ok({ languages: [] })))
+    this.on('GET', '/debrid/subtitles/file/:id', adminOnly(() => ({ status: 404, json: { error: 'Subtitle not found' } })))
   }
 }
 

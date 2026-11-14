@@ -1,5 +1,5 @@
-import { useState, useCallback, /* lazy, */ useEffect, useRef } from 'react'
-import { Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { PageMeta } from '@/seo/PageMeta'
 import { Media, MediaMode, MODE_PATHS, modeFromPath } from '@/lib/config'
 import { useMedia } from '@/hooks/useMedia'
@@ -24,11 +24,6 @@ import { CineMatchOnboarding } from '@/components/onboarding'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { useContextualRecommendations } from '@/hooks/useContextualRecommendations'
 import { SEOContent } from '@/components/shared/SEOContent'
-import { FreePremiumAnnouncement } from '@/components/shared/FreePremiumAnnouncement'
-import { PREMIUM_PAUSED } from '@/lib/premiumPause'
-
-// Downloads stopped for now.
-// const Downloads = lazy(() => import('./Downloads'))
 
 const SECTION_META: Record<MediaMode, { title: string; description: string; heading: string; noindex?: boolean }> = {
   home: {
@@ -55,12 +50,6 @@ const SECTION_META: Record<MediaMode, { title: string; description: string; head
     title: 'Watch Documentaries Online Free',
     heading: 'Watch Documentaries Online Free',
     description: 'Watch documentary films and docuseries online free on StreamVault — nature, history, true crime and more in HD. No sign-up required.',
-  },
-  downloads: {
-    title: 'Downloads',
-    heading: 'Downloads',
-    description: 'Your downloads on StreamVault.',
-    noindex: true,
   },
 }
 
@@ -222,7 +211,6 @@ const Index = () => {
           onMobileSearchOpenChange={setMobileSearchOpen}
         />
         <MobileNav
-          mode={mode}
           onModeChange={setMode}
           onSearchOpen={() => setMobileSearchOpen(true)}
           searchOpen={mobileSearchOpen}
@@ -233,104 +221,96 @@ const Index = () => {
           {/* The section pages' H1 (home's is in SEOContent) — for screen
               readers and search engines; the header pill shows it visually */}
           {mode !== 'home' && <h1 className="sr-only">{SECTION_META[mode].heading}</h1>}
-          {mode === 'downloads' ? (
-            // Downloads stopped for now.
-            // <Downloads />
-            <Navigate to="/" replace />
-          ) : (
-            <>
-              {!searchQuery && (
-                /* The hero bleeds past the page gutter and under the header */
-                <div className="-mx-[var(--sv-gutter)] -mt-[var(--sv-header-h)]">
-                  <HeroCarousel
-                    items={trending}
-                    onMediaClick={handleMediaClick}
-                  />
-                </div>
-              )}
-
-              {/* OTT Provider Selector */}
-              {!searchQuery && (
-                  <PlatformSelector
-                      selected={selectedProvider}
-                      onSelect={setSelectedProvider}
-                  />
-              )}
-
-              {/* Continue Watching — above the fold, render immediately */}
-              {!searchQuery && (
-                <ContinueWatchingSection
-                  onMediaClick={handleMediaClick}
-                  refreshKey={refreshKey}
-                />
-              )}
-
-              {/* Author's Choice — lazy: only renders when scrolled near */}
-              <div ref={authorsRef} className="below-fold-section">
-                {!searchQuery && authorsVisible && (
-                  <AuthorsChoiceSection
-                    onMediaClick={handleMediaClick}
-                    mode={mode === 'movie' || mode === 'tv' || mode === 'documentary' || mode === 'anime' ? mode : 'all'}
-                  />
-                )}
-              </div>
-
-              {/* CineMatch AI — lazy: only renders when scrolled near. The Anime
-                  tab swaps it for anime-only rows: everything there is anime. */}
-              <div ref={recoRef} className="below-fold-section">
-                {!searchQuery && recoVisible && mode === 'anime' && (
-                  <AnimeRows onMediaClick={handleMediaClick} />
-                )}
-                {!searchQuery && recoVisible && mode !== 'anime' && (
-                  <>
-                    {/* Guest contextual row — shown before generic sections */}
-                    {!isAuthenticated && guestContextualSection && (
-                      <RecommendationRow
-                        key={guestContextualSection.title}
-                        section={guestContextualSection}
-                        onCardClick={handleRecoCardClick}
-                        onDislike={undefined}
-                        isLoading={false}
-                      />
-                    )}
-                    {/* CineMatch sections (personalized for auth, trending for guest) */}
-                    {(recoLoading ? [
-                      { title: 'Recommended For You', items: [], source: 'personal' as const },
-                      { title: 'Because You Watched...', items: [], source: 'tmdb_similar' as const },
-                    ] : recoSections).map((section) => (
-                      <RecommendationRow
-                        key={section.title}
-                        section={section}
-                        onCardClick={handleRecoCardClick}
-                        onDislike={isAuthenticated ? handleRecoDislike : undefined}
-                        isLoading={recoLoading}
-                      />
-                    ))}
-                  </>
-                )}
-              </div>
-
-              {/* Recently Added — lazy, only when provider selected */}
-              <div ref={recentlyRef}>
-                {!searchQuery && selectedProvider && recentlyVisible && (
-                  <RecentlyAddedSection
-                    mode={mode}
-                    providerId={selectedProvider}
-                    onMediaClick={handleMediaClick}
-                  />
-                )}
-              </div>
-
-              <MediaGrid
-                media={media}
-                isLoading={isLoading}
-                hasMore={hasMore}
-                onLoadMore={loadMore}
+          {!searchQuery && (
+            /* The hero bleeds past the page gutter and under the header */
+            <div className="-mx-[var(--sv-gutter)] -mt-[var(--sv-header-h)]">
+              <HeroCarousel
+                items={trending}
                 onMediaClick={handleMediaClick}
-                title={mode === 'anime' && !searchQuery ? 'All Anime' : undefined}
               />
-            </>
+            </div>
           )}
+
+          {/* OTT Provider Selector */}
+          {!searchQuery && (
+              <PlatformSelector
+                  selected={selectedProvider}
+                  onSelect={setSelectedProvider}
+              />
+          )}
+
+          {/* Continue Watching — above the fold, render immediately */}
+          {!searchQuery && (
+            <ContinueWatchingSection
+              onMediaClick={handleMediaClick}
+              refreshKey={refreshKey}
+            />
+          )}
+
+          {/* Author's Choice — lazy: only renders when scrolled near */}
+          <div ref={authorsRef} className="below-fold-section">
+            {!searchQuery && authorsVisible && (
+              <AuthorsChoiceSection
+                onMediaClick={handleMediaClick}
+                mode={mode === 'movie' || mode === 'tv' || mode === 'documentary' || mode === 'anime' ? mode : 'all'}
+              />
+            )}
+          </div>
+
+          {/* CineMatch AI — lazy: only renders when scrolled near. The Anime
+              tab swaps it for anime-only rows: everything there is anime. */}
+          <div ref={recoRef} className="below-fold-section">
+            {!searchQuery && recoVisible && mode === 'anime' && (
+              <AnimeRows onMediaClick={handleMediaClick} />
+            )}
+            {!searchQuery && recoVisible && mode !== 'anime' && (
+              <>
+                {/* Guest contextual row — shown before generic sections */}
+                {!isAuthenticated && guestContextualSection && (
+                  <RecommendationRow
+                    key={guestContextualSection.title}
+                    section={guestContextualSection}
+                    onCardClick={handleRecoCardClick}
+                    onDislike={undefined}
+                    isLoading={false}
+                  />
+                )}
+                {/* CineMatch sections (personalized for auth, trending for guest) */}
+                {(recoLoading ? [
+                  { title: 'Recommended For You', items: [], source: 'personal' as const },
+                  { title: 'Because You Watched...', items: [], source: 'tmdb_similar' as const },
+                ] : recoSections).map((section) => (
+                  <RecommendationRow
+                    key={section.title}
+                    section={section}
+                    onCardClick={handleRecoCardClick}
+                    onDislike={isAuthenticated ? handleRecoDislike : undefined}
+                    isLoading={recoLoading}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Recently Added — lazy, only when provider selected */}
+          <div ref={recentlyRef}>
+            {!searchQuery && selectedProvider && recentlyVisible && (
+              <RecentlyAddedSection
+                mode={mode}
+                providerId={selectedProvider}
+                onMediaClick={handleMediaClick}
+              />
+            )}
+          </div>
+
+          <MediaGrid
+            media={media}
+            isLoading={isLoading}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            onMediaClick={handleMediaClick}
+            title={mode === 'anime' && !searchQuery ? 'All Anime' : undefined}
+          />
 
           {/* SEO Content & H1 Tag (Visually placed at the bottom to not disrupt the UI, but scannable by bots) */}
           {!searchQuery && mode === 'home' && !selectedProvider && (
@@ -342,7 +322,6 @@ const Index = () => {
 
         {/* After the disclaimer, never stacked on top of it or onboarding.
             Hidden while Premium isn't working — it would promise a server that can't start. */}
-        {!showDisclaimer && !shouldShowOnboarding && !PREMIUM_PAUSED && <FreePremiumAnnouncement />}
 
         <DisclaimerModal
           isOpen={showDisclaimer}

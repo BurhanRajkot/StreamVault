@@ -14,9 +14,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { getAdminToken, isAdminAuthenticated } from '@/lib/api'
+import { clearAdminToken, getAdminToken, isAdminAuthenticated } from '@/lib/api'
 import AdminLoginModal from '@/components/admin/AdminLoginModal'
 import { AdminModeBadge } from '@/components/admin/AdminModeBadge'
+import { PremiumStatusCard } from '@/components/admin/PremiumStatusCard'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -59,7 +60,7 @@ export default function AdminDashboard() {
           // Expired/invalid token — the login screen below explains this well
           // enough on its own; an error toast on top of it just reads as a bug.
           setIsAdmin(false)
-          localStorage.removeItem('adminToken')
+          clearAdminToken()
           return
         }
         throw new Error('Failed to fetch requests')
@@ -101,7 +102,7 @@ export default function AdminDashboard() {
         // An expired token has to drop us back to the login screen, otherwise
         // every subsequent click just fails with no way to re-authenticate.
         if (res.status === 401) {
-          localStorage.removeItem('adminToken')
+          clearAdminToken()
           setIsAdmin(false)
           toast.error('Your admin session expired — please log in again')
           return
@@ -178,7 +179,7 @@ export default function AdminDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  localStorage.removeItem('adminToken')
+                  clearAdminToken()
                   setIsAdmin(false)
                 }}
               >
@@ -193,6 +194,8 @@ export default function AdminDashboard() {
 
         <main className="flex-1 py-10 px-4">
           <div className="mx-auto max-w-7xl">
+            <PremiumStatusCard />
+
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-bold">Subscription Requests</h2>
               <Button onClick={fetchRequests} variant="outline" size="sm">

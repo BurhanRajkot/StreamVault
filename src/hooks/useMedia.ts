@@ -51,7 +51,6 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
     initialPageParam: 1,
     staleTime: 5 * 60 * 1000,   // 5 min
     gcTime: 10 * 60 * 1000,     // keep in cache 10 min after unmount
-    enabled: mode !== 'downloads',
   })
 
   // Flatten trending to a plain array. Memoised on the pages array so the
@@ -75,7 +74,7 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
     initialPageParam: 1,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    enabled: mode !== 'downloads' && !isSearchMode,
+    enabled: !isSearchMode,
   })
 
   // ─── Search query ───────────────────────────────────────────────────────
@@ -88,7 +87,7 @@ export function useMedia(mode: MediaMode, providerId: string | null = null): Use
     initialPageParam: 1,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
-    enabled: isSearchMode && debouncedQuery.length > 0 && mode !== 'downloads',
+    enabled: isSearchMode && debouncedQuery.length > 0,
     // Keep the last results up while the next query loads, instead of
     // blanking the grid on every keystroke.
     placeholderData: keepPreviousData,

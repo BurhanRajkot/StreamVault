@@ -1,4 +1,3 @@
-import { PREMIUM_PAUSED } from './premiumPause'
 
 /**
  * A single streaming provider, and everything the app needs to know about it.
@@ -332,7 +331,7 @@ export const CONFIG = {
 }
 
 /* ONLY REQUIRED MODES */
-export type MediaMode = 'home' | 'movie' | 'tv' | 'downloads' | 'documentary' | 'anime'
+export type MediaMode = 'home' | 'movie' | 'tv' | 'documentary' | 'anime'
 
 /** Each browse tab has its own URL, so a tab can be linked, reloaded and reached with Back. */
 export const MODE_PATHS: Record<MediaMode, string> = {
@@ -341,7 +340,6 @@ export const MODE_PATHS: Record<MediaMode, string> = {
   tv: '/tv',
   anime: '/anime',
   documentary: '/documentaries',
-  downloads: '/downloads',
 }
 
 export function modeFromPath(pathname: string): MediaMode {
@@ -349,6 +347,9 @@ export function modeFromPath(pathname: string): MediaMode {
   const match = (Object.keys(MODE_PATHS) as MediaMode[]).find((mode) => MODE_PATHS[mode] === path)
   return match ?? 'home'
 }
+
+/** The site is free and open source — a star is the only ask. */
+export const GITHUB_REPO_URL = 'https://github.com/dragon-manner/StreamVault'
 
 /**
  * Server id for Real-Debrid playback, handled entirely client-side (see
@@ -369,10 +370,8 @@ export interface ServerOption {
   label: string
   /** What it streams in — Premium's "4K/1080p", Sol's "4K". */
   detail?: string
-  /** Premium only: free for everyone right now. */
-  free?: boolean
-  /** Premium only: not working right now (PREMIUM_PAUSED). Still listed, last. */
-  unavailable?: boolean
+  /** Premium only: this viewer isn't signed in as an admin, so it won't play for them. */
+  locked?: boolean
 }
 
 /**
@@ -380,11 +379,14 @@ export interface ServerOption {
  * and TV — search is matched by IMDb id (+ season/episode for TV, via
  * Torrentio) rather than fuzzy title text, so season packs vs per-episode
  * releases aren't the reliability problem they'd be with title matching alone.
- * It comes last (2026-11-13): Sol (Vidy) first, then the stars, then Premium.
+ *
+ * It always comes last — Sol (Vidy) first, then the stars, then Premium —
+ * for admins too. Premium is admin-only (the backend enforces it); everyone
+ * else sees it listed with a lock.
  */
 export function serverOptions(
   mode: MediaMode,
-  { debridFree = false }: { debridFree?: boolean } = {}
+  { admin = false }: { admin?: boolean } = {}
 ): ServerOption[] {
   const providers: ServerOption[] = STREAM_PROVIDER_LIST.map(({ id, name, badge }) => ({
     id,
@@ -393,14 +395,12 @@ export function serverOptions(
     label: badge ? `${name} (${badge})` : name,
   }))
   if (mode !== 'movie' && mode !== 'tv') return providers
-  const free = debridFree && !PREMIUM_PAUSED
   const premium: ServerOption = {
     id: DEBRID_SERVER_ID,
     name: 'Premium',
     detail: '4K/1080p',
-    free,
-    unavailable: PREMIUM_PAUSED,
-    label: PREMIUM_PAUSED ? 'Premium (4K/1080p) · Paused' : free ? 'Premium (4K/1080p) · Free' : 'Premium (4K/1080p)',
+    locked: !admin,
+    label: admin ? 'Premium (4K/1080p)' : 'Premium (4K/1080p) · Admin only',
   }
   return [...providers, premium]
 }

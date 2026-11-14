@@ -3,8 +3,8 @@
  *
  *   - mockApi — its own MockApi (fresh state), the same fake backend the
  *     Playwright suite uses, served through `browser.route`
- *   - a hermetic network: TMDB images and embed pages are stand-ins, every
- *     other outside request is aborted
+ *   - a hermetic network: TMDB images, embed pages and ⚡ Premium's video
+ *     file are stand-ins, every other outside request is aborted
  *
  * and fails, on teardown, when the app called an endpoint the mock backend
  * doesn't know.
@@ -12,15 +12,16 @@
  * Every fixture in an e2e chain sets up for every test on it, so each setup
  * gets its own `test`:
  *
- *   test            a returning guest — disclaimer and promo card dismissed
- *   firstVisitTest  a brand-new visitor who still sees them
+ *   test            a returning guest — the disclaimer already accepted
+ *   firstVisitTest  a brand-new visitor who still sees it
  *   signedInTest    a returning visitor signed in as SIGNED_IN
+ *   adminTest       a returning visitor holding an admin session (⚡ Premium plays)
  */
 
 import { test as base } from '@e2e-dev/web'
 import { MOCK_API_ORIGIN, MockApi } from '../fixtures/mock-api'
 import { EMBED_STUB_TEXT } from '../fixtures/network'
-import { SIGNED_IN, type TestUser } from '../fixtures/users'
+import { ADMIN_TOKEN, SIGNED_IN, type TestUser } from '../fixtures/users'
 
 export { SIGNED_IN, type TestUser }
 
@@ -41,6 +42,10 @@ export const firstVisitTest = base.extend<{ mockApi: MockApi }>({
       if (url.hostname === 'image.tmdb.org') {
         return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: POSTER_SVG })
       }
+      // ⚡ Premium's file: the same 8 s clip the Playwright suite plays.
+      if (url.hostname === 'media.e2e.test' && url.pathname === '/sample.webm') {
+        return route.fulfill({ status: 200, contentType: 'video/webm', path: 'e2e/fixtures/media/sample.webm' })
+      }
       // A document request from another origin is a streaming embed's iframe.
       if ((route.request.headers['accept'] ?? '').startsWith('text/html')) {
         return route.fulfill({ status: 200, contentType: 'text/html', body: EMBED_STUB_HTML })
@@ -58,12 +63,11 @@ export const firstVisitTest = base.extend<{ mockApi: MockApi }>({
   },
 })
 
-/** A returning guest: the disclaimer and the promo announcement are already dismissed. */
+/** A returning guest: the disclaimer is already accepted. */
 export const test = firstVisitTest.extend<{ returning: true }>({
   returning: async ({ browser }, use) => {
     await browser.addInitScript(() => {
       sessionStorage.setItem('disclaimerAccepted', 'true')
-      localStorage.setItem('sv:announce:debrid-free-2026-10-everyone', 'true')
     })
     await use(true)
   },
@@ -80,5 +84,15 @@ export const signedInTest = test.extend<{ user: TestUser }>({
       localStorage.setItem(`cinematch_onboarded_${sub}`, 'true')
     }, JSON.stringify(SIGNED_IN))
     await use(SIGNED_IN)
+  },
+})
+
+/** A returning visitor already signed in as the site's admin. */
+export const adminTest = test.extend<{ admin: true }>({
+  admin: async ({ browser }, use) => {
+    await browser.addInitScript((token: string) => {
+      localStorage.setItem('adminToken', token)
+    }, ADMIN_TOKEN)
+    await use(true)
   },
 })

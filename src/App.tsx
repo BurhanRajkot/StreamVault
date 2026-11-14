@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { fetchRecommendations } from './lib/api'
 import { MODE_PATHS } from './lib/config'
 import { applyPendingUpdate } from './lib/swUpdate'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
 import ErrorBoundary from './components/layout/ErrorBoundary'
@@ -30,8 +30,6 @@ const lazyImport = (fn: () => Promise<LazyModule>) => lazy(() =>
 // Route-level code splitting — only load pages when navigated to
 const Favorites = lazyImport(() => import('./pages/Favorites'))
 const Watch = lazyImport(() => import('./pages/Watch'))
-const Pricing = lazyImport(() => import('./pages/Pricing'))
-const SubscriptionSuccess = lazyImport(() => import('./pages/SubscriptionSuccess'))
 const Login = lazyImport(() => import('./auth/Login'))
 const Signup = lazyImport(() => import('./auth/Signup'))
 const NotFound = lazyImport(() => import('./pages/NotFound'))
@@ -48,6 +46,8 @@ const PageFallback = () => (
 
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+
+const RETIRED_PATHS = ['/pricing', '/subscription/success', '/downloads']
 
 const AppContent = () => {
   const location = useLocation()
@@ -69,8 +69,10 @@ const AppContent = () => {
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+        {/* Pages that no longer exist (plans, downloads) — old links land on the home page */}
+        {RETIRED_PATHS.map((path) => (
+          <Route key={path} path={path} element={<Navigate to="/" replace />} />
+        ))}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
         {/* Fallback pattern for direct links to Watch page */}

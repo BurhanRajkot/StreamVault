@@ -1,11 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clapperboard, Crown, Github, Heart, Search, X } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Github, Heart, Search, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
-import { MediaMode, MODE_PATHS } from '@/lib/config'
+import { GITHUB_REPO_URL, MediaMode, MODE_PATHS } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { GITHUB_REPO_URL } from '@/lib/supportPrompt'
 import { ThemeToggle } from './ThemeToggle'
 import { AccountMenuPlaceholder } from './AccountMenuPlaceholder'
 
@@ -21,7 +20,7 @@ interface HeaderProps {
   onLogoClick?: () => void
   /**
    * Mobile search is owned by the page so the bottom tab bar can open it too.
-   * Left uncontrolled (Favorites, Downloads) the header keeps its own state.
+   * Left uncontrolled (Favorites) the header keeps its own state.
    */
   mobileSearchOpen?: boolean
   onMobileSearchOpenChange?: (open: boolean) => void
@@ -33,11 +32,9 @@ const NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
   { label: 'TV Shows', value: 'tv' },
   { label: 'Anime', value: 'anime' },
   { label: 'Docs', value: 'documentary' },
-  // Downloads stopped for now.
-  // { label: 'Downloads', value: 'downloads' },
 ]
 
-/** Category pills shown on mobile — Downloads lives in the bottom tab bar instead. */
+/** Category pills shown on mobile. */
 const MOBILE_NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
   { label: 'Home', value: 'home' },
   { label: 'Movies', value: 'movie' },
@@ -281,44 +278,42 @@ export function Header({
 
           {/* Right side: icons for the quiet things, one button for the one ask */}
           <div className="flex shrink-0 items-center gap-0.5 lg:gap-1">
-            {mode !== 'downloads' && (
-              <div ref={searchRef} className="relative flex items-center">
-                <div
-                  className={cn(
-                    'flex h-10 items-center overflow-hidden rounded-full transition-[width,background-color] duration-200',
-                    isSearchOpen ? 'w-[240px] bg-foreground/[0.07] ring-1 ring-inset ring-foreground/10' : 'w-10'
-                  )}
-                >
-                  {isSearchOpen && (
-                    <input
-                      type="text"
-                      placeholder="Search titles…"
-                      value={searchQuery}
-                      onChange={(e) => onSearch(e.target.value)}
-                      onPaste={(e) => {
-                        const pasted = e.clipboardData.getData('text')
-                        if (pasted.trim().length > 0) {
-                          // Let the default paste happen first, then sync
-                          setTimeout(() => onSearch((e.target as HTMLInputElement).value), 0)
-                        }
-                      }}
-                      aria-label="Search movies and TV shows"
-                      className="w-full min-w-0 bg-transparent py-2 pl-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                      autoFocus
-                    />
-                  )}
+            <div ref={searchRef} className="relative flex items-center">
+              <div
+                className={cn(
+                  'flex h-10 items-center overflow-hidden rounded-full transition-[width,background-color] duration-200',
+                  isSearchOpen ? 'w-[240px] bg-foreground/[0.07] ring-1 ring-inset ring-foreground/10' : 'w-10'
+                )}
+              >
+                {isSearchOpen && (
+                  <input
+                    type="text"
+                    placeholder="Search titles…"
+                    value={searchQuery}
+                    onChange={(e) => onSearch(e.target.value)}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text')
+                      if (pasted.trim().length > 0) {
+                        // Let the default paste happen first, then sync
+                        setTimeout(() => onSearch((e.target as HTMLInputElement).value), 0)
+                      }
+                    }}
+                    aria-label="Search movies and TV shows"
+                    className="w-full min-w-0 bg-transparent py-2 pl-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                    autoFocus
+                  />
+                )}
 
-                  <button
-                    type="button"
-                    onClick={handleSearchToggle}
-                    className={cn(iconButtonClass, 'shrink-0', isSearchOpen && 'text-foreground hover:bg-transparent')}
-                    aria-label={isSearchOpen ? 'Close search' : 'Open search'}
-                  >
-                    {isSearchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleSearchToggle}
+                  className={cn(iconButtonClass, 'shrink-0', isSearchOpen && 'text-foreground hover:bg-transparent')}
+                  aria-label={isSearchOpen ? 'Close search' : 'Open search'}
+                >
+                  {isSearchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
+                </button>
               </div>
-            )}
+            </div>
 
             <Link to="/favorites" className={iconButtonClass} aria-label="Favorites" title="My List">
               <Heart className="h-[18px] w-[18px]" />
@@ -337,14 +332,6 @@ export function Header({
             </a>
 
             <ThemeToggle compact />
-
-            <Link
-              to="/pricing"
-              className="ml-1 hidden h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-amber-400/90 transition-colors hover:bg-amber-400/10 hover:text-amber-300 lg:inline-flex"
-            >
-              <Crown className="h-4 w-4" aria-hidden="true" />
-              Upgrade
-            </Link>
 
             {isAuthenticated ? (
               <div className="ml-1">{accountMenu}</div>
@@ -419,16 +406,14 @@ export function Header({
                 </a>
 
                 <div className="flex items-center gap-0.5">
-                  {mode !== 'downloads' && (
-                    <button
-                      type="button"
-                      onClick={() => setMobileSearchOpen(true)}
-                      aria-label="Open search"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground tap-scale"
-                    >
-                      <Search className="h-[22px] w-[22px]" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setMobileSearchOpen(true)}
+                    aria-label="Open search"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground tap-scale"
+                  >
+                    <Search className="h-[22px] w-[22px]" />
+                  </button>
 
                   {/* No admin link here: on a 390px bar it pushed "Sign in"
                       onto two lines and cut the logo to "StreamVa…". The

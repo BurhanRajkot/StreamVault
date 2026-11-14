@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Github, Heart, Shield } from 'lucide-react';
-import { GITHUB_REPO_URL } from '@/lib/supportPrompt';
+import { GITHUB_REPO_URL } from '@/lib/config';
 
 export function Footer() {
   return (
@@ -22,7 +22,7 @@ export function Footer() {
             <Link to="/tv" className="transition-colors hover:text-foreground">TV Shows</Link>
             <Link to="/anime" className="transition-colors hover:text-foreground">Anime</Link>
             <Link to="/documentaries" className="transition-colors hover:text-foreground">Documentaries</Link>
-            <Link to="/pricing" className="transition-colors hover:text-foreground">Premium</Link>
+            <Link to="/favorites" className="transition-colors hover:text-foreground">My List</Link>
             <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground">
               <Github className="h-3.5 w-3.5" aria-hidden="true" />
               Star on GitHub
