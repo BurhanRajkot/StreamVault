@@ -43,7 +43,7 @@ permissions:
 
 env:
   NODE_VERSION: "24"
-  BUN_VERSION: "1.3.14" # Match the pin used across the other workflows.
+  BUN_VERSION: "1.4.4" # Match the pin used across the other workflows.
   # Deployed backend health endpoint (Render). Override via repo variable
   # BACKEND_HEALTH_URL if the deployment moves.
   DEFAULT_BACKEND_HEALTH_URL: "https://streamvault-backend-bq9p.onrender.com/health"
