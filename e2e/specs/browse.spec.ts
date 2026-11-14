@@ -19,7 +19,13 @@ test.describe('Home', () => {
 
   test('opens a title from its poster', async ({ page, home, watch }) => {
     await home.goto()
-    await home.card(titleOf(MOVIE)).click()
+    // Rows below the fold load as they come into view, which shifts the page
+    // while it scrolls; on WebKit the click landed beside the card. Let the
+    // card settle in the viewport first.
+    const card = home.card(titleOf(MOVIE))
+    await card.scrollIntoViewIfNeeded()
+    await expect(card).toBeInViewport({ ratio: 0.9 })
+    await card.click()
 
     await expect(page).toHaveURL(watchPath(MOVIE))
     await expect(watch.heading(MOVIE)).toBeVisible()

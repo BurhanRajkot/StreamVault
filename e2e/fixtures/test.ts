@@ -83,7 +83,12 @@ export const test = base.extend<Options & Fixtures>({
     // Depending on mockApi guarantees it is attached before the first navigation.
     const pageErrors: string[] = []
     // WebKit reports some errors with an empty stack — always say what it was.
-    page.on('pageerror', (err) => pageErrors.push([`${err.name}: ${err.message}`, err.stack].filter(Boolean).join('\n')))
+    page.on('pageerror', (err) => {
+      // A browser notice, not an app error: WebKit raises it when a layout
+      // change lands during a ResizeObserver callback, and nothing is lost.
+      if (/^ResizeObserver loop/.test(err.message)) return
+      pageErrors.push([`${err.name}: ${err.message}`, err.stack].filter(Boolean).join('\n'))
+    })
     await use(page)
     if (pageErrors.length > 0 && testInfo.status === testInfo.expectedStatus) {
       throw new Error(`Uncaught exception(s) in the page:\n${pageErrors.join('\n\n')}`)
