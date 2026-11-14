@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '../fixtures/test'
-import { CATALOGUE, MOVIE, SECOND_MOVIE, SHOW, page as listPage, titleOf, watchPath } from '../fixtures/data'
+import { CATALOGUE, MOVIE, SECOND_MOVIE, SHOW, mediaById, page as listPage, titleOf, watchPath } from '../fixtures/data'
 import { cardName } from '../pages/HomePage'
 
 test.describe('Home', () => {
@@ -133,5 +133,21 @@ test.describe('Title page', () => {
       await page.getByRole('combobox', { name: 'Episode' }).click()
       await expect(page.getByRole('option', { name: 'Episode 13', exact: true })).toBeVisible()
     }
+  })
+})
+
+test.describe('Title page when the backend fails', () => {
+  test('offers a retry instead of a 404, and the retry opens the title', async ({ page, watch, mockApi }) => {
+    let backendDown = true
+    mockApi.on('GET', '/tmdb/:type(movie|tv)/:id(\\d+)', ({ params }) =>
+      backendDown ? { status: 503, json: { error: 'Service unavailable' } } : { json: mediaById(params.type as 'movie' | 'tv', Number(params.id)) }
+    )
+
+    await page.goto(watchPath(MOVIE))
+    await expect(page.getByRole('heading', { name: /^Couldn.t load this title$/ })).toBeVisible({ timeout: 15_000 })
+    backendDown = false
+    await page.getByRole('button', { name: 'Try again' }).click()
+
+    await expect(watch.heading(MOVIE)).toBeVisible()
   })
 })
