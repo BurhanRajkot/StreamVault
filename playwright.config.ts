@@ -17,6 +17,9 @@ const BASE_URL = `http://localhost:${PORT}`
 const CI = !!process.env.CI
 const ALL_BROWSERS = !!process.env.E2E_ALL_BROWSERS
 
+/** Skip the Premium player's specs, and tests tagged @premium in the others. */
+const WITHOUT_PREMIUM = { testIgnore: /premium-.*\.spec\.ts$/, grepInvert: /@premium/ }
+
 export default defineConfig({
   testDir: './e2e/specs',
   outputDir: './e2e/test-results',
@@ -53,11 +56,16 @@ export default defineConfig({
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    // The weekly sweep covers what visitors use in other engines. ⚡ Premium
+    // is left to Chromium (every push, above): it only plays for the admin,
+    // and its tests decode real video — a VP9/Opus clip and an fMP4 stream
+    // that Playwright's Linux WebKit and Firefox builds don't play the way
+    // Safari and Firefox proper do, so they failed here every Monday.
     ...(ALL_BROWSERS
       ? [
-          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-          { name: 'mobile-safari', use: { ...devices['iPhone 15'] } },
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] }, ...WITHOUT_PREMIUM },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] }, ...WITHOUT_PREMIUM },
+          { name: 'mobile-safari', use: { ...devices['iPhone 15'] }, ...WITHOUT_PREMIUM },
         ]
       : []),
   ],

@@ -23,6 +23,16 @@ import { ADMIN_TOKEN, SIGNED_IN, type TestUser } from './users'
 
 export { SIGNED_IN, type TestUser }
 
+/**
+ * True on the phone projects — `mobile` (Pixel, every push) and
+ * `mobile-safari` (iPhone, the weekly all-browser sweep). Specs branch on
+ * this where the phone has its own layout; comparing the project name to
+ * 'mobile' sent the iPhone down the desktop path.
+ */
+export function isPhone(): boolean {
+  return base.info().project.name.startsWith('mobile')
+}
+
 interface Options {
   /** Signed-in user, or null for a guest. */
   user: TestUser | null
@@ -72,7 +82,8 @@ export const test = base.extend<Options & Fixtures>({
   page: async ({ page, mockApi: _mockApi }, use, testInfo) => {
     // Depending on mockApi guarantees it is attached before the first navigation.
     const pageErrors: string[] = []
-    page.on('pageerror', (err) => pageErrors.push(err.stack ?? err.message))
+    // WebKit reports some errors with an empty stack — always say what it was.
+    page.on('pageerror', (err) => pageErrors.push([`${err.name}: ${err.message}`, err.stack].filter(Boolean).join('\n')))
     await use(page)
     if (pageErrors.length > 0 && testInfo.status === testInfo.expectedStatus) {
       throw new Error(`Uncaught exception(s) in the page:\n${pageErrors.join('\n\n')}`)
