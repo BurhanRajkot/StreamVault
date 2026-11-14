@@ -20,12 +20,12 @@ First time: `npx e2e-web install chromium`.
 ```ts
 import { expect } from 'e2e'
 import { test } from './fixtures'          // returning guest
-// also: firstVisitTest, signedInTest
+// also: firstVisitTest, signedInTest, adminTest
 
-test('pricing renders', { tags: ['smoke'] }, async ({ app, screen, mockApi }) => {
+test('login renders', { tags: ['smoke'] }, async ({ app, screen, mockApi }) => {
   mockApi.on('GET', '/ping', { json: { ok: true } })   // same MockApi as Playwright
-  await app.open('/pricing')
-  await expect(screen.getByRole('heading', 'Unlock Premium Streaming', { level: 1 })).toBeVisible()
+  await app.open('/login')
+  await expect(screen.getByRole('heading', 'Welcome back', { level: 1 })).toBeVisible()
 })
 ```
 
@@ -39,7 +39,7 @@ test('pricing renders', { tags: ['smoke'] }, async ({ app, screen, mockApi }) =>
   **exact**, so pass a RegExp or `{ exact: false }` for a fragment. Locators
   are strict, so use `.first()` when several elements match. There is no
   `page` (use `screen`, `app` and `browser`), no `test.use` (pick the
-  `test`/`firstVisitTest`/`signedInTest` export instead), and tags are
+  `test`/`firstVisitTest`/`signedInTest`/`adminTest` export instead), and tags are
   `{ tags: ['smoke'] }`.
 - **Failures:** the `e2e-results` CI artifact has a `trace.md` page per
   failed test, and `.e2e/logs/app.log` has the build and server output.
@@ -70,11 +70,10 @@ on :4173 itself; an already-running server there is reused locally.
 ```
 e2e/
   specs/              one file per user journey
-    premium-player    ⚡ Premium: default server, guest playback, fallbacks, promo end
+    premium-player    ⚡ Premium as the admin: playback, fallbacks, releases, downloads
     browse            home, search, title pages
     anime             the Anime tab: anime-only rows, grid and search; plays on Premium
     account           guest vs signed-in, favorites
-    promo             the "Premium is free" announcement
     smoke             every route renders (@smoke, runs first in CI)
     accessibility     axe-core WCAG 2.1 AA audit (fails on critical)
   pages/              page objects — locators and multi-step actions
@@ -109,8 +108,9 @@ test.describe('signed in', () => {
 ```
 
 - **Fixtures.** `page`, `home`, `watch`, `mockApi`. Options: `user`
-  (default guest) and `firstVisit` (keep the disclaimer and promo card,
-  which are otherwise pre-dismissed).
+  (default guest), `admin` (hold an admin session — ⚡ Premium only plays
+  for one) and `firstVisit` (keep the disclaimer, which is otherwise
+  pre-dismissed).
 - **Backend.** Every test gets a fresh `MockApi` with a healthy default
   backend. Override an endpoint with `mockApi.on(method, path, response |
   handler)`. Paths take params (`/tmdb/:type(movie|tv)/:id(\d+)`), and

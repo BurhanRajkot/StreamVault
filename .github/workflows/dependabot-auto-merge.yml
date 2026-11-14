@@ -1,32 +1,51 @@
 # StreamVault — Dependabot Auto-Merge
-# Dependabot opens weekly PRs (npm, docker, github-actions — see dependabot.yml)
-# that otherwise sit until someone clicks merge. This enables GitHub's native
-# auto-merge for minor/patch bumps, so they merge on their own once the
-# existing required CI checks pass — no manual step. Major version bumps are
-# deliberately left for manual review: a per-PR Dependabot major is less
-# predictable than the validated, majors-included sweep in dependency-update.yml.
+# Dependabot opens weekly PRs (npm, bun, docker, github-actions — see
+# dependabot.yml). This merges the minor/patch ones on its own, but only
+# AFTER the full CI run on the PR has passed, and only the exact commit CI
+# tested. Major bumps, and anything Dependabot doesn't label with an update
+# type, are left for a person.
 #
-# Uses `pull_request` (not `pull_request_target`): Dependabot pushes its
-# branches to this repo directly, never from a fork, so the plain event
-# already carries the permissions/secrets this job needs — no reason to reach
-# for the fork-oriented trigger. This workflow never checks out PR code.
+# Why it runs on `workflow_run` and merges directly, instead of asking GitHub
+# for native auto-merge on `pull_request` (what it did until 2026-11-15):
+# `main` has no required status checks, so `gh pr merge --auto` had nothing
+# to wait for. It either merged the PR ~20 seconds after it was opened —
+# minutes before CI finished, so #308 landed on main with a red E2E run — or
+# failed outright with "Protected branch rules not configured", which is the
+# failure email this workflow used to send. Waiting for CI here needs no repo
+# setting.
+#
+# Safe on `workflow_run` (which runs with a write token): it never checks out
+# or runs PR code, and everything read from the event is passed through
+# environment variables rather than interpolated into the script.
 
 name: "Dependabot Auto-Merge"
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["StreamVault CI/CD"]
+    types: [completed]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
 
 jobs:
   auto-merge:
-    name: "Enable Auto-Merge (minor/patch)"
-    if: github.actor == 'dependabot[bot]'
+    name: "Merge after CI (minor/patch)"
+    # Only a green CI run on a pull request that Dependabot itself triggered.
+    # If a person pushes to the branch, the next run's actor is that person
+    # and this job doesn't touch the PR.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2
@@ -34,26 +53,50 @@ jobs:
           egress-policy: audit
           disable-sudo: true
 
-      - name: Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Enable auto-merge for minor/patch updates
-        if: >-
-          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+      - name: Merge the pull request this CI run validated
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR_URL"
-
-      - name: Leave major updates for manual review
-        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          echo "::notice title=Dependabot::Major version bump — left for manual review, not auto-merged."
-          gh pr comment "$PR_URL" --body "This is a **major** version bump — auto-merge is intentionally skipped. Please review before merging." || true
+          set -euo pipefail
+          note() { echo "::notice title=Dependabot auto-merge::$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+
+          pr=$(gh pr list --head "$HEAD_BRANCH" --state open --limit 1 \
+            --json number,author,headRefOid,isDraft --jq '.[0] // empty')
+          if [ -z "$pr" ]; then
+            note "No open pull request for $HEAD_BRANCH — nothing to merge."
+            exit 0
+          fi
+
+          number=$(jq -r '.number' <<<"$pr")
+          author=$(jq -r '.author.login' <<<"$pr")
+          head=$(jq -r '.headRefOid' <<<"$pr")
+          draft=$(jq -r '.isDraft' <<<"$pr")
+
+          if [ "$author" != "app/dependabot" ] || [ "$draft" = "true" ]; then
+            note "#$number is not an open, ready Dependabot pull request — left alone."
+            exit 0
+          fi
+          if [ "$head" != "$HEAD_SHA" ]; then
+            note "#$number has moved on since this CI run (now $head) — its own run will decide."
+            exit 0
+          fi
+
+          # Dependabot records each bump's size in its commit message
+          # (`update-type: version-update:semver-minor`), one line per package.
+          types=$(gh pr view "$number" --json commits --jq '.commits[].messageBody' \
+            | grep -oE 'update-type: version-update:semver-(major|minor|patch)' | sort -u || true)
+
+          if [ -z "$types" ]; then
+            note "#$number doesn't say how big its update is — left for manual review."
+            exit 0
+          fi
+          if grep -q 'semver-major' <<<"$types"; then
+            note "#$number includes a major version bump — left for manual review."
+            exit 0
+          fi
+
+          gh pr merge "$number" --squash --match-head-commit "$HEAD_SHA"
+          note "Merged #$number: minor/patch update, CI green on $HEAD_SHA."

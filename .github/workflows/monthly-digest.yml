@@ -67,7 +67,6 @@ jobs:
           row "OpenSSF Scorecard"        "scorecard.yml"
           row "Scheduled Image Rescan"   "image-rescan.yml"
           row "Malware Scan"             "malware-scan.yml"
-          row "Dependency Update"        "dependency-update.yml"
 
           echo "Rows:"
           cat digest_rows.md
