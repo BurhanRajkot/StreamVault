@@ -4,12 +4,12 @@
  * film or for the episode on screen.
  */
 
-import { test, expect } from '../fixtures/test'
+import { test, expect, isPhone } from '../fixtures/test'
 import { MOVIE, SHOW } from '../fixtures/data'
 
 test.describe('Download while watching', () => {
   test('a show offers the playing episode, and only that', async ({ page, watch }) => {
-    test.skip(test.info().project.name === 'mobile', 'The desktop theater; the phone has its own test below')
+    test.skip(isPhone(), 'The desktop theater; the phone has its own test below')
     await watch.goto(SHOW)
     await watch.play()
     await expect(watch.embed).toBeVisible()
@@ -27,7 +27,7 @@ test.describe('Download while watching', () => {
   })
 
   test('a film offers itself', async ({ page, watch }) => {
-    test.skip(test.info().project.name === 'mobile', 'The desktop theater; the phone has its own test below')
+    test.skip(isPhone(), 'The desktop theater; the phone has its own test below')
     await watch.goto(MOVIE)
     await watch.play()
     await expect(watch.embed).toBeVisible()
@@ -37,7 +37,7 @@ test.describe('Download while watching', () => {
   })
 
   test('on a phone, the full-screen player keeps a download button beside Back', async ({ page, watch }) => {
-    test.skip(test.info().project.name !== 'mobile', 'The phone’s full-screen player')
+    test.skip(!isPhone(), 'The phone’s full-screen player')
     await watch.goto(SHOW)
     await watch.play()
     await expect(watch.embed).toBeVisible()

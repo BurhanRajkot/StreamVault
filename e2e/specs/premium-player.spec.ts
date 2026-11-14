@@ -6,7 +6,7 @@
  */
 
 import type { Page } from '@playwright/test'
-import { test, expect } from '../fixtures/test'
+import { test, expect, isPhone } from '../fixtures/test'
 import { EMBED_STUB_TEXT } from '../fixtures/network'
 import { CONVERTED_STREAM_URL, MOVIE, SAMPLE_VIDEO_URL, SHOW, convertedPlayback, readyPlayback, release } from '../fixtures/data'
 
@@ -58,7 +58,7 @@ test.describe('Premium server', () => {
 
   test('plays a TV episode, and the episode picked is the one requested', async ({ page, watch, mockApi }) => {
     await watch.gotoOnPremium(SHOW)
-    if (test.info().project.name === 'mobile') {
+    if (isPhone()) {
       // A phone's title page lists the episodes; tapping one plays it
       await page.getByRole('region', { name: 'Episodes' }).getByRole('button', { name: /^Episode 3: / }).click()
     } else {
@@ -203,7 +203,7 @@ test.describe('Premium server', () => {
   // Downloads are stopped for now (34dbfc9): the Download link that sat beside
   // this picker is hidden. When it's back, assert its href follows the release.
   test('under the player, the release can be switched', async ({ page, watch, mockApi }) => {
-    test.skip(test.info().project.name === 'mobile', 'A phone plays full screen — the same choices are in the player’s menus')
+    test.skip(isPhone(), 'A phone plays full screen — the same choices are in the player’s menus')
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
     const uhd = release({ name: 'Inception.2010.2160p.UHD.BluRay.x265.HDR.AAC-UHD' })
     mockApi.on('GET', '/debrid/media-search', { json: { data: [uhd, hd] } })
@@ -305,7 +305,7 @@ test.describe('Premium server', () => {
 
 test.describe('Seek bar', () => {
   test.beforeEach(() => {
-    test.skip(test.info().project.name === 'mobile', 'Pointing at the bar needs a mouse')
+    test.skip(isPhone(), 'Pointing at the bar needs a mouse')
   })
 
   test('pointing at it shows the frame and the time there', async ({ page, watch }) => {
@@ -328,7 +328,7 @@ test.describe('fits the screen', () => {
   test.describe('a laptop', () => {
     test.use({ viewport: { width: 1366, height: 768 } })
     test.beforeEach(() => {
-      test.skip(test.info().project.name === 'mobile', 'A desktop window')
+      test.skip(isPhone(), 'A desktop window')
     })
 
     test('the whole 16:9 player, controls included, is on screen without scrolling', async ({ watch }) => {
@@ -347,7 +347,7 @@ test.describe('fits the screen', () => {
   test.describe('a phone turned sideways', () => {
     test.use({ viewport: { width: 915, height: 412 } })
     test.beforeEach(() => {
-      test.skip(test.info().project.name !== 'mobile', 'A touch screen')
+      test.skip(!isPhone(), 'A touch screen')
     })
 
     test('fills the screen exactly, and the picture can be zoomed to fill it', async ({ page, watch }) => {
@@ -410,7 +410,7 @@ test.describe('Downloads', () => {
 
 test.describe('on a phone', () => {
   test.beforeEach(() => {
-    test.skip(test.info().project.name !== 'mobile', 'The phone title page and full-screen player')
+    test.skip(!isPhone(), 'The phone title page and full-screen player')
   })
 
   test('the title page offers Play and Download, and a show’s episodes', async ({ page, watch }) => {
