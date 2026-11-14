@@ -21,8 +21,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
-import { Link } from 'react-router-dom'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import {
   playDebridRelease,
@@ -47,14 +45,12 @@ import { findPremiumReleases } from '@/lib/premiumSearch'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
-import { formatPromoDate, useDebridFreeUntil } from '@/hooks/useDebridPromo'
-import { recordPremiumPlay } from '@/lib/supportPrompt'
+import { clearAdminToken } from '@/lib/api'
 import { DebridVideo } from './DebridVideo'
-import { PaneBackdrop, PremiumLoading } from './PremiumLoading'
-import { SupportPrompt } from './SupportPrompt'
+import { ActionRow, PaneBackdrop, PremiumLoading, StatusMessage, primaryAction, secondaryAction } from './PremiumLoading'
 import type { PlayerSource } from './PlayerControls'
 
-interface DebridPlayerPaneProps {
+export interface DebridPlayerPaneProps {
   title: string
   year?: string | number
   /** IMDb id, e.g. "tt1375666" — drives the Torrentio lookup. Omit to fall back to title-only apibay search (movies only). */
@@ -105,10 +101,13 @@ function toPlayerSource(rel: DebridRelease): PlayerSource {
   }
 }
 
-type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'upgrade-required'
+type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'admin-required'
 
-/** 401 (no account) or 403 (no subscription) — both mean "this needs premium access". */
-function isUpgradeError(err: unknown): boolean {
+/**
+ * 401/403: the backend didn't accept the admin token (expired, or the secret
+ * was rotated). Premium is admin-only, so the session is over.
+ */
+function isAdminRejected(err: unknown): boolean {
   return err instanceof DebridRequestError && (err.status === 401 || err.status === 403)
 }
 
@@ -191,10 +190,12 @@ export function DebridPlayerPane({
   onReleaseControls,
   episodes,
 }: DebridPlayerPaneProps) {
-  const { isAuthenticated } = useAuth0()
   const getToken = useDebridToken()
-  const freeUntil = useDebridFreeUntil()
   const [status, setStatus] = useState<Status>('searching')
+  // The backend refused the admin token — drop it, so the whole app stops treating this browser as an admin.
+  useEffect(() => {
+    if (status === 'admin-required') clearAdminToken()
+  }, [status])
   const [statusMessage, setStatusMessage] = useState('Finding the best stream…')
   const [playback, setPlayback] = useState<DebridReadyPlayback | null>(null)
   const [instantReleases, setInstantReleases] = useState<DebridRelease[]>([])
@@ -210,10 +211,6 @@ export function DebridPlayerPane({
   const [videoStarted, setVideoStarted] = useState(false)
   /** Real-Debrid's download server nearest this viewer — measured while the release is found (lib/debridHost). */
   const [edge, setEdge] = useState<EdgeChoice | undefined>(() => knownEdge())
-  /** The star/coffee prompt, shown in place of the video until dismissed (see lib/supportPrompt). */
-  const [supportPrompt, setSupportPrompt] = useState(false)
-  /** The title/episode last counted as a Premium play — switching release or retrying doesn't count again. */
-  const countedPlayKeyRef = useRef<string | null>(null)
   /** Latest position reported by the video, in seconds. */
   const positionRef = useRef(0)
   /** Bumped on every new search/poll/release attempt so stale loops know to stop. */
@@ -283,10 +280,6 @@ export function DebridPlayerPane({
   const showPlayback = useCallback((release: DebridRelease, ready: DebridReadyPlayback) => {
     const start = startPositionRef.current
     playingKeyRef.current = storageKeyRef.current
-    if (countedPlayKeyRef.current !== storageKeyRef.current) {
-      countedPlayKeyRef.current = storageKeyRef.current
-      if (recordPremiumPlay()) setSupportPrompt(true)
-    }
     setActiveRelease(release)
     setPlayback(ready)
     setStartAt(start)
@@ -388,7 +381,7 @@ export function DebridPlayerPane({
       } catch (err: unknown) {
         if (generationRef.current !== generation) return
         console.error('Real-Debrid download error:', err)
-        setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
+        setStatus(isAdminRejected(err) ? 'admin-required' : 'error')
         setStatusMessage(err instanceof Error ? err.message : 'Failed to download release')
       }
     },
@@ -440,8 +433,8 @@ export function DebridPlayerPane({
           }
           console.warn(`Real-Debrid release not playable (${res.status}), trying another:`, rel.name)
         } catch (err: unknown) {
-          if (isUpgradeError(err)) {
-            return { kind: 'stop', status: 'upgrade-required', message: err instanceof Error ? err.message : 'Premium required' }
+          if (isAdminRejected(err)) {
+            return { kind: 'stop', status: 'admin-required', message: 'Admin sign-in required' }
           }
           if (isDebridUnavailable(err)) return { kind: 'stop', status: 'error', message: err.message }
           console.warn('Real-Debrid release could not start, trying another:', rel.name, err)
@@ -641,7 +634,7 @@ export function DebridPlayerPane({
     } catch (err: unknown) {
       if (generationRef.current !== generation) return
       console.error('Real-Debrid search failed:', err)
-      setStatus(isUpgradeError(err) ? 'upgrade-required' : 'error')
+      setStatus(isAdminRejected(err) ? 'admin-required' : 'error')
       setStatusMessage(err instanceof Error ? err.message : 'Search failed')
     }
   }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease])
@@ -733,32 +726,8 @@ export function DebridPlayerPane({
     )
   }
 
-  // --- Sign in (or, outside the free period, subscribe) ---
-  if (status === 'upgrade-required') {
-    const free = freeUntil !== null
-    return (
-      <PaneBackdrop backdropUrl={backdropUrl}>
-        <StatusMessage
-          heading={free ? 'Sign in to watch on Premium' : 'Premium is for subscribers'}
-          body={
-            free
-              ? `Premium is free until ${formatPromoDate(freeUntil)} — sign in with a free account to stream in 4K and 1080p.`
-              : isAuthenticated
-                ? 'Upgrade your account to stream in 4K and 1080p.'
-                : 'Sign in and upgrade to stream in 4K and 1080p.'
-          }
-        />
-        <ActionRow>
-          <Link to={free || !isAuthenticated ? '/login' : '/pricing'} className={primaryAction}>
-            {free || !isAuthenticated ? 'Sign in' : 'See plans'}
-          </Link>
-          <button onClick={onSwitchServer} className={secondaryAction}>
-            Switch server
-          </button>
-        </ActionRow>
-      </PaneBackdrop>
-    )
-  }
+  // --- The backend refused the admin token: sign out, and PremiumPane shows the admin-only notice ---
+  if (status === 'admin-required') return null
 
   // --- Not found / error ---
   if (status === 'not-found' || status === 'error') {
@@ -806,15 +775,6 @@ export function DebridPlayerPane({
             Switch server
           </button>
         </ActionRow>
-      </PaneBackdrop>
-    )
-  }
-
-  // --- Ready, but asking for a star or a coffee first ---
-  if (supportPrompt) {
-    return (
-      <PaneBackdrop backdropUrl={backdropUrl}>
-        <SupportPrompt onDismiss={() => setSupportPrompt(false)} />
       </PaneBackdrop>
     )
   }
@@ -868,22 +828,4 @@ export function DebridPlayerPane({
       />
     </div>
   )
-}
-
-const primaryAction =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-black transition-colors hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
-const secondaryAction =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
-
-function StatusMessage({ heading, body }: { heading: string; body: string }) {
-  return (
-    <>
-      <p className="text-lg font-semibold leading-snug sm:text-xl">{heading}</p>
-      <p className="mt-2 text-sm leading-relaxed text-white/65">{body}</p>
-    </>
-  )
-}
-
-function ActionRow({ children }: { children: ReactNode }) {
-  return <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">{children}</div>
 }

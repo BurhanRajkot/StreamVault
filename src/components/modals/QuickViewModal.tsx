@@ -7,7 +7,7 @@ import { cn, genreIdsOf } from '@/lib/utils'
 import { HoverVideoPlayer } from '@/components/media/HoverVideoPlayer'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useDislikes } from '@/context/DislikesContext'
-import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
+import { useIsAdmin } from '@/hooks/useIsAdmin'
 
 interface QuickViewModalProps {
   media: Media
@@ -27,7 +27,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
 
   const mode = (media.media_type === 'tv' || media.first_air_date ? 'tv' : 'movie') as 'movie' | 'tv'
   const [provider, setProvider] = useState(() => defaultServer(mode))
-  const debridFree = useDebridFreeUntil() !== null
+  const admin = useIsAdmin()
   const disliked = isDisliked(media.id, mode)
 
   useEffect(() => {
@@ -169,7 +169,7 @@ export function QuickViewModal({ media, onClose, onPlay, triggerRef }: QuickView
               aria-label="Server"
               className="px-3 py-2.5 min-h-11 flex-1 bg-secondary/80 border border-border hover:border-ring text-foreground text-sm rounded-md transition-colors cursor-pointer"
             >
-              {serverOptions(mode, { debridFree }).map(({ id, label }) => (
+              {serverOptions(mode, { admin }).map(({ id, label }) => (
                 <option key={id} value={id}>{label}</option>
               ))}
             </select>

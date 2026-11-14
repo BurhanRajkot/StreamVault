@@ -15,21 +15,17 @@
  * A bottom sheet on a phone, a dialog on a wider screen.
  */
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Captions, Check, Copy, Download, Film, Loader2, Users, X } from 'lucide-react'
 import {
-  DebridRequestError,
   formatBytes,
   isImaxRelease,
   parseTorrentHDR,
   parseTorrentQuality,
-  searchDebridMedia,
+  searchReleases,
   type DebridRelease,
 } from '@/lib/debridApi'
-import { getAdminToken } from '@/lib/api'
 import { magnetLink } from '@/lib/magnet'
 import { cn } from '@/lib/utils'
 import { bestPerLanguage, saveSubtitleFile, searchSubtitleFiles, type SubtitleLanguage } from '@/lib/subtitleDownloads'
@@ -128,7 +124,6 @@ type Listing =
   | { state: 'searching' }
   | { state: 'ready'; offers: Offer[] }
   | { state: 'empty' }
-  | { state: 'sign-in' }
   | { state: 'error'; message: string }
 
 export function DownloadSheet({ target, onOpenChange }: DownloadSheetProps) {
@@ -157,20 +152,8 @@ export function DownloadSheet({ target, onOpenChange }: DownloadSheetProps) {
 type Tab = 'video' | 'subtitles'
 
 function SheetBody({ target }: { target: DownloadTarget }) {
-  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const [listing, setListing] = useState<Listing>({ state: 'searching' })
   const [tab, setTab] = useState<Tab>('video')
-
-  const getToken = useCallback(async () => {
-    try {
-      const admin = getAdminToken()
-      if (admin) return admin
-      if (isAuthenticated) return await getAccessTokenSilently()
-    } catch {
-      // Guest, or a silent-token hiccup — the free period needs no token
-    }
-    return undefined
-  }, [isAuthenticated, getAccessTokenSilently])
 
   const { title, year, imdbId, mediaType, season, episode } = target
 
@@ -178,9 +161,8 @@ function SheetBody({ target }: { target: DownloadTarget }) {
     let cancelled = false
     void (async () => {
       try {
-        const token = await getToken()
         const cleanTitle = title.replace(/[^a-zA-Z0-9\s]/g, ' ').trim()
-        const releases = await searchDebridMedia(year ? `${cleanTitle} ${year}` : cleanTitle, imdbId ?? undefined, mediaType, token, {
+        const releases = await searchReleases(year ? `${cleanTitle} ${year}` : cleanTitle, imdbId ?? undefined, mediaType, {
           season,
           episode,
           limit: 25,
@@ -190,14 +172,13 @@ function SheetBody({ target }: { target: DownloadTarget }) {
         setListing(offers.length > 0 ? { state: 'ready', offers } : { state: 'empty' })
       } catch (err: unknown) {
         if (cancelled) return
-        if (err instanceof DebridRequestError && (err.status === 401 || err.status === 403)) setListing({ state: 'sign-in' })
-        else setListing({ state: 'error', message: err instanceof Error ? err.message : 'Search failed' })
+        setListing({ state: 'error', message: err instanceof Error ? err.message : 'Search failed' })
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [title, year, imdbId, mediaType, season, episode, getToken])
+  }, [title, year, imdbId, mediaType, season, episode])
 
   return (
     <>
@@ -236,14 +217,6 @@ function SheetBody({ target }: { target: DownloadTarget }) {
             {listing.state === 'searching' && <Searching>Finding downloads…</Searching>}
             {listing.state === 'empty' && <Notice>No one is sharing this right now. Try again later.</Notice>}
             {listing.state === 'error' && <Notice>{listing.message}</Notice>}
-            {listing.state === 'sign-in' && (
-              <Notice>
-                <Link to="/login" className="font-semibold text-white underline underline-offset-4">
-                  Sign in
-                </Link>{' '}
-                to download.
-              </Notice>
-            )}
             {listing.state === 'ready' && (
               <ul className="space-y-2">
                 {listing.offers.map((offer) => (

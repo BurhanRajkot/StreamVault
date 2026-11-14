@@ -20,14 +20,13 @@ import { httpsEnforcement } from './cybersecurity/httpsEnforcement'
 import subscriptionAdminRouter from './routes/admin'
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
-// Downloads stopped for now.
-// import downloadsRouter from './routes/downloads'
 import subscriptionsRouter from './routes/subscriptions'
 import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
 import recommendationsRouter from './routes/recommendations'
 import dislikesRouter from './routes/dislikes'
 import debridRouter from './routes/debrid'
+import releasesRouter from './routes/releases'
 import sitemapRouter from './routes/sitemap'
 import { requireAdminAuth } from './admin/middleware'
 import { getCacheStatus } from './services/cache'
@@ -117,7 +116,6 @@ app.get('/cache-stats', requireAdminAuth, (_req, res) => {
 
 // ROUTES
 app.use('/tmdb', tmdbRouter)
-// app.use('/downloads', downloadsRouter) // Downloads stopped for now.
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
 app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin routes first
@@ -126,6 +124,7 @@ app.use('/admin', adminRouter)
 app.use('/recommendations', recommendationsRouter)
 app.use('/dislikes', dislikesRouter)
 app.use('/debrid', debridRouter)
+app.use('/releases', releasesRouter)
 // /sitemap-titles.xml — proxied by the frontend host onto the site's domain
 app.use('/', sitemapRouter)
 

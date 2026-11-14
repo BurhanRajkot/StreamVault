@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Loader2, ShieldCheck, Hash } from 'lucide-react'
 import { adminLogin, setAdminToken } from '@/lib/api'
 import { cn, errorMessage } from '@/lib/utils'
@@ -67,18 +68,38 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
     }
   }
 
+  // Escape closes it, like any dialog.
+  const busy = loading || activating
+  useEffect(() => {
+    if (!isOpen || busy) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setCode('')
+      setError('')
+      onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, busy, onClose])
+
   if (!isOpen) return null
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  // Portalled to <body> and above everything: it's opened from inside the
+  // player frame too, whose stacking context would otherwise clip it.
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="admin-login-title"
+    >
       <AdminActivationEffect active={activating} onComplete={handleActivationComplete} />
 
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={handleClose}
-        role="button"
-        tabIndex={0}
+        aria-hidden="true"
       />
 
       {/* Modal */}
@@ -93,6 +114,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
         <button
           onClick={handleClose}
           disabled={loading || activating}
+          aria-label="Close"
           className={cn(
             'absolute right-4 top-4 rounded-lg p-2 text-muted-foreground transition-colors',
             'hover:bg-secondary hover:text-foreground',
@@ -107,7 +129,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <ShieldCheck className="h-8 w-8 text-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground">Admin Access</h2>
+          <h2 id="admin-login-title" className="text-2xl font-bold text-foreground">Admin Access</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Enter the 6-digit code from your authenticator app
           </p>
@@ -152,7 +174,7 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
 
           {/* Error Message */}
           {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+            <div role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
               {error}
             </div>
           )}
@@ -187,7 +209,8 @@ const AdminLoginModal = ({ isOpen, onClose, onSuccess }: AdminLoginModalProps) =
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

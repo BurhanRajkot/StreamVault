@@ -12,6 +12,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 // Shared types (mirrors backend/src/lib/debrid.ts)
 // ---------------------------------------------------------------------------
 
+/** Real-Debrid's own status for a torrent in the account. */
 export type DebridTorrentStatus =
   | 'magnet_error'
   | 'magnet_conversion'
@@ -24,33 +25,6 @@ export type DebridTorrentStatus =
   | 'compressing'
   | 'uploading'
   | 'dead'
-
-export interface DebridTorrent {
-  id: string
-  filename: string
-  hash: string
-  bytes: number
-  /** 0-100 */
-  progress: number
-  status: DebridTorrentStatus
-  added: string
-  links: string[]
-  speed?: number
-  seeders?: number
-}
-
-export interface DebridTorrentFile {
-  /** 1-based, in torrent order */
-  id: number
-  path: string
-  bytes: number
-  /** 1 when selected */
-  selected: number
-}
-
-export interface DebridTorrentInfo extends DebridTorrent {
-  files: DebridTorrentFile[]
-}
 
 export interface DebridAccountStatus {
   connected: boolean
@@ -163,31 +137,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
 // Public functions
 // ---------------------------------------------------------------------------
 
-/** Whether Real-Debrid is reachable and the shared account premium (no auth required). */
-export async function fetchDebridStatus(): Promise<DebridAccountStatus> {
-  return handleResponse(await fetch(`${API_BASE}/debrid/status`))
-}
-
-/**
- * When free Real-Debrid streaming for every signed-in user ends, or null when
- * it isn't on. The backend owns the date; this only labels the UI.
- */
-export async function fetchDebridPromo(): Promise<{ freeUntil: string | null }> {
-  return handleResponse(await fetch(`${API_BASE}/debrid/promo`))
-}
-
-/** Torrents in the shared Real-Debrid account, newest first. */
-export async function fetchDebridTorrents(token?: string, limit = 100): Promise<DebridTorrent[]> {
-  const res = await fetch(`${API_BASE}/debrid/torrents?limit=${limit}`, { headers: authHeaders(token) })
-  return (await handleResponse<{ data: DebridTorrent[] }>(res)).data ?? []
-}
-
-/** One torrent with its file list. */
-export async function fetchDebridTorrent(torrentId: string, token?: string): Promise<DebridTorrentInfo> {
-  const res = await fetch(`${API_BASE}/debrid/torrents/${encodeURIComponent(torrentId)}`, {
-    headers: authHeaders(token),
-  })
-  return (await handleResponse<{ data: DebridTorrentInfo }>(res)).data
+/** Whether the Real-Debrid account is connected and premium, and until when (admin only). */
+export async function fetchDebridStatus(token?: string): Promise<DebridAccountStatus> {
+  return handleResponse(await fetch(`${API_BASE}/debrid/status`, { headers: authHeaders(token) }))
 }
 
 export interface PlayReleaseOptions {
@@ -242,33 +194,6 @@ export async function pollDebridPlayback(
   return handleResponse(res)
 }
 
-/** Links for one file of a torrent already in the account (Cloud library). */
-export async function getDebridFileStreams(torrentId: string, fileId: number, token?: string): Promise<DebridPlayback> {
-  const res = await fetch(
-    `${API_BASE}/debrid/torrents/${encodeURIComponent(torrentId)}/files/${fileId}/stream`,
-    { headers: authHeaders(token) }
-  )
-  return handleResponse(res)
-}
-
-/**
- * Free-text search (apibay). Real-Debrid has no cache-check endpoint, so
- * every result comes back `cached: false` — playing one finds out.
- *
- * @param opts.cat - apibay category: 0=all, 207=HD, 208=TV
- */
-export async function searchDebrid(
-  query: string,
-  token?: string,
-  opts: { limit?: number; cat?: number } = {}
-): Promise<DebridRelease[]> {
-  const params = new URLSearchParams({ q: query })
-  if (opts.limit) params.set('limit', String(opts.limit))
-  if (opts.cat !== undefined) params.set('cat', String(opts.cat))
-  const res = await fetch(`${API_BASE}/debrid/search?${params}`, { headers: authHeaders(token) })
-  return (await handleResponse<{ data: DebridRelease[] }>(res)).data ?? []
-}
-
 /**
  * Search for a specific movie/episode by IMDb id (+ season/episode for TV)
  * via Torrentio, which also reports Real-Debrid cache status, plus apibay
@@ -282,15 +207,46 @@ export async function searchDebridMedia(
   imdbId: string | undefined,
   mediaType: 'movie' | 'tv',
   token?: string,
-  opts: { season?: number; episode?: number; limit?: number } = {}
+  opts: ReleaseSearchOptions = {}
 ): Promise<DebridRelease[]> {
+  const params = releaseSearchParams(title, imdbId, mediaType, opts)
+  const res = await fetch(`${API_BASE}/debrid/media-search?${params}`, { headers: authHeaders(token) })
+  return (await handleResponse<{ data: DebridRelease[] }>(res)).data ?? []
+}
+
+/**
+ * The same search for everyone, with no Real-Debrid involved (GET /releases):
+ * what the Download sheet lists as magnet links. Every release comes back
+ * `cached: false` — nothing asked Real-Debrid.
+ */
+export async function searchReleases(
+  title: string,
+  imdbId: string | undefined,
+  mediaType: 'movie' | 'tv',
+  opts: ReleaseSearchOptions = {}
+): Promise<DebridRelease[]> {
+  const res = await fetch(`${API_BASE}/releases?${releaseSearchParams(title, imdbId, mediaType, opts)}`)
+  return (await handleResponse<{ data: DebridRelease[] }>(res)).data ?? []
+}
+
+interface ReleaseSearchOptions {
+  season?: number
+  episode?: number
+  limit?: number
+}
+
+function releaseSearchParams(
+  title: string,
+  imdbId: string | undefined,
+  mediaType: 'movie' | 'tv',
+  opts: ReleaseSearchOptions
+): URLSearchParams {
   const params = new URLSearchParams({ title, type: mediaType })
   if (imdbId) params.set('imdb', imdbId)
   if (opts.season != null) params.set('season', String(opts.season))
   if (opts.episode != null) params.set('episode', String(opts.episode))
   if (opts.limit) params.set('limit', String(opts.limit))
-  const res = await fetch(`${API_BASE}/debrid/media-search?${params}`, { headers: authHeaders(token) })
-  return (await handleResponse<{ data: DebridRelease[] }>(res)).data ?? []
+  return params
 }
 
 /** One version of a language's subtitles (mirrors backend/src/lib/subtitles.ts). */
@@ -371,28 +327,6 @@ export function parseTorrentQuality(name: string): string {
   return 'SD'
 }
 
-/** Quality badge colour class */
-export function qualityColorClass(quality: string): string {
-  switch (quality) {
-    case '4K': return 'text-amber-400 bg-amber-400/10 border-amber-400/20'
-    case '1080p': return 'text-violet-400 bg-violet-400/10 border-violet-400/20'
-    case '720p': return 'text-sky-400 bg-sky-400/10 border-sky-400/20'
-    case '480p': return 'text-zinc-400 bg-zinc-400/10 border-zinc-400/20'
-    default: return 'text-muted-foreground bg-secondary border-border/40'
-  }
-}
-
-/** Extract source tag from torrent name (BluRay, WEBRip, etc.) */
-export function parseTorrentSource(name: string): string | null {
-  if (/\b(BluRay|BDRemux|BDRip|BRRip)\b/i.test(name)) return 'BluRay'
-  if (/\bWEB-?DL\b/i.test(name)) return 'WEB-DL'
-  if (/\bWEB-?Rip\b/i.test(name)) return 'WEBRip'
-  if (/\bHDRip\b/i.test(name)) return 'HDRip'
-  if (/\bHDTV\b/i.test(name)) return 'HDTV'
-  if (/\bYIFY\b/i.test(name)) return 'YIFY'
-  return null
-}
-
 /** Check if name contains HDR/DV tags */
 export function parseTorrentHDR(name: string): string | null {
   if (/\bDolby.?Vision\b|\bDV\b/i.test(name)) return 'DV'
@@ -421,37 +355,3 @@ export function isLikelyNonEnglishRelease(name: string): boolean {
   )
 }
 
-/** File name without its folder path. */
-export function fileBaseName(path: string): string {
-  return path.split('/').filter(Boolean).pop() ?? path
-}
-
-export function isVideoPath(path: string): boolean {
-  return /\.(mkv|mp4|m4v|avi|mov|wmv|webm|ts|m2ts|mpg|mpeg)$/i.test(path)
-}
-
-/** Map a Real-Debrid torrent status to a user-friendly label + colour class. */
-export function debridStatusLabel(status: DebridTorrentStatus): {
-  label: string
-  colorClass: string
-} {
-  switch (status) {
-    case 'downloaded':
-      return { label: 'Ready ⚡', colorClass: 'text-emerald-400' }
-    case 'downloading':
-    case 'compressing':
-    case 'uploading':
-      return { label: 'Downloading', colorClass: 'text-sky-400' }
-    case 'queued':
-    case 'magnet_conversion':
-    case 'waiting_files_selection':
-      return { label: 'Queued', colorClass: 'text-amber-400' }
-    case 'magnet_error':
-    case 'error':
-    case 'virus':
-    case 'dead':
-      return { label: 'Failed', colorClass: 'text-destructive' }
-    default:
-      return { label: status, colorClass: 'text-muted-foreground' }
-  }
-}

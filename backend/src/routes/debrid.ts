@@ -1,76 +1,43 @@
 /**
- * Debrid (Real-Debrid) route handler
+ * Debrid (Real-Debrid) route handler — the ⚡ Premium server.
  *
  * All Real-Debrid API calls go through this backend router so that the
  * API key (`DEBRID_API_KEY`) is never exposed to the browser. Only metadata
  * passes through here — the video itself streams straight from Real-Debrid
  * to the viewer (direct link or Real-Debrid's own HLS transcode).
  *
- * Route summary:
- *   GET    /debrid/status                         — account status (no auth required)
- *   GET    /debrid/promo                          — when free access ends, if it's on (no auth required)
- *   GET    /debrid/search                         — free-text search (premium or admin) [stopped for now, with downloads]
- *   GET    /debrid/media-search                   — search by IMDb id (player: premium or admin)
- *   POST   /debrid/play                           — add/reuse a release and resolve its streams (player: premium or admin)
- *   GET    /debrid/play/:torrentId                — poll a release that is still downloading (player: premium or admin)
- *   GET    /debrid/subtitles                      — subtitles for the playing file, by language (player: premium or admin)
- *   GET    /debrid/subtitles/file/:id             — one subtitle file's text (player: premium or admin)
- *   GET    /debrid/torrents                       — the account's torrents (premium or admin)
- *   GET    /debrid/torrents/:torrentId            — one torrent with its files (premium or admin)
- *   GET    /debrid/torrents/:torrentId/files/:fileId/stream — streams for one library file (premium or admin)
- *     (the three library GETs above are stopped for now, with downloads)
- *   DELETE /debrid/torrents/:torrentId            — remove a torrent (admin only)
+ * Premium is admin-only (since 2026-11-15): every route below needs a valid
+ * admin token (TOTP login, see admin/routes), enforced once for the whole
+ * router. One Real-Debrid account can't be shared with the public — Real-Debrid
+ * refused the account for exactly that on 2026-11-12 — so there is no guest,
+ * signed-in or subscriber path here any more.
  *
- * While the free promotion runs (see lib/debridPromo) the "player" routes are
- * open to everyone, signed in or not, and the other "premium" ones to every
- * signed-in user. The library routes stay behind sign-in even then: they list
- * the shared account's torrents, which guests have no business browsing.
+ * Route summary:
+ *   GET    /debrid/status                 — the account: connected, premium, expiry
+ *   GET    /debrid/media-search           — releases for a title, tagged with what Real-Debrid has cached
+ *   POST   /debrid/play                   — add/reuse a release and resolve its streams
+ *   GET    /debrid/play/:torrentId        — poll a release that is still downloading
+ *   GET    /debrid/subtitles              — subtitles for the playing file, by language
+ *   GET    /debrid/subtitles/file/:id     — one subtitle file's text
+ *   DELETE /debrid/torrents/:torrentId    — remove a torrent from the account
  */
 
 import { Router, Request, Response } from 'express'
-import { checkAuth, optionalAuth } from '../middleware/auth'
+import { requireAdminAuth } from '../admin/middleware'
 import { downloadRateLimiter } from '../cybersecurity/rateLimiter'
 import { logger } from '../lib/logger'
-import { getUserId } from '../utils/auth'
-import { isPaidUser } from '../lib/subscription'
-import { debridAccess, debridFreeUntil } from '../lib/debridPromo'
 import * as debrid from '../lib/debrid'
 import * as subtitles from '../lib/subtitles'
+import { parseReleaseSearchQuery } from './releases'
 
 const router = Router()
+
+// Admin-only, all of it. A missing, expired or non-admin token is a 401.
+router.use(requireAdminAuth)
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Gate the debrid feature behind an active subscription, with the exceptions
- * debridAccess (lib/debridPromo) grants — admins, and everyone while the free
- * promotion runs. Not relaxed outside production. Once the promotion ends a
- * guest is a 401 again, which the player turns into its sign-in/upgrade screen.
- */
-async function authorizeDebridAccess(
-  req: Request,
-  { guestsAllowed = false }: { guestsAllowed?: boolean } = {}
-): Promise<{ status: number; body: { error: string } } | null> {
-  const userId = getUserId(req)
-  const access = debridAccess({ admin: !!req.admin, signedIn: !!userId, guestsAllowed })
-
-  if (access === 'granted') return null
-  if (access === 'sign-in-required' || !userId) {
-    return { status: 401, body: { error: 'Unauthorized' } }
-  }
-  if (!(await isPaidUser(userId))) {
-    return {
-      status: 403,
-      body: { error: 'Debrid streaming is only available for premium users. Please upgrade.' },
-    }
-  }
-  return null
-}
-
-/** The routes the automatic player needs — open to guests during the promotion. */
-const PLAYER = { guestsAllowed: true }
 
 const HASH_RE = /^[a-fA-F0-9]{40}$/
 /** Real-Debrid torrent ids: 13 base32 characters. */
@@ -121,7 +88,8 @@ function pathNumber(value: unknown): number | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// GET /debrid/status — public, no auth needed
+// GET /debrid/status — is the account connected and premium, and until when.
+// The admin dashboard shows it, so a new DEBRID_API_KEY can be checked at a glance.
 // ---------------------------------------------------------------------------
 
 router.get('/status', async (_req, res) => {
@@ -129,91 +97,48 @@ router.get('/status', async (_req, res) => {
     return res.json(await debrid.getAccountStatus())
   } catch (err: unknown) {
     logger.warn('Debrid status check failed', { error: errorMessage(err) })
-    return res.status(502).json({ error: 'Real-Debrid unreachable' })
+    // Still an answer, not an error: "not connected, and here is why" is what the dashboard is asking.
+    const status: debrid.DebridAccountStatus = {
+      connected: false,
+      premium: false,
+      expiration: null,
+      note: debrid.accountErrorMessage(err) ?? errorMessage(err),
+    }
+    return res.json(status)
   }
 })
 
 // ---------------------------------------------------------------------------
-// GET /debrid/promo — public. Separate from /status so the answer doesn't
-// depend on Real-Debrid being reachable.
-// ---------------------------------------------------------------------------
-
-router.get('/promo', (_req, res) => {
-  const until = debridFreeUntil()
-  res.set('Cache-Control', 'public, max-age=3600')
-  return res.json({ freeUntil: until ? until.toISOString() : null })
-})
-
-// Downloads stopped for now: free-text search belonged to the Downloads page.
-// // ---------------------------------------------------------------------------
-// // GET /debrid/search?q=title[&limit=20][&cat=0] — auth + premium
-// //
-// // Free-text apibay search. Real-Debrid has no cache-check endpoint any more,
-// // so these are all reported uncached; playing one finds out.
-// // Cat codes: 0=all, 207=HD movies, 205=movies, 208=TV
-// // ---------------------------------------------------------------------------
-
-// router.get('/search', checkAuth, async (req: Request, res: Response) => {
-//   const denied = await authorizeDebridAccess(req)
-//   if (denied) return res.status(denied.status).json(denied.body)
-
-//   const q = (req.query.q as string | undefined)?.trim()
-//   if (!q || q.length < 2) {
-//     return res.status(400).json({ error: 'Query must be at least 2 characters' })
-//   }
-
-//   const limit = Math.min(parseInt((req.query.limit as string) || '20', 10) || 20, 50)
-//   const cat = parseInt((req.query.cat as string) || '0', 10) || 0
-
-//   try {
-//     return res.json({ data: await debrid.searchTorrents(q, limit, cat) })
-//   } catch (err: unknown) {
-//     logger.error('Debrid search failed', { q, error: errorMessage(err) })
-//     return res.status(502).json({ error: 'Search failed' })
-//   }
-// })
-
-// ---------------------------------------------------------------------------
-// GET /debrid/media-search?imdb=tt...&type=movie|tv&title=...[&season=&episode=][&limit=20] — player
+// GET /debrid/media-search?imdb=tt...&type=movie|tv&title=...[&season=&episode=][&limit=20]
 //
 // Matches a specific title by IMDb id (+ season/episode for TV) via
 // Torrentio — which also says which releases Real-Debrid has cached — and,
 // for movies, apibay too. Used by the automatic player pane.
 // ---------------------------------------------------------------------------
 
-router.get('/media-search', optionalAuth, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req, PLAYER)
-  if (denied) return res.status(denied.status).json(denied.body)
-
-  const title = (req.query.title as string | undefined)?.trim()
-  const imdbId = (req.query.imdb as string | undefined)?.trim()
-  const mediaType = (req.query.type as string) === 'tv' ? 'tv' : 'movie'
-  const season = optionalInt(req.query.season)
-  const episode = optionalInt(req.query.episode)
-  const limit = Math.min(parseInt((req.query.limit as string) || '20', 10) || 20, 50)
-
-  if (!title) {
-    return res.status(400).json({ error: 'title is required' })
-  }
-  if (imdbId && !/^tt\d+$/.test(imdbId)) {
-    return res.status(400).json({ error: 'imdb must be a valid IMDb id (e.g. tt1375666)' })
-  }
+router.get('/media-search', async (req: Request, res: Response) => {
+  const search = parseReleaseSearchQuery(req.query)
+  if ('error' in search) return res.status(400).json({ error: search.error })
 
   // Play usually follows a search within seconds — have the account's
   // "already added?" listing ready for it.
   debrid.warmTorrentLookup()
 
   try {
-    const data = await debrid.searchMediaReleases({ title, imdbId, mediaType, season, episode, limit })
-    return res.json({ data })
+    return res.json({ data: await debrid.searchMediaReleases(search) })
   } catch (err: unknown) {
-    logger.error('Debrid media-search failed', { title, imdbId, mediaType, error: errorMessage(err) })
+    logger.error('Debrid media-search failed', {
+      title: search.title,
+      imdbId: search.imdbId,
+      mediaType: search.mediaType,
+      error: errorMessage(err),
+    })
     return res.status(502).json({ error: 'Search failed' })
   }
 })
 
 // ---------------------------------------------------------------------------
-// POST /debrid/play — player, rate-limited
+// POST /debrid/play — rate-limited
 // Body: { hash: string, name?: string, fileName?: string, fileIdx?: number,
 //         season?: number, episode?: number, instantOnly?: boolean }
 //
@@ -225,10 +150,7 @@ router.get('/media-search', optionalAuth, async (req: Request, res: Response) =>
 //   { status: 'not-cached' } — only with instantOnly: it wasn't instant, and was removed again
 // ---------------------------------------------------------------------------
 
-router.post('/play', optionalAuth, downloadRateLimiter, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req, PLAYER)
-  if (denied) return res.status(denied.status).json(denied.body)
-
+router.post('/play', downloadRateLimiter, async (req: Request, res: Response) => {
   const body = req.body as {
     hash?: unknown
     name?: unknown
@@ -268,16 +190,13 @@ router.post('/play', optionalAuth, downloadRateLimiter, async (req: Request, res
 })
 
 // ---------------------------------------------------------------------------
-// GET /debrid/play/:torrentId[?fileName=&fileIdx=&season=&episode=] — player
+// GET /debrid/play/:torrentId[?fileName=&fileIdx=&season=&episode=]
 //
 // The polling half of POST /play. Not behind downloadRateLimiter: the player
 // polls every few seconds while a release downloads.
 // ---------------------------------------------------------------------------
 
-router.get('/play/:torrentId', optionalAuth, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req, PLAYER)
-  if (denied) return res.status(denied.status).json(denied.body)
-
+router.get('/play/:torrentId', async (req: Request, res: Response) => {
   const { torrentId } = req.params
   if (!TORRENT_ID_RE.test(torrentId)) {
     return res.status(400).json({ error: 'Invalid torrent id' })
@@ -300,17 +219,14 @@ router.get('/play/:torrentId', optionalAuth, async (req: Request, res: Response)
 
 // ---------------------------------------------------------------------------
 // GET /debrid/subtitles?imdb=tt...&type=movie|tv[&season=&episode=]
-//                      [&fileName=][&duration=][&langs=spa,fre] — player
+//                      [&fileName=][&duration=][&langs=spa,fre]
 //
 // Subtitles from OpenSubtitles, by language, each language's versions ranked
 // for the file playing (its release name and length). English and `langs`
 // are searched in depth. Answers { languages: [{ code, name, options }] }.
 // ---------------------------------------------------------------------------
 
-router.get('/subtitles', optionalAuth, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req, PLAYER)
-  if (denied) return res.status(denied.status).json(denied.body)
-
+router.get('/subtitles', async (req: Request, res: Response) => {
   const imdbId = typeof req.query.imdb === 'string' ? req.query.imdb.trim() : ''
   const mediaType = req.query.type === 'tv' ? 'tv' : 'movie'
   const season = pathNumber(req.query.season)
@@ -352,16 +268,13 @@ router.get('/subtitles', optionalAuth, async (req: Request, res: Response) => {
 })
 
 // ---------------------------------------------------------------------------
-// GET /debrid/subtitles/file/:id — player
+// GET /debrid/subtitles/file/:id
 //
 // One subtitle file as UTF-8 text (SubRip, WebVTT or SubStation Alpha), by
 // the OpenSubtitles file id /debrid/subtitles listed. A file never changes.
 // ---------------------------------------------------------------------------
 
-router.get('/subtitles/file/:id', optionalAuth, async (req: Request, res: Response) => {
-  const denied = await authorizeDebridAccess(req, PLAYER)
-  if (denied) return res.status(denied.status).json(denied.body)
-
+router.get('/subtitles/file/:id', async (req: Request, res: Response) => {
   const { id } = req.params
   if (!subtitles.SUBTITLE_FILE_ID_RE.test(id)) {
     return res.status(400).json({ error: 'Invalid subtitle id' })
@@ -379,79 +292,11 @@ router.get('/subtitles/file/:id', optionalAuth, async (req: Request, res: Respon
   }
 })
 
-// Downloads stopped for now: the Cloud library (list, info, stream a file)
-// belonged to the Downloads page, and its stream route hands out Real-Debrid
-// links to the account's files.
-// // ---------------------------------------------------------------------------
-// // Library — GET /debrid/torrents, GET /debrid/torrents/:id — auth + premium
-// // ---------------------------------------------------------------------------
-
-// router.get('/torrents', checkAuth, async (req: Request, res: Response) => {
-//   const denied = await authorizeDebridAccess(req)
-//   if (denied) return res.status(denied.status).json(denied.body)
-
-//   try {
-//     return res.json({ data: await debrid.listTorrents(optionalInt(req.query.limit) ?? 100) })
-//   } catch (err: unknown) {
-//     logger.error('Debrid torrent list failed', { error: errorMessage(err) })
-//     return res.status(502).json({ error: 'Failed to fetch Real-Debrid library' })
-//   }
-// })
-
-// router.get('/torrents/:torrentId', checkAuth, async (req: Request, res: Response) => {
-//   const denied = await authorizeDebridAccess(req)
-//   if (denied) return res.status(denied.status).json(denied.body)
-
-//   const { torrentId } = req.params
-//   if (!TORRENT_ID_RE.test(torrentId)) {
-//     return res.status(400).json({ error: 'Invalid torrent id' })
-//   }
-
-//   try {
-//     return res.json({ data: await debrid.getTorrentInfo(torrentId) })
-//   } catch (err: unknown) {
-//     logger.warn('Debrid torrent info failed', { torrentId, error: errorMessage(err) })
-//     return res.status(upstreamStatus(err)).json({ error: 'Failed to fetch torrent' })
-//   }
-// })
-
-// // ---------------------------------------------------------------------------
-// // GET /debrid/torrents/:torrentId/files/:fileId/stream — auth + premium, rate-limited
-// // Same payload as POST /play, for a file picked from the Cloud library.
-// // ---------------------------------------------------------------------------
-
-// router.get(
-//   '/torrents/:torrentId/files/:fileId/stream',
-//   checkAuth,
-//   downloadRateLimiter,
-//   async (req: Request, res: Response) => {
-//     const denied = await authorizeDebridAccess(req)
-//     if (denied) return res.status(denied.status).json(denied.body)
-
-//     const { torrentId } = req.params
-//     const fileId = optionalInt(req.params.fileId)
-//     if (!TORRENT_ID_RE.test(torrentId) || fileId === undefined) {
-//       return res.status(400).json({ error: 'Invalid torrent or file id' })
-//     }
-
-//     try {
-//       return res.json(await debrid.fileStreams(torrentId, fileId))
-//     } catch (err: unknown) {
-//       logger.error('Debrid file stream failed', { torrentId, fileId, error: errorMessage(err) })
-//       return sendDebridFailure(res, err, 'Failed to get stream URL')
-//     }
-//   }
-// )
-
 // ---------------------------------------------------------------------------
-// DELETE /debrid/torrents/:torrentId — admin only
+// DELETE /debrid/torrents/:torrentId
 // ---------------------------------------------------------------------------
 
-router.delete('/torrents/:torrentId', checkAuth, async (req: Request, res: Response) => {
-  if (!req.admin) {
-    return res.status(403).json({ error: 'Admin access required' })
-  }
-
+router.delete('/torrents/:torrentId', async (req: Request, res: Response) => {
   const { torrentId } = req.params
   if (!TORRENT_ID_RE.test(torrentId)) {
     return res.status(400).json({ error: 'Invalid torrent id' })

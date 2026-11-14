@@ -190,17 +190,18 @@ describe('findEpisodeFile', () => {
 
 describe('accountErrorMessage', () => {
   it('flags a blocked server IP and other account-wide failures', () => {
-    expect(accountErrorMessage(new DebridError('x', 400, 22))).toContain('down on our end')
-    expect(accountErrorMessage(new DebridError('x', 503, 23))).toContain('down on our end')
-    expect(accountErrorMessage(new DebridError('x', 401))).toContain('down on our end')
+    expect(accountErrorMessage(new DebridError('x', 400, 22))).toContain('DEBRID_PROXY_URL')
+    expect(accountErrorMessage(new DebridError('x', 503, 23))).toContain('out of traffic')
+    expect(accountErrorMessage(new DebridError('x', 401))).toContain('DEBRID_API_KEY')
+    expect(accountErrorMessage(new DebridError('x', 403))).toContain('locked or not premium')
     expect(accountErrorMessage(new DebridError('x', 429, 36))).toContain('Try again in a minute')
   })
 
-  it("never tells a viewer they need premium when it's the shared account that's refused", () => {
+  it('tells the admin what is wrong with the account, never to subscribe or upgrade', () => {
     for (const err of [new DebridError('x', 403, 9), new DebridError('x', 403), new DebridError('x', 403, 14)]) {
       const message = accountErrorMessage(err)
-      expect(message).toContain('nothing you need to do')
-      expect(message).not.toMatch(/not premium|locked|subscri|upgrade/i)
+      expect(message).toMatch(/locked/)
+      expect(message).not.toMatch(/subscri|upgrade|sign in/i)
     }
   })
 

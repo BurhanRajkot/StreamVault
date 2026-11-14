@@ -26,9 +26,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-// Downloads stopped for now.
-// import { formatBytes } from '@/lib/debridApi'
-import type { DebridReadyPlayback } from '@/lib/debridApi'
+import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
 import { forgetEdge, nearestDirectUrl, type EdgeChoice } from '@/lib/debridHost'
 import {
   convertedStreamUrl,
@@ -693,15 +691,14 @@ export function DebridVideo({
       <PlayerControls
         video={videoEl}
         container={container}
-        // Downloads stopped for now. "Open in another player" handed out the
-        // same Real-Debrid download link, so it's off too; without these the
-        // player's Settings menu has neither row.
-        // externalUrl={playback.directUrl}
-        // download={{
-        //   url: playback.directUrl,
-        //   fileName: playback.fileName,
-        //   size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null,
-        // }}
+        // The file's own Real-Debrid link, for VLC/mpv or saving it. Fine to
+        // hand out now that Premium only ever plays for the account's owner.
+        externalUrl={playback.directUrl}
+        download={{
+          url: playback.directUrl,
+          fileName: playback.fileName,
+          size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null,
+        }}
         streamNote={mode.kind === 'hls' ? 'Real-Debrid converts this file as it plays, so a jump takes a few seconds to start.' : null}
         timeline={timeline}
         previewUrl={previewUrl}

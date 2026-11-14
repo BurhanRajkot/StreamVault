@@ -8,6 +8,9 @@ import { ANIME_MOVIE, ANIME_SHOW, MOVIE, SECOND_MOVIE, SHOW, titleOf, watchPath 
 import { cardName } from '../pages/HomePage'
 
 test.describe('Anime tab', () => {
+  // The Premium tests below need the admin session; the browsing ones don't mind it.
+  test.use({ admin: true })
+
   test('lists anime films and series, and nothing else', async ({ page, home }) => {
     await home.goto()
     await home.openCategory('Anime')

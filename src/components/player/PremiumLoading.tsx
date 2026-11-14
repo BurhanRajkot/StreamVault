@@ -52,6 +52,25 @@ export function PaneBackdrop({
   )
 }
 
+export const primaryAction =
+  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-black transition-colors hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black'
+export const secondaryAction =
+  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70'
+
+/** A heading and a line under it, for the screens that say something went wrong (or isn't allowed). */
+export function StatusMessage({ heading, body }: { heading: string; body: string }) {
+  return (
+    <>
+      <p className="text-lg font-semibold leading-snug sm:text-xl">{heading}</p>
+      <p className="mt-2 text-sm leading-relaxed text-white/65">{body}</p>
+    </>
+  )
+}
+
+export function ActionRow({ children }: { children: ReactNode }) {
+  return <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">{children}</div>
+}
+
 export function TitleLines({ title, episodeLine }: { title: string; episodeLine?: string }) {
   return (
     <>

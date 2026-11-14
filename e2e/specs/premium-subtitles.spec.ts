@@ -19,6 +19,7 @@ function serveSubtitles(mockApi: MockApi) {
 const settingsDialog = (page: Page) => page.getByRole('dialog', { name: 'Player settings' })
 
 test.describe('Premium subtitles', () => {
+  test.use({ admin: true })
   test.beforeEach(({ mockApi }) => serveSubtitles(mockApi))
 
   test('show in English by default, for the file playing, and can be changed or turned off in Settings', async ({ page, watch, mockApi }) => {

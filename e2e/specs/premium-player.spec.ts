@@ -1,13 +1,16 @@
 /**
- * ⚡ Premium (Real-Debrid) — the last server in the list since 2026-11-13
- * (Sol, Vidy's player, is the default), free for everyone, guests included,
- * while the promotion runs. These tests pick it, as a viewer would.
+ * ⚡ Premium (Real-Debrid) — the last server in the list (Sol, Vidy's player,
+ * is the default) and admin-only: these tests hold an admin session and pick
+ * it, as the admin would. What everyone else sees — the lock, the notice,
+ * the admin sign-in — is e2e/tests/premium-admin.e2e.ts.
  */
 
 import type { Page } from '@playwright/test'
-import { test, expect, SIGNED_IN } from '../fixtures/test'
+import { test, expect } from '../fixtures/test'
 import { EMBED_STUB_TEXT } from '../fixtures/network'
 import { CONVERTED_STREAM_URL, MOVIE, SAMPLE_VIDEO_URL, SHOW, convertedPlayback, readyPlayback, release } from '../fixtures/data'
+
+test.use({ admin: true })
 
 test.describe('Server list', () => {
   test('Sol is the server selected by default for movies and shows', async ({ watch }) => {
@@ -39,20 +42,21 @@ test.describe('Server list', () => {
 })
 
 test.describe('Premium server', () => {
-  test('a guest can play a movie without signing in', async ({ watch, mockApi }) => {
+  test('plays a movie for the admin, with the admin token on every call', async ({ watch, mockApi }) => {
     await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
     await watch.expectPremiumPlaying()
 
     const [search] = mockApi.calls('GET', '/debrid/media-search')
-    expect(search.authenticated, 'a guest sends no token').toBe(false)
+    expect(search.admin, 'the search carries the admin token').toBe(true)
     expect(search.query.get('imdb')).toBe(MOVIE.imdb_id)
     expect(search.query.get('type')).toBe('movie')
     expect(mockApi.calls('POST', '/debrid/play')).toHaveLength(1)
+    expect(mockApi.calls('POST', '/debrid/play')[0].admin).toBe(true)
   })
 
-  test('a guest can play a TV episode, and the episode picked is the one requested', async ({ page, watch, mockApi }) => {
+  test('plays a TV episode, and the episode picked is the one requested', async ({ page, watch, mockApi }) => {
     await watch.gotoOnPremium(SHOW)
     if (test.info().project.name === 'mobile') {
       // A phone's title page lists the episodes; tapping one plays it
@@ -69,18 +73,6 @@ test.describe('Premium server', () => {
     expect(search.query.get('type')).toBe('tv')
     expect(search.query.get('season')).toBe('1')
     expect(search.query.get('episode')).toBe('3')
-  })
-
-  test.describe('signed in', () => {
-    test.use({ user: SIGNED_IN })
-
-    test('plays with the user’s token attached', async ({ watch, mockApi }) => {
-      await watch.gotoOnPremium(MOVIE)
-      await watch.play()
-
-      await watch.expectPremiumPlaying()
-      expect(mockApi.calls('POST', '/debrid/play')[0].authenticated).toBe(true)
-    })
   })
 
   test('finds the releases while the details are still open, so Play starts one at once', async ({ watch, mockApi }) => {
@@ -300,20 +292,14 @@ test.describe('Premium server', () => {
     await expect(watch.embedFrame.getByText(EMBED_STUB_TEXT)).toBeVisible()
   })
 
-  test.describe('after the free promotion ends', () => {
-    test('a guest is asked to sign in instead', async ({ page, watch, mockApi }) => {
-      mockApi.state.promoFreeUntil = null
-      mockApi.on('GET', '/debrid/media-search', ({ authenticated }) =>
-        authenticated ? { json: { data: [release()] } } : { status: 401, json: { error: 'Unauthorized' } }
-      )
+  test('an admin session the backend no longer accepts ends, and the admin-only notice takes over', async ({ page, watch, mockApi }) => {
+    mockApi.on('GET', '/debrid/media-search', { status: 401, json: { error: 'Authentication failed' } })
 
-      await watch.gotoOnPremium(MOVIE)
-      await expect(watch.serverPicker).not.toContainText('Free')
-      await watch.play()
+    await watch.gotoOnPremium(MOVIE)
+    await watch.play()
 
-      await expect(page.getByText('Premium is for subscribers')).toBeVisible()
-      await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
-    })
+    await expect(page.getByText('Premium is admin-only')).toBeVisible()
+    expect(await page.evaluate(() => localStorage.getItem('adminToken')), 'the dead token is dropped').toBeNull()
   })
 })
 
@@ -387,7 +373,6 @@ test.describe('fits the screen', () => {
 
 test.describe('Downloads', () => {
   test('the player’s settings offer the playing file', async ({ page, watch }) => {
-    test.skip(true, 'Downloads are stopped for now: the player’s Settings menu has no Download row')
     await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()
@@ -404,7 +389,7 @@ test.describe('Downloads', () => {
   test('the title page hands out a magnet link, never a Real-Debrid one', async ({ page, watch, mockApi }) => {
     const hd = release({ name: 'Inception.2010.1080p.BluRay.x264.AAC-HD' })
     const unshared = release({ name: 'Inception.2010.720p.WEB.x264-NOONE', seeders: '0' })
-    mockApi.on('GET', '/debrid/media-search', { json: { data: [hd, unshared] } })
+    mockApi.on('GET', '/releases', { json: { data: [hd, unshared] } })
 
     await watch.goto(MOVIE)
     await watch.root.getByRole('button', { name: /^Download/ }).click()
@@ -417,6 +402,8 @@ test.describe('Downloads', () => {
     await expect(sheet.getByRole('button', { name: 'Copy 1080p magnet link' })).toBeVisible()
     await expect(sheet.getByText(unshared.name), 'a release no one is sharing isn’t offered').toHaveCount(0)
     await expect(watch.premiumVideo, 'nothing plays').toHaveCount(0)
+    expect(mockApi.calls('GET', '/releases')[0].authenticated, 'the public search needs no token').toBe(false)
+    expect(mockApi.calls('GET', '/debrid/media-search'), 'the Real-Debrid account isn’t searched').toHaveLength(0)
     expect(mockApi.calls('POST', '/debrid/play'), 'Real-Debrid is never asked for the file').toHaveLength(0)
   })
 })

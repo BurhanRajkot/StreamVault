@@ -178,33 +178,30 @@ function retryAfterMs(header: string | null): number | undefined {
   return Number.isFinite(at) ? Math.max(0, at - Date.now()) : undefined
 }
 
-/**
- * What a viewer is told when the shared Real-Debrid account itself is refused
- * (bad token, locked, not premium, IP blocked, out of traffic, ...). Premium
- * is free for viewers, so nothing here may read as "you need to pay": it's
- * our account, and the exact reason goes to the logs and the `detail` field.
- */
-const ACCOUNT_DOWN_MESSAGE = "Premium is down on our end right now — nothing you need to do. Switch server to keep watching."
+const BUSY_MESSAGE = 'Real-Debrid is busy right now. Try again in a minute.'
 
 /**
  * Real-Debrid error codes that are about the account or this server, not the
  * release — every other release would fail the same way, so the player
  * should stop and say why rather than work through its list.
+ *
+ * Premium only plays for the site's admin, so these say what is actually
+ * wrong and where to fix it (they used to be softened for the public).
  */
 const ACCOUNT_ERROR_MESSAGES: Record<number, string> = {
-  5: 'Premium is busy right now. Try again in a minute.',
-  8: ACCOUNT_DOWN_MESSAGE, // bad token
-  9: ACCOUNT_DOWN_MESSAGE, // permission denied: account locked or not premium
-  14: ACCOUNT_DOWN_MESSAGE, // account locked
-  21: 'Premium is busy right now. Try again in a minute.', // too many active downloads
-  22: ACCOUNT_DOWN_MESSAGE, // this server's IP is blocked
-  23: ACCOUNT_DOWN_MESSAGE, // out of traffic
-  34: 'Premium is busy right now. Try again in a minute.',
-  36: 'Premium is busy right now. Try again in a minute.', // fair-usage limit
-  37: ACCOUNT_DOWN_MESSAGE, // endpoint disabled
+  5: BUSY_MESSAGE,
+  8: 'Real-Debrid refused the API key. Put a current key in DEBRID_API_KEY on the server.', // bad token
+  9: 'Real-Debrid denied the request — the account is locked or not premium. Check it at real-debrid.com.',
+  14: 'The Real-Debrid account is locked. Check it at real-debrid.com.',
+  21: 'Real-Debrid has too many active downloads on the account. Try again in a minute.',
+  22: "Real-Debrid blocks this server's IP address. Route its calls through DEBRID_PROXY_URL.",
+  23: 'The Real-Debrid account is out of traffic for now.',
+  34: BUSY_MESSAGE,
+  36: 'Real-Debrid is rate-limiting the account (fair usage). Try again in a minute.',
+  37: 'Real-Debrid has switched this feature off for the account.',
 }
 
-/** A viewer-facing reason when `err` is an account/server-wide Real-Debrid failure, else null. */
+/** The reason, in plain words, when `err` is an account/server-wide Real-Debrid failure — else null. */
 export function accountErrorMessage(err: unknown): string | null {
   if (!(err instanceof DebridError)) return null
   if (err.code !== undefined && ACCOUNT_ERROR_MESSAGES[err.code]) return ACCOUNT_ERROR_MESSAGES[err.code]
@@ -791,29 +788,6 @@ export async function preparePlayback(params: {
   return { status: 'ready', torrentId, fileId: file.id, ...streams }
 }
 
-/** Resolve a direct link for any selected file of a downloaded torrent (Cloud library). */
-export async function fileStreams(torrentId: string, fileId: number): Promise<PlaybackResult> {
-  const info = await getTorrentInfo(torrentId)
-  if (info.status !== 'downloaded') {
-    return {
-      status: 'downloading',
-      torrentId,
-      progress: info.progress ?? 0,
-      speed: info.speed ?? 0,
-      seeders: info.seeders ?? 0,
-      debridStatus: info.status,
-    }
-  }
-  const selected = info.files.filter((f) => f.selected === 1).sort((a, b) => a.id - b.id)
-  const index = selected.findIndex((f) => f.id === fileId)
-  const link = index >= 0 && selected.length === info.links.length ? info.links[index] : null
-  if (!link) {
-    return { status: 'failed', torrentId, debridStatus: info.status, reason: 'That file is not available' }
-  }
-  const streams = await resolveStreams(link)
-  return { status: 'ready', torrentId, fileId, ...streams }
-}
-
 // ---------------------------------------------------------------------------
 // Release search
 // ---------------------------------------------------------------------------
@@ -886,29 +860,6 @@ async function fetchApibayResults(query: string, poolSize: number, cat: number):
     : []
 
   return results.slice(0, poolSize)
-}
-
-/**
- * Free-text torrent search via apibay.org. Real-Debrid no longer exposes a
- * cache check, so these come back with `cached: false` — "Play" in the UI
- * finds out by adding the release (instant when it was cached after all).
- */
-export async function searchTorrents(query: string, limit = 20, cat = 0): Promise<DebridRelease[]> {
-  const results = await fetchApibayResults(query, limit, cat)
-  return results.map((r) => ({
-    id: r.id,
-    name: r.name,
-    info_hash: r.info_hash.toUpperCase(),
-    seeders: r.seeders,
-    leechers: r.leechers,
-    size: r.size,
-    num_files: r.num_files,
-    username: r.username,
-    added: r.added,
-    category: r.category,
-    imdb: r.imdb || undefined,
-    cached: false,
-  }))
 }
 
 /**
@@ -1157,12 +1108,18 @@ export async function searchMediaReleases(params: {
   season?: number
   episode?: number
   limit?: number
+  /**
+   * Ask Torrentio which releases Real-Debrid has cached (it is sent the
+   * account's key for that). Off for the public release search, which must
+   * not involve the account at all — everything then comes back `cached: false`.
+   */
+  debridTags?: boolean
 }): Promise<DebridRelease[]> {
-  const { title, imdbId, mediaType, season, episode, limit = 20 } = params
+  const { title, imdbId, mediaType, season, episode, limit = 20, debridTags = true } = params
   const useApibay = mediaType === 'movie'
   const tvTarget = mediaType === 'tv' && season !== undefined && episode !== undefined ? { season, episode } : null
   const startedAt = Date.now()
-  const torrentioKey = torrentioDebridKey()
+  const torrentioKey = debridTags ? torrentioDebridKey() : undefined
 
   const torrentioPromise: Promise<TorrentioTorrentCandidate[]> = imdbId
     ? cachedIndexLookup(
