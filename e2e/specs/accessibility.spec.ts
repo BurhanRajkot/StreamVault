@@ -50,7 +50,7 @@ test('Premium, locked for a visitor', async ({ page, watch }, testInfo) => {
 test.describe('as the admin', () => {
   test.use({ admin: true })
 
-  test('Premium player', async ({ page, watch }, testInfo) => {
+  test('Premium player', { tag: '@premium' }, async ({ page, watch }, testInfo) => {
     await watch.gotoOnPremium(MOVIE)
     await watch.play()
     await watch.expectPremiumPlaying()

@@ -55,7 +55,7 @@ test.describe('Anime tab', () => {
     await expect(home.card(titleOf(ANIME_MOVIE))).toBeVisible()
   })
 
-  test('plays an anime episode on Premium, looked up by the show’s IMDb id', async ({ page, home, watch, mockApi }) => {
+  test('plays an anime episode on Premium, looked up by the show’s IMDb id', { tag: '@premium' }, async ({ page, home, watch, mockApi }) => {
     await home.goto()
     await home.openCategory('Anime')
     await home.card(titleOf(ANIME_SHOW)).click()
@@ -74,7 +74,7 @@ test.describe('Anime tab', () => {
     expect(search.query.get('episode')).toBe('1')
   })
 
-  test('plays an anime film on Premium', async ({ watch, mockApi }) => {
+  test('plays an anime film on Premium', { tag: '@premium' }, async ({ watch, mockApi }) => {
     await watch.gotoOnPremium(ANIME_MOVIE)
 
     await watch.play()

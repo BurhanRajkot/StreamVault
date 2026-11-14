@@ -3,7 +3,7 @@
  * poster to its title page.
  */
 
-import { test, expect } from '../fixtures/test'
+import { test, expect, isPhone } from '../fixtures/test'
 import { CATALOGUE, MOVIE, SECOND_MOVIE, SHOW, page as listPage, titleOf, watchPath } from '../fixtures/data'
 import { cardName } from '../pages/HomePage'
 
@@ -19,7 +19,13 @@ test.describe('Home', () => {
 
   test('opens a title from its poster', async ({ page, home, watch }) => {
     await home.goto()
-    await home.card(titleOf(MOVIE)).click()
+    // Rows below the fold load as they come into view, which shifts the page
+    // while it scrolls; on WebKit the click landed beside the card. Let the
+    // card settle in the viewport first.
+    const card = home.card(titleOf(MOVIE))
+    await card.scrollIntoViewIfNeeded()
+    await expect(card).toBeInViewport({ ratio: 0.9 })
+    await card.click()
 
     await expect(page).toHaveURL(watchPath(MOVIE))
     await expect(watch.heading(MOVIE)).toBeVisible()
@@ -126,7 +132,7 @@ test.describe('Title page', () => {
     await page.getByRole('option', { name: 'Season 2' }).click()
 
     // Season 2 has 13 episodes in the fixture, season 1 only 7.
-    if (test.info().project.name === 'mobile') {
+    if (isPhone()) {
       // A phone lists the season's episodes on the title page
       await expect(page.getByRole('region', { name: 'Episodes' }).getByRole('listitem')).toHaveCount(13)
     } else {
