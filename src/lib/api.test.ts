@@ -1,7 +1,6 @@
 import { describe, it, expect, mock, afterEach } from 'bun:test';
 import { adminLogin, getImageSrcSet, buildEmbedUrl, fetchAnimeRow, fetchMediaSummaries, fetchPopular, fetchTrending, isSearchResultWorthShowing, searchMedia } from './api';
 import { CONFIG, DEBRID_SERVER_ID, defaultServer, serverOptions, type Media } from './config';
-import { PREMIUM_PAUSED } from './premiumPause';
 
 const originalFetch = globalThis.fetch;
 
@@ -209,7 +208,7 @@ describe('stream provider registry', () => {
 
 describe('serverOptions', () => {
   it('starts on Sol (Vidy, 4K), then the stars, with Premium last for movies and TV', () => {
-    const options = serverOptions('movie', { debridFree: true })
+    const options = serverOptions('movie')
     expect(options[0]).toMatchObject({ id: 'vidy', name: 'Sol', detail: '4K', label: 'Sol (4K)' })
     expect(options[1]).toMatchObject({ id: 'vidfast_pro', name: 'Sirius', label: 'Sirius' })
     expect(options.at(-1)).toMatchObject({ id: DEBRID_SERVER_ID, name: 'Premium', detail: '4K/1080p' })
@@ -217,14 +216,12 @@ describe('serverOptions', () => {
     expect(defaultServer('tv')).toBe('vidy')
   })
 
-  it('tags Premium paused while it is, and free only while the promotion runs and it works', () => {
-    const premium = (debridFree: boolean) => serverOptions('tv', { debridFree }).at(-1)!
-    if (PREMIUM_PAUSED) {
-      expect(premium(true)).toMatchObject({ unavailable: true, free: false, label: 'Premium (4K/1080p) · Paused' })
-    } else {
-      expect(premium(true)).toMatchObject({ free: true, label: 'Premium (4K/1080p) · Free' })
-      expect(premium(false)).toMatchObject({ free: false, label: 'Premium (4K/1080p)' })
-    }
+  it('locks Premium for everyone but an admin, and keeps it last for the admin too', () => {
+    const premium = (admin: boolean) => serverOptions('tv', { admin }).at(-1)!
+    expect(premium(false)).toMatchObject({ id: DEBRID_SERVER_ID, locked: true, label: 'Premium (4K/1080p) · Admin only' })
+    expect(premium(true)).toMatchObject({ id: DEBRID_SERVER_ID, locked: false, label: 'Premium (4K/1080p)' })
+    // Being an admin doesn't change what plays by default
+    expect(serverOptions('movie', { admin: true })[0].id).toBe('vidy')
   })
 
   it('offers only the embed servers outside movies and TV, labelled by name and tag', () => {
@@ -234,7 +231,7 @@ describe('serverOptions', () => {
   })
 
   it('never puts an emoji in a label — a native <select> shows them raw', () => {
-    for (const o of serverOptions('movie', { debridFree: true })) {
+    for (const o of [...serverOptions('movie'), ...serverOptions('movie', { admin: true })]) {
       expect(o.label).not.toMatch(/\p{Extended_Pictographic}/u)
     }
   })

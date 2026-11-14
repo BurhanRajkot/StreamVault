@@ -9,7 +9,6 @@ import { MOVIE, watchPath } from '../fixtures/data'
 
 const ROUTES: { path: string; heading: string | RegExp }[] = [
   { path: watchPath(MOVIE), heading: 'Inception' },
-  { path: '/pricing', heading: 'Unlock Premium Streaming' },
   { path: '/login', heading: 'Welcome back' },
   { path: '/signup', heading: /.+/ },
   { path: '/favorites', heading: /.+/ },

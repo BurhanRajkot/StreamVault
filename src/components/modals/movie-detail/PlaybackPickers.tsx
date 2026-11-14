@@ -1,9 +1,9 @@
 import type { Ref } from 'react'
-import { Download, Zap } from 'lucide-react'
+import { Download, Lock, Zap } from 'lucide-react'
 import { DEBRID_SERVER_ID, serverOptions, type MediaMode, type ServerOption } from '@/lib/config'
 import type { ReleaseControls } from '@/components/player/DebridPlayerPane'
 import type { PlayerSource } from '@/components/player/PlayerControls'
-import { useDebridFreeUntil } from '@/hooks/useDebridPromo'
+import { useIsAdmin } from '@/hooks/useIsAdmin'
 import type { SeasonSummary } from '@/lib/episodeNavigation'
 import { cn } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -22,8 +22,8 @@ const content =
 const item = 'cursor-pointer rounded-lg py-2.5 text-sm focus:bg-white/10 focus:text-white data-[state=checked]:bg-white/[0.06]'
 
 /**
- * "Sol 4K", "Premium 4K/1080p Free" — the tags and the zap are drawn, the
- * rest is plain text.
+ * "Sol 4K", "Premium 4K/1080p 🔒 Admin" — the tags, the zap and the lock are
+ * drawn, the rest is plain text.
  */
 function ServerLabel({ option }: { option: ServerOption }) {
   if (option.id !== DEBRID_SERVER_ID) {
@@ -38,22 +38,18 @@ function ServerLabel({ option }: { option: ServerOption }) {
     )
   }
   return (
-    <span className={cn('inline-flex items-center gap-1.5', option.unavailable && 'opacity-60')}>
+    <span className={cn('inline-flex items-center gap-1.5', option.locked && 'opacity-60')}>
       <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" />
       <span className="font-semibold">{option.name}</span>{' '}
       <span className="text-white/55">{option.detail}</span>
-      {option.unavailable ? (
+      {option.locked && (
         <>
           {' '}
-          <span className="rounded bg-white/10 px-1.5 text-xs font-semibold text-white/70">Paused</span>
+          <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 text-xs font-semibold text-white/70">
+            <Lock className="h-3 w-3" aria-hidden="true" />
+            Admin
+          </span>
         </>
-      ) : (
-        option.free && (
-          <>
-            {' '}
-            <span className="rounded bg-emerald-400/15 px-1.5 text-xs font-semibold text-emerald-300">Free</span>
-          </>
-        )
       )}
     </span>
   )
@@ -83,8 +79,8 @@ export function ServerSelect({
   onOpenChange,
   className,
 }: ServerSelectProps) {
-  const debridFree = useDebridFreeUntil() !== null
-  const options = serverOptions(mode, { debridFree })
+  const admin = useIsAdmin()
+  const options = serverOptions(mode, { admin })
   const selected = options.find((option) => option.id === value)
   return (
     <Select value={value} onValueChange={onChange} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>

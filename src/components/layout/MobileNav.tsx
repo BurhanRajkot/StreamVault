@@ -1,10 +1,9 @@
-import { /* Download, */ Heart, Home, Search } from 'lucide-react'
+import { Heart, Home, Search } from 'lucide-react'
 import { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 interface MobileNavProps {
-  mode: MediaMode
   onModeChange: (mode: MediaMode) => void
   /** Opens the header search field. Omitted on pages that have no search. */
   onSearchOpen?: () => void
@@ -14,18 +13,17 @@ interface MobileNavProps {
 /**
  * Bottom tab bar (< md).
  *
- * Only destinations live here — Home, Search, Downloads, My List. Browsing
+ * Only destinations live here — Home, Search, My List. Browsing
  * *categories* (Movies / TV / Anime / Docs) moved to the pill row in the header,
  * because six equal-weight targets across a 390px screen left every one of
  * them under the 44px minimum and read as a toolbar rather than navigation.
  */
-export function MobileNav({ mode, onModeChange, onSearchOpen, searchOpen = false }: MobileNavProps) {
+export function MobileNav({ onModeChange, onSearchOpen, searchOpen = false }: MobileNavProps) {
   const location = useLocation()
   const navigate = useNavigate()
 
   const isFavorites = location.pathname === '/favorites'
-  const isDownloads = mode === 'downloads' && !isFavorites
-  const isHome = !isFavorites && !isDownloads && !searchOpen
+  const isHome = !isFavorites && !searchOpen
 
   /** `to` renders a real anchor — the rest stay buttons (they change state). */
   const tabs: Array<{
@@ -57,14 +55,6 @@ export function MobileNav({ mode, onModeChange, onSearchOpen, searchOpen = false
         else navigate('/', { state: { openSearch: true } })
       },
     },
-    // Downloads stopped for now.
-    // {
-    //   id: 'downloads',
-    //   label: 'Downloads',
-    //   icon: Download,
-    //   isActive: isDownloads,
-    //   action: () => onModeChange('downloads'),
-    // },
     {
       id: 'favorites',
       label: 'My List',

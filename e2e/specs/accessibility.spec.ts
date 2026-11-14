@@ -40,9 +40,20 @@ test('title page', async ({ page, watch }, testInfo) => {
   await audit(page, testInfo)
 })
 
-test('Premium player', async ({ page, watch }, testInfo) => {
+test('Premium, locked for a visitor', async ({ page, watch }, testInfo) => {
   await watch.gotoOnPremium(MOVIE)
   await watch.play()
-  await watch.expectPremiumPlaying()
+  await expect(page.getByText('Premium is admin-only')).toBeVisible()
   await audit(page, testInfo)
+})
+
+test.describe('as the admin', () => {
+  test.use({ admin: true })
+
+  test('Premium player', async ({ page, watch }, testInfo) => {
+    await watch.gotoOnPremium(MOVIE)
+    await watch.play()
+    await watch.expectPremiumPlaying()
+    await audit(page, testInfo)
+  })
 })

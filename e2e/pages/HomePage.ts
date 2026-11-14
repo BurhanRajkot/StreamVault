@@ -5,13 +5,11 @@ export class HomePage {
   readonly header: Locator
   readonly featured: Locator
   readonly searchBox: Locator
-  readonly promoAnnouncement: Locator
 
   constructor(readonly page: Page) {
     this.header = page.getByRole('banner')
     this.featured = page.getByRole('region', { name: 'Featured content carousel' })
     this.searchBox = page.getByLabel('Search movies and TV shows')
-    this.promoAnnouncement = page.getByTestId('free-premium-announcement')
   }
 
   async goto(): Promise<void> {

@@ -4,8 +4,9 @@
  *   - mockApi  — its own MockApi (fresh state), already wired into the page
  *   - a hermetic network (see network.ts)
  *   - a guest visitor by default; `test.use({ user: SIGNED_IN })` signs in
- *     through the app's mock Auth0 provider (VITE_MOCK_AUTH)
- *   - first-visit chrome dismissed (disclaimer, promo card) unless the test
+ *     through the app's mock Auth0 provider (VITE_MOCK_AUTH), and
+ *     `test.use({ admin: true })` holds an admin session (what ⚡ Premium needs)
+ *   - first-visit chrome dismissed (the disclaimer) unless the test
  *     opts back in with `test.use({ firstVisit: true })`
  *   - home / watch page objects
  *
@@ -18,15 +19,17 @@ import { MockApi } from './mock-api'
 import { isolateNetwork } from './network'
 import { HomePage } from '../pages/HomePage'
 import { WatchPage } from '../pages/WatchPage'
-import { SIGNED_IN, type TestUser } from './users'
+import { ADMIN_TOKEN, SIGNED_IN, type TestUser } from './users'
 
 export { SIGNED_IN, type TestUser }
 
 interface Options {
   /** Signed-in user, or null for a guest. */
   user: TestUser | null
-  /** Keep first-visit UI (disclaimer, promo announcement) instead of pre-dismissing it. */
+  /** Keep first-visit UI (the disclaimer) instead of pre-dismissing it. */
   firstVisit: boolean
+  /** Signed in as the site's admin — the only viewer ⚡ Premium plays for. */
+  admin: boolean
 }
 
 interface Fixtures {
@@ -38,22 +41,21 @@ interface Fixtures {
 export const test = base.extend<Options & Fixtures>({
   user: [null, { option: true }],
   firstVisit: [false, { option: true }],
+  admin: [false, { option: true }],
 
-  context: async ({ context, baseURL, user, firstVisit }, use) => {
+  context: async ({ context, baseURL, user, firstVisit, admin }, use) => {
     await isolateNetwork(context, new URL(baseURL ?? 'http://localhost:4173').origin)
     await context.addInitScript(
-      ({ user, firstVisit }) => {
-        if (!firstVisit) {
-          sessionStorage.setItem('disclaimerAccepted', 'true')
-          localStorage.setItem('sv:announce:debrid-free-2026-10-everyone', 'true')
-        }
+      ({ user, firstVisit, adminToken }) => {
+        if (!firstVisit) sessionStorage.setItem('disclaimerAccepted', 'true')
+        if (adminToken) localStorage.setItem('adminToken', adminToken)
         if (user) {
           localStorage.setItem('e2e_mock_authenticated', 'true')
           localStorage.setItem('e2e_mock_user', JSON.stringify(user))
           localStorage.setItem(`cinematch_onboarded_${user.sub}`, 'true')
         }
       },
-      { user, firstVisit }
+      { user, firstVisit, adminToken: admin ? ADMIN_TOKEN : null }
     )
     await use(context)
   },

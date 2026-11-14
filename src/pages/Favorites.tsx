@@ -125,7 +125,6 @@ const Favorites = () => {
           onLogoClick={() => navigate('/')}
         />
         <MobileNav
-          mode="home"
           // Browsing modes live on the home page — carry the tap over to it
           onModeChange={(m) => navigate(MODE_PATHS[m])}
         />

@@ -91,11 +91,6 @@ export async function fetchPopular(
   page = 1,
   providerId?: string | null
 ): Promise<{ results: Media[]; total_pages: number }> {
-  // Downloads has no TMDB data
-  if (mode === 'downloads') {
-    return { results: [], total_pages: 0 }
-  }
-
   // HOME + DOCUMENTARY + ANIME: blended movie/tv feed sorted by popularity,
   // identical apart from the discover filter (see blendedModeFilter).
   const genre = blendedModeFilter(mode)
@@ -149,8 +144,6 @@ export async function fetchRecentlyAdded(
   mode: MediaMode,
   providerId?: string | null
 ): Promise<Media[]> {
-  if (mode === 'downloads') return []
-
   // Date window: last 24 months to today (wide enough for smaller provider catalogs).
   const today = new Date()
   const monthsAgo = new Date(today)
@@ -225,8 +218,6 @@ export async function fetchRecentlyAdded(
 }
 
 export async function fetchTrending(mode: MediaMode): Promise<Media[]> {
-  if (mode === 'downloads') return []
-
   // Anime: the best known of the series and film rows.
   if (mode === 'anime') {
     const [series, movies] = await Promise.all([fetchAnimeRow('series'), fetchAnimeRow('movies')])
@@ -268,10 +259,6 @@ export async function searchMedia(
   /** Optional AbortSignal — pass one from an AbortController to cancel stale requests */
   signal?: AbortSignal
 ): Promise<{ results: Media[]; hasMore: boolean }> {
-  if (mode === 'downloads') {
-    return { results: [], hasMore: false }
-  }
-
   const params = new URLSearchParams()
   params.append('query', query)
   params.append('page', page.toString())
@@ -362,29 +349,8 @@ export async function fetchAnimeRow(kind: AnimeRowKind): Promise<Media[]> {
   }
 }
 
-export interface DonationDetails {
-  /** data: URL of a UPI QR code with no amount set. */
-  qrCode: string
-  upiId: string
-  payeeName: string
-}
-
-/** The "buy me a coffee" UPI QR, or null when the backend has no UPI ID configured. */
-export async function fetchDonationDetails(): Promise<DonationDetails | null> {
-  const res = await fetch(`${API_BASE}/subscriptions/plans`)
-  if (!res.ok) return null
-  const data: unknown = await res.json()
-  if (!data || typeof data !== 'object' || !('donation' in data)) return null
-  const donation = (data as { donation: unknown }).donation
-  if (!donation || typeof donation !== 'object') return null
-  const { qrCode, upiId, payeeName } = donation as Partial<DonationDetails>
-  return typeof qrCode === 'string' && typeof upiId === 'string'
-    ? { qrCode, upiId, payeeName: typeof payeeName === 'string' ? payeeName : 'StreamVault' }
-    : null
-}
-
 export async function fetchMediaDetails(mode: MediaMode, id: number): Promise<Media | null> {
-  if (mode === 'downloads' || !id) return null
+  if (!id) return null
 
   const url = `${API_BASE}/tmdb/${mode}/${id}?append_to_response=credits,similar,images,release_dates,content_ratings,external_ids&include_image_language=en,null`
   const res = await fetch(url)
@@ -623,52 +589,6 @@ export function buildEmbedUrl(
 }
 
 /* ======================================================
-   DOWNLOADS
-====================================================== */
-
-export type DownloadItem = {
-  id: string
-  title: string
-  quality: string
-  filename: string
-}
-
-export async function fetchDownloads(token?: string): Promise<DownloadItem[]> {
-  const headers: Record<string, string> = {}
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-
-  const res = await fetch(`${API_BASE}/downloads`, { headers })
-  if (!res.ok) {
-    const errorText = await res.text()
-    throw new Error(errorText)
-  }
-  return res.json()
-}
-
-/**
- * Start a download.
- *
- * The file endpoint is behind auth, and pointing `window.location` at it sends
- * no Authorization header — so we exchange the token for a short-lived
- * pre-authorised URL first and navigate to that.
- */
-export async function downloadFile(id: string, token: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/downloads/${encodeURIComponent(id)}/link`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    throw new Error(body?.error || 'Failed to start download')
-  }
-
-  const { url } = (await res.json()) as { url: string }
-  window.location.href = url
-}
-
-/* ======================================================
    ADMIN AUTHENTICATION
 ====================================================== */
 
@@ -720,17 +640,44 @@ function isTokenExpired(token: string): boolean {
  * "Protected Routes" section.
  */
 export function getAdminToken(): string | null {
-  const token = localStorage.getItem('adminToken')
+  let token: string | null
+  try {
+    token = localStorage.getItem(ADMIN_TOKEN_KEY)
+  } catch {
+    // Storage blocked (private mode) — nobody is an admin here.
+    return null
+  }
   if (!token) return null
   if (isTokenExpired(token)) {
-    localStorage.removeItem('adminToken')
+    clearAdminToken()
     return null
   }
   return token
 }
 
+const ADMIN_TOKEN_KEY = 'adminToken'
+
+/** Fired on `window` whenever this tab signs an admin in or out (see useIsAdmin). */
+export const ADMIN_SESSION_EVENT = 'sv:admin-session'
+
+function announceAdminSession(): void {
+  window.dispatchEvent(new Event(ADMIN_SESSION_EVENT))
+}
+
 export function setAdminToken(token: string): void {
-  localStorage.setItem('adminToken', token)
+  localStorage.setItem(ADMIN_TOKEN_KEY, token)
+  announceAdminSession()
+}
+
+/** Sign the admin out — also what a 401 on an admin-only call does. */
+export function clearAdminToken(): void {
+  try {
+    if (localStorage.getItem(ADMIN_TOKEN_KEY) === null) return
+    localStorage.removeItem(ADMIN_TOKEN_KEY)
+  } catch {
+    return
+  }
+  announceAdminSession()
 }
 
 export function isAdminAuthenticated(): boolean {

@@ -27,8 +27,8 @@ function preconnectApi(apiUrl: string | undefined): Plugin {
 }
 
 /**
- * Dev proxy to the local backend. `/downloads` and `/admin/dashboard` are
- * also app pages, so a page load (Accept: text/html) is served the app
+ * Dev proxy to the local backend. `/admin/dashboard` is also an app page,
+ * so a page load (Accept: text/html) is served the app
  * instead of being forwarded — it used to come back as the API's raw 401.
  */
 const backendProxy = {
@@ -45,7 +45,6 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       '/tmdb': backendProxy,
       '/continue-watching': backendProxy,
-      '/downloads': backendProxy,
       '/admin': backendProxy,
       '/recommendations': backendProxy,
       '/ping': backendProxy,

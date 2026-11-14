@@ -1,0 +1,1302 @@
+/**
+ * Real-Debrid API wrapper
+ *
+ * Thin, typed wrapper around the Real-Debrid REST API.
+ * Base URL: https://api.real-debrid.com/rest/1.0
+ *
+ * Every request carries `Authorization: Bearer <DEBRID_API_KEY>` — the key
+ * never leaves the backend (Torrentio is the one deliberate exception, see
+ * torrentio.ts).
+ *
+ * Division of labour: this backend only makes small JSON calls (add a magnet,
+ * pick its files, unrestrict a link, read media info). The video itself never
+ * passes through us — the browser plays Real-Debrid's direct download link,
+ * or Real-Debrid's own HLS transcode when the file's audio/video can't be
+ * decoded natively. That keeps the server's bandwidth and CPU flat no matter
+ * how many people are watching.
+ *
+ * Playback flow for one release (see preparePlayback):
+ *   addMagnet → selectFiles (video files) → torrents/info
+ *     status "downloaded" (instant when cached) → unrestrict/link
+ *     → streaming/mediaInfos + streaming/transcode
+ *   anything else → report download progress; the player polls.
+ */
+
+import { searchTorrentio, torrentioTorrentCandidates, type TorrentioTorrentCandidate } from './torrentio'
+import * as cache from '../services/cache'
+import { logger } from './logger'
+
+const DEBRID_BASE = 'https://api.real-debrid.com/rest/1.0'
+
+function debridKey(): string | undefined {
+  return process.env.DEBRID_API_KEY
+}
+
+/**
+ * Optional HTTP(S) proxy for Real-Debrid API calls. Real-Debrid refuses most
+ * datacenter IPs (error 22, "IP Address not allowed") — a hosted backend can
+ * route its calls through an address Real-Debrid accepts instead.
+ */
+function debridProxy(): string | undefined {
+  return process.env.DEBRID_PROXY_URL || undefined
+}
+
+// ---------------------------------------------------------------------------
+// Response types
+// ---------------------------------------------------------------------------
+
+/** Real-Debrid torrent status values. */
+export type DebridTorrentStatus =
+  | 'magnet_error'
+  | 'magnet_conversion'
+  | 'waiting_files_selection'
+  | 'queued'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+  | 'virus'
+  | 'compressing'
+  | 'uploading'
+  | 'dead'
+
+export interface DebridTorrent {
+  id: string
+  filename: string
+  hash: string
+  /** Size of the selected files, bytes */
+  bytes: number
+  host: string
+  split: number
+  /** 0-100 */
+  progress: number
+  status: DebridTorrentStatus
+  added: string
+  links: string[]
+  ended?: string
+  /** Bytes/second, only while downloading */
+  speed?: number
+  /** Only while downloading */
+  seeders?: number
+}
+
+export interface DebridTorrentFile {
+  /** 1-based, in torrent order */
+  id: number
+  path: string
+  bytes: number
+  /** 1 when selected */
+  selected: number
+}
+
+export interface DebridTorrentInfo extends DebridTorrent {
+  original_filename: string
+  original_bytes: number
+  files: DebridTorrentFile[]
+}
+
+interface DebridUnrestricted {
+  id: string
+  filename: string
+  mimeType: string
+  filesize: number
+  link: string
+  host: string
+  download: string
+  streamable: number
+}
+
+interface DebridMediaTrack {
+  stream: string
+  lang: string
+  lang_iso: string
+  codec?: string
+  channels?: number
+  type?: string
+}
+
+interface DebridMediaInfos {
+  filename: string
+  duration: number
+  details: {
+    video?: Record<string, DebridMediaTrack & { width?: number; height?: number }>
+    audio?: Record<string, DebridMediaTrack>
+    subtitles?: Record<string, DebridMediaTrack>
+  }
+  /** e.g. https://4.stream.real-debrid.com/t/<id>/{audio}/{subtitles}/{audioCodec}/{quality}.{format} */
+  modelUrl?: string
+}
+
+type DebridTranscodeLinks = Partial<Record<'apple' | 'dash' | 'liveMP4' | 'h264WebM', Record<string, string>>>
+
+interface DebridUser {
+  username: string
+  type: 'premium' | 'free'
+  expiration: string | null
+}
+
+/** A failed Real-Debrid call, carrying the HTTP status and RD's own error code. */
+export class DebridError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: number,
+    /** How long Real-Debrid asked to wait (its Retry-After header), when it said. */
+    readonly retryAfterMs?: number
+  ) {
+    super(message)
+    this.name = 'DebridError'
+  }
+}
+
+/**
+ * Real-Debrid's "slow down" answers: rate limiting (5, 34, HTTP 429) and its
+ * fair-usage throttle (36). They come in bursts — one Play asks about a few
+ * releases at once, each several calls — and are gone a moment later (a
+ * manual Try again a few seconds on works), so they're waited out, not
+ * reported.
+ */
+const THROTTLE_CODES = new Set([5, 34, 36])
+
+/** Waits before each retry of a throttled call. Each gets up to 40% more at random, so parallel calls don't retry in step. */
+let throttleBackoffMs = [1000, 2500, 4500]
+
+/** Tests wait for no one. */
+export function setThrottleBackoffForTests(ms: number[]): void {
+  throttleBackoffMs = ms
+}
+
+export function isThrottled(err: unknown): err is DebridError {
+  return err instanceof DebridError && (err.status === 429 || (err.code !== undefined && THROTTLE_CODES.has(err.code)))
+}
+
+/** Retry-After as milliseconds: "3" (seconds) or an HTTP date. */
+function retryAfterMs(header: string | null): number | undefined {
+  if (!header) return undefined
+  const seconds = Number(header)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+  const at = Date.parse(header)
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : undefined
+}
+
+const BUSY_MESSAGE = 'Real-Debrid is busy right now. Try again in a minute.'
+
+/**
+ * Real-Debrid error codes that are about the account or this server, not the
+ * release — every other release would fail the same way, so the player
+ * should stop and say why rather than work through its list.
+ *
+ * Premium only plays for the site's admin, so these say what is actually
+ * wrong and where to fix it (they used to be softened for the public).
+ */
+const ACCOUNT_ERROR_MESSAGES: Record<number, string> = {
+  5: BUSY_MESSAGE,
+  8: 'Real-Debrid refused the API key. Put a current key in DEBRID_API_KEY on the server.', // bad token
+  9: 'Real-Debrid denied the request — the account is locked or not premium. Check it at real-debrid.com.',
+  14: 'The Real-Debrid account is locked. Check it at real-debrid.com.',
+  21: 'Real-Debrid has too many active downloads on the account. Try again in a minute.',
+  22: "Real-Debrid blocks this server's IP address. Route its calls through DEBRID_PROXY_URL.",
+  23: 'The Real-Debrid account is out of traffic for now.',
+  34: BUSY_MESSAGE,
+  36: 'Real-Debrid is rate-limiting the account (fair usage). Try again in a minute.',
+  37: 'Real-Debrid has switched this feature off for the account.',
+}
+
+/** The reason, in plain words, when `err` is an account/server-wide Real-Debrid failure — else null. */
+export function accountErrorMessage(err: unknown): string | null {
+  if (!(err instanceof DebridError)) return null
+  if (err.code !== undefined && ACCOUNT_ERROR_MESSAGES[err.code]) return ACCOUNT_ERROR_MESSAGES[err.code]
+  if (err.status === 401) return ACCOUNT_ERROR_MESSAGES[8]
+  if (err.status === 403) return ACCOUNT_ERROR_MESSAGES[9]
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Internal fetch helper
+// ---------------------------------------------------------------------------
+
+type DebridFetchOptions = { method?: 'GET' | 'POST' | 'DELETE'; form?: Record<string, string> }
+
+/**
+ * One Real-Debrid API call, waiting out its throttling: a call it refused
+ * with "slow down" (see THROTTLE_CODES) is retried a few times, a little
+ * later each time. Safe for every call here — a refused call did nothing.
+ */
+async function debridFetch<T>(path: string, options: DebridFetchOptions = {}): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await debridRequest<T>(path, options)
+    } catch (err: unknown) {
+      if (!isThrottled(err) || attempt >= throttleBackoffMs.length) throw err
+      const backoff = throttleBackoffMs[attempt] * (1 + Math.random() * 0.4)
+      const waitMs = Math.min(Math.max(err.retryAfterMs ?? 0, backoff), 10_000)
+      logger.warn('Real-Debrid throttled a call, retrying', {
+        path: path.split('?')[0],
+        status: err.status,
+        code: err.code,
+        retry: attempt + 1,
+        waitMs: Math.round(waitMs),
+      })
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
+  }
+}
+
+async function debridRequest<T>(path: string, options: DebridFetchOptions): Promise<T> {
+  const key = debridKey()
+  if (!key) {
+    throw new Error('DEBRID_API_KEY is not configured in the environment')
+  }
+
+  const res = await fetch(`${DEBRID_BASE}${path}`, {
+    method: options.method ?? (options.form ? 'POST' : 'GET'),
+    headers: { Authorization: `Bearer ${key}` },
+    body: options.form ? new URLSearchParams(options.form) : undefined,
+    signal: AbortSignal.timeout(20_000),
+    // Bun's fetch takes a proxy URL directly.
+    proxy: debridProxy(),
+  } as RequestInit)
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string; error_code?: number } | null
+    // The endpoint (without its id) says which call Real-Debrid refused, in the logs.
+    const endpoint = path.split('?')[0].replace(/\/[^/]*\d[^/]*$/, '/:id')
+    throw new DebridError(
+      `Real-Debrid API error ${res.status}${body?.error_code !== undefined ? ` (code ${body.error_code})` : ''} on ${endpoint}: ${body?.error ?? res.statusText}`,
+      res.status,
+      body?.error_code,
+      retryAfterMs(res.headers.get('retry-after'))
+    )
+  }
+
+  if (res.status === 204) return null as T
+  const text = await res.text()
+  return (text ? JSON.parse(text) : null) as T
+}
+
+// ---------------------------------------------------------------------------
+// Account + library
+// ---------------------------------------------------------------------------
+
+export interface DebridAccountStatus {
+  connected: boolean
+  premium: boolean
+  expiration: string | null
+  note: string | null
+}
+
+/** Whether Real-Debrid is reachable, the key valid, and the account premium. */
+export async function getAccountStatus(): Promise<DebridAccountStatus> {
+  const user = await debridFetch<DebridUser>('/user')
+  const premium = user.type === 'premium'
+  return {
+    connected: true,
+    premium,
+    expiration: user.expiration,
+    note: premium ? null : 'Real-Debrid account is not premium',
+  }
+}
+
+/** Torrents in the account, newest first. */
+export async function listTorrents(limit = 100): Promise<DebridTorrent[]> {
+  const list = await debridFetch<DebridTorrent[] | null>(`/torrents?limit=${Math.min(Math.max(limit, 1), 2500)}`)
+  return list ?? []
+}
+
+/** One torrent with its file list and live download state. */
+export async function getTorrentInfo(torrentId: string): Promise<DebridTorrentInfo> {
+  return debridFetch<DebridTorrentInfo>(`/torrents/info/${encodeURIComponent(torrentId)}`)
+}
+
+export async function deleteTorrent(torrentId: string): Promise<void> {
+  await debridFetch<null>(`/torrents/delete/${encodeURIComponent(torrentId)}`, { method: 'DELETE' })
+  forgetTorrent(torrentId)
+}
+
+/** Add a torrent by info-hash. Returns Real-Debrid's torrent id. */
+export async function addMagnet(hash: string, name?: string): Promise<string> {
+  const magnet = `magnet:?xt=urn:btih:${hash.toLowerCase()}${name ? `&dn=${encodeURIComponent(name)}` : ''}`
+  const res = await debridFetch<{ id: string }>('/torrents/addMagnet', { form: { magnet } })
+  rememberTorrent(hash, res.id)
+  return res.id
+}
+
+const DEAD_STATUSES = new Set<DebridTorrentStatus>(['magnet_error', 'error', 'virus', 'dead'])
+
+// ---------------------------------------------------------------------------
+// "Is this release already in the account?"
+//
+// Starting playback asks before adding a release, so the account doesn't
+// fill with duplicates. Listing the account to answer costs 0.4-2s (226
+// torrents, measured 2026-11-08) — a large share of the ~3-4s a play takes —
+// so the answer comes, cheapest first, from:
+//   1. torrents this server has added or found (knownTorrents);
+//   2. a snapshot of the account, fresh for 30s. Up to 10 minutes old it
+//      still answers for a release it holds — while a fresh copy loads —
+//      since preparePlayback fetches the torrent's info next anyway and
+//      re-adds one deleted since. A release it doesn't hold waits for a
+//      fresh listing: someone may have added it in the meantime;
+//   3. a fresh listing, started as soon as a release search comes in
+//      (warmTorrentLookup) so it's usually ready by the time Play is.
+// ---------------------------------------------------------------------------
+
+/** Info-hash (lower case) → torrent id, for torrents added or found here. Oldest first, capped. */
+const knownTorrents = new Map<string, string>()
+const KNOWN_TORRENTS_MAX = 2000
+
+function rememberTorrent(hash: string, torrentId: string): void {
+  const key = hash.toLowerCase()
+  knownTorrents.delete(key)
+  knownTorrents.set(key, torrentId)
+  if (knownTorrents.size > KNOWN_TORRENTS_MAX) {
+    const oldest = knownTorrents.keys().next().value
+    if (oldest !== undefined) knownTorrents.delete(oldest)
+  }
+}
+
+function forgetTorrent(torrentId: string): void {
+  for (const [hash, id] of knownTorrents) {
+    if (id === torrentId) knownTorrents.delete(hash)
+  }
+}
+
+let torrentLookup: { at: number; list: Promise<DebridTorrent[]> } | null = null
+const TORRENT_LOOKUP_FRESH_MS = 30_000
+const TORRENT_LOOKUP_STALE_MS = 10 * 60_000
+
+function refreshTorrentLookup(): Promise<DebridTorrent[]> {
+  const entry = { at: Date.now(), list: listTorrents(500) }
+  torrentLookup = entry
+  entry.list.catch(() => {
+    if (torrentLookup === entry) torrentLookup = null
+  })
+  return entry.list
+}
+
+/**
+ * List the account ahead of a likely play — a release search — unless a
+ * fresh snapshot is already there or on its way.
+ */
+export function warmTorrentLookup(): void {
+  if (!debridKey()) return
+  if (torrentLookup && Date.now() - torrentLookup.at <= TORRENT_LOOKUP_FRESH_MS) return
+  refreshTorrentLookup().catch(() => {})
+}
+
+/** The id of an existing, healthy torrent in the account for this info-hash — reused instead of adding a duplicate. */
+export async function findTorrentId(hash: string): Promise<string | null> {
+  const wanted = hash.toLowerCase()
+  const known = knownTorrents.get(wanted)
+  if (known) return known
+
+  const match = (list: DebridTorrent[]): string | null => {
+    const hit = list.find((t) => t.hash.toLowerCase() === wanted && !DEAD_STATUSES.has(t.status))
+    if (hit) rememberTorrent(wanted, hit.id)
+    return hit?.id ?? null
+  }
+
+  const snapshot = torrentLookup
+  const age = snapshot ? Date.now() - snapshot.at : Infinity
+  if (snapshot && age <= TORRENT_LOOKUP_STALE_MS) {
+    const list = await snapshot.list.catch(() => null)
+    if (list) {
+      const id = match(list)
+      if (id) {
+        if (age > TORRENT_LOOKUP_FRESH_MS) refreshTorrentLookup().catch(() => {})
+        return id
+      }
+      if (age <= TORRENT_LOOKUP_FRESH_MS) return null
+    }
+  }
+  return match(await refreshTorrentLookup())
+}
+
+/** Forget every remembered torrent and snapshot — tests only. */
+export function resetTorrentLookupForTests(): void {
+  knownTorrents.clear()
+  torrentLookup = null
+}
+
+// ---------------------------------------------------------------------------
+// File selection
+// ---------------------------------------------------------------------------
+
+const VIDEO_EXT_RE = /\.(mkv|mp4|m4v|avi|mov|wmv|webm|ts|m2ts|mpg|mpeg)$/i
+
+function isSampleFile(path: string): boolean {
+  return /(^|[/\\._\-\s])sample([/\\._\-\s]|$)/i.test(path)
+}
+
+/**
+ * The files to select when a torrent is first added: every video file except
+ * samples. Real-Debrid's cache is per file-set, and video-only is the set
+ * Torrentio resolves with — which is what its "[RD+]" tag means — so picking
+ * a single file could turn an instant torrent into a download. Selecting the
+ * whole set also lets one season-pack torrent serve every episode.
+ */
+export function filesToSelect(files: DebridTorrentFile[]): number[] {
+  const videos = files.filter((f) => VIDEO_EXT_RE.test(f.path))
+  const nonSample = videos.filter((f) => !isSampleFile(f.path))
+  const pool = nonSample.length ? nonSample : videos
+  return pool.map((f) => f.id)
+}
+
+/**
+ * The file to play out of a torrent's selected files: the one Torrentio
+ * matched (by name, then index), else the right episode for TV, else the
+ * largest video.
+ */
+export function pickPlaybackFile(
+  files: DebridTorrentFile[],
+  opts: { fileName?: string; fileIdx?: number; season?: number; episode?: number } = {}
+): DebridTorrentFile | null {
+  const videos = files.filter((f) => VIDEO_EXT_RE.test(f.path) && !isSampleFile(f.path))
+  const pool = videos.length ? videos : files
+  if (pool.length === 0) return null
+  if (pool.length === 1) return pool[0]
+
+  if (opts.fileName) {
+    const wanted = opts.fileName.toLowerCase()
+    const byName = pool.find((f) => f.path.toLowerCase().endsWith(`/${wanted}`) || f.path.toLowerCase() === wanted)
+    if (byName) return byName
+  }
+
+  if (opts.season != null && opts.episode != null) {
+    const episodeFile = findEpisodeFile(pool, opts.season, opts.episode)
+    if (episodeFile) return episodeFile
+  } else if (opts.fileIdx != null) {
+    // Torrentio's index is 0-based in torrent order; Real-Debrid ids are 1-based in the same order.
+    const byIdx = pool.find((f) => f.id === opts.fileIdx! + 1)
+    if (byIdx) return byIdx
+  }
+
+  return [...pool].sort((a, b) => b.bytes - a.bytes)[0]
+}
+
+/** The file for one episode inside a season pack, or null when nothing matches. */
+export function findEpisodeFile(files: DebridTorrentFile[], season: number, episode: number): DebridTorrentFile | null {
+  const basename = (f: DebridTorrentFile) => f.path.split('/').pop() ?? f.path
+  // Fixed patterns that capture the numbers, compared numerically — never a
+  // regex built from the request's season/episode.
+  const has = (name: string, pattern: RegExp, wanted: (m: RegExpMatchArray) => boolean) =>
+    [...name.matchAll(pattern)].some(wanted)
+
+  /** A double episode ("S04E01&02") holds both; a "range" wider than a few is a misread number. */
+  const holdsEpisode = (first: number, last: number | null) =>
+    episode === first || (last !== null && last > first && last - first <= 3 && episode > first && episode <= last)
+
+  /** The season a file's own name, else its folder, says it's from; null when neither says. */
+  const seasonOf = (f: DebridTorrentFile): number | null => {
+    const own = basename(f).match(/s(\d+)[._\s-]*ep?\d+/i) ?? basename(f).match(/\b(\d+)x\d+/i)
+    if (own) return Number(own[1])
+    const folders = f.path.slice(0, f.path.length - basename(f).length)
+    const folder = folders.match(/season[\s._-]*(\d+)/i) ?? folders.match(/\bs(\d{1,2})\b/i)
+    return folder ? Number(folder[1]) : null
+  }
+
+  const matchers: Array<{ ofThisSeasonOnly: boolean; matches: (name: string) => boolean }> = [
+    // S05E03, S5.E3, S05 E03, S01.EP03 — and doubles: S04E01&02, S04E01-E02, S04E01E02, S04E01-02
+    {
+      ofThisSeasonOnly: false,
+      matches: (n) =>
+        has(
+          n,
+          /s(\d+)[._\s-]*ep?(\d+)(?:(?:[-&+]|[._\s]?e|-e)p?(\d+))?/gi,
+          (m) => Number(m[1]) === season && holdsEpisode(Number(m[2]), m[3] === undefined ? null : Number(m[3]))
+        ),
+    },
+    // 5x03
+    { ofThisSeasonOnly: false, matches: (n) => has(n, /\b(\d+)x(\d+)/gi, (m) => Number(m[1]) === season && Number(m[2]) === episode) },
+    // Names that only give the episode: "E03" / "EP03", or a bare "03 - Title.mkv"
+    // (4-digit years stripped first). Without a season of their own these
+    // would match the same episode of *every* season in a multi-season pack,
+    // so files whose name or folder says another season are skipped.
+    { ofThisSeasonOnly: true, matches: (n) => has(n, /\bep?(\d+)/gi, (m) => Number(m[1]) === episode) },
+    { ofThisSeasonOnly: true, matches: (n) => has(n.replace(/\d{4}/g, ''), /\d+/g, (m) => Number(m[0]) === episode) },
+  ]
+  for (const { ofThisSeasonOnly, matches } of matchers) {
+    const match = files.find((f) => {
+      if (ofThisSeasonOnly) {
+        const fileSeason = seasonOf(f)
+        if (fileSeason !== null && fileSeason !== season) return false
+      }
+      return matches(basename(f))
+    })
+    if (match) return match
+  }
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Playback
+// ---------------------------------------------------------------------------
+
+export interface DebridAudioTrack {
+  /** Real-Debrid's track key, e.g. "eng1" — the {audio} slot of the transcode URL. */
+  id: string
+  lang: string
+  langIso: string
+  codec: string | null
+  channels: number | null
+}
+
+export interface DebridMediaSummary {
+  videoCodec: string | null
+  /** In file order — the first one is what a direct (non-transcoded) stream plays. */
+  audioTracks: DebridAudioTrack[]
+  /** The track the HLS links below carry (preferred language, else the first). */
+  selectedAudio: string | null
+  duration: number | null
+}
+
+export type PlaybackResult =
+  | {
+      /** `instantOnly` was set and the release wasn't cached after all; the torrent was removed again. */
+      status: 'not-cached'
+    }
+  | {
+      status: 'downloading'
+      torrentId: string
+      /** 0-100 */
+      progress: number
+      speed: number
+      seeders: number
+      debridStatus: DebridTorrentStatus
+    }
+  | {
+      status: 'failed'
+      torrentId: string
+      debridStatus: DebridTorrentStatus
+      reason: string
+    }
+  | {
+      status: 'ready'
+      torrentId: string
+      fileId: number
+      fileName: string
+      fileSize: number
+      mimeType: string
+      /** Real-Debrid's direct link — supports range requests, so the browser can seek freely. */
+      directUrl: string
+      /**
+       * The download's full id, host suffix included (e.g. "3ZCYELW6PS42W44").
+       * Real-Debrid hands out a download server near whoever asked — our
+       * backend, not the viewer — but its regional servers (Mumbai,
+       * Singapore, Los Angeles, ...) serve any download as
+       * `/d/<downloadId>/<file>`, so the browser can move the link to the one
+       * nearest the viewer (src/lib/debridHost.ts).
+       */
+      downloadId: string
+      /**
+       * Real-Debrid's own HLS transcode of the preferred-language audio track:
+       * always H.264 + AAC, whatever the source codecs. Null when Real-Debrid
+       * couldn't produce one (non-video file, etc.).
+       */
+      hls: string | null
+      media: DebridMediaSummary | null
+    }
+
+const PREFERRED_AUDIO_LANGUAGES = (process.env.DEBRID_PREFERRED_AUDIO_LANGS || 'eng,en')
+  .split(',')
+  .map((l) => l.trim().toLowerCase())
+  .filter(Boolean)
+
+function summarizeMedia(info: DebridMediaInfos): DebridMediaSummary {
+  const video = Object.values(info.details?.video ?? {})[0]
+  const audioTracks: DebridAudioTrack[] = Object.entries(info.details?.audio ?? {})
+    .map(([id, t]) => ({
+      id,
+      lang: t.lang,
+      langIso: (t.lang_iso || '').toLowerCase(),
+      codec: t.codec ?? null,
+      channels: typeof t.channels === 'number' ? t.channels : null,
+      order: parseInt((t.stream || '').split(':')[1] ?? '', 10),
+    }))
+    .sort((a, b) => (Number.isFinite(a.order) && Number.isFinite(b.order) ? a.order - b.order : 0))
+    .map(({ order: _order, ...track }) => track)
+
+  const preferred =
+    PREFERRED_AUDIO_LANGUAGES.map((lang) => audioTracks.find((t) => t.langIso === lang)).find(Boolean) ??
+    audioTracks[0]
+
+  return {
+    videoCodec: video?.codec ?? null,
+    audioTracks,
+    selectedAudio: preferred?.id ?? null,
+    duration: Number.isFinite(info.duration) ? info.duration : null,
+  }
+}
+
+/** Fill Real-Debrid's transcode URL template. */
+function transcodeUrl(modelUrl: string, audio: string, quality: string): string {
+  return modelUrl
+    .replace('{audio}', encodeURIComponent(audio))
+    .replace('{subtitles}', 'none')
+    .replace('{audioCodec}', 'aac')
+    .replace('{quality}', quality)
+    .replace('{format}', 'm3u8')
+}
+
+/**
+ * Only the "full" rendition is offered. The 1080p one ("1080p_8mbps") lives in
+ * the same directory, so its playlist names the very same segment URLs — and
+ * those came back byte-identical (both H.264, measured 2026-10-05 on an HEVC
+ * source). As a fallback it could only fail the same way a second time.
+ */
+const TRANSCODE_QUALITY = 'full'
+
+/**
+ * Resolve the streams for one ready file. Media info and the transcode links
+ * are best-effort: when they fail the direct link still plays wherever the
+ * browser can decode the file.
+ */
+async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult, { status: 'ready' }>, 'status' | 'torrentId' | 'fileId'>> {
+  const unrestricted = await debridFetch<DebridUnrestricted>('/unrestrict/link', { form: { link } })
+  // /unrestrict returns the download id with a 3-digit host suffix
+  // ("5GTUPMTIYFBQU128"); the /streaming endpoints only accept the bare
+  // 13-character id and answer "{id} is invalid" otherwise.
+  const streamingId = unrestricted.id.length > 13 ? unrestricted.id.slice(0, 13) : unrestricted.id
+
+  let media: DebridMediaSummary | null = null
+  let hls: string | null = null
+
+  if (unrestricted.streamable === 1) {
+    const [infos, links] = await Promise.all([
+      debridFetch<DebridMediaInfos>(`/streaming/mediaInfos/${streamingId}`).catch((err: unknown) => {
+        logger.warn('Real-Debrid mediaInfos failed', { error: err instanceof Error ? err.message : String(err) })
+        return null
+      }),
+      debridFetch<DebridTranscodeLinks>(`/streaming/transcode/${streamingId}`).catch((err: unknown) => {
+        logger.warn('Real-Debrid transcode links failed', { error: err instanceof Error ? err.message : String(err) })
+        return null
+      }),
+    ])
+
+    if (infos) media = summarizeMedia(infos)
+
+    if (infos?.modelUrl && media?.selectedAudio) {
+      hls = transcodeUrl(infos.modelUrl, media.selectedAudio, TRANSCODE_QUALITY)
+    } else if (links?.apple?.original) {
+      hls = links.apple.original
+    }
+  }
+
+  return {
+    fileName: unrestricted.filename,
+    fileSize: unrestricted.filesize,
+    mimeType: unrestricted.mimeType,
+    directUrl: unrestricted.download,
+    downloadId: unrestricted.id,
+    hls,
+    media,
+  }
+}
+
+/**
+ * Get one release to a playable state. Pass `hash` the first time (the
+ * torrent is reused from the account when already there, otherwise added),
+ * then `torrentId` on every poll while it downloads.
+ *
+ * `instantOnly` — for releases Torrentio tagged as cached: if Real-Debrid
+ * starts downloading instead (the tag was stale), the torrent this call added
+ * is deleted again and `not-cached` returned, so the player can move on to
+ * the next release without leaving a download running in the account.
+ */
+export async function preparePlayback(params: {
+  hash?: string
+  torrentId?: string
+  name?: string
+  fileName?: string
+  fileIdx?: number
+  season?: number
+  episode?: number
+  instantOnly?: boolean
+}): Promise<PlaybackResult> {
+  let torrentId = params.torrentId
+  let addedHere = false
+  let reused = false
+  if (!torrentId) {
+    if (!params.hash) throw new Error('hash or torrentId is required')
+    const existing = await findTorrentId(params.hash).catch(() => null)
+    if (existing) {
+      torrentId = existing
+      reused = true
+    } else {
+      torrentId = await addMagnet(params.hash, params.name)
+      addedHere = true
+    }
+  }
+
+  let info: DebridTorrentInfo | null = null
+  try {
+    info = await getTorrentInfo(torrentId)
+  } catch (err: unknown) {
+    // A remembered torrent deleted since (from the library, or on
+    // Real-Debrid's site): add the release afresh.
+    if (!(reused && params.hash && err instanceof DebridError && err.status === 404)) throw err
+  }
+  if (reused && params.hash && (!info || DEAD_STATUSES.has(info.status))) {
+    forgetTorrent(torrentId)
+    torrentId = await addMagnet(params.hash, params.name)
+    addedHere = true
+    info = await getTorrentInfo(torrentId)
+  }
+  if (!info) throw new Error('Torrent info unavailable')
+
+  if (info.status === 'waiting_files_selection') {
+    const ids = filesToSelect(info.files)
+    await debridFetch<null>(`/torrents/selectFiles/${encodeURIComponent(torrentId)}`, {
+      form: { files: ids.length ? ids.join(',') : 'all' },
+    })
+    info = await getTorrentInfo(torrentId)
+  }
+
+  if (params.instantOnly && addedHere && info.status !== 'downloaded') {
+    await deleteTorrent(torrentId).catch((err: unknown) => {
+      logger.warn('Could not remove non-instant torrent', { torrentId, error: err instanceof Error ? err.message : String(err) })
+    })
+    forgetTorrent(torrentId)
+    return { status: 'not-cached' }
+  }
+
+  if (DEAD_STATUSES.has(info.status)) {
+    return { status: 'failed', torrentId, debridStatus: info.status, reason: `Real-Debrid reported "${info.status}"` }
+  }
+
+  if (info.status !== 'downloaded') {
+    return {
+      status: 'downloading',
+      torrentId,
+      progress: info.progress ?? 0,
+      speed: info.speed ?? 0,
+      seeders: info.seeders ?? 0,
+      debridStatus: info.status,
+    }
+  }
+
+  // `links` lines up one-to-one with the selected files, in file order.
+  const selected = info.files.filter((f) => f.selected === 1).sort((a, b) => a.id - b.id)
+  const file = pickPlaybackFile(selected, params)
+  const linkIndex = file ? selected.indexOf(file) : -1
+  const link =
+    linkIndex >= 0 && selected.length === info.links.length ? info.links[linkIndex] : info.links.length === 1 ? info.links[0] : null
+
+  if (!file || !link) {
+    return { status: 'failed', torrentId, debridStatus: info.status, reason: 'No playable video file in this release' }
+  }
+
+  const streams = await resolveStreams(link)
+  return { status: 'ready', torrentId, fileId: file.id, ...streams }
+}
+
+// ---------------------------------------------------------------------------
+// Release search
+// ---------------------------------------------------------------------------
+
+/** A single searchable release, from Torrentio or apibay. */
+export interface DebridRelease {
+  /** Stable id (info-hash for Torrentio, apibay row id otherwise) */
+  id: string
+  name: string
+  /** Info-hash (uppercase hex) */
+  info_hash: string
+  seeders: string
+  leechers: string
+  size: string
+  num_files: string
+  /** Source index: "torrentio" or the apibay uploader */
+  username: string
+  added: string
+  category: string
+  /** IMDB ID if available e.g. "tt1375666" */
+  imdb?: string
+  /** True when Real-Debrid is known to have this release cached (instant playback) */
+  cached: boolean
+  /** File Torrentio matched inside the torrent — helps pick the right file of a pack */
+  file_name?: string
+  file_idx?: number
+}
+
+const APIBAY_BASE = 'https://apibay.org'
+
+/** apibay.org raw result shape */
+interface ApibayResult {
+  id: string
+  name: string
+  info_hash: string
+  leechers: string
+  seeders: string
+  num_files: string
+  size: string
+  username: string
+  added: string
+  status: string
+  category: string
+  imdb: string
+}
+
+/**
+ * Fetch raw torrent index results from apibay.org (Pirate Bay mirror).
+ *
+ * @param poolSize - Max raw results to return. Callers that post-filter
+ *                   should pass a pool larger than their final count.
+ * @param cat      - apibay category: 0=all, 207=HD movies, 205=movies, 208=TV
+ */
+async function fetchApibayResults(query: string, poolSize: number, cat: number): Promise<ApibayResult[]> {
+  const apiUrl = `${APIBAY_BASE}/q.php?q=${encodeURIComponent(query)}&cat=${cat}`
+  const indexRes = await fetch(apiUrl, {
+    headers: { 'User-Agent': 'StreamVault/1.0' },
+    signal: AbortSignal.timeout(8000),
+  })
+
+  if (!indexRes.ok) {
+    throw new Error(`apibay search failed: ${indexRes.status}`)
+  }
+
+  const raw = (await indexRes.json()) as ApibayResult[]
+
+  // apibay returns [{"id":"0","name":"No results returned"}] when empty
+  const results = Array.isArray(raw)
+    ? raw.filter((r) => r.id !== '0' && r.info_hash && r.info_hash.length === 40)
+    : []
+
+  return results.slice(0, poolSize)
+}
+
+/**
+ * Upper bound on release size for the auto-play search. Excludes 100GB+
+ * IMAX/UHD remuxes while still allowing normal 4K WEB-DL/BluRay encodes
+ * (typically 8-25GB) through.
+ */
+const MAX_RELEASE_SIZE_BYTES = 40 * 1024 * 1024 * 1024 // 40 GiB
+
+/** Quality rank for sorting — higher is preferred. */
+function releaseQualityRank(name: string): number {
+  if (/\b(2160p|4K|UHD)\b/i.test(name)) return 4
+  if (/\b1080p\b/i.test(name)) return 3
+  if (/\b720p\b/i.test(name)) return 2
+  return 1
+}
+
+/**
+ * True when the release name marks it as a non-English-only release — a
+ * foreign dub tag (ITA, FRENCH, RUS, ...) or a title in a non-Latin script —
+ * with no sign of an English track alongside (ENG, MULTi, Dual). Mirrored in
+ * src/lib/debridApi.ts.
+ */
+export function isLikelyNonEnglishRelease(name: string): boolean {
+  if (/\b(ENG|English|MULTi|Dual)\b/i.test(name)) return false
+  return (
+    // Greek/Cyrillic/Arabic/Indic/.../CJK letters; punctuation and emoji fall outside.
+    /[\u0370-\u1FFF\u3000-\uFFEF]/u.test(name) ||
+    /\b(ITA|iTALiAN|FRENCH|TRUEFRENCH|VFF|VFQ|VF2|GERMAN|SPANISH|ESP|Castellano|Latino|RUS|UKR|POL|Hindi|Tamil|Telugu|Dubbed|KOR|JAP)\b/i.test(name)
+  )
+}
+
+/** True when the release name declares an IMAX (theatrical or "Enhanced") cut. */
+export function isImaxRelease(name: string): boolean {
+  return /\bIMAX\b/i.test(name)
+}
+
+const SEQUEL_MARKERS: Record<string, number> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10,
+}
+const SEQUEL_MARKER_RE = Object.keys(SEQUEL_MARKERS).join('|')
+
+function normalizeForTitleMatch(s: string): string {
+  return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * True when the release is plainly a *different* entry of the same franchise
+ * — "Planet Earth III" for Planet Earth II, "Toy Story 2" for Toy Story.
+ * Torrentio matches by IMDb id but its indexers are fuzzy. Only a sequel
+ * marker right after the title counts, so alternate titles, foreign names
+ * and missing titles all still pass.
+ *
+ * @param title - The wanted title; a trailing year (as the player appends
+ *   for movies) is ignored.
+ */
+export function isDifferentSequel(name: string, title: string): boolean {
+  const wanted = normalizeForTitleMatch(title).replace(/\s(19|20)\d{2}$/, '')
+  const titleMatch = wanted.match(new RegExp(`^(.+?)\\s(${SEQUEL_MARKER_RE})$`))
+  const base = titleMatch ? titleMatch[1] : wanted
+  const wantedNumber = titleMatch ? SEQUEL_MARKERS[titleMatch[2]] : 1
+  if (!base) return false
+
+  const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const found = normalizeForTitleMatch(name).match(
+    new RegExp(`(?:^|\\s)${escaped}(?:\\s(${SEQUEL_MARKER_RE}))?(?:\\s|$)`)
+  )
+  if (!found) return false
+  const releaseNumber = found[1] ? SEQUEL_MARKERS[found[1]] : 1
+  // An unnumbered release for a numbered title ("Planet Earth S01E02" when
+  // asking for II) is ambiguous rather than wrong — keep it.
+  return found[1] !== undefined && releaseNumber !== wantedNumber
+}
+
+/**
+ * Below this, a release claiming 2160p is a fake, a sample, or a mislabeled
+ * low-bitrate encode.
+ */
+const MIN_4K_RELEASE_BYTES = 400 * 1024 * 1024
+
+function isImplausibleRelease(name: string, size: number): boolean {
+  return size > 0 && size < MIN_4K_RELEASE_BYTES && releaseQualityRank(name) === 4
+}
+
+// ---------------------------------------------------------------------------
+// TV releases from free-text indexers (apibay)
+// ---------------------------------------------------------------------------
+
+/** What part of a series a release holds, relative to the wanted episode. */
+export type TvReleaseCoverage = 'episode' | 'season' | 'multi-season'
+
+const TWO_DIGITS = '0*(\\d{1,2})(?!\\d)'
+
+/**
+ * Whether a free-text-indexed release holds `season`/`episode` of the show
+ * called `title`, and how: the episode alone, its season, or several seasons
+ * (packs are played by picking the episode file inside — see findEpisodeFile).
+ * Null when it's another show, another season/episode, or doesn't say.
+ *
+ * The name has to *start* with the show's title (after any [site] tags), so
+ * "The Kingdom … S01E01 Game of Thrones" isn't taken for Game of Thrones.
+ */
+export function tvReleaseCoverage(
+  name: string,
+  title: string,
+  season: number,
+  episode: number
+): TvReleaseCoverage | null {
+  const show = normalizeForTitleMatch(title.replace(/\s*\(?\b(19|20)\d{2}\)?\s*$/, ''))
+  if (!show) return null
+  const release = normalizeForTitleMatch(name.replace(/^\s*(\[[^\]]*\]|\([^)]*\)|【[^】]*】)\s*/g, ''))
+  if (release !== show && !release.startsWith(`${show} `)) return null
+  const rest = release.slice(show.length)
+
+  // One episode: S01E01 / 1x01. A different episode is a no.
+  const ep = rest.match(new RegExp(`\\bs${TWO_DIGITS}\\s?e${TWO_DIGITS}`)) ?? rest.match(new RegExp(`\\b${TWO_DIGITS}x${TWO_DIGITS}\\b`))
+  if (ep) return Number(ep[1]) === season && Number(ep[2]) === episode ? 'episode' : null
+
+  // Season ranges: S01-S08, S01-08, "Season 1-8", "Seasons 1 2 3 ... 8"
+  const sRange = rest.match(new RegExp(`\\bs${TWO_DIGITS}\\s(?:to\\s)?s?${TWO_DIGITS}\\b`))
+  if (sRange) return inRange(season, sRange[1], sRange[2]) ? 'multi-season' : null
+  const word = rest.match(/\bseasons?\s((?:\d{1,2}\s(?:to\s|and\s)?)*\d{1,2})(?!\d)/)
+  if (word) {
+    const numbers = word[1].split(/\s(?:to\s|and\s)?/).map(Number)
+    const lo = Math.min(...numbers)
+    const hi = Math.max(...numbers)
+    if (season < lo || season > hi) return null
+    return lo === hi ? 'season' : 'multi-season'
+  }
+
+  // A single season: S01
+  const single = rest.match(new RegExp(`\\bs${TWO_DIGITS}\\b`))
+  if (single) return Number(single[1]) === season ? 'season' : null
+
+  // No season at all, but the whole show: "Complete Series", "Integrale"
+  if (/\b(complete|integrale|collection|all seasons)\b/.test(rest)) return 'multi-season'
+  return null
+}
+
+function inRange(season: number, from: string, to: string): boolean {
+  const lo = Math.min(Number(from), Number(to))
+  const hi = Math.max(Number(from), Number(to))
+  return season >= lo && season <= hi
+}
+
+/** Queries that find an episode as itself, in its season pack, and in whole-series packs. */
+function tvApibayQueries(title: string, season: number, episode: number): string[] {
+  const show = title.replace(/\s*\(?\b(19|20)\d{2}\)?\s*$/, '').trim()
+  const ss = String(season).padStart(2, '0')
+  const ee = String(episode).padStart(2, '0')
+  return [`${show} S${ss}E${ee}`, `${show} S${ss}`, `${show} Season ${season}`, `${show} complete`]
+}
+
+// ---------------------------------------------------------------------------
+// Indexer lookup caching (searchMediaReleases only)
+// ---------------------------------------------------------------------------
+
+/** apibay never returns more than 100 rows; cache the whole page and slice per request. */
+const APIBAY_MAX_RESULTS = 100
+
+/** How long a movie search waits for Torrentio (from search start) once apibay already has results. */
+const MOVIE_TORRENTIO_GRACE_MS = 4000
+
+/** How long a search waits for Torrentio when it's the only source with results (TV, obscure movies). */
+const TORRENTIO_ONLY_WAIT_MS = 12_000
+
+/**
+ * Torrentio returns every release it knows (2,000+ for a popular movie).
+ * Cached ones are always kept; the rest are trimmed to the best-seeded few
+ * hundred.
+ */
+const TORRENTIO_UNCACHED_CANDIDATES_MAX = 200
+
+const inflightIndexLookups = new Map<string, Promise<unknown[]>>()
+
+/**
+ * Serve an indexer lookup from cache, sharing one in-flight request between
+ * concurrent callers for the same key. Empty results aren't cached — those
+ * are as likely to be a transient indexer failure as a genuine "no releases".
+ */
+async function cachedIndexLookup<T>(key: string, fetcher: () => Promise<T[]>): Promise<T[]> {
+  const hit = await cache.debrid.get<T[]>(key)
+  if (hit) return hit
+
+  const inflight = inflightIndexLookups.get(key) as Promise<T[]> | undefined
+  if (inflight) return inflight
+
+  const lookup = fetcher()
+    .then(async (results) => {
+      if (results.length > 0) await cache.debrid.set(key, results)
+      return results
+    })
+    .finally(() => inflightIndexLookups.delete(key))
+
+  inflightIndexLookups.set(key, lookup)
+  return lookup
+}
+
+/** Resolve with `promise`'s value if it settles within `ms`, otherwise `undefined` (the promise keeps running). */
+function resolveWithin<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(undefined)
+      }
+    )
+  })
+}
+
+function trimTorrentioCandidates(candidates: TorrentioTorrentCandidate[]): TorrentioTorrentCandidate[] {
+  const sane = candidates
+    .filter((c) => c.size === 0 || c.size <= MAX_RELEASE_SIZE_BYTES)
+    .sort((a, b) => b.seeders - a.seeders)
+  return [
+    ...sane.filter((c) => c.cached),
+    ...sane.filter((c) => !c.cached).slice(0, TORRENTIO_UNCACHED_CANDIDATES_MAX),
+  ]
+}
+
+/** Whether Torrentio may see the Real-Debrid key (for "[RD+]" cache tags). */
+function torrentioDebridKey(): string | undefined {
+  return process.env.TORRENTIO_DEBRID_CACHE === 'false' ? undefined : debridKey()
+}
+
+/**
+ * Search for a specific movie/episode by TMDB-derived identity (title +
+ * IMDb id, + season/episode for TV): Torrentio (many indexers, matched by
+ * IMDb id, tagged with Real-Debrid cache status) and apibay as a fallback
+ * source — by title for movies; for TV, the episode and the season /
+ * whole-series packs that hold it.
+ *
+ * Indexer results are cached per title/episode for an hour (see
+ * cachedIndexLookup and the `debrid` cache namespace).
+ */
+export async function searchMediaReleases(params: {
+  title: string
+  imdbId?: string
+  mediaType: 'movie' | 'tv'
+  season?: number
+  episode?: number
+  limit?: number
+  /**
+   * Ask Torrentio which releases Real-Debrid has cached (it is sent the
+   * account's key for that). Off for the public release search, which must
+   * not involve the account at all — everything then comes back `cached: false`.
+   */
+  debridTags?: boolean
+}): Promise<DebridRelease[]> {
+  const { title, imdbId, mediaType, season, episode, limit = 20, debridTags = true } = params
+  const useApibay = mediaType === 'movie'
+  const tvTarget = mediaType === 'tv' && season !== undefined && episode !== undefined ? { season, episode } : null
+  const startedAt = Date.now()
+  const torrentioKey = debridTags ? torrentioDebridKey() : undefined
+
+  const torrentioPromise: Promise<TorrentioTorrentCandidate[]> = imdbId
+    ? cachedIndexLookup(
+        `torrentio:${torrentioKey ? 'rd' : 'plain'}:${mediaType}:${imdbId}:${season ?? ''}:${episode ?? ''}`,
+        async () =>
+          trimTorrentioCandidates(
+            torrentioTorrentCandidates(
+              await searchTorrentio(imdbId, mediaType === 'tv' ? 'series' : 'movie', season, episode, torrentioKey)
+            )
+          )
+      ).catch((err: unknown) => {
+        // Best-effort, but never silent: a host Torrentio refuses (it blocks
+        // many datacenter IPs) otherwise looks exactly like "no releases".
+        logger.warn('Torrentio lookup failed', { imdbId, mediaType, season, episode, error: err instanceof Error ? err.message : String(err) })
+        return []
+      })
+    : Promise.resolve([])
+
+  // Series: apibay as the fallback source, as for movies — the episode on
+  // its own, its season pack, and whole-series packs, kept only when they
+  // provably hold this episode of this show (tvReleaseCoverage).
+  const tvApibayPromise: Promise<Array<ApibayResult & { coverage: TvReleaseCoverage }>> = tvTarget
+    ? Promise.all(
+        tvApibayQueries(title, tvTarget.season, tvTarget.episode).map((q) =>
+          cachedIndexLookup(`apibay:0:${q.toLowerCase()}`, () => fetchApibayResults(q, APIBAY_MAX_RESULTS, 0)).catch(
+            (err: unknown) => {
+              logger.warn('apibay TV lookup failed', { q, error: err instanceof Error ? err.message : String(err) })
+              return [] as ApibayResult[]
+            }
+          )
+        )
+      ).then((pages) => {
+        const seen = new Set<string>()
+        const matches: Array<ApibayResult & { coverage: TvReleaseCoverage }> = []
+        for (const r of pages.flat()) {
+          const hash = r.info_hash.toUpperCase()
+          if (seen.has(hash)) continue
+          seen.add(hash)
+          const coverage = tvReleaseCoverage(r.name, title, tvTarget.season, tvTarget.episode)
+          if (coverage) matches.push({ ...r, coverage })
+        }
+        return matches
+      })
+    : Promise.resolve([])
+
+  const apibayPromise: Promise<ApibayResult[]> = useApibay
+    ? cachedIndexLookup(`apibay:207:${title.toLowerCase()}`, () =>
+        fetchApibayResults(title, APIBAY_MAX_RESULTS, 207)
+      ).catch(() => [])
+    : Promise.resolve([])
+
+  const apibayResults = (await apibayPromise).slice(0, Math.max(limit * 3, 60))
+  const tvApibayResults = await tvApibayPromise
+
+  // Torrentio is the only source that knows what's cached, so it gets a
+  // generous window even when apibay already answered; a slow lookup keeps
+  // running in the background and lands in the cache for the next search.
+  const torrentioWaitMs =
+    apibayResults.length > 0 || tvApibayResults.length > 0
+      ? Math.max(0, MOVIE_TORRENTIO_GRACE_MS - (Date.now() - startedAt))
+      : TORRENTIO_ONLY_WAIT_MS
+  const torrentioCandidates = (await resolveWithin(torrentioPromise, torrentioWaitMs)) ?? []
+
+  const merged = new Map<string, DebridRelease>()
+
+  for (const c of torrentioCandidates) {
+    merged.set(c.infoHash, {
+      id: c.infoHash,
+      name: c.name,
+      info_hash: c.infoHash,
+      seeders: String(c.seeders),
+      leechers: '0',
+      size: String(c.size),
+      num_files: '1',
+      username: 'torrentio',
+      added: '0',
+      category: mediaType === 'tv' ? '208' : '207',
+      imdb: imdbId,
+      cached: c.cached,
+      file_name: c.fileName,
+      file_idx: c.fileIdx,
+    })
+  }
+
+  for (const r of apibayResults) {
+    const hash = r.info_hash.toUpperCase()
+    if (merged.has(hash)) continue
+    merged.set(hash, {
+      id: hash,
+      name: r.name,
+      info_hash: hash,
+      seeders: r.seeders,
+      leechers: r.leechers,
+      size: r.size,
+      num_files: r.num_files,
+      username: 'apibay',
+      added: r.added,
+      category: '207',
+      imdb: imdbId,
+      cached: false,
+    })
+  }
+
+  /** Packs: their size is the whole season/series, not the file that plays. */
+  const packHashes = new Set<string>()
+  for (const r of tvApibayResults) {
+    const hash = r.info_hash.toUpperCase()
+    if (merged.has(hash)) continue
+    if (r.coverage !== 'episode') packHashes.add(hash)
+    merged.set(hash, {
+      id: hash,
+      name: r.name,
+      info_hash: hash,
+      seeders: r.seeders,
+      leechers: r.leechers,
+      size: r.size,
+      num_files: r.num_files,
+      username: 'apibay',
+      added: r.added,
+      category: '208',
+      imdb: imdbId,
+      cached: false,
+    })
+  }
+
+  // Drop oversized releases, wrong-sequel matches and implausibly small "4K"
+  // files outright. Unknown sizes (0) are kept.
+  const candidates = [...merged.values()].filter((c) => {
+    const size = parseInt(c.size, 10) || 0
+    if (packHashes.has(c.info_hash)) return !isDifferentSequel(c.name, title)
+    return (
+      (size === 0 || size <= MAX_RELEASE_SIZE_BYTES) &&
+      !isImplausibleRelease(c.name, size) &&
+      !isDifferentSequel(c.name, title)
+    )
+  })
+
+  return selectBalancedReleases(candidates, limit)
+}
+
+/** Min share of the returned list reserved for each of the 4K and 1080p tiers (when they have that many releases). */
+const RESERVED_TIER_SHARE = 0.4
+
+/**
+ * Order releases best-first and cut them to `limit` without letting one
+ * quality tier crowd out the others — a popular title with 15+ 4K releases
+ * used to return nothing but 4K, leaving no 1080p fallback for browsers that
+ * can't decode 10-bit HEVC.
+ *
+ * Within a tier: cached first (instant playback), then releases likely to
+ * have English audio, then the IMAX cut, then seeders.
+ */
+export function selectBalancedReleases(releases: DebridRelease[], limit: number): DebridRelease[] {
+  const withinTier = (a: DebridRelease, b: DebridRelease) => {
+    if (a.cached !== b.cached) return b.cached ? 1 : -1
+    const langDiff = Number(isLikelyNonEnglishRelease(a.name)) - Number(isLikelyNonEnglishRelease(b.name))
+    if (langDiff !== 0) return langDiff
+    const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
+    if (imaxDiff !== 0) return imaxDiff
+    return (parseInt(b.seeders, 10) || 0) - (parseInt(a.seeders, 10) || 0)
+  }
+  const byQuality = (a: DebridRelease, b: DebridRelease) =>
+    releaseQualityRank(b.name) - releaseQualityRank(a.name) || withinTier(a, b)
+
+  const reserved = Math.ceil(limit * RESERVED_TIER_SHARE)
+  const picked = new Set<DebridRelease>()
+  for (const rank of [4, 3]) {
+    releases
+      .filter((r) => releaseQualityRank(r.name) === rank)
+      .sort(withinTier)
+      .slice(0, reserved)
+      .forEach((r) => picked.add(r))
+  }
+  for (const r of [...releases].sort(byQuality)) {
+    if (picked.size >= limit) break
+    picked.add(r)
+  }
+
+  return [...picked].sort(byQuality).slice(0, limit)
+}
