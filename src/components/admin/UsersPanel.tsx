@@ -7,6 +7,7 @@ import {
   fetchAdminUsers,
   updateAdminUser,
   type AdminUser,
+  type AdminUserChange,
   type PremiumAccessLevel,
 } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,10 @@ const PREMIUM_LABELS: Record<PremiumAccessLevel, string> = {
   paused: 'Paused',
 }
 
+/** Premium's own file downloads (save, open in VLC) — magnet links aren't affected. */
+const DOWNLOAD_LABELS = { allowed: 'Allowed', paused: 'Paused' } as const
+type DownloadLevel = keyof typeof DOWNLOAD_LABELS
+
 function relativeTime(iso: string | null): string {
   if (!iso) return 'Never'
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000)
@@ -37,7 +42,9 @@ function relativeTime(iso: string | null): string {
 }
 
 /**
- * Every account that has signed in: give or pause its ⚡ Premium access, or
+ * Every account that has signed in: give or pause its ⚡ Premium access,
+ * pause its Premium downloads (it keeps streaming; the player just stops
+ * offering the file to save or open in VLC — magnet links still work), or
  * suspend it (My List, continue watching, recommendations and Premium are
  * refused; the free servers still play, as they need no account).
  */
@@ -65,15 +72,16 @@ export function UsersPanel() {
   })
 
   const mutation = useMutation({
-    mutationFn: ({ id, change }: { id: string; change: { premiumAccess?: PremiumAccessLevel; suspended?: boolean } }) =>
-      updateAdminUser(id, change),
+    mutationFn: ({ id, change }: { id: string; change: AdminUserChange }) => updateAdminUser(id, change),
     onSuccess: ({ user }, { change }) => {
       queryClient.setQueryData(queryKey, (old: typeof data) =>
         old ? { ...old, users: old.users.map((u) => (u.id === user.id ? user : u)) } : old
       )
       const who = user.email ?? user.name ?? 'Account'
       if (change.suspended !== undefined) toast.success(change.suspended ? `${who} suspended` : `${who} restored`)
-      else toast.success(`${who}: Premium ${PREMIUM_LABELS[user.premiumAccess].toLowerCase()}`)
+      else if (change.debridDownloads !== undefined) {
+        toast.success(`${who}: Premium downloads ${user.debridDownloads ? 'allowed' : 'paused'}`)
+      } else toast.success(`${who}: Premium ${PREMIUM_LABELS[user.premiumAccess].toLowerCase()}`)
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update the account'),
   })
@@ -139,6 +147,9 @@ export function UsersPanel() {
                   <TableHead>Account</TableHead>
                   <TableHead>Last seen</TableHead>
                   <TableHead>Premium</TableHead>
+                  <TableHead title="Saving Premium's file or opening it in VLC. Streaming and magnet links aren't affected.">
+                    Downloads
+                  </TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -177,7 +188,7 @@ export function UsersPanel() {
 interface UserRowProps {
   user: AdminUser
   busy: boolean
-  onChange: (change: { premiumAccess?: PremiumAccessLevel; suspended?: boolean }) => void
+  onChange: (change: AdminUserChange) => void
 }
 
 function UserRow({ user, busy, onChange }: UserRowProps) {
@@ -204,6 +215,24 @@ function UserRow({ user, busy, onChange }: UserRowProps) {
             {(Object.keys(PREMIUM_LABELS) as PremiumAccessLevel[]).map((level) => (
               <SelectItem key={level} value={level}>
                 {PREMIUM_LABELS[level]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Select
+          value={user.debridDownloads === false ? 'paused' : 'allowed'}
+          onValueChange={(value) => onChange({ debridDownloads: (value as DownloadLevel) === 'allowed' })}
+          disabled={busy}
+        >
+          <SelectTrigger className="h-8 w-28" aria-label={`Premium downloads for ${label}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(DOWNLOAD_LABELS) as DownloadLevel[]).map((level) => (
+              <SelectItem key={level} value={level}>
+                {DOWNLOAD_LABELS[level]}
               </SelectItem>
             ))}
           </SelectContent>

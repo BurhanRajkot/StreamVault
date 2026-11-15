@@ -7,9 +7,23 @@ mock.module('./supabase', () => ({ supabaseAdmin: {} }))
 
 let decidePremium: typeof import('./userAccess').decidePremium
 let isMissingSchema: typeof import('./userAccess').isMissingSchema
+let updatedPausedList: typeof import('./userAccess').updatedPausedList
 
 beforeAll(async () => {
-  ;({ decidePremium, isMissingSchema } = await import('./userAccess'))
+  ;({ decidePremium, isMissingSchema, updatedPausedList } = await import('./userAccess'))
+})
+
+describe('updatedPausedList (Premium downloads paused per account)', () => {
+  it('adds an account when its downloads are paused, once', () => {
+    expect(updatedPausedList([], 'auth0|b', false)).toEqual(['auth0|b'])
+    expect(updatedPausedList(['auth0|b'], 'auth0|b', false)).toEqual(['auth0|b'])
+    expect(updatedPausedList(['auth0|c'], 'auth0|a', false)).toEqual(['auth0|a', 'auth0|c'])
+  })
+
+  it('takes it off again when they are allowed, leaving the rest', () => {
+    expect(updatedPausedList(['auth0|a', 'auth0|b'], 'auth0|a', true)).toEqual(['auth0|b'])
+    expect(updatedPausedList(['auth0|b'], 'auth0|a', true)).toEqual(['auth0|b'])
+  })
 })
 
 const access = (premiumAccess: UserAccess['premiumAccess'], suspended = false): UserAccess => ({ premiumAccess, suspended })

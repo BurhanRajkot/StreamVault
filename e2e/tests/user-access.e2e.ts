@@ -1,12 +1,15 @@
 /**
  * The admin decides who gets ⚡ Premium: the dashboard's Users panel gives,
  * pauses or takes back an account's access and suspends accounts, and a
- * site-wide switch pauses Premium for everyone but the admin. A signed-in
+ * site-wide switch pauses Premium for everyone but the admin. Per account,
+ * the admin can also pause Premium's downloads: the film still streams, the
+ * player just stops offering its file (magnet links stay). A signed-in
  * account then plays Premium, or sees why it can't. Deterministic: no agent
  * steps.
  */
 
-import { expect } from 'e2e'
+import { expect, type Screen } from 'e2e'
+import type { Browser } from '@e2e-dev/web'
 import { adminTest, signedInTest, SIGNED_IN } from './fixtures'
 import { MOVIE, watchPath } from '../fixtures/data'
 import type { MockApi } from '../fixtures/mock-api'
@@ -104,4 +107,72 @@ signedInTest('an approved account sees why while Premium is paused for everyone'
 
   await expect(screen.getByText('Premium is paused right now')).toBeVisible()
   expect(mockApi.calls('POST', '/debrid/play')).toHaveLength(0)
+})
+
+adminTest('the admin pauses an account’s Premium downloads, and allows them again', async ({ app, screen, mockApi }) => {
+  await app.open('/admin/dashboard')
+  const users = screen.getByRole('region', 'Users')
+  const downloads = users.getByRole('combobox', `Premium downloads for ${SIGNED_IN.email}`)
+  await expect(downloads).toContainText('Allowed')
+
+  await downloads.tap()
+  await screen.getByRole('option', 'Paused').tap()
+  await expect(downloads).toContainText('Paused')
+  expect(account(mockApi, SIGNED_IN.sub).debridDownloads).toBe(false)
+  expect(account(mockApi, SIGNED_IN.sub).premiumAccess, 'Premium itself is untouched').toBe('none')
+
+  await downloads.tap()
+  await screen.getByRole('option', 'Allowed').tap()
+  await expect(downloads).toContainText('Allowed')
+  expect(mockApi.calls('PATCH', '/admin/users/:id').map((c) => c.body)).toEqual([{ debridDownloads: false }, { debridDownloads: true }])
+})
+
+/** Start Premium for the signed-in account and wait for the film. */
+async function playPremium(app: { open(path: string): Promise<unknown> }, screen: Screen) {
+  await app.open(watchPath(MOVIE))
+  await screen.getByRole('combobox', 'Server').tap()
+  await screen.getByRole('option', /^Premium/).tap()
+  await screen.getByRole('button', /^Play( Now)?$/).first().tap()
+  await expect(screen.getByTestId('debrid-video')).toBeVisible()
+  // The first frame is up (pausing before it would keep the loading screen, and no controls).
+  await expect(screen.getByTestId('debrid-starting')).toBeHidden()
+}
+
+/** Pause the film (so the controls stay up) and open the player's settings. */
+async function openPlayerSettings(screen: Screen, browser: Browser) {
+  await browser.evaluate(() => {
+    document.querySelector('video')?.pause()
+    return null
+  })
+  await screen.getByRole('button', /^Settings/).first().tap()
+  const settings = screen.getByRole('dialog', 'Player settings')
+  await expect(settings).toBeVisible()
+  return settings
+}
+
+signedInTest('an approved account is offered the Premium file', async ({ app, screen, browser, mockApi }) => {
+  account(mockApi, SIGNED_IN.sub).premiumAccess = 'granted'
+  await playPremium(app, screen)
+
+  const settings = await openPlayerSettings(screen, browser)
+  await expect(settings.getByRole('link', /^Download/)).toBeVisible()
+  await expect(settings.getByText('Open in another player')).toBeVisible()
+})
+
+signedInTest('an account whose downloads are paused still streams Premium, but isn’t offered the file', async ({ app, screen, browser, mockApi }) => {
+  const user = account(mockApi, SIGNED_IN.sub)
+  user.premiumAccess = 'granted'
+  user.debridDownloads = false
+  await playPremium(app, screen)
+
+  // Not in the player's settings, nor under the player (desktop).
+  const settings = await openPlayerSettings(screen, browser)
+  await expect(settings.getByRole('link', /^Download/)).toHaveCount(0)
+  await expect(settings.getByText('Open in another player')).toHaveCount(0)
+  await settings.press('Escape')
+  await expect(screen.getByRole('link', /^Download/)).toHaveCount(0)
+
+  // The magnet links are a different thing, and still on offer.
+  await screen.getByRole('button', /^Download/).first().tap()
+  await expect(screen.getByRole('dialog', 'Download').getByRole('link', 'Open 1080p in torrent app')).toBeVisible()
 })

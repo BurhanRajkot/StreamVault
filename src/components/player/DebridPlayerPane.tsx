@@ -57,7 +57,7 @@ import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { useQueryClient } from '@tanstack/react-query'
 import { clearAdminToken } from '@/lib/api'
-import { MY_ACCESS_QUERY_KEY } from '@/hooks/usePremiumAccess'
+import { MY_ACCESS_QUERY_KEY, usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { DebridVideo } from './DebridVideo'
 import { ActionRow, PaneBackdrop, PremiumLoading, StatusMessage, primaryAction, secondaryAction } from './PremiumLoading'
 import type { PlayerSource } from './PlayerControls'
@@ -99,8 +99,10 @@ export interface ReleaseControls {
   releases: PlayerSource[]
   activeId: string | null
   onSelect: (id: string) => void
-  /** The playing file — null until a release is ready. */
+  /** The playing file — null until a release is ready, or when downloads are paused. */
   download: { url: string; fileName: string; size: string | null } | null
+  /** False when the admin paused this account's Premium downloads: no Download button at all. */
+  canDownload: boolean
   /** A release is being found or started. */
   busy: boolean
 }
@@ -238,6 +240,8 @@ export function DebridPlayerPane({
   runtimeMinutes,
 }: DebridPlayerPaneProps) {
   const getToken = useDebridToken()
+  /** The file itself may be offered (save, VLC) — the admin can pause that per account. */
+  const { downloads: downloadsAllowed } = usePremiumAccess()
   const [status, setStatus] = useState<Status>('searching')
   // Refused: drop an admin token the backend no longer takes, and ask again
   // what this viewer may use — PremiumPane then shows the right notice.
@@ -830,12 +834,14 @@ export function DebridPlayerPane({
       releases: sources,
       activeId: activeRelease?.info_hash ?? null,
       onSelect: selectRelease,
-      download: ready
-        ? { url: playback.directUrl, fileName: playback.fileName, size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null }
-        : null,
+      download:
+        ready && downloadsAllowed
+          ? { url: playback.directUrl, fileName: playback.fileName, size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null }
+          : null,
+      canDownload: downloadsAllowed,
       busy: status === 'searching' || status === 'loading-stream' || status === 'downloading',
     }
-  }, [sources, status, playback, activeRelease, selectRelease])
+  }, [sources, status, playback, activeRelease, selectRelease, downloadsAllowed])
 
   useEffect(() => {
     onReleaseControls?.(releaseControls)
@@ -936,7 +942,11 @@ export function DebridPlayerPane({
       <PaneBackdrop backdropUrl={backdropUrl}>
         <StatusMessage
           heading="Playback stopped"
-          body="This release won't play in this browser. Try another one, or open the file in a player like VLC."
+          body={
+            downloadsAllowed
+              ? "This release won't play in this browser. Try another one, or open the file in a player like VLC."
+              : "This release won't play in this browser. Try another one, or switch server."
+          }
         />
         <ActionRow>
           {nextRelease && (
@@ -944,7 +954,7 @@ export function DebridPlayerPane({
               Try another release
             </button>
           )}
-          {playback && (
+          {playback && downloadsAllowed && (
             <a href={playback.directUrl} target="_blank" rel="noopener noreferrer" className={secondaryAction}>
               <ExternalLink className="h-4 w-4" />
               Open in VLC
@@ -985,6 +995,7 @@ export function DebridPlayerPane({
         subtitles={subtitles}
         onStarted={() => setVideoStarted(true)}
         edge={edge}
+        allowDownload={downloadsAllowed}
         loadingScreen={(message) => (
           <PremiumLoading
             backdropUrl={backdropUrl}

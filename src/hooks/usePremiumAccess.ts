@@ -10,6 +10,11 @@ export interface PremiumAccessState {
   admin: boolean
   /** The admin suspended this account. */
   suspended: boolean
+  /**
+   * The Premium player may offer its file to save or open in VLC — the admin
+   * can switch that off per account. Magnet-link downloads aren't affected.
+   */
+  downloads: boolean
   /** Still asking the backend. */
   loading: boolean
 }
@@ -32,10 +37,19 @@ export function usePremiumAccess(): PremiumAccessState {
     retry: 1,
   })
 
-  if (admin) return { premium: true, reason: 'granted', admin: true, suspended: false, loading: false }
-  if (!isAuthenticated) return { premium: false, reason: 'sign-in-required', admin: false, suspended: false, loading: false }
-  if (!data) {
-    return { premium: false, reason: 'not-approved', admin: false, suspended: false, loading: isLoading }
+  if (admin) return { premium: true, reason: 'granted', admin: true, suspended: false, downloads: true, loading: false }
+  if (!isAuthenticated) {
+    return { premium: false, reason: 'sign-in-required', admin: false, suspended: false, downloads: false, loading: false }
   }
-  return { premium: data.premium, reason: data.premiumReason, admin: false, suspended: data.suspended, loading: false }
+  if (!data) {
+    return { premium: false, reason: 'not-approved', admin: false, suspended: false, downloads: false, loading: isLoading }
+  }
+  return {
+    premium: data.premium,
+    reason: data.premiumReason,
+    admin: false,
+    suspended: data.suspended,
+    downloads: data.debridDownloads !== false,
+    loading: false,
+  }
 }
