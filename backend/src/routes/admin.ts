@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
 import { requireAdminAuth } from '../admin/middleware'
 import { SUBSCRIPTION_PLANS } from '../lib/upi'
+import { forgetUserAccess } from '../lib/userAccess'
 
 const router = express.Router()
 
@@ -84,6 +85,22 @@ router.post('/approve', async (req, res) => {
     if (!approval.approved_user_id) {
       // Guest submissions carry no user_id, so there is no account to upgrade.
       logger.warn('Approved a request with no linked user account', { requestId })
+    } else {
+      // A paid plan is what Premium playback checks for: switch it on for an
+      // account that doesn't have it yet. One the admin paused on purpose
+      // stays paused — that's changed from the Users panel.
+      const { error: grantError } = await supabaseAdmin
+        .from('User')
+        .update({ premiumAccess: 'granted' })
+        .eq('id', approval.approved_user_id)
+        .eq('premiumAccess', 'none')
+      if (grantError) {
+        logger.warn('Approved, but could not switch Premium on for the account', {
+          requestId,
+          error: grantError.message,
+        })
+      }
+      forgetUserAccess(approval.approved_user_id)
     }
 
     logger.info('Approved subscription request', {
