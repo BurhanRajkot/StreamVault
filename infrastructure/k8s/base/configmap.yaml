@@ -16,7 +16,7 @@ data:
   REDIS_URL: "redis://redis:6379"
 
   # URL of the frontend — used for CORS allow-origin on the backend.
-  # Override per-overlay (production sets https://stream-vault-7u6q.vercel.app).
+  # Override per-overlay (production sets https://stream-vault.site).
   FRONTEND_URL: "http://localhost:8080"
 
   # ── Istio / Service Mesh ───────────────────────────────────

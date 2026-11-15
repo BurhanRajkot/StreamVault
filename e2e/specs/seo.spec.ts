@@ -6,7 +6,7 @@
 import { test, expect } from '../fixtures/test'
 import { MOVIE, SHOW, titleOf, watchPath } from '../fixtures/data'
 
-const SITE = 'https://stream-vault-7u6q.vercel.app'
+const SITE = 'https://stream-vault.site'
 
 test('every poster links to its title page, while a click still opens it in place', async ({ page, home, watch }) => {
   await home.goto()

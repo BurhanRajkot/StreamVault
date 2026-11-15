@@ -5,7 +5,7 @@
 
 export const SEO = {
   /** Production domain — must match Vercel deployment URL */
-  SITE_URL: 'https://stream-vault-7u6q.vercel.app',
+  SITE_URL: 'https://stream-vault.site',
 
   SITE_NAME: 'StreamVault',
 
