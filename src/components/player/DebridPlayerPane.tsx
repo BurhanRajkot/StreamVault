@@ -18,10 +18,16 @@
  *      Quality menu; switching mid-film carries the position over.
  *   7. Where the viewer stopped is remembered per title/episode (see
  *      playbackPosition) and playback resumes there next time.
+ *   8. On a slow connection (measured while the release is found, see
+ *      lib/connection) the first pick is a release the line can carry; a
+ *      film that keeps stalling offers a lighter one. A connection that
+ *      drops mid-film is reconnected in place (DebridVideo); one that stays
+ *      down ends on "Connection lost", which picks the film up where it
+ *      stopped once the browser is back online.
  */
 
 import { useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
-import { ExternalLink, RefreshCw } from 'lucide-react'
+import { ExternalLink, RefreshCw, X } from 'lucide-react'
 import {
   playDebridRelease,
   pollDebridPlayback,
@@ -30,16 +36,20 @@ import {
   isImaxRelease,
   formatBytes,
   DebridRequestError,
+  isNetworkFailure,
   type DebridRelease,
   type DebridReadyPlayback,
 } from '@/lib/debridApi'
 import {
   declaresBrowserAudio,
   detectBrowserVideoSupport,
+  fitReleasesToConnection,
   isLikelyDirectPlayable,
+  lighterRelease,
   planPlaybackModes,
   rankReleasesForPlayback,
 } from '@/lib/releasePlayback'
+import { estimateConnection, knownThroughput } from '@/lib/connection'
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases } from '@/lib/premiumSearch'
 import { useDebridToken } from '@/hooks/useDebridToken'
@@ -76,6 +86,11 @@ export interface DebridPlayerPaneProps {
   onReleaseControls?: (controls: ReleaseControls | null) => void
   /** The season's episodes, for the player's Episodes panel. */
   episodes?: ReactNode
+  /**
+   * How long the film (or episode) runs, in minutes, when known — with the
+   * connection's speed it says which releases play without stalling.
+   */
+  runtimeMinutes?: number | null
 }
 
 /** What the page shows under the player: the releases to switch between, and the playing file to save. */
@@ -166,8 +181,8 @@ const SPECULATIVE_DIRECT_PLAY_PROBES = 1
 type Attempt =
   | { kind: 'ready'; playback: DebridReadyPlayback; direct: boolean }
   | { kind: 'skipped' }
-  /** Refused for a reason every release shares (no access, account down) — stop trying. */
-  | { kind: 'stop'; status: Status; message: string }
+  /** Refused for a reason every release shares (no access, account down, no connection) — stop trying. */
+  | { kind: 'stop'; status: Status; message: string; offline?: boolean }
 
 /** Past this much playback, a failure is shown rather than silently restarting the viewer on another release. */
 const AUTO_SWITCH_MAX_POSITION_S = 30
@@ -175,6 +190,35 @@ const AUTO_SWITCH_MAX_POSITION_S = 30
 /** How long an uncached release is polled before giving up on waiting for it here. */
 const DOWNLOAD_POLL_TIMEOUT_MS = 15 * 60 * 1000
 const DOWNLOAD_POLL_INTERVAL_MS = 5000
+
+/**
+ * How much longer than the search the connection's measurement is waited
+ * for. It starts with the search and is usually done before it; past this,
+ * the pick goes ahead with what's already known.
+ */
+const CONNECTION_WAIT_MS = 1500
+
+/** A running time to size releases by when the title's isn't known, in minutes. */
+const TYPICAL_RUNTIME_MIN = { movie: 120, tv: 45 } as const
+
+const NETWORK_ERROR_MESSAGE = 'Couldn’t reach Premium — check your connection, then try again.'
+
+/** `promise`'s value if it settles within `ms`, else null. Never rejects. */
+function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      }
+    )
+  })
+}
 
 export function DebridPlayerPane({
   title,
@@ -191,6 +235,7 @@ export function DebridPlayerPane({
   nextLabel,
   onReleaseControls,
   episodes,
+  runtimeMinutes,
 }: DebridPlayerPaneProps) {
   const getToken = useDebridToken()
   const [status, setStatus] = useState<Status>('searching')
@@ -236,6 +281,21 @@ export function DebridPlayerPane({
   const notInstantRef = useRef(new Set<string>())
   /** Best uncached release — downloaded if every cached one fails. */
   const uncachedFallbackRef = useRef<DebridRelease | null>(null)
+  /**
+   * Where the film stood when the connection went and stayed down, in
+   * seconds — null while it hasn't. Playback resumes there once it's back.
+   */
+  const [lostAt, setLostAt] = useState<number | null>(null)
+  const connectionLost = lostAt !== null
+  /** The last search or start failed because the request didn't get through: try again once online. */
+  const [failedOffline, setFailedOffline] = useState(false)
+  /** A lighter release to offer, for a film that keeps stalling. */
+  const [lighterOffer, setLighterOffer] = useState<DebridRelease | null>(null)
+  /** How long the film runs, in seconds — the title's own figure, or a typical one. */
+  const expectedDurationS = (runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes : TYPICAL_RUNTIME_MIN[mediaType]) * 60
+  /** Read by the search without being one of its inputs: details landing late mustn't search again. */
+  const expectedDurationRef = useRef(expectedDurationS)
+  expectedDurationRef.current = expectedDurationS
 
   const episodeOpts = useMemo(() => (mediaType === 'tv' ? { season, episode } : {}), [mediaType, season, episode])
 
@@ -292,6 +352,8 @@ export function DebridPlayerPane({
     setResumeToast(!!start && start > 0)
     setVideoStarted(false)
     setPlaybackFailed(false)
+    setLostAt(null)
+    setLighterOffer(null)
     setDownloadProgress(null)
     setStatus('ready')
   }, [])
@@ -388,7 +450,10 @@ export function DebridPlayerPane({
         if (generationRef.current !== generation) return
         console.error('Real-Debrid download error:', err)
         setStatus(isAccessRefused(err) ? 'access-refused' : 'error')
-        setStatusMessage(err instanceof Error ? err.message : 'Failed to download release')
+        setFailedOffline(isNetworkFailure(err))
+        setStatusMessage(
+          isNetworkFailure(err) ? NETWORK_ERROR_MESSAGE : err instanceof Error ? err.message : 'Failed to download release'
+        )
       }
     },
     [episodeOpts, showPlayback, pollUntilReady]
@@ -443,6 +508,8 @@ export function DebridPlayerPane({
             return { kind: 'stop', status: 'access-refused', message: 'Premium access required' }
           }
           if (isDebridUnavailable(err)) return { kind: 'stop', status: 'error', message: err.message }
+          // Didn't get through (already asked again): the next release wouldn't either.
+          if (isNetworkFailure(err)) return { kind: 'stop', status: 'error', message: NETWORK_ERROR_MESSAGE, offline: true }
           console.warn('Real-Debrid release could not start, trying another:', rel.name, err)
         }
         return { kind: 'skipped' }
@@ -497,6 +564,7 @@ export function DebridPlayerPane({
         if (result.kind === 'stop') {
           setStatus(result.status)
           setStatusMessage(result.message)
+          setFailedOffline(!!result.offline)
           return
         }
         if (result.kind === 'ready') {
@@ -567,9 +635,19 @@ export function DebridPlayerPane({
    * Every playback mode of the current file failed. Early on, quietly move
    * to the next release; once the viewer is actually watching, show the
    * error instead of restarting them on a different file.
+   *
+   * When it was the connection that failed, another release would fail the
+   * same way: say the connection was lost, and pick the film up where it
+   * stopped once it's back.
    */
   const handleExhausted = useCallback(
-    (reason: string, position: number) => {
+    (reason: string, position: number, network: boolean) => {
+      if (network) {
+        console.warn(`Real-Debrid stream lost its connection (${reason}) at ${Math.round(position)}s`)
+        startPositionRef.current = position > 0 ? position : startPositionRef.current
+        setLostAt(startPositionRef.current ?? 0)
+        return
+      }
       if (position < AUTO_SWITCH_MAX_POSITION_S && autoAttemptsRef.current < MAX_AUTO_RELEASE_ATTEMPTS) {
         const next = releaseQueueRef.current.find((r) => !triedReleasesRef.current.has(r.info_hash))
         if (next) {
@@ -584,6 +662,35 @@ export function DebridPlayerPane({
     [getToken, streamRelease]
   )
 
+  /** The same file again, from where the connection dropped it. */
+  const resumeAfterConnectionLoss = useCallback(() => {
+    setLostAt(null)
+    setStartAt(startPositionRef.current)
+    setResumeToast(false)
+    setVideoStarted(false)
+    setPlayNonce((n) => n + 1)
+  }, [])
+
+  /**
+   * The film keeps stalling: the connection doesn't carry this file. Offer
+   * the best release it can (`kbps`, what it delivered meanwhile) — or,
+   * failing that, a real step down. The next film or episode starts from
+   * that measurement anyway (lib/connection).
+   */
+  const handleStruggle = useCallback(
+    (kbps: number | null) => {
+      if (!activeRelease) return
+      const lighter = lighterRelease(instantReleases, activeRelease, {
+        kbps,
+        durationS: playback?.media?.duration || expectedDurationS,
+        support: detectBrowserVideoSupport(),
+        exclude: notInstantRef.current,
+      })
+      if (lighter) setLighterOffer(lighter)
+    },
+    [activeRelease, instantReleases, playback, expectedDurationS]
+  )
+
   /** `fresh`: search again rather than reuse the title page's search (Try again). */
   const searchAndPlay = useCallback(async ({ fresh = false }: { fresh?: boolean } = {}) => {
     const generation = ++generationRef.current
@@ -591,6 +698,9 @@ export function DebridPlayerPane({
     setStatus('searching')
     setStatusMessage('Finding the best stream…')
     setPlaybackFailed(false)
+    setLostAt(null)
+    setFailedOffline(false)
+    setLighterOffer(null)
     setPlayback(null)
     setInstantReleases([])
     setActiveRelease(null)
@@ -604,23 +714,35 @@ export function DebridPlayerPane({
     positionRef.current = 0
     startPositionRef.current = readResumePosition(storageKey) ?? undefined
 
+    // Measured alongside the search, which takes longer (lib/connection).
+    const connection = estimateConnection()
     const token = await getToken()
 
     try {
       const releases = await findPremiumReleases({ title, year, imdbId, mediaType, season, episode }, token, { fresh })
       if (generationRef.current !== generation) return
 
-      const ranked = rankReleasesForPlayback(releases, detectBrowserVideoSupport())
+      const support = detectBrowserVideoSupport()
+      const ranked = rankReleasesForPlayback(releases, support)
+      const kbps = (await within(connection, CONNECTION_WAIT_MS)) ?? knownThroughput()
+      if (generationRef.current !== generation) return
+      /** Best first, as far as this connection can carry it. */
+      const fit = (list: DebridRelease[]) => fitReleasesToConnection(list, kbps, expectedDurationRef.current, support)
       const cached = ranked.filter((r) => r.cached)
       // An uncached release needs live seeders, or it just sits in
       // Real-Debrid's download queue forever.
-      const uncached = ranked.filter((r) => !r.cached && parseInt(r.seeders, 10) > 0)
+      const uncached = fit(ranked.filter((r) => !r.cached && parseInt(r.seeders, 10) > 0))
       uncachedFallbackRef.current = uncached[0] ?? null
 
       if (cached.length > 0) {
+        // The Quality menu keeps the best first; only the automatic pick follows the connection.
         setInstantReleases(cached)
-        releaseQueueRef.current = cached
-        await streamRelease(cached[0], token, { preferDirect: true })
+        const queue = fit(cached)
+        if (queue[0] !== cached[0]) {
+          console.info(`Connection carries ~${((kbps ?? 0) / 1000).toFixed(1)} Mbit/s — starting with ${queue[0].name}`)
+        }
+        releaseQueueRef.current = queue
+        await streamRelease(queue[0], token, { preferDirect: true })
         return
       }
 
@@ -641,9 +763,23 @@ export function DebridPlayerPane({
       if (generationRef.current !== generation) return
       console.error('Real-Debrid search failed:', err)
       setStatus(isAccessRefused(err) ? 'access-refused' : 'error')
-      setStatusMessage(err instanceof Error ? err.message : 'Search failed')
+      setFailedOffline(isNetworkFailure(err))
+      setStatusMessage(isNetworkFailure(err) ? NETWORK_ERROR_MESSAGE : err instanceof Error ? err.message : 'Search failed')
     }
   }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease])
+
+  // Back online: pick up whatever the connection interrupted — the film
+  // where it stopped, or the search that didn't get through.
+  const retryOnline = connectionLost || (status === 'error' && failedOffline)
+  useEffect(() => {
+    if (!retryOnline) return
+    const onOnline = () => {
+      if (connectionLost) resumeAfterConnectionLoss()
+      else void searchAndPlay()
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [retryOnline, connectionLost, resumeAfterConnectionLoss, searchAndPlay])
 
   useEffect(() => {
     void searchAndPlay()
@@ -768,6 +904,31 @@ export function DebridPlayerPane({
     )
   }
 
+  // --- The connection dropped and stayed down: the film waits where it stopped ---
+  if (lostAt !== null && playback) {
+    return (
+      <PaneBackdrop backdropUrl={backdropUrl}>
+        <StatusMessage
+          heading="Connection lost"
+          body={
+            lostAt > 0
+              ? `Playback stopped at ${formatPlayerTime(lostAt)} when the connection dropped. It picks up there as soon as you’re back online.`
+              : 'Premium couldn’t reach the file’s server. Playback starts as soon as you’re back online.'
+          }
+        />
+        <ActionRow>
+          <button onClick={resumeAfterConnectionLoss} className={primaryAction}>
+            <RefreshCw className="h-4 w-4" />
+            {lostAt > 0 ? 'Resume' : 'Try again'}
+          </button>
+          <button onClick={onSwitchServer} className={secondaryAction}>
+            Switch server
+          </button>
+        </ActionRow>
+      </PaneBackdrop>
+    )
+  }
+
   // --- Every way of playing the file failed after the viewer started watching ---
   if (playbackFailed || !playback) {
     const nextRelease = instantReleases.find((r) => r.info_hash !== activeRelease?.info_hash)
@@ -799,6 +960,8 @@ export function DebridPlayerPane({
 
   // --- Ready ---
   const videoKey = `${activeRelease?.info_hash ?? ''}:${playback.directUrl}:${playNonce}`
+  const offered = lighterOffer ? toPlayerSource(lighterOffer) : null
+  const lighterLabel = offered ? `${offered.label}${offered.size ? ` · ${offered.size}` : ''}` : ''
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
@@ -807,6 +970,7 @@ export function DebridPlayerPane({
         playback={playback}
         startAt={startAt}
         onExhausted={handleExhausted}
+        onStruggle={handleStruggle}
         onProgress={handleProgress}
         poster={backdropUrl}
         onNext={onNext}
@@ -833,12 +997,40 @@ export function DebridPlayerPane({
           />
         )}
         overlay={
-          resumeToast && startAt !== undefined ? (
-            <div className="flex items-center gap-3 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg">
-              <span>Resumed from {formatPlayerTime(startAt)}</span>
-              <button onClick={startOver} className="font-semibold text-white underline-offset-4 hover:underline">
-                Start over
-              </button>
+          (resumeToast && startAt !== undefined) || lighterOffer ? (
+            <div className="flex flex-col items-start gap-2">
+              {lighterOffer && (
+                <div
+                  role="status"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg"
+                >
+                  <span>Your connection can’t keep up with this file.</span>
+                  <button
+                    onClick={() => {
+                      setLighterOffer(null)
+                      switchRelease(lighterOffer)
+                    }}
+                    className="font-semibold text-white underline-offset-4 hover:underline"
+                  >
+                    Switch to {lighterLabel}
+                  </button>
+                  <button
+                    onClick={() => setLighterOffer(null)}
+                    aria-label="Keep this release"
+                    className="-m-1 p-1 text-white/60 hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              {resumeToast && startAt !== undefined && (
+                <div className="flex items-center gap-3 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg">
+                  <span>Resumed from {formatPlayerTime(startAt)}</span>
+                  <button onClick={startOver} className="font-semibold text-white underline-offset-4 hover:underline">
+                    Start over
+                  </button>
+                </div>
+              )}
             </div>
           ) : null
         }

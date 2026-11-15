@@ -211,6 +211,100 @@ export function rankReleasesForPlayback(
 }
 
 // ---------------------------------------------------------------------------
+// Fitting the release to the connection
+// ---------------------------------------------------------------------------
+
+/**
+ * The share of a connection a film may need and still play without
+ * stalling: the rest is headroom for scenes busier than the file's average,
+ * and for a measurement that came out a little high.
+ */
+const CONNECTION_SHARE = 0.8
+
+/** A release at most this share of the playing one's size counts as lighter: a real step down, not the same encode again. */
+const LIGHTER_MAX_SHARE = 0.7
+
+function releaseSize(release: DebridRelease): number {
+  const size = parseInt(release.size, 10)
+  return Number.isFinite(size) && size > 0 ? size : 0
+}
+
+/** What a release needs to play in real time, in kbit/s — null when its size or length isn't known. */
+export function releaseKbps(release: DebridRelease, durationS: number): number | null {
+  const size = releaseSize(release)
+  if (!size || !(durationS > 0)) return null
+  return (size * 8) / durationS / 1000
+}
+
+/** Plays as it is in this browser, and isn't a cinema recording: worth picking for its size. */
+function isLightCandidate(release: DebridRelease, support: BrowserVideoSupport): boolean {
+  return isBrowserPlayable(release.name, support) && !isTheatricalRip(release.name)
+}
+
+/** Lightest first — a file that plays as it is before one that doesn't, an unknown size last. */
+function byWeight(support: BrowserVideoSupport) {
+  return (a: DebridRelease, b: DebridRelease): number =>
+    Number(isLightCandidate(b, support)) - Number(isLightCandidate(a, support)) ||
+    (releaseSize(a) || Number.MAX_SAFE_INTEGER) - (releaseSize(b) || Number.MAX_SAFE_INTEGER)
+}
+
+/**
+ * Reorder ranked releases (best first, see rankReleasesForPlayback) for a
+ * connection of `kbps`: the best one it can carry first.
+ *
+ * A film that needs 8 Mbit/s on a 2 Mbit/s line doesn't play — it stalls
+ * every few seconds — where the 720p encode of it plays through. There is
+ * no adaptive stream to fall back on (Real-Debrid's transcode comes in one
+ * quality), so the choice is made between releases.
+ *
+ * Unchanged when the speed or the length isn't known, or the top pick
+ * already fits. Otherwise the releases that fit keep their order, in
+ * front; the rest follow lightest first.
+ */
+export function fitReleasesToConnection(
+  ranked: DebridRelease[],
+  kbps: number | null,
+  durationS: number,
+  support: BrowserVideoSupport
+): DebridRelease[] {
+  if (kbps === null || !(kbps > 0) || !(durationS > 0) || ranked.length === 0) return ranked
+  const budget = kbps * CONNECTION_SHARE
+  const fits = (r: DebridRelease) => {
+    const needs = releaseKbps(r, durationS)
+    return needs !== null && needs <= budget && isLightCandidate(r, support)
+  }
+  if (fits(ranked[0])) return ranked
+  return [...ranked.filter(fits), ...ranked.filter((r) => !fits(r)).sort(byWeight(support))]
+}
+
+/**
+ * A release lighter than the one playing, for a film that keeps stalling:
+ * the best-ranked one the connection (`kbps`, when the player could tell)
+ * can carry — failing that the lightest, or with no speed to go by, the
+ * next real step down. Null when there's nothing lighter to offer.
+ */
+export function lighterRelease(
+  ranked: DebridRelease[],
+  current: DebridRelease,
+  opts: { kbps: number | null; durationS: number; support: BrowserVideoSupport; exclude?: ReadonlySet<string> }
+): DebridRelease | null {
+  const currentSize = releaseSize(current)
+  const pool = ranked.filter(
+    (r) =>
+      r.info_hash !== current.info_hash &&
+      !opts.exclude?.has(r.info_hash) &&
+      isLightCandidate(r, opts.support) &&
+      releaseSize(r) > 0 &&
+      (currentSize === 0 || releaseSize(r) <= currentSize * LIGHTER_MAX_SHARE)
+  )
+  if (pool.length === 0) return null
+  if (opts.kbps === null || !(opts.kbps > 0)) return pool[0]
+  const budget = opts.kbps * CONNECTION_SHARE
+  const fitting = pool.find((r) => (releaseKbps(r, opts.durationS) ?? Infinity) <= budget)
+  return fitting ?? [...pool].sort(byWeight(opts.support))[0]
+}
+
+// ---------------------------------------------------------------------------
 // Playing a resolved file
 // ---------------------------------------------------------------------------
 

@@ -803,6 +803,7 @@ export function MovieDetailModal({
                       onNext={hasNextEpisode ? handleSkipNext : undefined}
                       nextLabel={nextLabel}
                       onReleaseControls={setReleaseControls}
+                      runtimeMinutes={mode === 'tv' ? media.episode_run_time?.[0] : media.runtime}
                       episodes={
                         mode === 'tv' ? (
                           <EpisodeList
