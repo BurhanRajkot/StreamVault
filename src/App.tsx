@@ -8,6 +8,7 @@ import { Navigate, Routes, Route, useLocation } from 'react-router-dom'
 
 import Index from './pages/Index'
 import ErrorBoundary from './components/layout/ErrorBoundary'
+import { AccountSync } from './components/layout/AccountSync'
 import { FavoritesProvider } from './context/FavoritesContext'
 import { DislikesProvider } from './context/DislikesContext'
 
@@ -151,6 +152,7 @@ export default function App() {
     <ErrorBoundary>
       <PrefetchRecommendations />
       <UserSwitchGuard />
+      <AccountSync />
       <FavoritesProvider>
         <DislikesProvider>
           <AppContent />

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { supabaseAdmin } from '../lib/supabase'
-import { checkJwt } from '../middleware/auth'
+import { requireUser } from '../middleware/auth'
 import { v4 as uuidv4 } from 'uuid'
 import * as cache from '../services/cache'
 import { ensureUser } from '../lib/ensureUser'
@@ -8,7 +8,7 @@ import { getUserId } from '../utils/auth'
 
 const router = Router()
 
-router.get('/', checkJwt, async (req: Request, res: Response) => {
+router.get('/', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -42,7 +42,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
   res.json(data || [])
 })
 
-router.post('/', checkJwt, async (req: Request, res: Response) => {
+router.post('/', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -112,7 +112,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
   }
 })
 
-router.delete('/:id', checkJwt, async (req: Request, res: Response) => {
+router.delete('/:id', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })

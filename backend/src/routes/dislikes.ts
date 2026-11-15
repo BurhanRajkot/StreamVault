@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { supabaseAdmin } from '../lib/supabase'
-import { checkJwt } from '../middleware/auth'
+import { requireUser } from '../middleware/auth'
 import { logInteraction } from '../cinematch/tracking/events'
 import { invalidateUserProfile } from '../cinematch/features/userProfile'
 import { invalidateRecommendationCache } from '../cinematch/mixer/homeTimeline'
@@ -13,7 +13,7 @@ const router = Router()
 
 // ── GET /dislikes ───────────────────────────────────────────
 // Returns a list of the user's current disliked items
-router.get('/', checkJwt, async (req: Request, res: Response) => {
+router.get('/', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -50,7 +50,7 @@ router.get('/', checkJwt, async (req: Request, res: Response) => {
 // ── POST /dislikes ───────────────────────────────────────────
 // Registers a new dislike. We use the existing logInteraction to
 // handle the ML profile updates and cache invalidation automatically.
-router.post('/', checkJwt, async (req: Request, res: Response) => {
+router.post('/', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -115,7 +115,7 @@ router.post('/', checkJwt, async (req: Request, res: Response) => {
 
 // ── DELETE /dislikes/:mediaType/:tmdbId ───────────────────────────
 // Reverses a dislike.
-router.delete('/:mediaType/:tmdbId', checkJwt, async (req: Request, res: Response) => {
+router.delete('/:mediaType/:tmdbId', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 

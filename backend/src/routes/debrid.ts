@@ -6,24 +6,26 @@
  * passes through here — the video itself streams straight from Real-Debrid
  * to the viewer (direct link or Real-Debrid's own HLS transcode).
  *
- * Premium is admin-only (since 2026-11-15): every route below needs a valid
- * admin token (TOTP login, see admin/routes), enforced once for the whole
- * router. One Real-Debrid account can't be shared with the public — Real-Debrid
- * refused the account for exactly that on 2026-11-12 — so there is no guest,
- * signed-in or subscriber path here any more.
+ * Who may use it (since 2026-11-15): the admin (TOTP login, see
+ * admin/routes), and signed-in accounts the admin has granted Premium from
+ * the dashboard — see middleware/premiumAccess. Never the public: one
+ * Real-Debrid account can't be shared widely (Real-Debrid refused the account
+ * for exactly that on 2026-11-12). The account's status and deleting its
+ * torrents stay admin-only.
  *
  * Route summary:
- *   GET    /debrid/status                 — the account: connected, premium, expiry
+ *   GET    /debrid/status                 — the account: connected, premium, expiry (admin)
  *   GET    /debrid/media-search           — releases for a title, tagged with what Real-Debrid has cached
  *   POST   /debrid/play                   — add/reuse a release and resolve its streams
  *   GET    /debrid/play/:torrentId        — poll a release that is still downloading
  *   GET    /debrid/subtitles              — subtitles for the playing file, by language
  *   GET    /debrid/subtitles/file/:id     — one subtitle file's text
- *   DELETE /debrid/torrents/:torrentId    — remove a torrent from the account
+ *   DELETE /debrid/torrents/:torrentId    — remove a torrent from the account (admin)
  */
 
 import { Router, Request, Response } from 'express'
 import { requireAdminAuth } from '../admin/middleware'
+import { requirePremiumAccess } from '../middleware/premiumAccess'
 import { downloadRateLimiter } from '../cybersecurity/rateLimiter'
 import { logger } from '../lib/logger'
 import * as debrid from '../lib/debrid'
@@ -32,8 +34,41 @@ import { parseReleaseSearchQuery } from './releases'
 
 const router = Router()
 
-// Admin-only, all of it. A missing, expired or non-admin token is a 401.
-router.use(requireAdminAuth)
+// The admin's own routes first; everything after the gate below is the player's.
+router.get('/status', requireAdminAuth, async (_req, res) => {
+  try {
+    return res.json(await debrid.getAccountStatus())
+  } catch (err: unknown) {
+    logger.warn('Debrid status check failed', { error: errorMessage(err) })
+    // Still an answer, not an error: "not connected, and here is why" is what the dashboard is asking.
+    const status: debrid.DebridAccountStatus = {
+      connected: false,
+      premium: false,
+      expiration: null,
+      note: debrid.accountErrorMessage(err) ?? errorMessage(err),
+    }
+    return res.json(status)
+  }
+})
+
+router.delete('/torrents/:torrentId', requireAdminAuth, async (req: Request, res: Response) => {
+  const { torrentId } = req.params
+  if (!TORRENT_ID_RE.test(torrentId)) {
+    return res.status(400).json({ error: 'Invalid torrent id' })
+  }
+
+  try {
+    await debrid.deleteTorrent(torrentId)
+    logger.info('Debrid torrent deleted', { torrentId })
+    return res.status(204).end()
+  } catch (err: unknown) {
+    logger.error('Debrid delete failed', { torrentId, error: errorMessage(err) })
+    return res.status(upstreamStatus(err)).json({ error: 'Delete failed' })
+  }
+})
+
+// The player: the admin, or an account the admin granted Premium.
+router.use(requirePremiumAccess)
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,27 +121,6 @@ function pathNumber(value: unknown): number | undefined {
   if (!/^\d{1,4}$/.test(value)) return undefined
   return Number(value)
 }
-
-// ---------------------------------------------------------------------------
-// GET /debrid/status — is the account connected and premium, and until when.
-// The admin dashboard shows it, so a new DEBRID_API_KEY can be checked at a glance.
-// ---------------------------------------------------------------------------
-
-router.get('/status', async (_req, res) => {
-  try {
-    return res.json(await debrid.getAccountStatus())
-  } catch (err: unknown) {
-    logger.warn('Debrid status check failed', { error: errorMessage(err) })
-    // Still an answer, not an error: "not connected, and here is why" is what the dashboard is asking.
-    const status: debrid.DebridAccountStatus = {
-      connected: false,
-      premium: false,
-      expiration: null,
-      note: debrid.accountErrorMessage(err) ?? errorMessage(err),
-    }
-    return res.json(status)
-  }
-})
 
 // ---------------------------------------------------------------------------
 // GET /debrid/media-search?imdb=tt...&type=movie|tv&title=...[&season=&episode=][&limit=20]
@@ -289,26 +303,6 @@ router.get('/subtitles/file/:id', async (req: Request, res: Response) => {
     const status = err instanceof subtitles.SubtitleFileError ? err.status : 502
     logger.warn('Subtitle file failed', { id, error: errorMessage(err) })
     return res.status(status).json({ error: status === 404 ? 'Subtitle not found' : 'Subtitle download failed' })
-  }
-})
-
-// ---------------------------------------------------------------------------
-// DELETE /debrid/torrents/:torrentId
-// ---------------------------------------------------------------------------
-
-router.delete('/torrents/:torrentId', async (req: Request, res: Response) => {
-  const { torrentId } = req.params
-  if (!TORRENT_ID_RE.test(torrentId)) {
-    return res.status(400).json({ error: 'Invalid torrent id' })
-  }
-
-  try {
-    await debrid.deleteTorrent(torrentId)
-    logger.info('Debrid torrent deleted', { torrentId })
-    return res.status(204).end()
-  } catch (err: unknown) {
-    logger.error('Debrid delete failed', { torrentId, error: errorMessage(err) })
-    return res.status(upstreamStatus(err)).json({ error: 'Delete failed' })
   }
 })
 

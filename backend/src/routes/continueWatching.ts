@@ -1,12 +1,12 @@
 import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabase'
-import { checkJwt } from '../middleware/auth'
+import { requireUser } from '../middleware/auth'
 import * as cache from '../services/cache'
 import { ensureUser } from '../lib/ensureUser'
 
 const router = Router()
 
-router.get('/', checkJwt, async (req, res) => {
+router.get('/', requireUser, async (req, res) => {
   const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -61,7 +61,7 @@ router.get('/', checkJwt, async (req, res) => {
   res.json(data || [])
 })
 
-router.post('/', checkJwt, async (req, res) => {
+router.post('/', requireUser, async (req, res) => {
   const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -163,7 +163,7 @@ router.post('/', checkJwt, async (req, res) => {
   res.json(result)
 })
 
-router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
+router.delete('/:tmdbId/:mediaType', requireUser, async (req, res) => {
   const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   const tmdbId = Number(req.params.tmdbId)
   const mediaType = req.params.mediaType
@@ -191,7 +191,7 @@ router.delete('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
   res.json({ success: true })
 })
 
-router.get('/:tmdbId/:mediaType', checkJwt, async (req, res) => {
+router.get('/:tmdbId/:mediaType', requireUser, async (req, res) => {
   const userId = (req as unknown as { auth?: { payload: { sub: string } } }).auth?.payload?.sub
   const tmdbId = Number(req.params.tmdbId)
   const mediaType = req.params.mediaType

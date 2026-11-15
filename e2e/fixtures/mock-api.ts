@@ -31,7 +31,7 @@ import {
   seasonEpisodes,
   titleOf,
 } from './data'
-import { ADMIN_CODE, ADMIN_TOKEN } from './users'
+import { ADMIN_CODE, ADMIN_TOKEN, SIGNED_IN } from './users'
 
 export const MOCK_API_ORIGIN = 'http://api.e2e.test'
 
@@ -130,6 +130,15 @@ export class MockApi {
     favorites: [] as { id: string; tmdbId: number; mediaType: string; addedAt: string }[],
     dislikes: [] as { id: string; tmdbId: number; mediaType: string }[],
     continueWatching: [] as Record<string, unknown>[],
+    /**
+     * Accounts in the admin's Users panel. Any non-admin bearer token is
+     * SIGNED_IN (the mock Auth0 has one user); a second account fills the list.
+     */
+    users: [
+      mockUser(SIGNED_IN.sub, SIGNED_IN.email, SIGNED_IN.name),
+      mockUser('google-oauth2|e2e-other', 'sam@streamvault.test', 'Sam Other'),
+    ],
+    premiumPausedForAll: false,
   }
 
   constructor() {
@@ -357,19 +366,95 @@ export class MockApi {
     }
     this.on('GET', '/releases', ({ query }) => releasesFor(query))
 
-    // — Premium (Real-Debrid): admin-only, like the real backend's router —
+    // — Account access, decided like backend/src/lib/userAccess.ts decidePremium —
+    const me = () => this.state.users.find((u) => u.id === SIGNED_IN.sub)
+    const premiumFor = (req: MockRequest): string => {
+      if (req.admin) return 'granted'
+      const user = req.authenticated ? me() : undefined
+      if (!user) return 'sign-in-required'
+      if (user.suspendedAt) return 'suspended'
+      if (user.premiumAccess === 'none') return 'not-approved'
+      if (user.premiumAccess === 'paused') return 'paused'
+      return this.state.premiumPausedForAll ? 'paused-for-all' : 'granted'
+    }
+    this.on('GET', '/me/access', (req) => {
+      if (!req.authenticated || req.admin) return { status: 401, json: { error: 'Unauthorized' } }
+      const reason = premiumFor(req)
+      return ok({ premium: reason === 'granted', premiumReason: reason, suspended: Boolean(me()?.suspendedAt) })
+    })
+    this.on('POST', '/me/profile', requireAuth(() => ({ status: 204 })))
+
+    // — Admin: users and the site-wide Premium switch —
     const adminOnly =
       (handler: Handler): Handler =>
       (req) =>
         req.admin ? handler(req) : { status: 401, json: { error: 'Authentication required', message: 'Admin token missing' } }
+    this.on(
+      'GET',
+      '/admin/users',
+      adminOnly(({ query }) => {
+        const q = (query.get('q') ?? '').toLowerCase()
+        const users = this.state.users.filter((u) => !q || [u.id, u.email, u.name].some((v) => v?.toLowerCase().includes(q)))
+        return ok({ users, total: users.length })
+      })
+    )
+    this.on(
+      'PATCH',
+      '/admin/users/:id',
+      adminOnly(({ params, body }) => {
+        const user = this.state.users.find((u) => u.id === params.id)
+        if (!user) return { status: 404, json: { error: 'User not found' } }
+        const change = (body ?? {}) as { premiumAccess?: MockUser['premiumAccess']; suspended?: boolean }
+        if (change.premiumAccess) user.premiumAccess = change.premiumAccess
+        if (change.suspended !== undefined) user.suspendedAt = change.suspended ? new Date().toISOString() : null
+        return ok({ user })
+      })
+    )
+    this.on('GET', '/admin/settings', adminOnly(() => ok({ premiumPausedForAll: this.state.premiumPausedForAll })))
+    this.on(
+      'PUT',
+      '/admin/settings/premium',
+      adminOnly(({ body }) => {
+        this.state.premiumPausedForAll = Boolean((body as { pausedForAll?: boolean } | undefined)?.pausedForAll)
+        return ok({ premiumPausedForAll: this.state.premiumPausedForAll })
+      })
+    )
+
+    // — Premium (Real-Debrid): the admin and approved accounts, like the real backend's gate
+    //   (its account status stays admin-only) —
+    const premiumOnly =
+      (handler: Handler): Handler =>
+      (req) => {
+        const reason = premiumFor(req)
+        if (reason === 'granted') return handler(req)
+        return reason === 'sign-in-required'
+          ? { status: 401, json: { error: 'Authentication required' } }
+          : { status: 403, json: { error: 'Premium access required', code: `premium_${reason.replace(/-/g, '_')}` } }
+      }
     this.on('GET', '/debrid/status', adminOnly(() => ok({ connected: true, premium: true, expiration: null, note: null })))
-    this.on('GET', '/debrid/media-search', adminOnly(({ query }) => releasesFor(query)))
-    this.on('POST', '/debrid/play', adminOnly(() => ok(readyPlayback())))
-    this.on('GET', '/debrid/play/:torrentId', adminOnly(() => ok(readyPlayback())))
+    this.on('GET', '/debrid/media-search', premiumOnly(({ query }) => releasesFor(query)))
+    this.on('POST', '/debrid/play', premiumOnly(() => ok(readyPlayback())))
+    this.on('GET', '/debrid/play/:torrentId', premiumOnly(() => ok(readyPlayback())))
     // No subtitles unless a test brings some (see subtitlesFor in data.ts)
-    this.on('GET', '/debrid/subtitles', adminOnly(() => ok({ languages: [] })))
-    this.on('GET', '/debrid/subtitles/file/:id', adminOnly(() => ({ status: 404, json: { error: 'Subtitle not found' } })))
+    this.on('GET', '/debrid/subtitles', premiumOnly(() => ok({ languages: [] })))
+    this.on('GET', '/debrid/subtitles/file/:id', premiumOnly(() => ({ status: 404, json: { error: 'Subtitle not found' } })))
   }
+}
+
+export interface MockUser {
+  id: string
+  email: string | null
+  name: string | null
+  createdAt: string
+  lastSeenAt: string | null
+  premiumAccess: 'none' | 'granted' | 'paused'
+  suspendedAt: string | null
+  subscriptionStatus: string
+}
+
+function mockUser(id: string, email: string, name: string): MockUser {
+  const at = new Date(Date.UTC(2026, 10, 1)).toISOString()
+  return { id, email, name, createdAt: at, lastSeenAt: at, premiumAccess: 'none', suspendedAt: null, subscriptionStatus: 'free' }
 }
 
 function corsHeaders(requestHeaders: Record<string, string>): Record<string, string> {

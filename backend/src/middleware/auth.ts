@@ -72,4 +72,36 @@ if (process.env.AUTH0_ISSUER_BASE_URL && process.env.AUTH0_AUDIENCE) {
   }
 }
 
+import { getUserId } from '../utils/auth'
+import { getUserAccess, touchUser } from '../lib/userAccess'
+
+/**
+ * A signed-in viewer's routes: the Auth0 check, then the admin's controls —
+ * a suspended account is refused (403, `code: 'account_suspended'`) — and
+ * the account's "last seen" for the dashboard.
+ */
+function signedInUser({ allowSuspended }: { allowSuspended: boolean }): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    ;(checkJwt as RequestHandler)(req, res, (err?: unknown) => {
+      if (err) return next(err)
+      const userId = getUserId(req)
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+      touchUser(userId)
+      if (allowSuspended) return next()
+      getUserAccess(userId).then((access) => {
+        if (access.suspended) {
+          return res.status(403).json({ error: 'This account has been suspended.', code: 'account_suspended' })
+        }
+        next()
+      }, next)
+    })
+  }
+}
+
+/** Every signed-in feature (My List, continue watching, recommendations, ...). */
+export const requireUser = signedInUser({ allowSuspended: false })
+
+/** For the one route that has to answer a suspended account too: "what may I do?". */
+export const requireUserAllowSuspended = signedInUser({ allowSuspended: true })
+
 export { checkJwt }

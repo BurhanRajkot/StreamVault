@@ -43,7 +43,7 @@ test('title page', async ({ page, watch }, testInfo) => {
 test('Premium, locked for a visitor', async ({ page, watch }, testInfo) => {
   await watch.gotoOnPremium(MOVIE)
   await watch.play()
-  await expect(page.getByText('Premium is admin-only')).toBeVisible()
+  await expect(page.getByText('Premium is invite-only')).toBeVisible()
   await audit(page, testInfo)
 })
 

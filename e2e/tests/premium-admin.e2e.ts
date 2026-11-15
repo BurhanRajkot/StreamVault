@@ -1,7 +1,8 @@
 /**
- * ⚡ Premium is admin-only. Everyone sees it in the server list, last and
- * locked; picking it explains why and offers the admin sign-in, and signing
- * in there starts the film. Deterministic: no agent steps.
+ * ⚡ Premium plays for the admin (and accounts the admin approved — see
+ * user-access.e2e.ts). A visitor sees it in the server list, last and
+ * locked; picking it explains why and offers the sign-ins, and the admin
+ * sign-in there starts the film. Deterministic: no agent steps.
  *
  * What Premium does once it plays is e2e/specs/premium-player.spec.ts.
  */
@@ -18,11 +19,11 @@ test('a visitor sees Premium locked, and is never sent to the Premium backend', 
   await expect(screen.getByRole('heading', 'Inception', { level: 1 }).first()).toBeVisible()
 
   await screen.getByRole('combobox', SERVER).tap()
-  await expect(screen.getByRole('option').last()).toContainText('Admin')
+  await expect(screen.getByRole('option').last()).toContainText('Invite only')
   await screen.getByRole('option', /^Premium/).tap()
   await screen.getByRole('button', /^Play( Now)?$/).first().tap()
 
-  await expect(screen.getByText('Premium is admin-only')).toBeVisible()
+  await expect(screen.getByText('Premium is invite-only')).toBeVisible()
   await expect(screen.getByRole('button', 'Admin sign-in')).toBeVisible()
   expect(mockApi.calls('GET', '/debrid/media-search')).toHaveLength(0)
   expect(mockApi.calls('POST', '/debrid/play')).toHaveLength(0)
@@ -45,7 +46,7 @@ test('a wrong code is refused, the right one signs the admin in and the film sta
   await dialog.getByRole('button', 'Login').tap()
 
   await expect(screen.getByTestId('debrid-video')).toBeVisible()
-  await expect(screen.getByText('Premium is admin-only')).toBeHidden()
+  await expect(screen.getByText('Premium is invite-only')).toBeHidden()
   const [play] = mockApi.calls('POST', '/debrid/play')
   expect(play.admin, 'the play request carries the admin token').toBe(true)
 })
@@ -58,7 +59,7 @@ adminTest('an admin still starts on Sol, with Premium last and unlocked', async 
   await picker.tap()
   const premium = screen.getByRole('option').last()
   await expect(premium).toContainText('Premium')
-  await expect(premium).not.toContainText('Admin')
+  await expect(premium).not.toContainText('Invite only')
 })
 
 adminTest('the admin dashboard reports the Premium account', async ({ app, screen }) => {
