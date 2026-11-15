@@ -34,8 +34,8 @@ export interface DesktopBridge {
   showInFolder(path: string): Promise<void>
   openExternal(url: string): Promise<void>
   setFullscreen(enabled: boolean): Promise<void>
-  /** Replace the running AppImage with a newer one, then restart. False when not an AppImage. */
-  installUpdate(url: string): Promise<{ ok: boolean; reason?: string }>
+  /** Replace the running AppImage with a newer one (its parts joined in order, checked against sha256), then restart. */
+  installUpdate(source: { urls: string[]; sha256?: string }): Promise<{ ok: boolean; reason?: string }>
   canSelfUpdate: boolean
   freeSpace(): Promise<{ bytes: number }>
 }
