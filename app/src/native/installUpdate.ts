@@ -10,6 +10,9 @@ export type InstallState =
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+/** The APK already fetched for a version — tapping Update again (after allowing installs) reuses it. */
+let downloadedApk: { version: string; path: string } | null = null
+
 /**
  * Android: download the APK with the system downloader, then hand it to the
  * package installer (Android asks the user to confirm, and the first time to
@@ -26,21 +29,8 @@ export function useInstallUpdate(): { state: InstallState; install: (release: Ap
     }
     try {
       if (isAndroid) {
-        setState({ phase: 'downloading', percent: 0 })
-        const { id, path } = await SvNative.enqueue({
-          url: release.assetUrl,
-          fileName: `StreamVault-${release.version}.apk`,
-          title: `StreamVault ${release.version}`,
-          description: 'App update',
-          folder: 'updates',
-        })
-        for (;;) {
-          await sleep(800)
-          const [t] = (await SvNative.status({ ids: [id] })).items
-          if (!t || t.status === 'failed') throw new Error(t?.reason || 'The update download failed.')
-          if (t.status === 'done') break
-          setState({ phase: 'downloading', percent: t.total > 0 ? Math.round((t.bytes / t.total) * 100) : null })
-        }
+        const path = downloadedApk?.version === release.version ? downloadedApk.path : await downloadApk(release, setState)
+        downloadedApk = { version: release.version, path }
         setState({ phase: 'installing' })
         const result = await SvNative.installApk({ path })
         if (result.needsPermission) {
@@ -64,4 +54,22 @@ export function useInstallUpdate(): { state: InstallState; install: (release: Ap
   }
 
   return { state, install }
+}
+
+async function downloadApk(release: AppRelease, setState: (state: InstallState) => void): Promise<string> {
+  setState({ phase: 'downloading', percent: 0 })
+  const { id, path } = await SvNative.enqueue({
+    url: release.assetUrl!,
+    fileName: `StreamVault-${release.version}.apk`,
+    title: `StreamVault ${release.version}`,
+    description: 'App update',
+    folder: 'updates',
+  })
+  for (;;) {
+    await sleep(800)
+    const [t] = (await SvNative.status({ ids: [id] })).items
+    if (!t || t.status === 'failed') throw new Error(t?.reason || 'The update download failed.')
+    if (t.status === 'done') return path
+    setState({ phase: 'downloading', percent: t.total > 0 ? Math.round((t.bytes / t.total) * 100) : null })
+  }
 }
