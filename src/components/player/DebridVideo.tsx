@@ -8,10 +8,14 @@
  * Real-Debrid does all the streaming/transcoding — nothing passes through our
  * backend.
  *
- * Recovery, cheapest first:
- *   - A direct link that drops (network error) or stalls mid-film is reloaded
- *     in place, at the same position, a few times. Dropping to the transcode
- *     instead would cost the original quality and instant seeking.
+ * Recovery, cheapest first (the policy is lib/streamRecovery):
+ *   - A film that has played and loses its connection — a network error, or
+ *     a stall with no bytes arriving — is reconnected in place, at the same
+ *     position, with a growing wait in between; while the browser is
+ *     offline it simply waits for the connection. A stall with bytes still
+ *     arriving is a slow connection, not a dead one: it's left to load.
+ *     Dropping to the transcode instead would cost the original quality and
+ *     instant seeking, and wouldn't load any faster.
  *
  * Real-Debrid's transcode only converts forward from where it starts, so a
  * jump outside what it has loaded restarts it at the new spot (see
@@ -22,10 +26,15 @@
  *     before a timeout — is abandoned for the next one. The viewer's position
  *     carries over.
  *   - Only when every mode has failed does `onExhausted` fire, so the caller
- *     can move on to another release.
+ *     can move on to another release — or, when it was the connection that
+ *     failed, wait for it and pick the film up again.
+ *
+ * A film that keeps stalling is reported through `onStruggle`, so the caller
+ * can move to a release the connection can carry.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { knownThroughput, noteThroughput } from '@/lib/connection'
 import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
 import { forgetEdge, nearestDirectUrl, type EdgeChoice } from '@/lib/debridHost'
 import {
@@ -36,6 +45,7 @@ import {
   previewStreamUrl,
   type PlaybackMode,
 } from '@/lib/releasePlayback'
+import { reconnectDelayMs, shouldHedge, StallMeter, stallThroughputKbps, startupPatience } from '@/lib/streamRecovery'
 import { cn } from '@/lib/utils'
 import { PlayerControls, type PlayerControlsProps, type PlayerTimeline } from './PlayerControls'
 
@@ -61,8 +71,17 @@ type ChromeProps = Pick<
  */
 interface DebridVideoProps extends ChromeProps {
   playback: DebridReadyPlayback
-  /** Every mode failed. `position` is how far the viewer had got, in seconds. */
-  onExhausted: (reason: string, position: number) => void
+  /**
+   * Every mode failed. `position` is how far the viewer had got, in seconds;
+   * `network` says it was the connection that failed, not the file.
+   */
+  onExhausted: (reason: string, position: number, network: boolean) => void
+  /**
+   * The film keeps stalling: the connection isn't keeping up with this file.
+   * `kbps` is what the connection delivered while it stalled, when that
+   * could be told. Reported once per file.
+   */
+  onStruggle?: (kbps: number | null) => void
   /** The mode now playing — e.g. to label it in the UI. */
   onModeChange?: (mode: PlaybackMode) => void
   /** Where to start, in seconds (a resume point). */
@@ -118,12 +137,38 @@ const DIRECT_STARTUP_HEDGE_MS = 6_000
 /** Fatal hls.js errors to recover from in a row (no segment loading in between) before giving up on the mode. */
 const MAX_HLS_RECOVERIES = 5
 
-/** In-place reloads of a direct link (dropped connection, stall) before giving up on it. */
-const MAX_DIRECT_RELOADS = 3
-/** Smooth playback after which the reload budget refills. */
-const DIRECT_RELOAD_BUDGET_RESET_MS = 60_000
-/** A direct stream waiting this long without moving, though not paused, is reloaded at the same spot. */
+/** In-place reloads of a direct link after a decode error before giving up on it. */
+const MAX_DECODE_RELOADS = 3
+/** Smooth playback after which that budget refills. */
+const DECODE_RELOAD_BUDGET_RESET_MS = 60_000
+/**
+ * A direct stream waiting this long with no bytes arriving, though not
+ * paused, is reconnected at the same spot. Bytes arriving, however slowly,
+ * start the count again: a slow connection is left to load.
+ */
 const DIRECT_STALL_RELOAD_MS = 15_000
+/**
+ * Reconnects in a row, with nothing playing in between, before a mode is
+ * given up on (with the waits in between, about half a minute). Not counted
+ * while the browser is offline: then the player just waits.
+ */
+const MAX_RECONNECTS = 4
+/** While offline, how often to look whether the browser is wrong about that. */
+const OFFLINE_RETRY_MS = 15_000
+/** A file that has never played gets this many of those looks before it's treated as failing. */
+const MAX_OFFLINE_RETRIES_UNSTARTED = 4
+/** A stall this long is explained under the spinner. */
+const SLOW_NOTICE_MS = 4000
+/** Bytes arrived this recently: the connection is slow, not gone (browsers say so every ~350ms while loading). */
+const BYTES_FLOWING_MS = 3000
+/** A wait that starts this soon after a jump is the jump's, not the connection's. */
+const SEEK_SETTLE_MS = 3000
+/**
+ * A start that has run out of time but saw bytes arrive this recently is
+ * given this much longer, up to MAX_STARTUP_EXTENSIONS times.
+ */
+const STARTUP_LIFE_SIGN_MS = 10_000
+const MAX_STARTUP_EXTENSIONS = 6
 
 /**
  * A converted stream asked to start closer to the beginning than this just
@@ -139,9 +184,48 @@ function bufferedEnd(video: HTMLVideoElement): number {
   return video.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0
 }
 
+/** Seconds loaded ahead of where the element is playing. */
+function bufferedAhead(video: HTMLVideoElement): number {
+  const at = video.currentTime
+  for (let i = 0; i < video.buffered.length; i++) {
+    if (video.buffered.start(i) <= at + 0.1 && video.buffered.end(i) >= at) return video.buffered.end(i) - at
+  }
+  return 0
+}
+
+function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+/**
+ * What's holding the film up: the browser is offline, the connection
+ * dropped and the player is reconnecting, or it's just slow.
+ */
+type Trouble = 'offline' | 'reconnecting' | 'slow'
+
+const TROUBLE_STATUS: Record<Trouble, string> = {
+  offline: 'You’re offline — the film continues when your connection is back',
+  reconnecting: 'Connection lost — reconnecting…',
+  slow: 'Slow connection — buffering…',
+}
+
+/** What the loading screen says while the first frame is on its way. */
+function startingMessage(kind: PlaybackMode['kind'], slow: boolean, offline: boolean): string {
+  if (offline) return 'You’re offline — playback starts when your connection is back…'
+  if (kind === 'hls') {
+    return slow ? 'Still converting — Real-Debrid takes a little longer with some files…' : 'Real-Debrid is converting this file for your browser…'
+  }
+  if (!slow) return 'Starting playback…'
+  // Measured slow: it's the line, not Real-Debrid's server.
+  return startupPatience(knownThroughput()) > 1
+    ? 'Your connection is slow — the film takes a little longer to start…'
+    : 'Still connecting — Real-Debrid’s server is slow to answer…'
+}
+
 export function DebridVideo({
   playback,
   onExhausted,
+  onStruggle,
   onModeChange,
   startAt,
   onProgress,
@@ -173,8 +257,35 @@ export function DebridVideo({
    * HLS, not a stream that won't start.
    */
   const startedRef = useRef(false)
-  const reloadsLeftRef = useRef(MAX_DIRECT_RELOADS)
-  const lastReloadAtRef = useRef(0)
+  const decodeReloadsLeftRef = useRef(MAX_DECODE_RELOADS)
+  const lastDecodeReloadAtRef = useRef(0)
+  /** What's holding the film up, if anything — said under the spinner. */
+  const [trouble, setTrouble] = useState<Trouble | null>(null)
+  const troubleRef = useRef<Trouble | null>(null)
+  const showTrouble = useCallback((next: Trouble | null) => {
+    troubleRef.current = next
+    setTrouble(next)
+  }, [])
+  /** Where the film stood when the connection went — shown while the element reconnects. */
+  const [heldAt, setHeldAt] = useState(0)
+  /** Reconnects since something last played. */
+  const reconnectsRef = useRef(0)
+  /** Looks at the connection while the browser says it's offline. */
+  const offlineRetriesRef = useRef(0)
+  /** The reconnect that's waiting its turn. */
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Whether the film should play once it's back (the viewer hadn't paused it). */
+  const wantPlayingRef = useRef(true)
+  /** Bumped by every reconnect, so the startup watch starts over. */
+  const [retryRun, setRetryRun] = useState(0)
+  /** The file's length as the element last reported it, for when it's reloading. */
+  const [knownDuration, setKnownDuration] = useState(0)
+  /** When bytes last arrived (a `progress` event) — 0 when none have for this mode. */
+  const lastBytesAtRef = useRef(0)
+  /** The film's stalls, to tell when the connection isn't keeping up with this file. */
+  const [stallMeter] = useState(() => new StallMeter())
+  /** `onStruggle` has fired for this file. */
+  const struggleReportedRef = useRef(false)
   /** Seconds into the file at the element's time 0 — non-zero once the converted stream starts mid-way. */
   const [offset, setOffset] = useState(0)
   const offsetRef = useRef(0)
@@ -184,6 +295,11 @@ export function DebridVideo({
   const [convertedRun, setConvertedRun] = useState(0)
   /** A jump is restarting the converted stream; true until it can play. */
   const [restarting, setRestarting] = useState(false)
+  /** `restarting`, for the stall watch: that wait is the restart's, not the connection's. */
+  const restartingRef = useRef(false)
+  useEffect(() => {
+    restartingRef.current = restarting
+  }, [restarting])
   /** The viewer jumped while paused — stay paused once the restarted stream is ready. */
   const pauseAfterRestartRef = useRef(false)
   /**
@@ -223,19 +339,26 @@ export function DebridVideo({
 
   const onExhaustedRef = useRef(onExhausted)
   const onProgressRef = useRef(onProgress)
+  const onStruggleRef = useRef(onStruggle)
   useEffect(() => {
     onExhaustedRef.current = onExhausted
     onProgressRef.current = onProgress
-  }, [onExhausted, onProgress])
+    onStruggleRef.current = onStruggle
+  }, [onExhausted, onProgress, onStruggle])
 
-  /** Give up on the current mode; move to the next, or report the file as unplayable. */
+  /**
+   * Give up on the current mode; move to the next, or report the file as
+   * unplayable. `kind` says whether the connection failed or the file did.
+   */
   const advance = useCallback(
-    (reason: string) => {
+    (reason: string, kind: 'media' | 'network' = 'media') => {
       pendingSeekRef.current = positionRef.current > 0 ? positionRef.current : pendingSeekRef.current
       convertedAtRef.current = pendingSeekRef.current ?? 0
       // The nearest server let this viewer down: measure again next time.
       if (nearUrl && modes[modeIndex]?.url === nearUrl) forgetEdge()
-      if (modeIndex + 1 < modes.length) {
+      // Offline, every other mode would fail the same way: report it now.
+      const offline = kind === 'network' && isOffline()
+      if (!offline && modeIndex + 1 < modes.length) {
         console.warn(`Debrid ${modes[modeIndex]?.label} failed (${reason}), trying ${modes[modeIndex + 1].label}`)
         setModeIndex(modeIndex + 1)
         return
@@ -243,7 +366,8 @@ export function DebridVideo({
       if (exhaustedRef.current) return
       exhaustedRef.current = true
       console.error(`Debrid playback failed (${reason})`)
-      onExhaustedRef.current(reason, positionRef.current)
+      // A file that never played may be at fault itself — unless the browser says it's offline.
+      onExhaustedRef.current(reason, positionRef.current, kind === 'network' && (firstFrameRef.current || isOffline()))
     },
     [modeIndex, modes, nearUrl]
   )
@@ -254,38 +378,137 @@ export function DebridVideo({
   }, [advance])
 
   /**
-   * Reload the direct link where the viewer is. False when this isn't a
-   * started direct stream or the reload budget is spent.
+   * Load the current mode again where the viewer is: the direct link is
+   * reloaded and jumps back to the spot, the converted stream restarts there.
    */
-  const reloadDirect = useCallback(
-    (reason: string): boolean => {
+  const retryCurrentMode = useCallback(() => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+    retryTimerRef.current = null
+    const video = videoRef.current
+    if (!video || !mode) return
+    const at = positionRef.current
+    setRetryRun((n) => n + 1)
+    if (mode.kind === 'hls') {
+      convertedAtRef.current = at
+      pauseAfterRestartRef.current = !wantPlayingRef.current
+      setRestarting(true)
+      setConvertedRun((n) => n + 1)
+      return
+    }
+    if (at > 0) pendingSeekRef.current = at
+    video.load()
+    if (wantPlayingRef.current) void video.play().catch(() => {})
+    else video.pause() // or the element's `autoplay` would start it
+  }, [mode])
+
+  /**
+   * The connection failed the current mode — a network error, or nothing
+   * arriving. Offline, wait for the browser to say otherwise (and look now
+   * and then, in case it's wrong). A film that has played is reconnected
+   * where it stopped, a few times, before the mode is given up on; one that
+   * never played moves on at once, as the file itself may be at fault.
+   */
+  const networkFailure = useCallback(
+    (reason: string) => {
       const video = videoRef.current
-      if (!video || mode?.kind !== 'direct' || !startedRef.current) return false
-      if (Date.now() - lastReloadAtRef.current > DIRECT_RELOAD_BUDGET_RESET_MS) reloadsLeftRef.current = MAX_DIRECT_RELOADS
-      if (reloadsLeftRef.current <= 0) return false
-      reloadsLeftRef.current--
-      lastReloadAtRef.current = Date.now()
-      const at = video.currentTime > 0 ? video.currentTime : positionRef.current
-      console.warn(`Debrid direct stream ${reason} — reloading at ${Math.round(at)}s`)
-      pendingSeekRef.current = at
-      const wasPaused = video.paused
-      video.load()
-      if (!wasPaused) void video.play().catch(() => {})
-      return true
+      if (!video || !mode || retryTimerRef.current) return
+      if (troubleRef.current !== 'offline' && troubleRef.current !== 'reconnecting') {
+        wantPlayingRef.current = startedRef.current ? !video.paused : true
+      }
+      const giveUp = () => {
+        reconnectsRef.current = 0
+        offlineRetriesRef.current = 0
+        showTrouble(null)
+        advance(reason, 'network')
+      }
+      const retryIn = (ms: number) => {
+        retryTimerRef.current = setTimeout(() => {
+          retryTimerRef.current = null
+          retryCurrentMode()
+        }, ms)
+      }
+      setHeldAt(positionRef.current)
+      if (isOffline()) {
+        if (!firstFrameRef.current && ++offlineRetriesRef.current > MAX_OFFLINE_RETRIES_UNSTARTED) return giveUp()
+        console.warn(`Debrid ${mode.label} stream ${reason} — offline, waiting for the connection`)
+        showTrouble('offline')
+        retryIn(OFFLINE_RETRY_MS)
+        return
+      }
+      if (!firstFrameRef.current || ++reconnectsRef.current > MAX_RECONNECTS) return giveUp()
+      console.warn(`Debrid ${mode.label} stream ${reason} — reconnecting at ${Math.round(positionRef.current)}s`)
+      showTrouble('reconnecting')
+      retryIn(reconnectDelayMs(reconnectsRef.current))
     },
-    [mode]
+    [mode, advance, retryCurrentMode, showTrouble]
   )
-  const reloadDirectRef = useRef(reloadDirect)
+  const networkFailureRef = useRef(networkFailure)
   useEffect(() => {
-    reloadDirectRef.current = reloadDirect
-  }, [reloadDirect])
+    networkFailureRef.current = networkFailure
+  }, [networkFailure])
+
+  // The browser found its connection again (or lost it): don't sit out the wait.
+  useEffect(() => {
+    const onOnline = () => {
+      if (troubleRef.current !== 'offline' && troubleRef.current !== 'reconnecting') return
+      offlineRetriesRef.current = 0
+      retryCurrentMode()
+    }
+    const onOffline = () => {
+      if (troubleRef.current === 'reconnecting') showTrouble('offline')
+    }
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [retryCurrentMode, showTrouble])
+
+  // A reconnect still waiting when the file goes away has nothing to reconnect.
+  useEffect(
+    () => () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
+    },
+    []
+  )
+
+  /**
+   * A corrupt chunk mid-film: reload the direct link where the viewer is, a
+   * few times, before giving up on it. False when this isn't a started
+   * direct stream or the budget is spent.
+   */
+  const reloadAfterDecodeError = useCallback((): boolean => {
+    const video = videoRef.current
+    if (!video || mode?.kind !== 'direct' || !startedRef.current) return false
+    if (Date.now() - lastDecodeReloadAtRef.current > DECODE_RELOAD_BUDGET_RESET_MS) decodeReloadsLeftRef.current = MAX_DECODE_RELOADS
+    if (decodeReloadsLeftRef.current <= 0) return false
+    decodeReloadsLeftRef.current--
+    lastDecodeReloadAtRef.current = Date.now()
+    console.warn(`Debrid direct stream hit a decode error — reloading at ${Math.round(positionRef.current)}s`)
+    wantPlayingRef.current = !video.paused
+    retryCurrentMode()
+    return true
+  }, [mode, retryCurrentMode])
 
   // Track whether this mode has started, keep the position, apply pending
-  // seeks, and report progress.
+  // seeks, report progress — and watch the stalls. A film waiting with no
+  // bytes arriving has lost its connection and is reconnected; one with
+  // bytes trickling in is on a slow connection and is left to load, with a
+  // word under the spinner. Stalls that keep coming are reported
+  // (onStruggle): the file needs more than the connection carries.
   useEffect(() => {
     startedRef.current = false
     setRestarting(false)
     pauseAfterRestartRef.current = false
+    lastBytesAtRef.current = 0
+    stallMeter.reset()
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+    retryTimerRef.current = null
+    reconnectsRef.current = 0
+    offlineRetriesRef.current = 0
+    showTrouble(null)
     if (mode?.kind !== 'hls') {
       offsetRef.current = 0
       setOffset(0)
@@ -293,17 +516,74 @@ export function DebridVideo({
     const video = videoRef.current
     if (!mode || !video) return
 
-    let stallTimer: ReturnType<typeof setTimeout> | null = null
     let lastReportAt = 0
+    /** The stall under way: when it began, how much was loaded ahead then, and whether it's the connection's doing. */
+    let stall: { since: number; bufferedAtStart: number; counts: boolean } | null = null
+    let stallTick: ReturnType<typeof setInterval> | null = null
+    let lastSeekAt = 0
 
+    const reconnecting = () => troubleRef.current === 'offline' || troubleRef.current === 'reconnecting'
+    /** What this file needs to play in real time, in kbit/s — direct links only: the transcode's rate isn't known. */
+    const fileKbps = (): number | null => {
+      if (mode.kind !== 'direct' || !(playback.fileSize > 0)) return null
+      const duration = fullDuration || (Number.isFinite(video.duration) ? video.duration : 0)
+      return duration > 0 ? (playback.fileSize * 8) / duration / 1000 : null
+    }
     const report = () => {
       const duration = Number.isFinite(video.duration) ? offsetRef.current + video.duration : 0
       if (positionRef.current > 0) onProgressRef.current?.(positionRef.current, duration)
       lastReportAt = Date.now()
     }
-    const clearStall = () => {
-      if (stallTimer) clearTimeout(stallTimer)
-      stallTimer = null
+    /** Tell the caller, once per file, when the stalls say the connection can't keep up. */
+    const checkStruggle = (now: number, ongoingMs: number, kbps: number | null) => {
+      if (struggleReportedRef.current || !stallMeter.struggling(now, ongoingMs)) return
+      struggleReportedRef.current = true
+      const measured = kbps ?? knownThroughput()
+      console.warn(
+        `Debrid ${mode.label} stream keeps stalling${measured ? ` — the connection carries ~${(measured / 1000).toFixed(1)} Mbit/s` : ''}`
+      )
+      onStruggleRef.current?.(measured)
+    }
+    /** The stall is over: count it (unless `counted` is false), and note what the connection delivered meanwhile. */
+    const endStall = (counted = true) => {
+      if (stallTick) clearInterval(stallTick)
+      stallTick = null
+      const s = stall
+      stall = null
+      if (troubleRef.current === 'slow') showTrouble(null)
+      if (!s || !s.counts || !counted) return
+      const now = Date.now()
+      const ms = now - s.since
+      const kbps = stallThroughputKbps(bufferedAhead(video) - s.bufferedAtStart, ms, fileKbps())
+      if (kbps !== null) noteThroughput(kbps)
+      stallMeter.note(now, ms)
+      checkStruggle(now, 0, kbps)
+    }
+    const tick = () => {
+      const s = stall
+      if (!s) return
+      const now = Date.now()
+      // Playing again with no event to say so (a jump to a loaded spot), or paused.
+      if (video.paused || (!video.seeking && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA)) {
+        endStall()
+        return
+      }
+      // A hidden tab may simply be throttled — not a dead connection.
+      if (document.hidden) {
+        lastBytesAtRef.current = now
+        return
+      }
+      const ms = now - s.since
+      if (ms >= SLOW_NOTICE_MS && troubleRef.current === null && !restartingRef.current) showTrouble('slow')
+      if (s.counts && now - lastBytesAtRef.current < BYTES_FLOWING_MS) {
+        checkStruggle(now, ms, stallThroughputKbps(bufferedAhead(video) - s.bufferedAtStart, ms, fileKbps()))
+      }
+      // Nothing arriving at all: the connection is gone, not slow. (The
+      // converted stream's loader has timeouts of its own for that.)
+      if (mode.kind === 'direct' && now - lastBytesAtRef.current >= DIRECT_STALL_RELOAD_MS) {
+        endStall(false)
+        networkFailureRef.current('stalled with nothing arriving')
+      }
     }
     const ready = () => {
       setRestarting(false)
@@ -318,6 +598,7 @@ export function DebridVideo({
         advanceRef.current('no decodable video track')
         return
       }
+      if (Number.isFinite(video.duration) && video.duration > 0) setKnownDuration(offsetRef.current + video.duration)
       const seekTo = pendingSeekRef.current
       pendingSeekRef.current = null
       if (seekTo && seekTo > 0 && mode.kind === 'direct') video.currentTime = seekTo
@@ -338,7 +619,13 @@ export function DebridVideo({
         onStartedRef.current?.()
       }
       ready()
-      clearStall()
+      endStall()
+      // Playing again: whatever held the film up is over.
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
+      reconnectsRef.current = 0
+      offlineRetriesRef.current = 0
+      if (troubleRef.current) showTrouble(null)
     }
     const handleTimeUpdate = () => {
       // Ignore the 0 a freshly (re)loaded element reports before its seek.
@@ -347,21 +634,43 @@ export function DebridVideo({
       }
       if (!video.paused && Date.now() - lastReportAt >= PROGRESS_INTERVAL_MS) report()
     }
-    const handleWaiting = () => {
-      if (!startedRef.current) return
-      if (mode.kind === 'direct' && !stallTimer) {
-        const stuckAt = video.currentTime
-        stallTimer = setTimeout(() => {
-          stallTimer = null
-          // A hidden tab may simply be throttled — not a dead connection.
-          if (video.paused || document.hidden || video.currentTime !== stuckAt) return
-          if (!reloadDirectRef.current('stalled')) advanceRef.current('stalled')
-        }, DIRECT_STALL_RELOAD_MS)
+    const handleWaiting = (event: Event) => {
+      if (event.type === 'seeking') lastSeekAt = Date.now()
+      if (!startedRef.current || stall) return
+      const now = Date.now()
+      stall = {
+        since: now,
+        bufferedAtStart: bufferedAhead(video),
+        // A jump's wait, a restart's or a reconnect's says nothing about the connection being too slow for the file.
+        counts: now - lastSeekAt > SEEK_SETTLE_MS && !restartingRef.current && !reconnecting(),
       }
+      // "Nothing arriving" is counted from here.
+      lastBytesAtRef.current = now
+      stallTick = setInterval(tick, 1000)
     }
     const handleCanPlay = () => {
       ready()
-      clearStall()
+      endStall()
+      // Reconnected while paused: no `playing` will come to say it's over.
+      if (!wantPlayingRef.current && reconnecting()) {
+        reconnectsRef.current = 0
+        offlineRetriesRef.current = 0
+        showTrouble(null)
+      }
+    }
+    const handleProgress = () => {
+      lastBytesAtRef.current = Date.now()
+    }
+    // A reload starts the element over: the stall before it was the connection dropping, not a slow one.
+    const handleEmptied = () => endStall(false)
+    // While reconnecting, the viewer's play/pause is what the film does once it's back.
+    const handlePlay = () => {
+      if (reconnecting()) wantPlayingRef.current = true
+    }
+    const handlePause = () => {
+      if (reconnecting()) wantPlayingRef.current = false
+      endStall()
+      report()
     }
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata)
@@ -370,10 +679,13 @@ export function DebridVideo({
     video.addEventListener('waiting', handleWaiting)
     video.addEventListener('seeking', handleWaiting)
     video.addEventListener('canplay', handleCanPlay)
-    video.addEventListener('pause', report)
+    video.addEventListener('progress', handleProgress)
+    video.addEventListener('emptied', handleEmptied)
+    video.addEventListener('play', handlePlay)
+    video.addEventListener('pause', handlePause)
     video.addEventListener('ended', report)
     return () => {
-      clearStall()
+      endStall(false)
       report()
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
       video.removeEventListener('playing', handlePlaying)
@@ -381,10 +693,13 @@ export function DebridVideo({
       video.removeEventListener('waiting', handleWaiting)
       video.removeEventListener('seeking', handleWaiting)
       video.removeEventListener('canplay', handleCanPlay)
-      video.removeEventListener('pause', report)
+      video.removeEventListener('progress', handleProgress)
+      video.removeEventListener('emptied', handleEmptied)
+      video.removeEventListener('play', handlePlay)
+      video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', report)
     }
-  }, [mode])
+  }, [mode, playback.fileSize, fullDuration, stallMeter, showTrouble])
 
   // Attach Real-Debrid's HLS stream, converted from where the viewer is —
   // and again from wherever they jump to (convertedRun). No browser except
@@ -469,7 +784,14 @@ export function DebridVideo({
             advanceRef.current(`hls ${data.details}`)
             return
           }
-          if (recoveriesLeft > 0 && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          const network = data.type === Hls.ErrorTypes.NETWORK_ERROR
+          // Offline, retrying now only spends the budget: wait for the
+          // connection, then restart the stream where the viewer is.
+          if (network && isOffline()) {
+            networkFailureRef.current(`hls ${data.details}`)
+            return
+          }
+          if (recoveriesLeft > 0 && network) {
             recoveriesLeft--
             retryTimer = setTimeout(() => hls.startLoad(video.currentTime), 2000)
             return
@@ -479,7 +801,9 @@ export function DebridVideo({
             hls.recoverMediaError()
             return
           }
-          advanceRef.current(`hls ${data.details}`)
+          // The connection, not the file: a film that has played reconnects where it stopped.
+          if (network) networkFailureRef.current(`hls ${data.details}`)
+          else advanceRef.current(`hls ${data.details}`)
         })
         detach = () => {
           if (retryTimer) clearTimeout(retryTimer)
@@ -506,11 +830,20 @@ export function DebridVideo({
   // Only visible time counts: Chrome doesn't load media in a background tab,
   // so a viewer who starts an episode and switches tabs would otherwise come
   // back to the direct stream abandoned for the transcode (or to an error).
+  //
+  // A slow connection gets longer (startupPatience), no second connection
+  // competing with the first (shouldHedge), and more time again whenever
+  // bytes are still arriving at the deadline. Offline, the wait is for the
+  // connection (networkFailure), not the next mode. Starts over with every
+  // reconnect (retryRun).
   useEffect(() => {
-    if (!mode) return
+    if (!mode || startedRef.current) return
     const video = videoRef.current
     if (!video) return
-    const timeoutMs = mode.kind === 'hls' ? HLS_STARTUP_TIMEOUT_MS : DIRECT_STARTUP_TIMEOUT_MS
+    const kbps = knownThroughput()
+    const timeoutMs = (mode.kind === 'hls' ? HLS_STARTUP_TIMEOUT_MS : DIRECT_STARTUP_TIMEOUT_MS) * startupPatience(kbps)
+    const mayHedge = shouldHedge(kbps)
+    let extensions = 0
     let timer: ReturnType<typeof setTimeout> | null = null
     let hedgeTimer: ReturnType<typeof setTimeout> | null = null
     let hedged = false
@@ -532,7 +865,15 @@ export function DebridVideo({
       const stuck =
         video.readyState < HTMLMediaElement.HAVE_METADATA ||
         (!video.paused && video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA)
-      if (stuck) advanceRef.current('nothing loaded before the startup timeout')
+      if (!stuck) return
+      // Still loading, just slowly: a slow start, not a dead one.
+      if (Date.now() - lastBytesAtRef.current < STARTUP_LIFE_SIGN_MS && extensions < MAX_STARTUP_EXTENSIONS) {
+        extensions++
+        timer = setTimeout(check, STARTUP_LIFE_SIGN_MS)
+        return
+      }
+      if (isOffline()) networkFailureRef.current('nothing loaded — offline')
+      else advanceRef.current('nothing loaded before the startup timeout')
     }
     const dropRacer = () => {
       if (!racer) return
@@ -586,7 +927,7 @@ export function DebridVideo({
       clearTimers()
       if (document.hidden) return
       timer = setTimeout(check, timeoutMs)
-      if (mode.kind === 'direct' && !hedged) hedgeTimer = setTimeout(hedge, DIRECT_STARTUP_HEDGE_MS)
+      if (mode.kind === 'direct' && !hedged && mayHedge) hedgeTimer = setTimeout(hedge, DIRECT_STARTUP_HEDGE_MS)
     }
     const onVisibility = () => {
       if (startedRef.current) return
@@ -602,7 +943,7 @@ export function DebridVideo({
       video.removeEventListener('loadedmetadata', dropRacer)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [mode, modes, modeIndex])
+  }, [mode, modes, modeIndex, retryRun])
 
   // "Plays fine, no sound" — an audio codec the browser can't decode doesn't
   // fire `error`; the track is just dropped. `webkitAudioDecodedByteCount`
@@ -656,19 +997,39 @@ export function DebridVideo({
     [fullDuration]
   )
 
-  const timeline = useMemo<PlayerTimeline | null>(
-    () => (mode?.kind === 'hls' ? { offset, duration: fullDuration, seek: seekConverted, restarting } : null),
-    [mode?.kind, offset, fullDuration, seekConverted, restarting]
-  )
+  /** A jump while the direct link reconnects: taken once it has loaded, from where the viewer let go. */
+  const seekWhileReconnecting = useCallback((target: number) => {
+    const video = videoRef.current
+    const time = Math.max(0, target)
+    positionRef.current = time
+    setHeldAt(time)
+    if (video && video.readyState >= HTMLMediaElement.HAVE_METADATA) video.currentTime = time
+    else pendingSeekRef.current = time
+  }, [])
+
+  /** The element is reloading, not showing the film: the controls hold where it stood. */
+  const reconnecting = trouble === 'offline' || trouble === 'reconnecting'
+  const timeline = useMemo<PlayerTimeline | null>(() => {
+    const frozenAt = reconnecting ? heldAt : undefined
+    if (mode?.kind === 'hls') return { offset, duration: fullDuration, seek: seekConverted, restarting, frozenAt }
+    if (reconnecting) {
+      return { offset: 0, duration: fullDuration || knownDuration, seek: seekWhileReconnecting, restarting: false, frozenAt }
+    }
+    return null
+  }, [mode?.kind, offset, fullDuration, knownDuration, seekConverted, seekWhileReconnecting, restarting, reconnecting, heldAt])
 
   const handleError = () => {
     const video = videoRef.current
     const code = video?.error?.code
-    // A dropped connection or a corrupt chunk mid-film: reload where we are
-    // before giving up on the direct link.
-    if (code === MediaError.MEDIA_ERR_NETWORK || code === MediaError.MEDIA_ERR_DECODE) {
-      if (reloadDirect(code === MediaError.MEDIA_ERR_NETWORK ? 'lost its connection' : 'hit a decode error')) return
+    // The connection, not the file: a network error, anything while the
+    // browser is offline, or a reload failing for a file that has played
+    // here — reconnect where the viewer is.
+    if (code === MediaError.MEDIA_ERR_NETWORK || isOffline() || (startedRef.current && reconnecting)) {
+      networkFailure(code === MediaError.MEDIA_ERR_NETWORK ? 'lost its connection' : `failed to reload (error ${code ?? '?'})`)
+      return
     }
+    // A corrupt chunk mid-film: reload where we are before giving up on the direct link.
+    if (code === MediaError.MEDIA_ERR_DECODE && reloadAfterDecodeError()) return
     advance(`video element error${code ? ` ${code}` : ''}`)
   }
 
@@ -703,20 +1064,13 @@ export function DebridVideo({
         timeline={timeline}
         previewUrl={previewUrl}
         starting={starting && !!loadingScreen}
+        status={trouble ? TROUBLE_STATUS[trouble] : null}
         {...chrome}
       />
       {starting && loadingScreen && (
         // Under the controls, so their back button (a phone turned sideways, fullscreen) stays usable
         <div className="absolute inset-0 z-10">
-          {loadingScreen(
-            mode.kind === 'hls'
-              ? slowStart
-                ? 'Still converting — Real-Debrid takes a little longer with some files…'
-                : 'Real-Debrid is converting this file for your browser…'
-              : slowStart
-                ? 'Still connecting — Real-Debrid’s server is slow to answer…'
-                : 'Starting playback…'
-          )}
+          {loadingScreen(startingMessage(mode.kind, slowStart, trouble === 'offline'))}
         </div>
       )}
     </div>

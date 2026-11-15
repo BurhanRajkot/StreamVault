@@ -14,6 +14,9 @@ import {
   isLikelyDirectPlayable,
   previewStreamUrl,
   declaresBrowserAudio,
+  releaseKbps,
+  fitReleasesToConnection,
+  lighterRelease,
 } from './releasePlayback'
 import type { DebridRelease, DebridReadyPlayback, DebridMediaSummary } from './debridApi'
 
@@ -337,5 +340,69 @@ describe('planConvertedSeek', () => {
 
   it('restarts when the stream has not loaded yet', () => {
     expect(planConvertedSeek(1810, 1800, null)).toEqual({ kind: 'restart', at: 1810 })
+  })
+})
+
+describe('fitting the release to the connection', () => {
+  const TWO_HOURS = 7200
+  // What each needs over two hours: ~23.9, ~11.9, ~4.8 and ~1.8 Mbit/s.
+  const uhd = release('Movie.2024.2160p.WEB-DL.DDP5.1.H.265-UHD', { size: 20 * GB })
+  const big = release('Movie.2024.1080p.BluRay.x264.DTS-BIG', { size: 10 * GB })
+  const web = release('Movie.2024.1080p.WEB-DL.x264.AAC-WEB', { size: 4 * GB })
+  const hd = release('Movie.2024.720p.WEB-DL.x264.AAC-HD', { size: 1.5 * GB })
+  const ranked = [big, web, hd]
+  const names = (list: DebridRelease[]) => list.map((r) => r.name)
+
+  it('works out what a release needs to play in real time', () => {
+    expect(Math.round(releaseKbps(web, TWO_HOURS)!)).toBe(4772)
+    expect(releaseKbps(release('Movie.2024.1080p.WEB-DL.x264'), TWO_HOURS)).toBeNull()
+    expect(releaseKbps(web, 0)).toBeNull()
+  })
+
+  it('leaves the order alone when the speed or the length isn’t known, or the best one fits', () => {
+    expect(fitReleasesToConnection(ranked, null, TWO_HOURS, noHevc)).toBe(ranked)
+    expect(fitReleasesToConnection(ranked, 8000, 0, noHevc)).toBe(ranked)
+    expect(fitReleasesToConnection(ranked, 50_000, TWO_HOURS, noHevc)).toBe(ranked)
+  })
+
+  it('starts with the best release the connection carries, the rest lightest first', () => {
+    expect(names(fitReleasesToConnection(ranked, 8000, TWO_HOURS, noHevc))).toEqual(names([web, hd, big]))
+    expect(names(fitReleasesToConnection(ranked, 3000, TWO_HOURS, noHevc))).toEqual(names([hd, web, big]))
+  })
+
+  it('with nothing that fits, starts with the lightest', () => {
+    expect(names(fitReleasesToConnection(ranked, 1000, TWO_HOURS, noHevc))).toEqual(names([hd, web, big]))
+  })
+
+  it('never picks a file the browser can’t play as it is, or a cinema recording, for its size', () => {
+    const smallHevc = release('Movie.2024.1080p.WEB-DL.x265.AAC-SMALL', { size: 1 * GB })
+    const cam = release('Movie.2024.HDCAM.x264-CAM', { size: 0.7 * GB })
+    const fitted = fitReleasesToConnection([uhd, smallHevc, cam, big, hd], 3000, TWO_HOURS, noHevc)
+    expect(fitted[0]).toBe(hd)
+    expect(names(fitted.slice(-3))).toEqual(names([cam, smallHevc, uhd]))
+  })
+
+  describe('lighterRelease', () => {
+    const opts = { durationS: TWO_HOURS, support: noHevc }
+
+    it('offers the best release the measured connection carries', () => {
+      expect(lighterRelease(ranked, big, { ...opts, kbps: 8000 })).toBe(web)
+      expect(lighterRelease(ranked, big, { ...opts, kbps: 3000 })).toBe(hd)
+    })
+
+    it('offers the lightest when nothing fits, and the next real step down with no speed to go by', () => {
+      expect(lighterRelease(ranked, big, { ...opts, kbps: 500 })).toBe(hd)
+      expect(lighterRelease(ranked, big, { ...opts, kbps: null })).toBe(web)
+    })
+
+    it('only offers a real step down', () => {
+      const sameish = release('Movie.2024.1080p.WEB.x264.AAC-SAME', { size: 9 * GB })
+      expect(lighterRelease([big, sameish], big, { ...opts, kbps: null })).toBeNull()
+      expect(lighterRelease(ranked, hd, { ...opts, kbps: 1000 })).toBeNull()
+    })
+
+    it('skips releases known not to be instant', () => {
+      expect(lighterRelease(ranked, big, { ...opts, kbps: null, exclude: new Set([web.info_hash]) })).toBe(hd)
+    })
   })
 })

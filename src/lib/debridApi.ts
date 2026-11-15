@@ -124,6 +124,36 @@ export class DebridRequestError extends Error {
   }
 }
 
+/**
+ * The request never reached the backend — offline, or the connection dropped
+ * on the way — as opposed to the backend answering no. `fetch` rejects with
+ * a TypeError for exactly that.
+ */
+export function isNetworkFailure(err: unknown): boolean {
+  return err instanceof TypeError
+}
+
+/** Waits before asking again after a request that didn't get through. */
+const NETWORK_RETRY_DELAYS_MS = [800, 2500]
+
+/**
+ * `fetch`, asked again when the request doesn't get through: on a weak
+ * connection one lost request shouldn't end a play that the next one would
+ * have started. Only for requests that are safe to repeat — the backend
+ * reuses a release it has already added.
+ */
+async function fetchWithRetry(input: string, init?: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetch(input, init)
+    } catch (err: unknown) {
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+      if (!isNetworkFailure(err) || offline || attempt >= NETWORK_RETRY_DELAYS_MS.length || init?.signal?.aborted) throw err
+      await new Promise((resolve) => setTimeout(resolve, NETWORK_RETRY_DELAYS_MS[attempt]))
+    }
+  }
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string; code?: string }
@@ -160,7 +190,7 @@ export async function playDebridRelease(
   token?: string,
   opts: PlayReleaseOptions = {}
 ): Promise<DebridPlayback> {
-  const res = await fetch(`${API_BASE}/debrid/play`, {
+  const res = await fetchWithRetry(`${API_BASE}/debrid/play`, {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify({
@@ -188,7 +218,7 @@ export async function pollDebridPlayback(
   if (release.file_idx != null) params.set('fileIdx', String(release.file_idx))
   if (opts.season != null) params.set('season', String(opts.season))
   if (opts.episode != null) params.set('episode', String(opts.episode))
-  const res = await fetch(`${API_BASE}/debrid/play/${encodeURIComponent(torrentId)}?${params}`, {
+  const res = await fetchWithRetry(`${API_BASE}/debrid/play/${encodeURIComponent(torrentId)}?${params}`, {
     headers: authHeaders(token),
   })
   return handleResponse(res)
@@ -210,7 +240,7 @@ export async function searchDebridMedia(
   opts: ReleaseSearchOptions = {}
 ): Promise<DebridRelease[]> {
   const params = releaseSearchParams(title, imdbId, mediaType, opts)
-  const res = await fetch(`${API_BASE}/debrid/media-search?${params}`, { headers: authHeaders(token) })
+  const res = await fetchWithRetry(`${API_BASE}/debrid/media-search?${params}`, { headers: authHeaders(token) })
   return (await handleResponse<{ data: DebridRelease[] }>(res)).data ?? []
 }
 

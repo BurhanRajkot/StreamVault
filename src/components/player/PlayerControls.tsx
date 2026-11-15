@@ -83,6 +83,11 @@ export interface PlayerTimeline {
   seek: (time: number) => void
   /** The stream is restarting at a new spot — show the spinner until it plays. */
   restarting: boolean
+  /**
+   * The element isn't showing the film right now (it's reconnecting): the
+   * position to show, in seconds into the file, instead of the element's.
+   */
+  frozenAt?: number
 }
 
 export interface PlayerControlsProps {
@@ -124,6 +129,11 @@ export interface PlayerControlsProps {
   starting?: boolean
   /** The file's subtitles: drawn over the picture, chosen from the settings menu. */
   subtitles?: PlayerSubtitles | null
+  /**
+   * What's holding the film up, said under the spinner ("Connection lost —
+   * reconnecting…"). Null when nothing is.
+   */
+  status?: string | null
 }
 
 const SEEK_STEP_S = 10
@@ -240,7 +250,7 @@ function snapshotOf(video: HTMLVideoElement | null, timeline: PlayerTimeline | n
     paused: video.paused,
     ended: video.ended,
     seeking: video.seeking,
-    time: offset + video.currentTime,
+    time: timeline?.frozenAt ?? offset + video.currentTime,
     duration: timeline?.duration || (elementDuration ? offset + elementDuration : 0),
     buffered: offset + bufferedAhead(video),
     volume: video.volume,
@@ -304,6 +314,7 @@ export function PlayerControls({
   episodes,
   previewUrl,
   starting = false,
+  status = null,
   subtitles = null,
 }: PlayerControlsProps) {
   const [snap, setSnap] = useState<Snapshot>(() => snapshotOf(video, timeline))
@@ -527,9 +538,10 @@ export function PlayerControls({
 
   // A restart moves where the element's time 0 sits in the file.
   const timelineOffset = timeline?.offset
+  const timelineFrozenAt = timeline?.frozenAt
   useEffect(() => {
     syncSnap()
-  }, [timelineOffset, syncSnap])
+  }, [timelineOffset, timelineFrozenAt, syncSnap])
 
   /** Go to `time` seconds into the file — through the timeline when there is one. */
   const seekTo = useCallback(
@@ -880,7 +892,7 @@ export function PlayerControls({
   // ── Render ───────────────────────────────────────────────────────────────
   const displayTime = scrubTime ?? snap.time
   const fraction = (t: number) => (snap.duration ? Math.min(1, Math.max(0, t / snap.duration)) : 0)
-  const showSpinner = (spinner || !!timeline?.restarting || (!snap.paused && snap.starved)) && !snap.ended
+  const showSpinner = (spinner || !!timeline?.restarting || (!snap.paused && (snap.starved || !!status))) && !snap.ended
   const volumeLevel = snap.muted ? 0 : snap.volume
   const VolumeIcon = volumeLevel === 0 ? VolumeX : volumeLevel < 0.5 ? Volume1 : Volume2
   const canPip =
@@ -1080,7 +1092,13 @@ export function PlayerControls({
       {showSpinner && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4">
           <span className="player-spinner" aria-hidden="true" />
-          <span className="sr-only">Loading</span>
+          {status && !starting ? (
+            <p role="status" className="max-w-[80%] rounded-md bg-black/60 px-3 py-1.5 text-center text-sm text-white/90">
+              {status}
+            </p>
+          ) : (
+            <span className="sr-only">Loading</span>
+          )}
         </div>
       )}
 

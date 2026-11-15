@@ -135,15 +135,23 @@ function writeMeasurement(m: Measurement): void {
   }
 }
 
+/**
+ * A server's speedtest file: 10 GB that any origin may read, a range at a
+ * time. `server` is a regional server's name; null, the main data centre.
+ */
+export function speedtestUrl(server: string | null): string {
+  const host = server ?? MAIN_SERVER
+  return `https://${host}${DOWNLOAD_DOMAIN}/speedtest/${host === MAIN_SERVER ? 'testDefault.rar' : 'test.rar'}`
+}
+
 /** Time to the first answer for 4 KB of `server`'s speedtest file, in ms (Infinity when it doesn't answer). */
 async function timeServer(server: string): Promise<number> {
-  const file = server === MAIN_SERVER ? 'testDefault.rar' : 'test.rar'
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS)
   const start = performance.now()
   try {
     // A plain range is CORS-safelisted (no preflight); the file allows any origin.
-    const res = await fetch(`https://${server}${DOWNLOAD_DOMAIN}/speedtest/${file}`, {
+    const res = await fetch(speedtestUrl(server), {
       headers: { Range: 'bytes=0-4095' },
       cache: 'no-store',
       credentials: 'omit',
