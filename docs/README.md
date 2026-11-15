@@ -11,7 +11,7 @@
 
 ## 📱 StreamVault apps
 
-**Android:** [Download the APK](https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault.apk) and open it on your phone to install — the app offers new versions itself.
+**Android:** [Download the APK](https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/StreamVault.apk) and open it on your phone to install — the app offers new versions itself.
 
-**Linux:** [Download the AppImage](https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault.AppImage), then run `chmod +x StreamVault.AppImage && ./StreamVault.AppImage`.
-Arch/EndeavourOS: `sudo pacman -U StreamVault-*.pacman` · Debian/Ubuntu: `sudo apt install ./StreamVault-*.deb` — both on the [releases page](https://github.com/dragon-manner/StreamVault/releases/latest).
+**Linux:** `curl -L "https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/linux/StreamVault.AppImage.part[1-4]" > StreamVault.AppImage && chmod +x StreamVault.AppImage && ./StreamVault.AppImage`
+Arch/EndeavourOS `.pacman` and Debian/Ubuntu `.deb` packages, and every version, are on the [releases page](https://github.com/dragon-manner/StreamVault/releases/latest).

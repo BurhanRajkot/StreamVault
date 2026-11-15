@@ -193,3 +193,15 @@ jobs:
             --notes-file notes.md \
             --target "$GITHUB_SHA" \
             --latest
+      - name: Mirror to Supabase Storage (fast downloads)
+        # GitHub's release CDN crawls on some ISPs; the README links and the
+        # apps' update check use this mirror first (app/scripts/mirror-release.sh)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set — this release is on GitHub only."
+            exit 0
+          fi
+          bash app/scripts/mirror-release.sh dist-release "$APP_VERSION"

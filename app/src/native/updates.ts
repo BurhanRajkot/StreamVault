@@ -7,6 +7,13 @@ export const RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases`
 /** App releases are tagged app-v1.2.3 so they never mix with anything else in the repo. */
 const TAG_PREFIX = 'app-v'
 
+/**
+ * The release mirror on Supabase Storage (app/scripts/mirror-release.sh):
+ * GitHub's release CDN crawls on some ISPs (12–36 KB/s measured), Supabase's
+ * Cloudflare-fronted storage doesn't. GitHub stays the fallback.
+ */
+export const MIRROR_BASE = 'https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases'
+
 export interface AppRelease {
   version: string
   notes: string
@@ -15,6 +22,18 @@ export interface AppRelease {
   /** The download for this device — the APK on Android, the AppImage on Linux. */
   assetUrl: string | null
   assetSize: number | null
+  /** The AppImage on the mirror comes in parts, joined in order (Linux only). */
+  assetParts?: string[]
+  /** SHA-256 of the whole file, when the mirror published one. */
+  assetSha256?: string
+}
+
+interface MirrorManifest {
+  version: string
+  publishedAt: string
+  page: string
+  android?: { url: string; size: number; sha256: string }
+  linux?: { appimage?: { parts: string[]; size: number; sha256: string } }
 }
 
 interface GithubRelease {
@@ -45,7 +64,28 @@ function pickAsset(assets: GithubRelease['assets']): GithubRelease['assets'][num
   return undefined
 }
 
+/** The mirror's latest.json — fast, and no GitHub API rate limit. */
+async function fetchFromMirror(): Promise<AppRelease | null> {
+  // An hourly query string keeps the check fresh past any CDN copy
+  const res = await fetch(`${MIRROR_BASE}/latest.json?h=${Math.floor(Date.now() / 3_600_000)}`)
+  if (!res.ok) throw new Error(`mirror answered ${res.status}`)
+  const m = (await res.json()) as MirrorManifest
+  const appimage = m.linux?.appimage
+  const base = { version: m.version, notes: '', publishedAt: m.publishedAt, pageUrl: m.page }
+  if (isAndroid && m.android) return { ...base, assetUrl: m.android.url, assetSize: m.android.size, assetSha256: m.android.sha256 }
+  if (desktop && appimage) return { ...base, assetUrl: appimage.parts[0], assetParts: appimage.parts, assetSize: appimage.size, assetSha256: appimage.sha256 }
+  return { ...base, assetUrl: null, assetSize: null }
+}
+
 export async function fetchLatestRelease(): Promise<AppRelease | null> {
+  try {
+    return await fetchFromMirror()
+  } catch {
+    return fetchFromGithub()
+  }
+}
+
+async function fetchFromGithub(): Promise<AppRelease | null> {
   const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`, {
     headers: { Accept: 'application/vnd.github+json' },
   })
