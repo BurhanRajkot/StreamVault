@@ -139,6 +139,8 @@ export class MockApi {
       mockUser('google-oauth2|e2e-other', 'sam@streamvault.test', 'Sam Other'),
     ],
     premiumPausedForAll: false,
+    /** The dashboard's Subscription Requests (none by default). */
+    subscriptionRequests: [] as MockSubscriptionRequest[],
   }
 
   constructor() {
@@ -349,7 +351,14 @@ export class MockApi {
         : { status: 401, json: { error: 'Authentication failed', message: 'Invalid authenticator code' } }
     )
     this.on('GET', '/subscriptions/admin/requests', ({ admin }) =>
-      admin ? ok([]) : { status: 401, json: { error: 'Authentication required' } }
+      admin
+        ? ok(
+            this.state.subscriptionRequests.map((request) => {
+              const buyer = this.state.users.find((u) => u.id === request.user_id)
+              return { ...request, debrid_downloads: request.user_id && buyer ? buyer.debridDownloads : null }
+            })
+          )
+        : { status: 401, json: { error: 'Authentication required' } }
     )
 
     // — Releases: the public search behind the Download sheet's magnet links —
@@ -458,6 +467,19 @@ export interface MockUser {
   subscriptionStatus: string
   /** May save Premium's file (the backend keeps this in AppSetting 'debrid-downloads'). */
   debridDownloads: boolean
+}
+
+/** A row of the subscription_requests table, as the dashboard lists it. */
+export interface MockSubscriptionRequest {
+  id: string
+  user_id: string | null
+  email: string
+  plan_id: string
+  amount: number
+  currency: string
+  transaction_id: string
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
 }
 
 function mockUser(id: string, email: string, name: string): MockUser {

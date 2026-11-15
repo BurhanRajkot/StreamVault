@@ -176,3 +176,30 @@ signedInTest('an account whose downloads are paused still streams Premium, but i
   await screen.getByRole('button', /^Download/).first().tap()
   await expect(screen.getByRole('dialog', 'Download').getByRole('link', 'Open 1080p in torrent app')).toBeVisible()
 })
+
+adminTest('a buyer’s Premium downloads can be paused from their subscription request too', async ({ app, screen, mockApi }) => {
+  const at = new Date(Date.UTC(2026, 10, 14, 16, 5)).toISOString()
+  const plan = { plan_id: 'intro', amount: 150, currency: 'INR', created_at: at }
+  mockApi.state.subscriptionRequests = [
+    { ...plan, id: 'req-approved', user_id: SIGNED_IN.sub, email: SIGNED_IN.email, transaction_id: '122231991828', status: 'approved' },
+    { ...plan, id: 'req-pending', user_id: 'google-oauth2|e2e-other', email: OTHER, transaction_id: '656555656555', status: 'pending' },
+    { ...plan, id: 'req-guest', user_id: null, email: 'guest@streamvault.test', transaction_id: '004935301932', status: 'approved' },
+  ]
+
+  await app.open('/admin/dashboard')
+  const requests = screen.getByRole('region', 'Subscription requests')
+  const downloads = requests.getByRole('combobox', `Premium downloads for ${SIGNED_IN.email}`)
+  await expect(downloads).toContainText('Downloads allowed')
+  // Only an approved request with an account behind it has one.
+  await expect(requests.getByRole('combobox')).toHaveCount(1)
+
+  await downloads.tap()
+  await screen.getByRole('option', 'Downloads paused').tap()
+  await expect(downloads).toContainText('Downloads paused')
+  expect(account(mockApi, SIGNED_IN.sub).debridDownloads).toBe(false)
+  expect(mockApi.calls('PATCH', '/admin/users/:id').map((c) => c.body)).toEqual([{ debridDownloads: false }])
+
+  // The Users panel shows the same account the same way.
+  const users = screen.getByRole('region', 'Users')
+  await expect(users.getByRole('combobox', `Premium downloads for ${SIGNED_IN.email}`)).toContainText('Paused')
+})

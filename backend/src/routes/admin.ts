@@ -3,7 +3,7 @@ import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
 import { requireAdminAuth } from '../admin/middleware'
 import { SUBSCRIPTION_PLANS } from '../lib/upi'
-import { forgetUserAccess } from '../lib/userAccess'
+import { forgetUserAccess, getDownloadsPausedFor } from '../lib/userAccess'
 
 const router = express.Router()
 
@@ -17,17 +17,23 @@ function parseRequestId(value: unknown): string | null {
   return typeof value === 'string' && UUID_RE.test(value) ? value : null
 }
 
-// Get all pending requests
+// Get all requests, newest first. Each says whether its buyer may save
+// Premium's file (`debrid_downloads`, see lib/userAccess) — null for a guest
+// request, which has no account to change.
 router.get('/requests', async (req, res) => {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('subscription_requests')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const [{ data, error }, downloadsPaused] = await Promise.all([
+      supabaseAdmin.from('subscription_requests').select('*').order('created_at', { ascending: false }),
+      getDownloadsPausedFor(),
+    ])
 
     if (error) throw error
 
-    res.json(data)
+    const requests = ((data ?? []) as { user_id?: string | null }[]).map((request) => ({
+      ...request,
+      debrid_downloads: request.user_id ? !downloadsPaused.has(request.user_id) : null,
+    }))
+    res.json(requests)
   } catch (error: unknown) {
     logger.error('Failed to fetch requests', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to fetch requests' })
