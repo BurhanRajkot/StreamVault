@@ -15,17 +15,27 @@ import { getUserId } from '../utils/auth'
 import { ensureUser } from '../lib/ensureUser'
 import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
-import { decidePremium, getUserAccess, isMissingSchema, isPremiumPausedForAll } from '../lib/userAccess'
+import { debridDownloadsAllowed, decidePremium, getUserAccess, isMissingSchema, isPremiumPausedForAll } from '../lib/userAccess'
 import { strictRateLimiter } from '../cybersecurity/rateLimiter'
 
 const router = Router()
 
 router.get('/access', requireUserAllowSuspended, async (req: Request, res: Response) => {
   const userId = getUserId(req)!
-  const [access, pausedForAll] = await Promise.all([getUserAccess(userId), isPremiumPausedForAll()])
+  const [access, pausedForAll, downloads] = await Promise.all([
+    getUserAccess(userId),
+    isPremiumPausedForAll(),
+    debridDownloadsAllowed(userId),
+  ])
   const premium = decidePremium({ admin: false, signedIn: true, access, pausedForAll })
   res.set('Cache-Control', 'private, no-store')
-  return res.json({ premium: premium === 'granted', premiumReason: premium, suspended: access.suspended })
+  return res.json({
+    premium: premium === 'granted',
+    premiumReason: premium,
+    suspended: access.suspended,
+    // Whether the Premium player offers its file to save / open in VLC.
+    debridDownloads: downloads,
+  })
 })
 
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/

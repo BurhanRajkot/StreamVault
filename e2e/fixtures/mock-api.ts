@@ -380,7 +380,12 @@ export class MockApi {
     this.on('GET', '/me/access', (req) => {
       if (!req.authenticated || req.admin) return { status: 401, json: { error: 'Unauthorized' } }
       const reason = premiumFor(req)
-      return ok({ premium: reason === 'granted', premiumReason: reason, suspended: Boolean(me()?.suspendedAt) })
+      return ok({
+        premium: reason === 'granted',
+        premiumReason: reason,
+        suspended: Boolean(me()?.suspendedAt),
+        debridDownloads: me()?.debridDownloads !== false,
+      })
     })
     this.on('POST', '/me/profile', requireAuth(() => ({ status: 204 })))
 
@@ -404,9 +409,10 @@ export class MockApi {
       adminOnly(({ params, body }) => {
         const user = this.state.users.find((u) => u.id === params.id)
         if (!user) return { status: 404, json: { error: 'User not found' } }
-        const change = (body ?? {}) as { premiumAccess?: MockUser['premiumAccess']; suspended?: boolean }
+        const change = (body ?? {}) as { premiumAccess?: MockUser['premiumAccess']; suspended?: boolean; debridDownloads?: boolean }
         if (change.premiumAccess) user.premiumAccess = change.premiumAccess
         if (change.suspended !== undefined) user.suspendedAt = change.suspended ? new Date().toISOString() : null
+        if (change.debridDownloads !== undefined) user.debridDownloads = change.debridDownloads
         return ok({ user })
       })
     )
@@ -450,11 +456,23 @@ export interface MockUser {
   premiumAccess: 'none' | 'granted' | 'paused'
   suspendedAt: string | null
   subscriptionStatus: string
+  /** May save Premium's file (the backend keeps this in AppSetting 'debrid-downloads'). */
+  debridDownloads: boolean
 }
 
 function mockUser(id: string, email: string, name: string): MockUser {
   const at = new Date(Date.UTC(2026, 10, 1)).toISOString()
-  return { id, email, name, createdAt: at, lastSeenAt: at, premiumAccess: 'none', suspendedAt: null, subscriptionStatus: 'free' }
+  return {
+    id,
+    email,
+    name,
+    createdAt: at,
+    lastSeenAt: at,
+    premiumAccess: 'none',
+    suspendedAt: null,
+    subscriptionStatus: 'free',
+    debridDownloads: true,
+  }
 }
 
 function corsHeaders(requestHeaders: Record<string, string>): Record<string, string> {

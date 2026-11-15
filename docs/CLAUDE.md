@@ -248,8 +248,14 @@ torrent deletion stay `requireAdminAuth`. Suspension (`User.suspendedAt`)
 also refuses favorites, dislikes, continue watching and recommendations.
 In the UI, Premium is always the last server; `usePremiumAccess()` asks
 `GET /me/access` and `PremiumPane` shows the player or a notice saying why
-not. The Download sheet's magnet links come from the public `GET /releases`,
-which never touches the Real-Debrid account. In E2E, `adminTest` (e2e
+not. The Users panel can also pause an account's Premium *downloads*
+(`debridDownloads` on `/me/access` and `PATCH /admin/users/:id`, stored as
+`AppSetting` 'debrid-downloads' → `{ pausedFor: [ids] }`, no migration): it
+keeps streaming, but the player stops offering the Real-Debrid file (Download,
+Open in another player, the Download button under the player). That's a UI
+gate — the stream itself is the same link. The Download sheet's magnet links
+come from the public `GET /releases`, which never touches the Real-Debrid
+account (and isn't affected by that switch). In E2E, `adminTest` (e2e
 framework) or `test.use({ admin: true })` (Playwright) holds an admin
 session; set `mockApi.state.users` / `premiumPausedForAll` to test accounts.
 

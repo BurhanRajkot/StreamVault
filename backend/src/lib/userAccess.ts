@@ -2,8 +2,10 @@
  * Who may use what, as set from the admin dashboard.
  *
  * Per account (the `User` row): Premium access ('none' | 'granted' |
- * 'paused') and whether the account is suspended. Site-wide (`AppSetting`
- * 'premium'): whether Premium is paused for everyone but the admin.
+ * 'paused') and whether the account is suspended; per account but kept as a
+ * site setting (`AppSetting` 'debrid-downloads'): whether it may save
+ * Premium's file. Site-wide (`AppSetting` 'premium'): whether Premium is
+ * paused for everyone but the admin.
  *
  * Both are read on hot paths — every signed-in request checks suspension,
  * and the Premium player polls every few seconds — so answers are cached in
@@ -136,6 +138,70 @@ export async function setPremiumPausedForAll(pausedForAll: boolean): Promise<{ e
     .from('AppSetting')
     .upsert({ key: 'premium', value: { pausedForAll }, updatedAt: new Date().toISOString() })
   if (!error) premiumSetting = { at: Date.now(), pausedForAll }
+  return { error }
+}
+
+// ---------------------------------------------------------------------------
+// Real-Debrid downloads, per account
+// ---------------------------------------------------------------------------
+//
+// Premium plays the file from its Real-Debrid link, and the player also
+// offers that link to save the file or open it in VLC. The admin can switch
+// the offer off for an account that keeps streaming; magnet-link downloads
+// (GET /releases) are a different thing and stay open. Kept as one site
+// setting — AppSetting 'debrid-downloads' → { pausedFor: [user ids] } — so it
+// needs no migration beyond the 2026-11-15 one.
+
+const DOWNLOADS_KEY = 'debrid-downloads'
+let downloadsSetting: { at: number; pausedFor: ReadonlySet<string> } | null = null
+
+type DbError = { code?: string; message?: string }
+
+/** The paused list after allowing (or pausing) `userId`'s downloads: sorted, no repeats. */
+export function updatedPausedList(pausedFor: Iterable<string>, userId: string, allowed: boolean): string[] {
+  const next = new Set(pausedFor)
+  if (allowed) next.delete(userId)
+  else next.add(userId)
+  return [...next].sort()
+}
+
+async function readDownloadsSetting(): Promise<{ pausedFor: ReadonlySet<string>; error: DbError | null }> {
+  const { data, error } = await supabaseAdmin.from('AppSetting').select('value').eq('key', DOWNLOADS_KEY).maybeSingle()
+  if (error) return { pausedFor: new Set(), error }
+  const list = (data as { value?: { pausedFor?: unknown } } | null)?.value?.pausedFor
+  return { pausedFor: new Set(Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string') : []), error: null }
+}
+
+/**
+ * Accounts whose Real-Debrid downloads the admin paused. When the setting
+ * can't be read, none: a database hiccup mustn't take downloads from everyone.
+ */
+export async function getDownloadsPausedFor(): Promise<ReadonlySet<string>> {
+  if (downloadsSetting && Date.now() - downloadsSetting.at < SETTINGS_TTL_MS) return downloadsSetting.pausedFor
+  const { pausedFor, error } = await readDownloadsSetting()
+  if (error) {
+    if (isMissingSchema(error)) warnMissingSchemaOnce()
+    else logger.warn('Download setting lookup failed', { error: error.message })
+    return pausedFor
+  }
+  downloadsSetting = { at: Date.now(), pausedFor }
+  return pausedFor
+}
+
+/** May this account save Premium's file (the admin always may). */
+export async function debridDownloadsAllowed(userId: string): Promise<boolean> {
+  return !(await getDownloadsPausedFor()).has(userId)
+}
+
+export async function setDebridDownloads(userId: string, allowed: boolean): Promise<{ error: DbError | null }> {
+  // Read fresh, not from the cache: the list is rewritten whole.
+  const current = await readDownloadsSetting()
+  if (current.error) return { error: current.error }
+  const pausedFor = updatedPausedList(current.pausedFor, userId, allowed)
+  const { error } = await supabaseAdmin
+    .from('AppSetting')
+    .upsert({ key: DOWNLOADS_KEY, value: { pausedFor }, updatedAt: new Date().toISOString() })
+  if (!error) downloadsSetting = { at: Date.now(), pausedFor: new Set(pausedFor) }
   return { error }
 }
 
