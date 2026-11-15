@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DownloadsSelect } from './DownloadsSelect'
 
 const PAGE_SIZE = 25
 const MIGRATION_FILE = 'backend/supabase/migrations/20261115000000_user_access_controls.sql'
@@ -24,10 +25,6 @@ const PREMIUM_LABELS: Record<PremiumAccessLevel, string> = {
   granted: 'Allowed',
   paused: 'Paused',
 }
-
-/** Premium's own file downloads (save, open in VLC) — magnet links aren't affected. */
-const DOWNLOAD_LABELS = { allowed: 'Allowed', paused: 'Paused' } as const
-type DownloadLevel = keyof typeof DOWNLOAD_LABELS
 
 function relativeTime(iso: string | null): string {
   if (!iso) return 'Never'
@@ -48,7 +45,12 @@ function relativeTime(iso: string | null): string {
  * suspend it (My List, continue watching, recommendations and Premium are
  * refused; the free servers still play, as they need no account).
  */
-export function UsersPanel() {
+interface UsersPanelProps {
+  /** An account was changed here — e.g. so the subscription requests show its downloads switch the same. */
+  onUserChanged?: (user: AdminUser) => void
+}
+
+export function UsersPanel({ onUserChanged }: UsersPanelProps = {}) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
@@ -77,6 +79,7 @@ export function UsersPanel() {
       queryClient.setQueryData(queryKey, (old: typeof data) =>
         old ? { ...old, users: old.users.map((u) => (u.id === user.id ? user : u)) } : old
       )
+      onUserChanged?.(user)
       const who = user.email ?? user.name ?? 'Account'
       if (change.suspended !== undefined) toast.success(change.suspended ? `${who} suspended` : `${who} restored`)
       else if (change.debridDownloads !== undefined) {
@@ -221,22 +224,12 @@ function UserRow({ user, busy, onChange }: UserRowProps) {
         </Select>
       </TableCell>
       <TableCell>
-        <Select
-          value={user.debridDownloads === false ? 'paused' : 'allowed'}
-          onValueChange={(value) => onChange({ debridDownloads: (value as DownloadLevel) === 'allowed' })}
+        <DownloadsSelect
+          allowed={user.debridDownloads !== false}
+          onChange={(allowed) => onChange({ debridDownloads: allowed })}
+          who={label}
           disabled={busy}
-        >
-          <SelectTrigger className="h-8 w-28" aria-label={`Premium downloads for ${label}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(DOWNLOAD_LABELS) as DownloadLevel[]).map((level) => (
-              <SelectItem key={level} value={level}>
-                {DOWNLOAD_LABELS[level]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       </TableCell>
       <TableCell>
         {suspended ? <Badge variant="destructive">Suspended</Badge> : <Badge variant="secondary">Active</Badge>}
