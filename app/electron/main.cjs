@@ -374,16 +374,32 @@ function registerIpc() {
     return { bytes: s.bavail * s.bsize }
   })
 
-  // AppImage self-update: fetch the new AppImage beside the running one, swap, restart.
-  ipcMain.handle('sv:install-update', async (_e, url) => {
+  // AppImage self-update: fetch the new AppImage (from the Supabase mirror in
+  // parts, or GitHub in one piece) beside the running one, check it, swap, restart.
+  ipcMain.handle('sv:install-update', async (_e, { urls, sha256 }) => {
     const current = process.env.APPIMAGE
     if (!current) return { ok: false, reason: 'Only the AppImage updates itself — install the new package from the releases page.' }
-    if (!/^https:\/\/github\.com\/BurhanRajkot\/StreamVault\/releases\/download\//.test(url)) return { ok: false, reason: 'Unexpected update address.' }
+    const allowed = [
+      'https://github.com/BurhanRajkot/StreamVault/releases/download/',
+      'https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/',
+    ]
+    if (!Array.isArray(urls) || urls.length === 0 || !urls.every((u) => typeof u === 'string' && allowed.some((a) => u.startsWith(a)))) {
+      return { ok: false, reason: 'Unexpected update address.' }
+    }
+    const tmp = current + '.update'
     try {
-      const tmp = current + '.update'
-      const res = await net.fetch(url)
-      if (!res.ok) throw new Error(`GitHub answered ${res.status}`)
-      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp, { mode: 0o755 }))
+      const out = fs.createWriteStream(tmp, { mode: 0o755 })
+      const hash = crypto.createHash('sha256')
+      for (const url of urls) {
+        const res = await net.fetch(url)
+        if (!res.ok) throw new Error(`The download server answered ${res.status}`)
+        for await (const chunk of Readable.fromWeb(res.body)) {
+          hash.update(chunk)
+          if (!out.write(chunk)) await new Promise((resolve) => out.once('drain', resolve))
+        }
+      }
+      await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())))
+      if (sha256 && hash.digest('hex') !== sha256) throw new Error('The download was corrupted — try again.')
       await fsp.chmod(tmp, 0o755)
       await fsp.rename(tmp, current)
       setTimeout(() => {
@@ -392,6 +408,7 @@ function registerIpc() {
       }, 400)
       return { ok: true }
     } catch (err) {
+      await fsp.rm(tmp, { force: true })
       return { ok: false, reason: err && err.message ? err.message : String(err) }
     }
   })

@@ -42,7 +42,7 @@ export function useInstallUpdate(): { state: InstallState; install: (release: Ap
       }
       if (desktop?.canSelfUpdate) {
         setState({ phase: 'downloading', percent: null })
-        const result = await desktop.installUpdate(release.assetUrl)
+        const result = await desktop.installUpdate({ urls: release.assetParts ?? [release.assetUrl], sha256: release.assetSha256 })
         if (!result.ok) throw new Error(result.reason || 'The update could not be installed.')
         setState({ phase: 'installing' })
         return
