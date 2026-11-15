@@ -50,6 +50,6 @@ User-agent: DotBot
 Disallow: /
 
 # ─── Sitemap Location ───────────────────────────────────────────────────────
-Sitemap: https://stream-vault-7u6q.vercel.app/sitemap.xml
+Sitemap: https://stream-vault.site/sitemap.xml
 # Every popular film, show and anime title page (built daily by the backend)
-Sitemap: https://stream-vault-7u6q.vercel.app/sitemap-titles.xml
+Sitemap: https://stream-vault.site/sitemap-titles.xml

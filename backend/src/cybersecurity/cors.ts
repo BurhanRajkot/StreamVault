@@ -34,7 +34,9 @@ export const corsMiddleware = cors({
     // Production: Whitelist specific domains
     const allowedOrigins = [
       process.env.FRONTEND_URL,
-      'https://stream-vault-7u6q.vercel.app', // Vercel production
+      'https://stream-vault.site', // Custom domain (Namecheap, 2026-11-15)
+      'https://www.stream-vault.site', // Custom domain (www)
+      'https://stream-vault-7u6q.vercel.app', // Vercel's own address, still served
       'https://streamvault-backend-bq9p.onrender.com', // Render backend (for admin panel)
       'https://streamvaults.in', // Custom domain
       'https://www.streamvaults.in', // Custom domain (www)
