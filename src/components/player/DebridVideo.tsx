@@ -104,6 +104,11 @@ interface DebridVideoProps extends ChromeProps {
    * link as given right behind it.
    */
   edge?: EdgeChoice
+  /**
+   * Offer the file itself — to save, or open in VLC. Off for an account the
+   * admin paused downloads for; the stream plays either way.
+   */
+  allowDownload?: boolean
   className?: string
 }
 
@@ -233,6 +238,7 @@ export function DebridVideo({
   loadingScreen,
   onStarted,
   edge,
+  allowDownload = true,
   className,
   ...chrome
 }: DebridVideoProps) {
@@ -1052,14 +1058,18 @@ export function DebridVideo({
       <PlayerControls
         video={videoEl}
         container={container}
-        // The file's own Real-Debrid link, for VLC/mpv or saving it. Fine to
-        // hand out now that Premium only ever plays for the account's owner.
-        externalUrl={playback.directUrl}
-        download={{
-          url: playback.directUrl,
-          fileName: playback.fileName,
-          size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null,
-        }}
+        // The file's own Real-Debrid link, for VLC/mpv or saving it — unless
+        // the admin paused downloads for this account.
+        externalUrl={allowDownload ? playback.directUrl : null}
+        download={
+          allowDownload
+            ? {
+                url: playback.directUrl,
+                fileName: playback.fileName,
+                size: playback.fileSize > 0 ? formatBytes(playback.fileSize) : null,
+              }
+            : null
+        }
         streamNote={mode.kind === 'hls' ? 'Real-Debrid converts this file as it plays, so a jump takes a few seconds to start.' : null}
         timeline={timeline}
         previewUrl={previewUrl}

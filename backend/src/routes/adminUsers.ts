@@ -2,7 +2,7 @@
  * The admin dashboard's Users panel and site switches. Admin token only.
  *
  *   GET   /admin/users?q=&limit=&offset=    — accounts, most recently active first
- *   PATCH /admin/users/:id                  — { premiumAccess?, suspended? }
+ *   PATCH /admin/users/:id                  — { premiumAccess?, suspended?, debridDownloads? }
  *   GET   /admin/settings                   — { premiumPausedForAll }
  *   PUT   /admin/settings/premium           — { pausedForAll: boolean }
  *
@@ -17,8 +17,10 @@ import { logger } from '../lib/logger'
 import {
   PREMIUM_ACCESS_VALUES,
   forgetUserAccess,
+  getDownloadsPausedFor,
   isMissingSchema,
   isPremiumPausedForAll,
+  setDebridDownloads,
   setPremiumPausedForAll,
   type PremiumAccess,
 } from '../lib/userAccess'
@@ -61,20 +63,25 @@ router.get('/users', requireAdminAuth, async (req: Request, res: Response) => {
     .range(offset, offset + limit - 1)
   if (term) query = query.or(`email.ilike.*${term}*,name.ilike.*${term}*,id.ilike.*${term}*`)
 
-  const { data, error, count } = await query
+  const [{ data, error, count }, downloadsPaused] = await Promise.all([query, getDownloadsPausedFor()])
   if (error) {
     if (isMissingSchema(error)) return migrationRequired(res)
     logger.error('Admin user list failed', { error: error.message })
     return res.status(500).json({ error: 'Could not load users' })
   }
-  return res.json({ users: data ?? [], total: count ?? 0 })
+  const users = (data ?? []).map((user) => ({ ...user, debridDownloads: !downloadsPaused.has(user.id) }))
+  return res.json({ users, total: count ?? 0 })
 })
 
 router.patch('/users/:id', requireAdminAuth, async (req: Request, res: Response) => {
   const { id } = req.params
   if (!USER_ID_RE.test(id)) return res.status(400).json({ error: 'Invalid user id' })
 
-  const body = (req.body ?? {}) as { premiumAccess?: unknown; suspended?: unknown }
+  const body = (req.body ?? {}) as { premiumAccess?: unknown; suspended?: unknown; debridDownloads?: unknown }
+  if (body.debridDownloads !== undefined && typeof body.debridDownloads !== 'boolean') {
+    return res.status(400).json({ error: 'debridDownloads must be true or false' })
+  }
+  const debridDownloads = body.debridDownloads as boolean | undefined
   const update: { premiumAccess?: PremiumAccess; suspendedAt?: string | null; updatedAt: string } = {
     updatedAt: new Date().toISOString(),
   }
@@ -88,11 +95,15 @@ router.patch('/users/:id', requireAdminAuth, async (req: Request, res: Response)
     if (typeof body.suspended !== 'boolean') return res.status(400).json({ error: 'suspended must be true or false' })
     update.suspendedAt = body.suspended ? new Date().toISOString() : null
   }
-  if (update.premiumAccess === undefined && update.suspendedAt === undefined) {
+  const changesRow = update.premiumAccess !== undefined || update.suspendedAt !== undefined
+  if (!changesRow && debridDownloads === undefined) {
     return res.status(400).json({ error: 'Nothing to change' })
   }
 
-  const { data, error } = await supabaseAdmin.from('User').update(update).eq('id', id).select(USER_COLUMNS).maybeSingle()
+  // The row is updated when its own columns change, else only read (to answer with it).
+  const { data, error } = changesRow
+    ? await supabaseAdmin.from('User').update(update).eq('id', id).select(USER_COLUMNS).maybeSingle()
+    : await supabaseAdmin.from('User').select(USER_COLUMNS).eq('id', id).maybeSingle()
   if (error) {
     if (isMissingSchema(error)) return migrationRequired(res)
     logger.error('Admin user update failed', { error: error.message })
@@ -100,13 +111,24 @@ router.patch('/users/:id', requireAdminAuth, async (req: Request, res: Response)
   }
   if (!data) return res.status(404).json({ error: 'User not found' })
 
+  if (debridDownloads !== undefined) {
+    const { error: downloadsError } = await setDebridDownloads(id, debridDownloads)
+    if (downloadsError) {
+      if (isMissingSchema(downloadsError)) return migrationRequired(res)
+      logger.error('Admin download setting update failed', { error: downloadsError.message })
+      return res.status(500).json({ error: 'Could not change downloads for this account' })
+    }
+  }
+
   forgetUserAccess(id)
   logger.info('Admin changed user access', {
     userId: id,
     premiumAccess: update.premiumAccess,
     suspended: update.suspendedAt === undefined ? undefined : update.suspendedAt !== null,
+    debridDownloads,
   })
-  return res.json({ user: data })
+  const downloadsPaused = await getDownloadsPausedFor()
+  return res.json({ user: { ...data, debridDownloads: !downloadsPaused.has(id) } })
 })
 
 router.get('/settings', requireAdminAuth, async (_req: Request, res: Response) => {
