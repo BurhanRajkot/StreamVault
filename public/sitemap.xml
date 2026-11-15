@@ -3,7 +3,7 @@
 
   <!-- Homepage — highest priority, updated frequently -->
   <url>
-    <loc>https://stream-vault-7u6q.vercel.app/</loc>
+    <loc>https://stream-vault.site/</loc>
     <lastmod>2026-11-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
@@ -11,7 +11,7 @@
 
   <!-- Movies section -->
   <url>
-    <loc>https://stream-vault-7u6q.vercel.app/movies</loc>
+    <loc>https://stream-vault.site/movies</loc>
     <lastmod>2026-11-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -19,7 +19,7 @@
 
   <!-- TV Shows section -->
   <url>
-    <loc>https://stream-vault-7u6q.vercel.app/tv</loc>
+    <loc>https://stream-vault.site/tv</loc>
     <lastmod>2026-11-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -27,7 +27,7 @@
 
   <!-- Anime section -->
   <url>
-    <loc>https://stream-vault-7u6q.vercel.app/anime</loc>
+    <loc>https://stream-vault.site/anime</loc>
     <lastmod>2026-11-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -35,7 +35,7 @@
 
   <!-- Documentaries section -->
   <url>
-    <loc>https://stream-vault-7u6q.vercel.app/documentaries</loc>
+    <loc>https://stream-vault.site/documentaries</loc>
     <lastmod>2026-11-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -43,7 +43,7 @@
 
   <!-- Pricing Page -->
   <url>
-    <loc>https://stream-vault-7u6q.vercel.app/pricing</loc>
+    <loc>https://stream-vault.site/pricing</loc>
     <lastmod>2026-11-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

@@ -20,7 +20,7 @@ const router = Router()
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY
 
 /** The public site the URLs point at (not this API's host). */
-export const SITE_URL = (process.env.SITE_URL || 'https://stream-vault-7u6q.vercel.app').replace(/\/+$/, '')
+export const SITE_URL = (process.env.SITE_URL || 'https://stream-vault.site').replace(/\/+$/, '')
 
 /** Rebuilt at most this often — the lists only move day to day. */
 const TTL_MS = 12 * 60 * 60 * 1000
