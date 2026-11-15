@@ -899,6 +899,8 @@ export interface MyAccess {
   premium: boolean
   premiumReason: PremiumReason
   suspended: boolean
+  /** The Premium player may offer its file to save or open in VLC (absent from an older backend: yes). */
+  debridDownloads?: boolean
 }
 
 /** What the signed-in account may use, as the admin set it. */
@@ -932,6 +934,15 @@ export interface AdminUser {
   premiumAccess: PremiumAccessLevel
   suspendedAt: string | null
   subscriptionStatus: string
+  /** May save Premium's file (Real-Debrid download, open in VLC). Magnet links aren't affected. */
+  debridDownloads: boolean
+}
+
+/** What the admin can change about an account. */
+export interface AdminUserChange {
+  premiumAccess?: PremiumAccessLevel
+  suspended?: boolean
+  debridDownloads?: boolean
 }
 
 /** An admin call that failed; `code` is the backend's (e.g. 'migration_required'). */
@@ -970,10 +981,7 @@ export function fetchAdminUsers(params: { q?: string; offset?: number; limit?: n
   return adminRequest(`/admin/users?${search}`)
 }
 
-export function updateAdminUser(
-  id: string,
-  change: { premiumAccess?: PremiumAccessLevel; suspended?: boolean }
-): Promise<{ user: AdminUser }> {
+export function updateAdminUser(id: string, change: AdminUserChange): Promise<{ user: AdminUser }> {
   return adminRequest(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(change) })
 }
 
