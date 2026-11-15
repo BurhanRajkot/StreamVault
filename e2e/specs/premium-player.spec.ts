@@ -298,7 +298,7 @@ test.describe('Premium server', () => {
     await watch.gotoOnPremium(MOVIE)
     await watch.play()
 
-    await expect(page.getByText('Premium is admin-only')).toBeVisible()
+    await expect(page.getByText('Premium is invite-only')).toBeVisible()
     expect(await page.evaluate(() => localStorage.getItem('adminToken')), 'the dead token is dropped').toBeNull()
   })
 })

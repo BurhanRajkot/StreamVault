@@ -21,7 +21,7 @@ import { EpisodeList, NowPlayingHeading, SourcePickers } from './movie-detail/No
 import { nowPlayingMeta } from './movie-detail/types'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { useDebridToken } from '@/hooks/useDebridToken'
-import { useIsAdmin } from '@/hooks/useIsAdmin'
+import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { prefetchPremiumReleases } from '@/lib/premiumSearch'
 import { warmNearestEdge } from '@/lib/debridHost'
 import type { PlaybackControls } from './movie-detail/types'
@@ -547,9 +547,9 @@ export function MovieDetailModal({
   // details, so Play goes straight to starting one — and, a little way into
   // an episode, the next episode's, so "Next episode" does too.
   const getDebridToken = useDebridToken()
-  const isAdmin = useIsAdmin()
+  const { premium: canUsePremium } = usePremiumAccess()
   const debridMediaType = mode === 'tv' ? 'tv' : 'movie'
-  const prefetch = server !== DEBRID_SERVER_ID || !isAdmin ? null : !isPlaying ? position : nextTarget
+  const prefetch = server !== DEBRID_SERVER_ID || !canUsePremium ? null : !isPlaying ? position : nextTarget
   const prefetchSeason = prefetch?.season
   const prefetchEpisode = prefetch?.episode
   useEffect(() => {
