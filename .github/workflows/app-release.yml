@@ -16,14 +16,19 @@ on:
       - "src/**"
       - "package-lock.json"
       - ".github/workflows/app-release.yml"
+  # Pull requests build both apps (no release) so a broken build shows up before merge
+  pull_request:
+    paths:
+      - "app/**"
+      - ".github/workflows/app-release.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: app-release
-  cancel-in-progress: false
+  group: app-release-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   NODE_VERSION: "24"
@@ -81,9 +86,15 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              echo "::warning::No signing key on this run — building a debug APK to check the build."
+              echo "APK_TASK=assembleDebug" >> "$GITHUB_ENV"
+              exit 0
+            fi
             echo "::error::ANDROID_KEYSTORE_BASE64 is not set — releases must be signed with the same key so updates install. See app/README.md."
             exit 1
           fi
+          echo "APK_TASK=assembleRelease" >> "$GITHUB_ENV"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       - name: Build signed APK
@@ -94,9 +105,9 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --console=plain
+          ./gradlew "$APK_TASK" --no-daemon --console=plain
           mkdir -p "$GITHUB_WORKSPACE/out"
-          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/StreamVault-${APP_VERSION}.apk"
+          cp app/build/outputs/apk/*/app-*.apk "$GITHUB_WORKSPACE/out/StreamVault-${APP_VERSION}.apk"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android
@@ -142,6 +153,7 @@ jobs:
 
   release:
     name: "Publish release"
+    if: github.event_name != 'pull_request'
     needs: [version, android, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 10
