@@ -1,0 +1,27 @@
+{
+  "appId": "site.streamvault.app",
+  "appName": "StreamVault",
+  "webDir": "dist",
+  "server": {
+    "hostname": "stream-vault.site",
+    "androidScheme": "https",
+    "allowNavigation": []
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0a0a0c",
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "launchAutoHide": true,
+      "backgroundColor": "#0a0a0c",
+      "showSpinner": false
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
+    }
+  }
+}

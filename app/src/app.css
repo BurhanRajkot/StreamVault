@@ -1,0 +1,179 @@
+/*
+ * The app's styles: the website's design system (tokens, the Premium
+ * player's classes, the shared components' utilities) plus the app's own
+ * near-black palette and a few app-only primitives.
+ */
+@import "../../src/index.css";
+
+@source "../../src";
+@source "./";
+
+/* App palette — neutral near-black rather than the site's navy, one blue accent. */
+:root,
+.dark {
+  --background: 240 6% 4%;
+  --foreground: 0 0% 96%;
+  --card: 240 5% 8%;
+  --card-foreground: 0 0% 96%;
+  --popover: 240 5% 9%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 4% 14%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 240 4% 13%;
+  --muted-foreground: 240 4% 62%;
+  --accent: 217 91% 60%;
+  --accent-foreground: 0 0% 100%;
+  --border: 240 4% 16%;
+  --input: 240 4% 18%;
+  --ring: 217 91% 60%;
+
+  /* Safe areas: Capacitor's SystemBars writes --safe-area-inset-*; elsewhere env() */
+  --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sal: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --tabbar-h: 58px;
+}
+
+html,
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  font-family: Inter, Roboto, "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+/* The site paints decorative glows behind the page; the app is flat */
+body::before,
+.dark body::before {
+  display: none !important;
+  content: none !important;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Horizontal rows: swipe, no bar */
+.row-scroll {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  /* Snap to the row's padding, not the screen edge */
+  scroll-padding-inline: 1rem;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.row-scroll::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .row-scroll {
+    scroll-padding-inline: 2rem;
+  }
+}
+.row-scroll > * {
+  scroll-snap-align: start;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Desktop window: a thin dark scrollbar instead of the system one */
+@media (pointer: fine) {
+  .app-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+  .app-scroll::-webkit-scrollbar-thumb {
+    background: hsl(0 0% 100% / 0.12);
+    border-radius: 8px;
+  }
+}
+
+.pt-safe {
+  padding-top: var(--sat);
+}
+.pb-safe {
+  padding-bottom: var(--sab);
+}
+.pb-tabbar {
+  padding-bottom: calc(var(--tabbar-h) + var(--sab) + 16px);
+}
+
+/* Image placeholders shimmer while TMDB art loads */
+@keyframes sv-shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, hsl(240 4% 10%) 0, hsl(240 4% 15%) 40px, hsl(240 4% 10%) 80px);
+  background-size: 200px 100%;
+  animation: sv-shimmer 1.4s infinite linear;
+}
+
+@keyframes sv-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-up {
+  animation: sv-fade-up 0.28s ease-out both;
+}
+
+@keyframes sv-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+.sheet-up {
+  animation: sv-sheet-up 0.26s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.press {
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.press:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+/*
+ * The player screen owns the whole display. The site's player CSS sizes
+ * .player-shell for a page; here the shell is simply the screen.
+ */
+.app-player .player-shell {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
+  border-radius: 0 !important;
+}
+.app-player .player-frame {
+  position: absolute !important;
+  inset: 0 !important;
+  height: 100% !important;
+  aspect-ratio: auto !important;
+}
+/* The Premium player's own back button — the app has no page behind it */
+.app-player .player-back {
+  display: flex !important;
+}
+.app-player .player-overlay-title {
+  padding-left: 0 !important;
+}
