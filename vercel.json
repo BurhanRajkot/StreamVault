@@ -25,7 +25,11 @@
       "destination": "/$1"
     },
     {
-      "source": "/((?!assets/|icons/|logos/|error-images/|sw\\.js|workbox-|registerSW\\.js|manifest\\.json|robots\\.txt|sitemap\\.xml|sitemap-titles\\.xml|favicon\\.svg|og-image\\.png|placeholder\\.svg).*)",
+      "source": "/\\.well-known/(.*)",
+      "destination": "/.well-known/$1"
+    },
+    {
+      "source": "/((?!\\.well-known/|assets/|icons/|logos/|error-images/|sw\\.js|workbox-|registerSW\\.js|manifest\\.json|robots\\.txt|sitemap\\.xml|sitemap-titles\\.xml|favicon\\.svg|og-image\\.png|placeholder\\.svg).*)",
       "destination": "/index.html"
     }
   ],

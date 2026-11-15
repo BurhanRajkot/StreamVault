@@ -1,0 +1,33 @@
+# Linux packages for StreamVault: npm run linux:build (CI: .github/workflows/app-release.yml)
+appId: site.streamvault.app
+productName: StreamVault
+copyright: Copyright © 2026 StreamVault
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**
+  - electron/**
+  - package.json
+  # The Android bridge has no place on the desktop
+  - "!node_modules/@capacitor/**"
+asar: true
+linux:
+  target:
+    - AppImage
+    - pacman
+    - deb
+  category: AudioVideo
+  icon: resources/icon.png
+  executableName: streamvault
+  artifactName: StreamVault-${version}.${ext}
+  synopsis: Movies, TV shows, anime and documentaries
+  description: The StreamVault app — browse, stream, keep your list and continue watching, download for offline viewing.
+  maintainer: Burhanuddin Rajkotwala <BurhanRajkot@users.noreply.github.com>
+  desktop:
+    entry:
+      Name: StreamVault
+      Comment: Movies, TV shows, anime and documentaries
+      StartupWMClass: StreamVault
+      Keywords: movies;tv;anime;streaming;
+publish: null

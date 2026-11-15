@@ -1,0 +1,175 @@
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { AlertCircle, CheckCircle2, Download, Pause, Play, Trash2, Zap } from 'lucide-react'
+import { formatBytes } from '@/lib/debridApi'
+import { usePremiumAccess } from '@/hooks/usePremiumAccess'
+import { cn } from '@/lib/utils'
+import { desktop, isAndroid, isNativeApp, SvNative } from '@app/native/platform'
+import { removeDownload, useDownloads, type DownloadRecord } from '@app/downloads/store'
+import { Sheet } from '@app/components/Sheet'
+import { ProgressRing } from './TitleScreen'
+
+export function DownloadsScreen() {
+  const downloads = useDownloads()
+  const { premium } = usePremiumAccess()
+  const navigate = useNavigate()
+  const [editing, setEditing] = useState<DownloadRecord | null>(null)
+  const { data: free } = useQuery({
+    queryKey: ['free-space'],
+    queryFn: async () => (isAndroid ? (await SvNative.freeSpace()).bytes : desktop ? (await desktop.freeSpace()).bytes : 0),
+    enabled: isNativeApp,
+    staleTime: 30_000,
+  })
+  const used = downloads.filter((d) => d.status === 'done').reduce((sum, d) => sum + (d.total || 0), 0)
+
+  // One group per title, episodes under their show
+  const groups = new Map<string, DownloadRecord[]>()
+  for (const d of downloads) {
+    const key = `${d.mediaType}:${d.tmdbId}`
+    groups.set(key, [...(groups.get(key) ?? []), d])
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 pb-tabbar pt-safe lg:px-8 lg:pb-10">
+      <header className="flex items-center justify-between pb-3 pt-4 lg:pt-8">
+        <h1 className="text-[22px] font-extrabold tracking-tight">Downloads</h1>
+      </header>
+
+      {!isNativeApp && (
+        <p className="mb-4 rounded-xl bg-white/[0.04] p-4 text-[13px] text-white/65">Offline downloads work in the Android and Linux apps.</p>
+      )}
+
+      {downloads.length === 0 ? (
+        <div className="flex flex-col items-center px-6 pt-16 text-center fade-up">
+          <span className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/[0.05]">
+            <Download className="h-9 w-9 text-white/60" />
+          </span>
+          <p className="text-[17px] font-bold">Watch without the internet</p>
+          <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-white/55">
+            Download movies and episodes to this device and play them anywhere — on a flight, on the metro, anywhere.
+          </p>
+          {premium ? (
+            <button onClick={() => navigate('/')} className="press mt-6 rounded-md bg-white px-5 py-2.5 text-[13.5px] font-semibold text-black">
+              Find something to download
+            </button>
+          ) : (
+            <Link to="/premium" className="press mt-6 flex items-center gap-2 rounded-md bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-2.5 text-[13.5px] font-semibold text-black">
+              <Zap className="h-4 w-4" /> Downloads come with Premium
+            </Link>
+          )}
+        </div>
+      ) : (
+        <>
+          <ul className="flex flex-col gap-1">
+            {[...groups.values()].flatMap((items) => items).map((d) => (
+              <li key={d.id}>
+                <DownloadRow record={d} onPlay={() => navigate(`/offline/${encodeURIComponent(d.id)}`)} onMore={() => setEditing(d)} />
+              </li>
+            ))}
+          </ul>
+          {isNativeApp && (
+            <div className="mt-6">
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full bg-primary" style={{ width: `${free ? Math.min(100, (used / (used + free)) * 100) : 0}%` }} />
+              </div>
+              <p className="mt-1.5 flex justify-between text-[11px] text-white/45">
+                <span>StreamVault · {formatBytes(used)}</span>
+                {free ? <span>Free · {formatBytes(free)}</span> : null}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      <Sheet open={!!editing} onOpenChange={(open) => !open && setEditing(null)} title={editing?.title ?? ''} description={editing?.fileName}>
+        {editing && (
+          <div className="flex flex-col gap-2">
+            {editing.status === 'done' && (
+              <button
+                onClick={() => {
+                  navigate(`/offline/${encodeURIComponent(editing.id)}`)
+                  setEditing(null)
+                }}
+                className="press flex items-center gap-3 rounded-xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold"
+              >
+                <Play className="h-5 w-5" /> Play
+              </button>
+            )}
+            <Link
+              to={`/title/${editing.mediaType}/${editing.tmdbId}`}
+              onClick={() => setEditing(null)}
+              className="press flex items-center gap-3 rounded-xl bg-white/[0.05] p-3.5 text-[14px] font-semibold"
+            >
+              <Download className="h-5 w-5" /> Go to title
+            </Link>
+            {desktop && editing.status === 'done' && (
+              <button onClick={() => void desktop!.showInFolder(editing.path)} className="press flex items-center gap-3 rounded-xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold">
+                <Download className="h-5 w-5" /> Show in folder
+              </button>
+            )}
+            <button
+              onClick={() => {
+                void removeDownload(editing.id)
+                setEditing(null)
+              }}
+              className="press flex items-center gap-3 rounded-xl bg-red-500/10 p-3.5 text-left text-[14px] font-semibold text-red-300"
+            >
+              <Trash2 className="h-5 w-5" /> {editing.status === 'done' ? 'Delete download' : 'Cancel download'}
+            </button>
+          </div>
+        )}
+      </Sheet>
+    </div>
+  )
+}
+
+function DownloadRow({ record, onPlay, onMore }: { record: DownloadRecord; onPlay: () => void; onMore: () => void }) {
+  const percent = record.total > 0 ? record.bytes / record.total : 0
+  const done = record.status === 'done'
+  return (
+    <div className="flex items-center gap-3 rounded-xl p-2 active:bg-white/[0.03]">
+      <button onClick={done ? onPlay : onMore} className="press relative w-[118px] shrink-0 overflow-hidden rounded-md bg-white/[0.05]">
+        {record.poster ? (
+          <img src={record.poster} alt="" className="aspect-video w-full object-cover object-[center_20%]" />
+        ) : (
+          <div className="aspect-video w-full bg-gradient-to-br from-white/10 to-white/[0.02]" />
+        )}
+        {done && (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+            <Play className="h-6 w-6 fill-white text-white" />
+          </span>
+        )}
+      </button>
+      <button onClick={onMore} className="min-w-0 flex-1 text-left">
+        <p className="truncate text-[14px] font-semibold">{record.title}</p>
+        {record.mediaType === 'tv' && (
+          <p className="truncate text-[12px] text-white/60">
+            S{record.season} · E{record.episode}
+            {record.episodeName ? ` · ${record.episodeName}` : ''}
+          </p>
+        )}
+        <p className={cn('mt-0.5 text-[11.5px]', record.status === 'failed' ? 'text-red-300' : 'text-white/45')}>
+          {done
+            ? `${record.quality ?? ''} · ${formatBytes(record.total)}`
+            : record.status === 'failed'
+              ? record.error ?? 'Failed'
+              : record.status === 'paused'
+                ? `Paused${record.error ? ` · ${record.error}` : ''}`
+                : `${formatBytes(record.bytes)} of ${formatBytes(record.total)}`}
+        </p>
+      </button>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+        {done ? (
+          <CheckCircle2 className="h-5 w-5 text-emerald-400/80" />
+        ) : record.status === 'failed' ? (
+          <AlertCircle className="h-5 w-5 text-red-400" />
+        ) : record.status === 'paused' ? (
+          <Pause className="h-5 w-5 text-white/50" />
+        ) : (
+          <ProgressRing value={percent} size={26} />
+        )}
+      </span>
+    </div>
+  )
+}
