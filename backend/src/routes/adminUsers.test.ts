@@ -14,12 +14,16 @@ describe('admin user routes', () => {
   beforeAll(async () => {
     const { default: express } = await import('express')
     const { default: adminUsersRouter } = await import('./adminUsers')
-    const { default: adminRouter } = await import('../admin/routes')
     const app = express()
     app.use(express.json())
-    // Mounted exactly as in index.ts
+    // Mounted as in index.ts: this router first, then the admin login beside
+    // it. A stand-in login: admin/middleware.test.ts swaps admin/auth for a
+    // partial mock that bun keeps for the whole run, so the real routes may
+    // not load here.
     app.use('/admin', adminUsersRouter)
-    app.use('/admin', adminRouter)
+    app.post('/admin/login', (_req, res) => {
+      res.status(400).json({ error: 'Authenticator code is required' })
+    })
     server = app.listen(0)
     await new Promise<void>((resolve) => server.once('listening', () => resolve()))
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
