@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'bun:test'
-import { decidePremium, isMissingSchema, type UserAccess } from './userAccess'
+import { beforeAll, describe, expect, it, mock } from 'bun:test'
+import type { UserAccess } from './userAccess'
+
+// userAccess imports the Supabase client, which throws on load without keys
+// (as in CI). Stub it before a dynamic import; a static one would hoist past this.
+mock.module('./supabase', () => ({ supabaseAdmin: {} }))
+
+let decidePremium: typeof import('./userAccess').decidePremium
+let isMissingSchema: typeof import('./userAccess').isMissingSchema
+
+beforeAll(async () => {
+  ;({ decidePremium, isMissingSchema } = await import('./userAccess'))
+})
 
 const access = (premiumAccess: UserAccess['premiumAccess'], suspended = false): UserAccess => ({ premiumAccess, suspended })
 

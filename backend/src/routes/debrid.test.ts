@@ -2,15 +2,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { Server } from 'http'
 import type { AddressInfo } from 'net'
 
-// admin/auth refuses to load without its secrets; set them before the router is imported.
+// admin/auth and the Supabase client (via the Premium gate's access lookup)
+// refuse to load without config; set it before the router is imported.
 process.env.ADMIN_TOTP_SECRET ||= 'test-totp-secret'
 process.env.ADMIN_JWT_SECRET ||= 'test-jwt-secret'
+process.env.SUPABASE_URL ||= 'http://supabase.invalid'
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test-service-key'
 
 /**
- * Premium (Real-Debrid) is admin-only. These go through a real HTTP server so
- * the test fails if any /debrid route is ever mounted ahead of the admin gate.
+ * Premium (Real-Debrid) plays for the admin and accounts the admin approved
+ * (see lib/userAccess). These go through a real HTTP server so the test fails
+ * if any /debrid route is ever mounted ahead of the gate.
  */
-describe('debrid routes are admin-only', () => {
+describe('debrid routes refuse guests and bad tokens', () => {
   let server: Server
   let base = ''
 
