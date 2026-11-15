@@ -18,6 +18,8 @@ import { clearAdminToken, getAdminToken, isAdminAuthenticated } from '@/lib/api'
 import AdminLoginModal from '@/components/admin/AdminLoginModal'
 import { AdminModeBadge } from '@/components/admin/AdminModeBadge'
 import { PremiumStatusCard } from '@/components/admin/PremiumStatusCard'
+import { PremiumSwitchCard } from '@/components/admin/PremiumSwitchCard'
+import { UsersPanel } from '@/components/admin/UsersPanel'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -195,6 +197,8 @@ export default function AdminDashboard() {
         <main className="flex-1 py-10 px-4">
           <div className="mx-auto max-w-7xl">
             <PremiumStatusCard />
+            <PremiumSwitchCard />
+            <UsersPanel />
 
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-bold">Subscription Requests</h2>

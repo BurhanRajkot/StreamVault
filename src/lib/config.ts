@@ -370,7 +370,7 @@ export interface ServerOption {
   label: string
   /** What it streams in — Premium's "4K/1080p", Sol's "4K". */
   detail?: string
-  /** Premium only: this viewer isn't signed in as an admin, so it won't play for them. */
+  /** Premium only: it won't play for this viewer (not the admin, not an approved account). */
   locked?: boolean
 }
 
@@ -381,12 +381,12 @@ export interface ServerOption {
  * releases aren't the reliability problem they'd be with title matching alone.
  *
  * It always comes last — Sol (Vidy) first, then the stars, then Premium —
- * for admins too. Premium is admin-only (the backend enforces it); everyone
- * else sees it listed with a lock.
+ * for everyone. Premium plays for the admin and for accounts the admin
+ * approved (the backend enforces it); everyone else sees it with a lock.
  */
 export function serverOptions(
   mode: MediaMode,
-  { admin = false }: { admin?: boolean } = {}
+  { unlocked = false }: { unlocked?: boolean } = {}
 ): ServerOption[] {
   const providers: ServerOption[] = STREAM_PROVIDER_LIST.map(({ id, name, badge }) => ({
     id,
@@ -399,8 +399,8 @@ export function serverOptions(
     id: DEBRID_SERVER_ID,
     name: 'Premium',
     detail: '4K/1080p',
-    locked: !admin,
-    label: admin ? 'Premium (4K/1080p)' : 'Premium (4K/1080p) · Admin only',
+    locked: !unlocked,
+    label: unlocked ? 'Premium (4K/1080p)' : 'Premium (4K/1080p) · Invite only',
   }
   return [...providers, premium]
 }

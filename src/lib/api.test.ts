@@ -216,12 +216,12 @@ describe('serverOptions', () => {
     expect(defaultServer('tv')).toBe('vidy')
   })
 
-  it('locks Premium for everyone but an admin, and keeps it last for the admin too', () => {
-    const premium = (admin: boolean) => serverOptions('tv', { admin }).at(-1)!
-    expect(premium(false)).toMatchObject({ id: DEBRID_SERVER_ID, locked: true, label: 'Premium (4K/1080p) · Admin only' })
+  it('locks Premium for whoever may not use it, and keeps it last for those who may', () => {
+    const premium = (unlocked: boolean) => serverOptions('tv', { unlocked }).at(-1)!
+    expect(premium(false)).toMatchObject({ id: DEBRID_SERVER_ID, locked: true, label: 'Premium (4K/1080p) · Invite only' })
     expect(premium(true)).toMatchObject({ id: DEBRID_SERVER_ID, locked: false, label: 'Premium (4K/1080p)' })
-    // Being an admin doesn't change what plays by default
-    expect(serverOptions('movie', { admin: true })[0].id).toBe('vidy')
+    // Having Premium doesn't change what plays by default
+    expect(serverOptions('movie', { unlocked: true })[0].id).toBe('vidy')
   })
 
   it('offers only the embed servers outside movies and TV, labelled by name and tag', () => {
@@ -231,7 +231,7 @@ describe('serverOptions', () => {
   })
 
   it('never puts an emoji in a label — a native <select> shows them raw', () => {
-    for (const o of [...serverOptions('movie'), ...serverOptions('movie', { admin: true })]) {
+    for (const o of [...serverOptions('movie'), ...serverOptions('movie', { unlocked: true })]) {
       expect(o.label).not.toMatch(/\p{Extended_Pictographic}/u)
     }
   })

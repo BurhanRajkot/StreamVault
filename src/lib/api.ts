@@ -888,3 +888,99 @@ export async function logRecommendationInteraction(
     // Non-critical — fire and forget
   }
 }
+/* ======================================================
+   ACCOUNT ACCESS (Premium approval, suspension)
+====================================================== */
+
+/** Why Premium is or isn't available to this account (mirrors backend lib/userAccess). */
+export type PremiumReason = 'granted' | 'sign-in-required' | 'not-approved' | 'paused' | 'paused-for-all' | 'suspended'
+
+export interface MyAccess {
+  premium: boolean
+  premiumReason: PremiumReason
+  suspended: boolean
+}
+
+/** What the signed-in account may use, as the admin set it. */
+export async function fetchMyAccess(token: string): Promise<MyAccess> {
+  const res = await fetch(`${API_BASE}/me/access`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`Access check failed (${res.status})`)
+  return res.json()
+}
+
+/** Tell the backend who this account is, so the admin's Users panel can show it. */
+export async function sendMyProfile(token: string, profile: { email?: string | null; name?: string | null }): Promise<void> {
+  await fetch(`${API_BASE}/me/profile`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: profile.email ?? null, name: profile.name ?? null }),
+  })
+}
+
+/* ======================================================
+   ADMIN: USERS + SITE SWITCHES
+====================================================== */
+
+export type PremiumAccessLevel = 'none' | 'granted' | 'paused'
+
+export interface AdminUser {
+  id: string
+  email: string | null
+  name: string | null
+  createdAt: string
+  lastSeenAt: string | null
+  premiumAccess: PremiumAccessLevel
+  suspendedAt: string | null
+  subscriptionStatus: string
+}
+
+/** An admin call that failed; `code` is the backend's (e.g. 'migration_required'). */
+export class AdminApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string
+  ) {
+    super(message)
+    this.name = 'AdminApiError'
+  }
+}
+
+async function adminRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getAdminToken()
+  if (!token) throw new AdminApiError('Sign in as admin first', 401)
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
+    // The token was refused (expired, secret rotated): this browser isn't an admin any more.
+    if (res.status === 401) clearAdminToken()
+    throw new AdminApiError(body?.error ?? `Request failed (${res.status})`, res.status, body?.code)
+  }
+  return res.json() as Promise<T>
+}
+
+export function fetchAdminUsers(params: { q?: string; offset?: number; limit?: number }): Promise<{ users: AdminUser[]; total: number }> {
+  const search = new URLSearchParams()
+  if (params.q) search.set('q', params.q)
+  if (params.offset) search.set('offset', String(params.offset))
+  if (params.limit) search.set('limit', String(params.limit))
+  return adminRequest(`/admin/users?${search}`)
+}
+
+export function updateAdminUser(
+  id: string,
+  change: { premiumAccess?: PremiumAccessLevel; suspended?: boolean }
+): Promise<{ user: AdminUser }> {
+  return adminRequest(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(change) })
+}
+
+export function fetchAdminSettings(): Promise<{ premiumPausedForAll: boolean }> {
+  return adminRequest('/admin/settings')
+}
+
+export function setPremiumPausedForAll(pausedForAll: boolean): Promise<{ premiumPausedForAll: boolean }> {
+  return adminRequest('/admin/settings/premium', { method: 'PUT', body: JSON.stringify({ pausedForAll }) })
+}

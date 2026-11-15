@@ -15,7 +15,7 @@
 import { Router, Request, Response } from 'express'
 import rateLimit from 'express-rate-limit'
 import { getUserId } from '../utils/auth'
-import { checkJwt } from '../middleware/auth'
+import { requireUser } from '../middleware/auth'
 import { requireAdminAuth } from '../admin/middleware'
 import { getRecommendations, getGuestRecommendations, invalidateRecommendationCache } from '../cinematch/mixer/homeTimeline'
 import { fetchAllSources } from '../cinematch/candidates'
@@ -89,7 +89,7 @@ const interactionRateLimiter = rateLimit({
 // ── GET /recommendations ──────────────────────────────────
 // Personalized recommendations for authenticated user.
 // Pipeline: user profile → candidates → filters → ranking → cache → serve.
-router.get('/', checkJwt, async (req: Request, res: Response) => {
+router.get('/', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -164,7 +164,7 @@ router.get('/guest', async (_req: Request, res: Response) => {
 // ── GET /recommendations/profile ─────────────────────────
 // Returns user's computed taste vectors (genre, keyword, cast).
 // Powers a "Your Taste Profile" UI card.
-router.get('/profile', checkJwt, async (req: Request, res: Response) => {
+router.get('/profile', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -219,7 +219,7 @@ router.get('/profile', checkJwt, async (req: Request, res: Response) => {
 // ── POST /recommendations/interaction ─────────────────────
 // Log a user interaction event — triggers cache invalidation.
 // Rate-limited to 20/min per user to prevent flooding.
-router.post('/interaction', checkJwt, interactionRateLimiter, async (req: Request, res: Response) => {
+router.post('/interaction', requireUser, interactionRateLimiter, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -311,7 +311,7 @@ const onboardingRateLimiter = rateLimit({
   },
 })
 
-router.post('/onboarding', checkJwt, onboardingRateLimiter, async (req: Request, res: Response) => {
+router.post('/onboarding', requireUser, onboardingRateLimiter, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
@@ -537,7 +537,7 @@ router.post('/guest/interaction', interactionRateLimiter, async (req: Request, r
 // ── DELETE /recommendations/history ──────────────────────
 // GDPR-compliant "Reset my recommendations" — deletes all user interactions
 // and both cache layers. Next request will be treated as a new user.
-router.delete('/history', checkJwt, async (req: Request, res: Response) => {
+router.delete('/history', requireUser, async (req: Request, res: Response) => {
   const userId = getUserId(req)
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 

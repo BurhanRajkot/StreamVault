@@ -3,7 +3,7 @@ import { Download, Lock, Zap } from 'lucide-react'
 import { DEBRID_SERVER_ID, serverOptions, type MediaMode, type ServerOption } from '@/lib/config'
 import type { ReleaseControls } from '@/components/player/DebridPlayerPane'
 import type { PlayerSource } from '@/components/player/PlayerControls'
-import { useIsAdmin } from '@/hooks/useIsAdmin'
+import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import type { SeasonSummary } from '@/lib/episodeNavigation'
 import { cn } from '@/lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -22,7 +22,7 @@ const content =
 const item = 'cursor-pointer rounded-lg py-2.5 text-sm focus:bg-white/10 focus:text-white data-[state=checked]:bg-white/[0.06]'
 
 /**
- * "Sol 4K", "Premium 4K/1080p 🔒 Admin" — the tags, the zap and the lock are
+ * "Sol 4K", "Premium 4K/1080p 🔒 Invite only" — the tags, the zap and the lock are
  * drawn, the rest is plain text.
  */
 function ServerLabel({ option }: { option: ServerOption }) {
@@ -47,7 +47,7 @@ function ServerLabel({ option }: { option: ServerOption }) {
           {' '}
           <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 text-xs font-semibold text-white/70">
             <Lock className="h-3 w-3" aria-hidden="true" />
-            Admin
+            Invite only
           </span>
         </>
       )}
@@ -79,8 +79,8 @@ export function ServerSelect({
   onOpenChange,
   className,
 }: ServerSelectProps) {
-  const admin = useIsAdmin()
-  const options = serverOptions(mode, { admin })
+  const { premium } = usePremiumAccess()
+  const options = serverOptions(mode, { unlocked: premium })
   const selected = options.find((option) => option.id === value)
   return (
     <Select value={value} onValueChange={onChange} defaultOpen={defaultOpen} onOpenChange={onOpenChange}>

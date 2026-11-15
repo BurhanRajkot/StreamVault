@@ -27,6 +27,8 @@ import recommendationsRouter from './routes/recommendations'
 import dislikesRouter from './routes/dislikes'
 import debridRouter from './routes/debrid'
 import releasesRouter from './routes/releases'
+import meRouter from './routes/me'
+import adminUsersRouter from './routes/adminUsers'
 import sitemapRouter from './routes/sitemap'
 import { requireAdminAuth } from './admin/middleware'
 import { getCacheStatus } from './services/cache'
@@ -120,7 +122,10 @@ app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
 app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin routes first
 app.use('/subscriptions', subscriptionsRouter)
+// Before '/admin' so the Users panel's routes aren't swallowed by the login router.
+app.use('/admin', adminUsersRouter)
 app.use('/admin', adminRouter)
+app.use('/me', meRouter)
 app.use('/recommendations', recommendationsRouter)
 app.use('/dislikes', dislikesRouter)
 app.use('/debrid', debridRouter)

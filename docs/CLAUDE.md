@@ -29,7 +29,7 @@ This file is automatically read by Claude Code at the start of each session to m
   - Trie-based search autocomplete
   - Favorites/Dislikes system
   - Continue watching tracking
-  - Premium (Real-Debrid) server — admin-only
+  - Premium (Real-Debrid) server — admin + accounts the admin approves
   - Public release search for magnet-link downloads
   - Admin dashboard
 
@@ -237,15 +237,21 @@ const { data, isLoading, error } = useQuery({
 const { addFavorite, removeFavorite, isFavorite } = useFavorites()
 ```
 
-### Premium (Real-Debrid) is admin-only
-Every `/debrid/*` backend route sits behind `requireAdminAuth`
-(`backend/src/routes/debrid.ts`); there is no guest, signed-in or subscriber
-path. In the UI, Premium is always the last server; `useIsAdmin()` says
-whether this browser holds an admin token, `PremiumPane` shows the player to
-an admin and a notice with the admin sign-in to everyone else. The Download
-sheet's magnet links come from the public `GET /releases`, which never
-touches the Real-Debrid account. In E2E, `test.use({ admin: true })`
-(Playwright) or `adminTest` (e2e framework) holds an admin session.
+### Premium (Real-Debrid) is invite-only
+`/debrid/*` sits behind `requirePremiumAccess`
+(`backend/src/middleware/premiumAccess.ts`): the admin's TOTP token always
+passes; an Auth0 account passes when the admin set its `premiumAccess` to
+`granted` in the dashboard's Users panel, it isn't suspended, and Premium
+isn't paused site-wide (`AppSetting` 'premium'). The rule is
+`decidePremium` in `backend/src/lib/userAccess.ts`. `/debrid/status` and
+torrent deletion stay `requireAdminAuth`. Suspension (`User.suspendedAt`)
+also refuses favorites, dislikes, continue watching and recommendations.
+In the UI, Premium is always the last server; `usePremiumAccess()` asks
+`GET /me/access` and `PremiumPane` shows the player or a notice saying why
+not. The Download sheet's magnet links come from the public `GET /releases`,
+which never touches the Real-Debrid account. In E2E, `adminTest` (e2e
+framework) or `test.use({ admin: true })` (Playwright) holds an admin
+session; set `mockApi.state.users` / `premiumPausedForAll` to test accounts.
 
 ### Protected Routes
 Admin pages guard themselves rather than being wrapped in a route element —

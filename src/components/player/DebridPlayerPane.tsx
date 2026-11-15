@@ -45,7 +45,9 @@ import { findPremiumReleases } from '@/lib/premiumSearch'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
+import { useQueryClient } from '@tanstack/react-query'
 import { clearAdminToken } from '@/lib/api'
+import { MY_ACCESS_QUERY_KEY } from '@/hooks/usePremiumAccess'
 import { DebridVideo } from './DebridVideo'
 import { ActionRow, PaneBackdrop, PremiumLoading, StatusMessage, primaryAction, secondaryAction } from './PremiumLoading'
 import type { PlayerSource } from './PlayerControls'
@@ -101,13 +103,13 @@ function toPlayerSource(rel: DebridRelease): PlayerSource {
   }
 }
 
-type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'admin-required'
+type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'access-refused'
 
 /**
- * 401/403: the backend didn't accept the admin token (expired, or the secret
- * was rotated). Premium is admin-only, so the session is over.
+ * 401/403: the backend refused this viewer — an admin token that expired, or
+ * an account whose Premium access was paused or taken away meanwhile.
  */
-function isAdminRejected(err: unknown): boolean {
+function isAccessRefused(err: unknown): boolean {
   return err instanceof DebridRequestError && (err.status === 401 || err.status === 403)
 }
 
@@ -192,10 +194,14 @@ export function DebridPlayerPane({
 }: DebridPlayerPaneProps) {
   const getToken = useDebridToken()
   const [status, setStatus] = useState<Status>('searching')
-  // The backend refused the admin token — drop it, so the whole app stops treating this browser as an admin.
+  // Refused: drop an admin token the backend no longer takes, and ask again
+  // what this viewer may use — PremiumPane then shows the right notice.
+  const queryClient = useQueryClient()
   useEffect(() => {
-    if (status === 'admin-required') clearAdminToken()
-  }, [status])
+    if (status !== 'access-refused') return
+    clearAdminToken()
+    void queryClient.invalidateQueries({ queryKey: [MY_ACCESS_QUERY_KEY] })
+  }, [status, queryClient])
   const [statusMessage, setStatusMessage] = useState('Finding the best stream…')
   const [playback, setPlayback] = useState<DebridReadyPlayback | null>(null)
   const [instantReleases, setInstantReleases] = useState<DebridRelease[]>([])
@@ -381,7 +387,7 @@ export function DebridPlayerPane({
       } catch (err: unknown) {
         if (generationRef.current !== generation) return
         console.error('Real-Debrid download error:', err)
-        setStatus(isAdminRejected(err) ? 'admin-required' : 'error')
+        setStatus(isAccessRefused(err) ? 'access-refused' : 'error')
         setStatusMessage(err instanceof Error ? err.message : 'Failed to download release')
       }
     },
@@ -433,8 +439,8 @@ export function DebridPlayerPane({
           }
           console.warn(`Real-Debrid release not playable (${res.status}), trying another:`, rel.name)
         } catch (err: unknown) {
-          if (isAdminRejected(err)) {
-            return { kind: 'stop', status: 'admin-required', message: 'Admin sign-in required' }
+          if (isAccessRefused(err)) {
+            return { kind: 'stop', status: 'access-refused', message: 'Premium access required' }
           }
           if (isDebridUnavailable(err)) return { kind: 'stop', status: 'error', message: err.message }
           console.warn('Real-Debrid release could not start, trying another:', rel.name, err)
@@ -634,7 +640,7 @@ export function DebridPlayerPane({
     } catch (err: unknown) {
       if (generationRef.current !== generation) return
       console.error('Real-Debrid search failed:', err)
-      setStatus(isAdminRejected(err) ? 'admin-required' : 'error')
+      setStatus(isAccessRefused(err) ? 'access-refused' : 'error')
       setStatusMessage(err instanceof Error ? err.message : 'Search failed')
     }
   }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease])
@@ -726,8 +732,20 @@ export function DebridPlayerPane({
     )
   }
 
-  // --- The backend refused the admin token: sign out, and PremiumPane shows the admin-only notice ---
-  if (status === 'admin-required') return null
+  // --- Refused: PremiumPane normally takes over with the notice saying why
+  // once the access check reruns; until it does (or if it still says yes), say so here ---
+  if (status === 'access-refused') {
+    return (
+      <PaneBackdrop backdropUrl={backdropUrl}>
+        <StatusMessage heading="Premium isn't available to you right now" body="Your access may have changed. Every other server still works." />
+        <ActionRow>
+          <button onClick={onSwitchServer} className={primaryAction}>
+            Switch server
+          </button>
+        </ActionRow>
+      </PaneBackdrop>
+    )
+  }
 
   // --- Not found / error ---
   if (status === 'not-found' || status === 'error') {
