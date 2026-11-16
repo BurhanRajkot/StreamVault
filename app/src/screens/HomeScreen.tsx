@@ -112,7 +112,9 @@ function CatalogRow({ mode, spec }: { mode: MediaMode; spec: RowSpec }) {
 function Recommendations() {
   const { isAuthenticated } = useAuth0()
   const { sections, isLoading } = useRecommendations(true)
-  const shown = sections.filter((s) => s.items.length >= 4).slice(0, isAuthenticated ? 3 : 1)
+  // Signed in: Top Picks, then a "Because you watched" row per favourite, then
+  // genre rows — enough to scroll through, few enough to stay personal
+  const shown = sections.filter((s) => s.items.length >= 4).slice(0, isAuthenticated ? 6 : 1)
   if (isLoading && shown.length === 0) return <PosterRow title="Recommended for You" items={[]} loading />
   return (
     <>

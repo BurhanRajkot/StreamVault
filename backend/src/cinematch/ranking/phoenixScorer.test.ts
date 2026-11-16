@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { scoreCandidate, buildSessionContext, scoreCandidates } from './phoenixScorer'
+import { scoreCandidate, buildSessionContext, scoreCandidates, languagePenalty } from './phoenixScorer'
 import { Candidate, UserProfile } from '../types'
 import { RankingWeights } from './dynamicWeights'
 
@@ -114,5 +114,20 @@ describe('Phoenix Scorer', () => {
       // The session momentum boost should push candidate 1 higher
       expect(results[0].score).toBeGreaterThan(results[1].score)
     })
+  })
+})
+
+describe('languagePenalty', () => {
+  it('costs a title in a language the user never watches, and nothing in one they do', () => {
+    const vector = { en: 0.7, hi: 0.2, ja: 0.1 }
+    expect(languagePenalty('en', vector)).toBe(0)
+    expect(languagePenalty('ja', vector)).toBe(0)
+    expect(languagePenalty('zh', vector)).toBeCloseTo(-0.2)
+  })
+
+  it('stays out of it without a language or a viewing history', () => {
+    expect(languagePenalty(undefined, { en: 1 })).toBe(0)
+    expect(languagePenalty('zh', {})).toBe(0)
+    expect(languagePenalty('zh', undefined)).toBe(0)
   })
 })

@@ -25,6 +25,7 @@ export interface ParsedQuery {
     sort_by?: string
     'vote_average.gte'?: string
     with_original_language?: string
+    'vote_count.gte'?: string
   }
 }
 
@@ -37,7 +38,7 @@ const GENRE_MAP: Array<[RegExp, number]> = [
   [/\badventure\b/i,                          12],
   [/\banimation\b|\banimated\b|\bcartoon\b/i, 16],
   [/\bcomedy\b|\bfunny\b|\bhilarious\b/i,    35],
-  [/\bcrime\b|\bheist\b/i,                   80],
+  [/\bcrime\b/i,                              80],
   [/\bdocumentar/i,                           99],
   [/\bdrama\b/i,                              18],
   [/\bfamilies\b|\bfamily\b|\bkids\b|\bchildren\b/i, 10751],
@@ -59,6 +60,42 @@ const GENRE_MAP: Array<[RegExp, number]> = [
   [/\btalk.?show\b/i,                       10767],
   [/\breality/i,                            10764],
 ]
+
+// ── Language / film-industry words → TMDB original_language ──────────────
+// "korean drama", "bollywood", "tamil movies". Some also imply a format:
+// a K-drama is a series, Bollywood is film.
+const LANGUAGE_MAP: Array<[RegExp, string, ('movie' | 'tv')?]> = [
+  [/\bk-?dramas?\b|\bkorean (tv )?(dramas?|series|shows?)\b/i, 'ko', 'tv'],
+  [/\bkorean\b/i,                           'ko'],
+  [/\bbollywood\b/i,                        'hi', 'movie'],
+  [/\bhindi\b/i,                            'hi'],
+  [/\btollywood\b/i,                        'te', 'movie'],
+  [/\btelugu\b/i,                           'te'],
+  [/\bkollywood\b/i,                        'ta', 'movie'],
+  [/\btamil\b/i,                            'ta'],
+  [/\bmollywood\b|\bmalayalam\b/i,          'ml'],
+  [/\bkannada\b|\bsandalwood\b/i,           'kn'],
+  [/\bmarathi\b/i,                          'mr'],
+  [/\bbengali\b|\bbangla\b/i,               'bn'],
+  [/\bpunjabi\b/i,                          'pa'],
+  [/\bj-?dramas?\b|\bjapanese (tv )?(dramas?|series)\b/i, 'ja', 'tv'],
+  [/\bjapanese\b/i,                         'ja'],
+  [/\bc-?dramas?\b|\bchinese (tv )?(dramas?|series)\b/i, 'zh', 'tv'],
+  [/\bchinese\b|\bmandarin\b/i,             'zh'],
+  [/\bspanish\b/i,                          'es'],
+  [/\bfrench\b/i,                           'fr'],
+  [/\bturkish\b/i,                          'tr'],
+  [/\bgerman\b/i,                           'de'],
+  [/\bitalian\b/i,                          'it'],
+  [/\bthai\b/i,                             'th'],
+]
+
+function detectLanguage(query: string): { language: string; mediaType?: 'movie' | 'tv'; isDrama: boolean } | null {
+  for (const [pattern, language, mediaType] of LANGUAGE_MAP) {
+    if (pattern.test(query)) return { language, mediaType, isDrama: /drama/i.test(pattern.source) }
+  }
+  return null
+}
 
 // ── Decade word → start year ───────────────────────────────────────────────
 const DECADE_WORDS: Array<[RegExp, number]> = [
@@ -95,6 +132,7 @@ const STRUCTURAL_PATTERNS: RegExp[] = [
   /\b(from|in|the|of|and|with|like|about|starring|featuring|directed|by)\b/i,
   /\b\d{4}s?\b/,          // 4-digit years / decades
   /\b[12][90]\d{2}\b/,    // year numbers
+  ...LANGUAGE_MAP.map(([re]) => re),
   ...GENRE_MAP.map(([re]) => re),
   ...DECADE_WORDS.map(([re]) => re),
 ]
@@ -116,8 +154,9 @@ export function isComplexQuery(query: string): boolean {
   const hasDecade   = DECADE_WORDS.some(([re]) => re.test(q)) || /\b[12][90]\d{2}s?\b/.test(q)
   const hasType     = MOVIE_PATTERNS.test(q) || TV_PATTERNS.test(q) || ANIME_PATTERN.test(q)
   const hasQuality  = TOP_RATED_PATTERN.test(q) || RECENT_PATTERN.test(q)
+  const hasLanguage = detectLanguage(q) !== null
 
-  return hasGenre || hasDecade || (hasType && words.length >= 2) || hasQuality
+  return hasGenre || hasDecade || (hasType && words.length >= 2) || hasQuality || hasLanguage
 }
 
 /**
@@ -140,6 +179,13 @@ export function parseQueryNLU(query: string): ParsedQuery | null {
     detectedMediaType = 'tv'
   } else if (MOVIE_PATTERNS.test(workingQuery)) {
     detectedMediaType = 'movie'
+  }
+
+  // 1b. Language / industry ("korean drama", "bollywood")
+  const language = detectLanguage(workingQuery)
+  if (language) {
+    filters.with_original_language = language.language
+    if (!detectedMediaType && language.mediaType) detectedMediaType = language.mediaType
   }
 
   // 2. Extract decade from word patterns (e.g. "nineties", "80s")
@@ -198,6 +244,8 @@ export function parseQueryNLU(query: string): ParsedQuery | null {
       matchedGenreIds.push(id)
     }
   }
+  // A K-drama / J-drama / C-drama is a drama
+  if (language?.isDrama && !matchedGenreIds.includes(18)) matchedGenreIds.unshift(18)
   if (matchedGenreIds.length > 0) {
     // TMDB Discover `with_genres` is comma-separated AND logic
     // Use only the first two to avoid over-constraining
@@ -213,6 +261,10 @@ export function parseQueryNLU(query: string): ParsedQuery | null {
   } else {
     filters.sort_by = 'popularity.desc'
   }
+
+  // Something people have actually rated — popularity alone surfaces filler.
+  // Smaller industries get a lower bar.
+  filters['vote_count.gte'] = language && language.language !== 'en' ? '15' : '50'
 
   // 7. Extract remaining title query (non-structural text left over)
   let remaining = workingQuery

@@ -41,48 +41,106 @@ export interface RowSpec {
 }
 
 const picks = (items: { tmdbId: number; mediaType: 'movie' | 'tv' }[]) => () => fetchMediaSummaries(items.slice(0, 16))
-const recentWindow = () => {
-  const from = new Date()
-  from.setMonth(from.getMonth() - 18)
-  return from.toISOString().slice(0, 10)
+
+const day = (d: Date) => d.toISOString().slice(0, 10)
+const monthsAgo = (n: number) => {
+  const d = new Date()
+  d.setMonth(d.getMonth() - n)
+  return day(d)
 }
-const today = () => new Date().toISOString().slice(0, 10)
+const yearsAgo = (n: number) => monthsAgo(n * 12)
+const today = () => day(new Date())
+
+/**
+ * Talk shows, news, reality, soaps and kids' TV. TMDB ranks them near the top
+ * of every TV list (decades of daily episodes), and they're nobody's idea of
+ * "popular shows".
+ */
+const NOT_SERIES = '10767,10763,10764,10766,10762'
+const NOT_SERIES_OR_ANIMATION = `16,${NOT_SERIES}`
+const APPEARANCE_GENRES = new Set([10767, 10763, 10764])
+
+/**
+ * TV that's on the air now. TMDB's TV popularity is all-time syndication
+ * traffic — Law & Order, House, How I Met Your Mother — so "popular" means:
+ * aired an episode recently, and started within the last decade.
+ */
+const current = (extra: Record<string, string> = {}) =>
+  fetchDiscover('tv', { 'air_date.gte': monthsAgo(9), 'air_date.lte': today(), 'first_air_date.gte': yearsAgo(10), without_genres: NOT_SERIES, ...extra })
+
+/** Good TV from the last several years in a genre — rated, not just watched a lot. */
+const recentTv = (genres: string, years: number, extra: Record<string, string> = {}) =>
+  fetchDiscover('tv', { with_genres: genres, 'first_air_date.gte': yearsAgo(years), without_genres: NOT_SERIES_OR_ANIMATION, 'vote_average.gte': '7', ...extra })
+
+/** This week's trending titles minus talk shows, news and unreleased or unrated filler. */
+async function trending(type: 'movie' | 'tv'): Promise<Media[]> {
+  const res = await fetch(`${API_BASE}/tmdb/trending/${type}`)
+  if (!res.ok) return []
+  const data = (await res.json()) as { results?: Media[] }
+  return (data.results ?? [])
+    .map((m) => ({ ...m, media_type: type }))
+    .filter((m) => m.poster_path && (m.vote_count ?? 0) >= 20 && !(m.genre_ids ?? []).some((g) => APPEARANCE_GENRES.has(g)))
+}
+
+/** Films and shows trending this week, alternating, so neither crowds the other out. */
+async function trendingBoth(): Promise<Media[]> {
+  const [movies, shows] = await Promise.all([trending('movie'), trending('tv')])
+  const mixed: Media[] = []
+  for (let i = 0; i < Math.max(movies.length, shows.length); i++) {
+    if (movies[i]) mixed.push(movies[i])
+    if (shows[i]) mixed.push(shows[i])
+  }
+  return mixed
+}
+
+/** What India is watching this week — Netflix's own Top 10, matched to TMDB. */
+async function top10India(type: 'movie' | 'tv'): Promise<Media[]> {
+  const res = await fetch(`${API_BASE}/tmdb/top10/IN/${type}`)
+  if (!res.ok) return []
+  const data = (await res.json()) as { results?: Media[] }
+  return (data.results ?? []).map((m) => ({ ...m, media_type: type }))
+}
 
 /**
  * Every browse screen is a fixed set of rows — finite, no endless feed.
  * Genre rows use TMDB discover with a vote floor so obscure titles with no
- * art don't fill them.
+ * art don't fill them, and TV rows a recency window (see `current`).
  */
 export function rowsFor(mode: MediaMode): RowSpec[] {
   switch (mode) {
     case 'movie':
       return [
-        { key: 'top', title: 'Top 10 Movies Today', kind: 'movie', style: 'top10', load: () => fetchTrending('movie') },
+        { key: 'top', title: 'Top 10 Movies Today', kind: 'movie', style: 'top10', load: () => trending('movie') },
+        { key: 'india', title: 'Top 10 Movies in India', kind: 'movie', style: 'top10', load: () => top10India('movie') },
         { key: 'popular', title: 'Popular Movies', kind: 'movie', load: async () => (await fetchPopular('movie', 1)).results },
         { key: 'new', title: 'New Releases', kind: 'movie', style: 'wide', load: () => fetchRecentlyAdded('movie') },
         { key: 'picks', title: "Editor's Picks", kind: 'movie', load: picks(AUTHORS_CHOICE_MOVIES) },
-        { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '150' }) },
-        { key: 'action', title: 'Action', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '28', 'vote_count.gte': '300' }) },
-        { key: 'comedy', title: 'Comedy', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '35', 'vote_count.gte': '300' }) },
-        { key: 'thriller', title: 'Thrillers', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '53', 'vote_count.gte': '300' }) },
-        { key: 'scifi', title: 'Sci-Fi', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '878', 'vote_count.gte': '300' }) },
-        { key: 'horror', title: 'Horror', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '27', 'vote_count.gte': '300' }) },
-        { key: 'romance', title: 'Romance', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '10749', 'vote_count.gte': '300' }) },
-        { key: 'acclaimed', title: 'Critically Acclaimed', kind: 'movie', style: 'wide', load: () => fetchDiscover('movie', { sort_by: 'vote_average.desc', 'vote_count.gte': '5000' }) },
+        { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '40', 'primary_release_date.gte': yearsAgo(3), 'primary_release_date.lte': today() }) },
+        { key: 'action', title: 'Action', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '28', 'vote_count.gte': '300', 'vote_average.gte': '6.5' }) },
+        { key: 'comedy', title: 'Comedy', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '35', 'vote_count.gte': '300', 'vote_average.gte': '6.5', 'primary_release_date.gte': yearsAgo(15) }) },
+        { key: 'thriller', title: 'Thrillers', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '53', 'vote_count.gte': '300', 'vote_average.gte': '6.5' }) },
+        { key: 'scifi', title: 'Sci-Fi', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '878', 'vote_count.gte': '300', 'vote_average.gte': '6.5' }) },
+        { key: 'south', title: 'South Indian Blockbusters', kind: 'movie', style: 'wide', load: southIndian },
+        { key: 'horror', title: 'Horror', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '27', 'vote_count.gte': '300', 'vote_average.gte': '6', 'primary_release_date.gte': yearsAgo(15) }) },
+        { key: 'romance', title: 'Romance', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '10749', 'vote_count.gte': '300', 'vote_average.gte': '6.5', 'primary_release_date.gte': yearsAgo(15) }) },
+        { key: 'acclaimed', title: 'All-Time Greats', kind: 'movie', style: 'wide', load: () => fetchDiscover('movie', { sort_by: 'vote_average.desc', 'vote_count.gte': '5000' }) },
       ]
     case 'tv':
       return [
-        { key: 'top', title: 'Top 10 Shows Today', kind: 'tv', style: 'top10', load: () => fetchTrending('tv') },
-        { key: 'popular', title: 'Popular Shows', kind: 'tv', load: async () => (await fetchPopular('tv', 1)).results },
+        { key: 'top', title: 'Top 10 Shows Today', kind: 'tv', style: 'top10', load: () => trending('tv') },
+        { key: 'india', title: 'Top 10 Shows in India', kind: 'tv', style: 'top10', load: () => top10India('tv') },
+        { key: 'popular', title: 'Popular Right Now', kind: 'tv', load: () => current({ 'vote_count.gte': '200' }) },
         { key: 'new', title: 'New Seasons & Series', kind: 'tv', style: 'wide', load: () => fetchRecentlyAdded('tv') },
         { key: 'picks', title: "Editor's Picks", kind: 'tv', load: picks(AUTHORS_CHOICE_TV) },
-        { key: 'hindi', title: 'Indian Series', kind: 'tv', load: () => fetchDiscover('tv', { with_original_language: 'hi', 'vote_count.gte': '20' }) },
-        { key: 'drama', title: 'Drama', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '18', 'vote_count.gte': '300' }) },
-        { key: 'crime', title: 'Crime', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_genres: '80', 'vote_count.gte': '200' }) },
-        { key: 'comedy', title: 'Comedy', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '35', 'vote_count.gte': '200' }) },
-        { key: 'scifi', title: 'Sci-Fi & Fantasy', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '10765', 'vote_count.gte': '200' }) },
-        { key: 'mystery', title: 'Mystery', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '9648', 'vote_count.gte': '200' }) },
-        { key: 'acclaimed', title: 'Critically Acclaimed', kind: 'tv', load: () => fetchDiscover('tv', { sort_by: 'vote_average.desc', 'vote_count.gte': '2000' }) },
+        { key: 'hindi', title: 'Best Indian Series', kind: 'tv', load: () => fetchDiscover('tv', { sort_by: 'vote_count.desc', with_origin_country: 'IN', without_genres: NOT_SERIES, 'vote_average.gte': '7' }) },
+        { key: 'drama', title: 'Binge-Worthy Dramas', kind: 'tv', load: () => recentTv('18', 8, { 'vote_average.gte': '7.5', 'vote_count.gte': '300' }) },
+        { key: 'crime', title: 'Crime', kind: 'tv', style: 'wide', load: () => recentTv('80', 10, { 'vote_count.gte': '200' }) },
+        { key: 'kdrama', title: 'K-Dramas', kind: 'tv', load: () => fetchDiscover('tv', { with_original_language: 'ko', with_genres: '18', 'first_air_date.gte': yearsAgo(5), 'vote_count.gte': '40', without_genres: NOT_SERIES }) },
+        { key: 'comedy', title: 'Comedy', kind: 'tv', load: () => recentTv('35', 10, { 'vote_count.gte': '150' }) },
+        { key: 'limited', title: 'Limited Series', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_type: '2', 'first_air_date.gte': yearsAgo(6), 'vote_average.gte': '7', 'vote_count.gte': '100', without_genres: NOT_SERIES }) },
+        { key: 'scifi', title: 'Sci-Fi & Fantasy', kind: 'tv', load: () => recentTv('10765', 10, { 'vote_count.gte': '200' }) },
+        { key: 'mystery', title: 'Mystery', kind: 'tv', load: () => recentTv('9648', 10, { 'vote_count.gte': '150' }) },
+        { key: 'acclaimed', title: 'All-Time Greats', kind: 'tv', load: () => fetchDiscover('tv', { sort_by: 'vote_average.desc', 'vote_count.gte': '2000', without_genres: NOT_SERIES }) },
       ]
     case 'anime':
       return [
@@ -98,19 +156,46 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
         { key: 'popular', title: 'Popular Documentaries', load: async () => (await fetchPopular('documentary', 1)).results },
         { key: 'new', title: 'New Releases', load: () => fetchRecentlyAdded('documentary') },
         { key: 'picks', title: "Editor's Picks", load: picks(AUTHORS_CHOICE_DOCUMENTARIES) },
-        { key: 'series', title: 'Docuseries', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_genres: '99', 'vote_count.gte': '50' }) },
+        { key: 'series', title: 'Docuseries', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_genres: '99', 'vote_count.gte': '50', without_genres: NOT_SERIES }) },
+        { key: 'truecrime', title: 'True Crime', load: trueCrime },
         { key: 'acclaimed', title: 'Acclaimed Films', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '99', sort_by: 'vote_average.desc', 'vote_count.gte': '400' }) },
       ]
     default:
       return [
-        { key: 'top', title: 'Top 10 Today', style: 'top10', load: () => fetchTrending('home') },
-        { key: 'movies', title: 'Trending Movies', kind: 'movie', load: () => fetchTrending('movie') },
+        { key: 'top', title: 'Top 10 Today', style: 'top10', load: trendingBoth },
+        { key: 'india', title: 'Top 10 Shows in India', kind: 'tv', style: 'top10', load: () => top10India('tv') },
+        { key: 'movies', title: 'Trending Movies', kind: 'movie', load: () => trending('movie') },
+        { key: 'shows', title: 'Popular Shows Right Now', kind: 'tv', style: 'wide', load: () => current({ 'vote_count.gte': '200' }) },
         { key: 'new', title: 'New Releases', load: () => fetchRecentlyAdded('home') },
         { key: 'picks', title: "Editor's Picks", kind: 'movie', load: picks(AUTHORS_CHOICE_MOVIES) },
-        { key: 'shows', title: 'Trending Shows', kind: 'tv', style: 'wide', load: () => fetchTrending('tv') },
+        { key: 'indian', title: 'Best Indian Series', kind: 'tv', load: () => fetchDiscover('tv', { sort_by: 'vote_count.desc', with_origin_country: 'IN', without_genres: NOT_SERIES, 'vote_average.gte': '7' }) },
         { key: 'anime', title: 'Anime', kind: 'tv', load: () => fetchAnimeRow('series') },
-        { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '40', 'primary_release_date.gte': recentWindow(), 'primary_release_date.lte': today() }) },
+        { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '40', 'primary_release_date.gte': yearsAgo(1.5), 'primary_release_date.lte': today() }) },
+        { key: 'kdrama', title: 'K-Dramas', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_original_language: 'ko', with_genres: '18', 'first_air_date.gte': yearsAgo(5), 'vote_count.gte': '40', without_genres: NOT_SERIES }) },
         { key: 'docs', title: 'Documentaries', load: async () => (await fetchPopular('documentary', 1)).results },
       ]
   }
+}
+
+/** Tamil, Telugu, Malayalam and Kannada hits of the last few years, most popular first. */
+async function southIndian(): Promise<Media[]> {
+  const langs = ['ta', 'te', 'ml', 'kn']
+  const lists = await Promise.all(
+    langs.map((lang) =>
+      fetchDiscover('movie', { with_original_language: lang, 'vote_count.gte': '30', 'vote_average.gte': '6.5', 'primary_release_date.gte': yearsAgo(4), 'primary_release_date.lte': today() })
+    )
+  )
+  return lists
+    .flat()
+    .sort((a, b) => (b.vote_count ?? 0) * Math.log1p(b.popularity ?? 0) - (a.vote_count ?? 0) * Math.log1p(a.popularity ?? 0))
+    .slice(0, 20)
+}
+
+/** True-crime documentaries and docuseries (TMDB keyword 33722). */
+async function trueCrime(): Promise<Media[]> {
+  const [films, series] = await Promise.all([
+    fetchDiscover('movie', { with_keywords: '33722', with_genres: '99', 'vote_count.gte': '50' }),
+    fetchDiscover('tv', { with_keywords: '33722', with_genres: '99', 'vote_count.gte': '20' }),
+  ])
+  return [...series, ...films].sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)).slice(0, 20)
 }

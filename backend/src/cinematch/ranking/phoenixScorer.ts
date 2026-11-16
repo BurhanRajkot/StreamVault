@@ -19,13 +19,48 @@ function popularityScore(popularity: number): number {
 
 // ── Quality ───────────────────────────────────────────────
 // Bayesian-style estimate — penalizes items with few votes
+/**
+ * How good a title is, as a Bayesian average: its rating pulled toward a
+ * typical 6.6 until enough people have voted. An 8.4 from 12 voters no
+ * longer outranks an 8.2 from 20,000. Mapped so 5/10 → 0 and 9/10 → 1.
+ */
+const PRIOR_RATING = 6.6
+const PRIOR_VOTES = 250
 function qualityScore(voteAverage: number, voteCount: number): number {
-  const avgNorm = voteAverage / 10
-  const confidenceBoost = Math.min(voteCount / 500, 1)
-  return avgNorm * (0.7 + 0.3 * confidenceBoost)
+  const v = Math.max(0, voteCount)
+  const bayes = (v / (v + PRIOR_VOTES)) * voteAverage + (PRIOR_VOTES / (v + PRIOR_VOTES)) * PRIOR_RATING
+  return Math.min(1, Math.max(0, (bayes - 5) / 4))
 }
 
-// Fast empty-check that avoids Object.keys() array allocation
+/**
+ * Agreement between sources: a title recommended off several of the user's
+ * favourites (or by both TMDB and their taste twins) is a safer bet than one
+ * a single list mentioned. 0–1 from the fusion score — about two top-ranked
+ * mentions saturate it.
+ */
+function consensusScore(fusionScore: number | undefined): number {
+  return Math.min(1, (fusionScore ?? 0) * 30)
+}
+const CONSENSUS_WEIGHT = 0.15
+
+/**
+ * A language the user (nearly) never watches in costs a title up to
+ * LANGUAGE_PENALTY. Without it, top-rated Chinese and Korean romance dramas —
+ * rated 8.5+ by their devoted audiences — led the picks of someone whose
+ * history is English drama, Hindi films and anime. Anything making up at
+ * least LANGUAGE_FAMILIAR of their viewing is untouched.
+ */
+const LANGUAGE_FAMILIAR = 0.08
+const LANGUAGE_PENALTY = 0.2
+export function languagePenalty(language: string | undefined, languageVector: Record<string, number> | undefined): number {
+  if (!language || !languageVector) return 0
+  const known = Object.keys(languageVector).length
+  if (known === 0) return 0
+  const share = languageVector[language] ?? 0
+  if (share >= LANGUAGE_FAMILIAR) return 0
+  return -LANGUAGE_PENALTY * (1 - share / LANGUAGE_FAMILIAR)
+}
+
 function hasEntries(obj: Record<number | string, number>): boolean {
   for (const _ in obj) return true
   return false
@@ -101,8 +136,8 @@ function decadeAffinityScore(
 // ── Source Priority Boost ────────────────────────────────
 function sourceBoost(source: Candidate['source']): number {
   switch (source) {
-    case 'tmdb_similar': return 1.12  // Highest — direct similarity
-    case 'tmdb_recommendations': return 1.10  // High — TMDB editorial signal
+    case 'tmdb_recommendations': return 1.12  // Highest — what viewers of your favourites went on to watch
+    case 'tmdb_similar': return 1.0   // Genre/keyword overlap only — noisy
     case 'collaborative': return 1.08  // Social proof
     case 'cast_discovery': return 1.04  // Actor-driven discovery
     case 'genre_discovery': return 1.02  // Genre-level discovery
@@ -317,7 +352,9 @@ export function scoreCandidate(
     0.10 * decAff + // Fixed weight for decade
     weights.popularity * popScore +
     weights.freshness * freshScore +
-    weights.quality * qualScore
+    weights.quality * qualScore +
+    CONSENSUS_WEIGHT * consensusScore(candidate.fusionScore) +
+    languagePenalty(candidate.originalLanguage, profile.languageVector)
 
   const boostedScore = rawScore * sourceBoost(candidate.source)
 

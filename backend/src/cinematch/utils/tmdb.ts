@@ -82,6 +82,7 @@ interface RawItem {
   popularity?: number
   genre_ids?: number[]
   genres?: { id: number }[]
+  original_language?: string
 }
 
 export function mapTMDBItem(
@@ -110,6 +111,7 @@ export function mapTMDBItem(
     popularity: item.popularity || 0,
     genreIds,
     source,
+    ...(item.original_language ? { originalLanguage: item.original_language } : {}),
   }
 }
 

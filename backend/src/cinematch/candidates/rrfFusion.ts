@@ -78,5 +78,5 @@ export function rrfFuse(
   // Sort by descending RRF score
   return Array.from(scoreMap.values())
     .sort((a, b) => b.rrfScore - a.rrfScore)
-    .map(entry => entry.candidate)
+    .map(entry => ({ ...entry.candidate, fusionScore: entry.rrfScore }))
 }

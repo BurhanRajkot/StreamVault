@@ -7,7 +7,9 @@ import { applyWildcardInjection } from './exploration'
 import { mapConcurrent } from '../../utils/concurrency'
 
 // Max candidates to rank — prevents N+1 hydration on huge candidate pools
-const MAX_RANK_CANDIDATES = 150
+// Scoring is cheap (hydration has its own budget below); a tight cap here let
+// generic sources (popular, trending) crowd out half the seeds' recommendations
+const MAX_RANK_CANDIDATES = 400
 // Hydration budget — avoid issuing dozens of network calls in ranking
 const MAX_HYDRATION_CANDIDATES = 30
 const MAX_CONCURRENT_HYDRATION = 5
@@ -79,6 +81,7 @@ export async function rankCandidates(
           castIds: features.castIds,
           directorId: features.directorId,
           decade: parseDecade(features.releaseDate),
+          originalLanguage: nextCandidate.originalLanguage ?? features.originalLanguage,
         }
       }
     }

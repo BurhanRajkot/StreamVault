@@ -36,7 +36,7 @@ function hasSource(c: ScoredCandidate, source: CandidateSource): boolean {
 // L1 in-memory cache — fastest serving layer (5 min TTL)
 const recCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const TOP_K = 150           // Total candidates to rank and return
+const TOP_K = 200           // Total candidates to rank and return
 const CACHE_TTL_DB = 300    // Seconds before a Supabase RecommendationCache row counts as stale
 // How long a stale row may still be served (instantly) while a rebuild runs in
 // the background. This used to be 10 minutes, which on a low-traffic site
@@ -188,7 +188,9 @@ function buildCachedResponse(
   return {
     userId,
     items,
-    sections: buildSections(items, buildSectionProfile(userId, isPersonalized)),
+    // Rows draw on the whole ranked pool: built from the first `limit` (40 by
+    // default) there was barely enough for two rows
+    sections: buildSections(candidates, buildSectionProfile(userId, isPersonalized)),
     computedAt: new Date().toISOString(),
     isPersonalized,
   }
@@ -252,7 +254,7 @@ export async function getRecommendations(
   return {
     userId,
     items: topK,
-    sections: buildSections(topK, profile),
+    sections: buildSections(candidates, profile),
     computedAt: new Date().toISOString(),
     isPersonalized: !profile.isNewUser,
     pipelineMs,

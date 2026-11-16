@@ -24,6 +24,8 @@ export interface MovieFeatures {
   posterPath: string | null
   backdropPath: string | null
   overview: string
+  /** ISO 639-1, e.g. "en", "hi", "ja" */
+  originalLanguage?: string
 }
 
 export async function getMovieFeatures(
@@ -54,6 +56,7 @@ export async function getMovieFeatures(
         popularity?: number
         vote_average?: number
         vote_count?: number
+        original_language?: string
         genres?: { id: number }[]
         keywords?: {
           keywords?: { id: number }[]
@@ -91,6 +94,7 @@ export async function getMovieFeatures(
         posterPath: data.poster_path || null,
         backdropPath: data.backdrop_path || null,
         overview: data.overview || '',
+        originalLanguage: data.original_language,
       }
 
       movieFeatureCache.set(cacheKey, features)

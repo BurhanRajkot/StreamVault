@@ -3,7 +3,7 @@ import { deduplicateFilter } from './deduplication'
 import { alreadyWatchedFilter, alreadyFavoritedFilter } from './alreadyWatched'
 import { dislikedFilter } from './disliked'
 import { categoryThrottleFilter } from './suppressedCategory'
-import { lowQualityFilter, releasedFilter } from './quality'
+import { confidenceFilter, formatFilter, lowQualityFilter, releasedFilter } from './quality'
 
 export function applyFilters(
   candidates: Candidate[],
@@ -15,6 +15,8 @@ export function applyFilters(
   filtered = dislikedFilter(filtered, profile)
   filtered = categoryThrottleFilter(filtered, profile)  // soft gradient throttle
   filtered = lowQualityFilter(filtered)
+  filtered = confidenceFilter(filtered)
+  filtered = formatFilter(filtered, profile)
   filtered = releasedFilter(filtered)
   return filtered
 }

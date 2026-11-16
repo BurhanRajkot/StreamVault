@@ -143,3 +143,30 @@ describe('Query Parser — Local Rule-Based NLU', () => {
     })
   })
 })
+
+describe('parseQueryNLU — languages and film industries', () => {
+  it('reads "korean drama" as Korean-language drama series', () => {
+    const parsed = parseQueryNLU('Korean drama')
+    expect(parsed?.filters.with_original_language).toBe('ko')
+    expect(parsed?.filters.with_genres).toBe('18')
+    expect(parsed?.mediaType).toBe('tv')
+    expect(parsed?.remainingQuery).toBeUndefined()
+  })
+
+  it('reads "bollywood" alone as Hindi films', () => {
+    const parsed = parseQueryNLU('Bollywood')
+    expect(parsed?.filters.with_original_language).toBe('hi')
+    expect(parsed?.mediaType).toBe('movie')
+  })
+
+  it('combines a language with a genre and a type', () => {
+    const parsed = parseQueryNLU('tamil action movies')
+    expect(parsed?.filters.with_original_language).toBe('ta')
+    expect(parsed?.filters.with_genres).toBe('28')
+    expect(parsed?.mediaType).toBe('movie')
+  })
+
+  it('leaves "heist" to the title search', () => {
+    expect(parseQueryNLU('heist')).toBeNull()
+  })
+})

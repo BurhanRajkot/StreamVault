@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, Loader2, Search, X } from 'lucide-react'
-import { fetchTrending, searchMedia } from '@/lib/api'
+import { fetchTrending, searchMedia, type SearchEntity } from '@/lib/api'
+import type { Media } from '@/lib/config'
+import { cn } from '@/lib/utils'
 import { FadeImg, PosterGrid, PosterGridSkeleton, kindOf, titleOf, titlePath, tmdbImg, yearOf } from '@app/components/media'
-import { EmptyState, NavBar } from '@app/components/kit'
+import { EmptyState, NavBar, SegmentedControl } from '@app/components/kit'
 
-const QUICK = ['Marvel', 'Christopher Nolan', 'Korean drama', 'Studio Ghibli', 'Bollywood', 'True crime', 'Star Wars', 'Pixar']
+/** Each one is answered by what it names: a director's films, a studio's, a topic's. */
+const QUICK = ['Christopher Nolan', 'Korean drama', 'Bollywood', 'Studio Ghibli', 'Marvel', 'True crime', 'Shah Rukh Khan', 'Time travel', 'Pixar', 'Star Wars']
+
+type KindFilter = 'all' | 'movie' | 'tv'
 
 /** Search with the website's hybrid search; trending titles before you type. */
 export function SearchScreen() {
@@ -29,19 +34,32 @@ export function SearchScreen() {
     return () => clearTimeout(timer)
   }, [query, setParams])
 
-  const { data: results, isFetching } = useQuery({
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
+  const { data: answer, isFetching } = useQuery({
     queryKey: ['app-search', debounced],
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal }): Promise<{ results: Media[]; entity: SearchEntity | null }> => {
       // Two pages at most — a search is answered, not scrolled forever
       const first = await searchMedia('home', debounced, 1, signal)
-      if (!first.hasMore || first.results.length >= 30) return first.results
+      const entity = first.entity ?? null
+      if (!first.hasMore || first.results.length >= 30) return { results: first.results, entity }
       const second = await searchMedia('home', debounced, 2, signal)
       const seen = new Set(first.results.map((m) => `${m.media_type}:${m.id}`))
-      return [...first.results, ...second.results.filter((m) => !seen.has(`${m.media_type}:${m.id}`))]
+      return { results: [...first.results, ...second.results.filter((m) => !seen.has(`${m.media_type}:${m.id}`))], entity }
     },
     enabled: debounced.length >= 2,
     staleTime: 5 * 60 * 1000,
   })
+  const results = answer?.results
+  // A new search starts on "All"
+  useEffect(() => setKindFilter('all'), [debounced])
+  const counts = useMemo(() => {
+    const movie = (results ?? []).filter((m) => kindOf(m) === 'movie').length
+    return { movie, tv: (results ?? []).length - movie }
+  }, [results])
+  const shown = useMemo(
+    () => (kindFilter === 'all' ? results ?? [] : (results ?? []).filter((m) => kindOf(m) === kindFilter)),
+    [results, kindFilter]
+  )
   const { data: trending } = useQuery({ queryKey: ['app-row', 'home', 'top'], queryFn: () => fetchTrending('home'), staleTime: 30 * 60 * 1000 })
   const searching = debounced.length >= 2
 
@@ -99,10 +117,27 @@ export function SearchScreen() {
             <PosterGridSkeleton count={14} />
           ) : results && results.length > 0 ? (
             <>
-              <p className="t-footnote mb-3 text-label-2">
-                {results.length} result{results.length === 1 ? '' : 's'} for <span className="text-white">“{debounced}”</span>
-              </p>
-              <PosterGrid key={debounced} items={results} />
+              {answer?.entity && <EntityHeader entity={answer.entity} />}
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <p className="t-footnote text-label-2">
+                  {shown.length} result{shown.length === 1 ? '' : 's'} for <span className="text-white">“{debounced}”</span>
+                </p>
+                {counts.movie > 0 && counts.tv > 0 && (
+                  <SegmentedControl<KindFilter>
+                    size="sm"
+                    layoutId="search-kind"
+                    value={kindFilter}
+                    onChange={setKindFilter}
+                    className="w-full sm:w-auto"
+                    options={[
+                      { id: 'all', label: 'All' },
+                      { id: 'movie', label: `Movies · ${counts.movie}` },
+                      { id: 'tv', label: `Shows · ${counts.tv}` },
+                    ]}
+                  />
+                )}
+              </div>
+              <PosterGrid key={`${debounced}-${kindFilter}`} items={shown} />
             </>
           ) : (
             <EmptyState icon={<Search />} title={`No results for “${debounced}”`} text="Check the spelling, or try a person's name." />
@@ -135,6 +170,38 @@ export function SearchScreen() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+const ENTITY_LINE: Record<SearchEntity['kind'], (e: SearchEntity) => string> = {
+  person: (e) => (e.role === 'Actor' ? 'Best-known roles' : `Films and shows · ${e.role}`),
+  company: () => 'Studio · its films and shows',
+  collection: () => 'The whole franchise, in order',
+  keyword: () => 'Films and shows about it',
+}
+
+/** Who or what the search named, above that entity's titles. */
+function EntityHeader({ entity }: { entity: SearchEntity }) {
+  const isPerson = entity.kind === 'person'
+  return (
+    <div className="mb-4 flex items-center gap-3.5 rounded-[14px] bg-grouped p-3 lg:mb-6 lg:p-4">
+      <span
+        className={cn(
+          'flex shrink-0 items-center justify-center overflow-hidden',
+          isPerson ? 'h-14 w-14 rounded-full bg-fill' : entity.kind === 'company' ? 'h-14 w-14 rounded-[12px] bg-white/90 p-2' : 'h-14 w-14 rounded-[12px] bg-fill',
+        )}
+      >
+        {entity.imagePath ? (
+          <FadeImg src={tmdbImg(entity.imagePath, 'w185')} alt="" className={cn('h-full w-full', entity.kind === 'company' ? 'object-contain' : 'object-cover')} />
+        ) : (
+          <Search className="h-6 w-6 text-label-2" />
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="t-headline block truncate">{entity.name}</span>
+        <span className="t-footnote block text-label-2">{ENTITY_LINE[entity.kind](entity)}</span>
+      </span>
     </div>
   )
 }

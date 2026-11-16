@@ -28,6 +28,10 @@ export interface Candidate {
   seedTitle?: string   // The title that triggered this candidate (for "Because you watched" grouping)
   seedTitles?: Partial<Record<CandidateSource, string>> // Per-source seed titles (populated by rrfFuse)
   seedMediaType?: MediaType // The media type of the seed item
+  /** Reciprocal-rank-fusion score: higher when several sources (or several seeds) surfaced it, and early. */
+  fusionScore?: number
+  /** ISO 639-1 original language, when the source returned it. */
+  originalLanguage?: string
 }
 
 // A candidate after feature hydration + scoring
@@ -94,6 +98,8 @@ export interface UserProfile {
   dislikedIds: Set<number>               // tmdbIds explicitly disliked
   categoryDislikeCounts: Record<string, number>  // category key → lifetime dislike count
   recentlyWatched: RecentItem[]          // last N items for seeding similarity sources
+  /** Share of the user's engagement per original language (sums to 1); absent for new users. */
+  languageVector?: Record<string, number>
   isNewUser: boolean                     // cold-start flag
 }
 

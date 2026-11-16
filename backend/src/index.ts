@@ -1,4 +1,5 @@
 import './lib/loadEnv'
+import { warmNetflixTop10 } from './lib/netflixTop10'
 
 import express from 'express'
 import compression from 'compression'
@@ -209,6 +210,8 @@ const server = app.listen(Number(PORT), HOST, () => {
     getGuestRecommendations()
       .then(() => logger.info('Guest recommendation cache pre-warmed'))
       .catch(err => logger.warn('Guest cache warm-up failed (non-critical)', { error: err?.message }))
+    // India's Netflix Top 10 is a 30 MB download — fetch it now, not on the first visitor
+    warmNetflixTop10('IN')
   }, 3000)
 })
 
