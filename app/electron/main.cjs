@@ -490,7 +490,58 @@ function registerIpc() {
   })
 }
 
+/**
+ * An AppImage has no installer, so on Linux the app adds itself to the
+ * application menu the first time it runs: a launcher in
+ * ~/.local/share/applications and its icon in the user's hicolor theme. It is
+ * rewritten whenever it doesn't match (the AppImage moved, or an update
+ * changed the icon). The .deb / .pacman packages install their own.
+ */
+async function integrateAppImage() {
+  const appImage = process.env.APPIMAGE
+  if (process.platform !== 'linux' || !appImage) return
+  const dataHome = process.env.XDG_DATA_HOME || path.join(app.getPath('home'), '.local', 'share')
+  const iconDir = path.join(dataHome, 'icons', 'hicolor', '512x512', 'apps')
+  const iconFile = path.join(iconDir, 'streamvault.png')
+  const appsDir = path.join(dataHome, 'applications')
+  const desktopFile = path.join(appsDir, 'streamvault.desktop')
+  const quote = (s) => (/[\s"'\\$`]/.test(s) ? `"${s.replace(/(["\\$`])/g, '\\$1')}"` : s)
+  const exec = [quote(appImage), ...(app.commandLine.hasSwitch('no-sandbox') ? ['--no-sandbox'] : []), '%U'].join(' ')
+  const entry = [
+    '[Desktop Entry]',
+    'Type=Application',
+    'Name=StreamVault',
+    'Comment=Movies, TV shows, anime and documentaries',
+    `Exec=${exec}`,
+    `TryExec=${appImage}`,
+    `Icon=${iconFile}`,
+    'Terminal=false',
+    'StartupWMClass=StreamVault',
+    'Categories=AudioVideo;Video;Player;',
+    'Keywords=movies;tv;anime;streaming;',
+    'X-StreamVault-AppImage=true',
+    '',
+  ].join('\n')
+  try {
+    const icon = await fsp.readFile(path.join(__dirname, 'icon.png'))
+    const sameIcon = await fsp.readFile(iconFile).then((b) => b.equals(icon), () => false)
+    const sameEntry = await fsp.readFile(desktopFile, 'utf8').then((t) => t === entry, () => false)
+    if (sameIcon && sameEntry) return
+    await fsp.mkdir(iconDir, { recursive: true })
+    await fsp.mkdir(appsDir, { recursive: true })
+    if (!sameIcon) await fsp.writeFile(iconFile, icon)
+    await fsp.writeFile(desktopFile, entry, { mode: 0o755 })
+    // Nudge menus that cache (GNOME, older KDE) — best effort, both are optional
+    for (const [cmd, args] of [['update-desktop-database', [appsDir]], ['gtk-update-icon-cache', ['-f', '-t', path.join(dataHome, 'icons', 'hicolor')]]]) {
+      spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref()
+    }
+  } catch (err) {
+    console.warn('StreamVault: could not add the app to the menu:', err && err.message)
+  }
+}
+
 app.whenReady().then(async () => {
+  integrateAppImage()
   const tls = await loadCertificate()
   certFingerprint = sha256Fingerprint(tls.cert)
   try {
