@@ -134,6 +134,8 @@ export interface PlayerControlsProps {
    * reconnecting…"). Null when nothing is.
    */
   status?: string | null
+  /** Extra buttons at the right of the top bar (the app puts its server switcher there). */
+  topActions?: ReactNode
 }
 
 const SEEK_STEP_S = 10
@@ -316,6 +318,7 @@ export function PlayerControls({
   starting = false,
   status = null,
   subtitles = null,
+  topActions,
 }: PlayerControlsProps) {
   const [snap, setSnap] = useState<Snapshot>(() => snapshotOf(video, timeline))
   /** Latest timeline, for listeners that outlive a render. */
@@ -1246,6 +1249,7 @@ export function PlayerControls({
           {title && <p className="truncate text-base font-semibold text-white drop-shadow sm:text-lg">{title}</p>}
           {subtitle && <p className="truncate text-xs text-white/70 sm:text-sm">{subtitle}</p>}
         </div>
+        {topActions && <div className="flex shrink-0 items-center gap-2">{topActions}</div>}
       </div>
 
       {!starting && (

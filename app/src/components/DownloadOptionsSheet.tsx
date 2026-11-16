@@ -33,9 +33,9 @@ export function DownloadOptionsSheet({
       <Sheet open={!!target && !torrentOpen} onOpenChange={(open) => !open && onClose()} title={`Download ${target?.title ?? ''}`} description={label}>
         <div className="flex flex-col gap-2.5">
           {action.available && (
-            <div className="rounded-xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.06]">
+            <div className="surface rounded-2xl p-4">
               <div className="mb-3 flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
                   <Smartphone className="h-[18px] w-[18px]" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -49,7 +49,7 @@ export function DownloadOptionsSheet({
                     onClose()
                     navigate(`/offline/${encodeURIComponent(record.id)}`)
                   }}
-                  className="press flex w-full items-center justify-center gap-2 rounded-lg bg-white/10 py-2.5 text-[13.5px] font-semibold"
+                  className="press flex w-full items-center justify-center gap-2 rounded-full bg-white/10 py-3 text-[13.5px] font-bold"
                 >
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Downloaded · Play offline
                 </button>
@@ -59,7 +59,7 @@ export function DownloadOptionsSheet({
                     onClose()
                     navigate('/downloads')
                   }}
-                  className="press flex w-full items-center justify-center gap-2 rounded-lg bg-white/10 py-2.5 text-[13.5px] font-semibold"
+                  className="press flex w-full items-center justify-center gap-2 rounded-full bg-white/10 py-3 text-[13.5px] font-bold"
                 >
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Downloading {record.total > 0 ? `${Math.round((record.bytes / record.total) * 100)}%` : '…'} · {formatBytes(record.total)}
@@ -72,7 +72,7 @@ export function DownloadOptionsSheet({
                     if (started) onClose()
                   }}
                   disabled={resolving}
-                  className="press flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-70"
+                  className="press flex w-full items-center justify-center gap-2 rounded-full bg-white py-3 text-[14px] font-bold text-black disabled:opacity-70"
                 >
                   {resolving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                   {resolving ? 'Finding the best file…' : 'Download'}
@@ -83,7 +83,7 @@ export function DownloadOptionsSheet({
                     onClose()
                     navigate('/premium')
                   }}
-                  className="press flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-amber-500/90 to-amber-400/90 py-2.5 text-[13.5px] font-semibold text-black"
+                  className="press flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-amber-300 to-amber-500 py-3 text-[13.5px] font-bold text-black"
                 >
                   <Zap className="h-4 w-4" /> Offline downloads come with Premium
                 </button>
@@ -93,7 +93,7 @@ export function DownloadOptionsSheet({
 
           <button
             onClick={() => setTorrentOpen(true)}
-            className="press flex items-center gap-3 rounded-xl bg-white/[0.04] p-3.5 text-left ring-1 ring-white/[0.06]"
+            className="surface press flex items-center gap-3 rounded-2xl p-4 text-left transition-colors hover:bg-white/[0.06]"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.07] text-white/80">
               <Magnet className="h-[18px] w-[18px]" />

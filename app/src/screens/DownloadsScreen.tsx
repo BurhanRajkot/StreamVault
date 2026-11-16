@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, CheckCircle2, Download, Pause, Play, Trash2, Zap } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { AlertCircle, CheckCircle2, Download, ExternalLink, FolderOpen, HardDrive, Info, Pause, Play, Trash2, Zap } from 'lucide-react'
 import { formatBytes } from '@/lib/debridApi'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { cn } from '@/lib/utils'
 import { desktop, isAndroid, isNativeApp, SvNative } from '@app/native/platform'
 import { removeDownload, useDownloads, type DownloadRecord } from '@app/downloads/store'
 import { Sheet } from '@app/components/Sheet'
+import { EmptyState, PageHeader } from '@app/components/PageHeader'
+import { item, stagger } from '@app/lib/motion'
 import { ProgressRing } from './TitleScreen'
 
 export function DownloadsScreen() {
@@ -31,55 +34,59 @@ export function DownloadsScreen() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 pb-tabbar pt-safe lg:px-8 lg:pb-10">
-      <header className="flex items-center justify-between pb-3 pt-4 lg:pt-8">
-        <h1 className="text-[22px] font-extrabold tracking-tight">Downloads</h1>
-      </header>
+    <div className="mx-auto max-w-5xl px-4 pb-tabbar pt-page lg:px-12">
+      <PageHeader
+        title="Downloads"
+        subtitle={downloads.length > 0 ? 'Saved to this device — they play with no connection.' : undefined}
+        actions={
+          isNativeApp && downloads.length > 0 ? (
+            <div className="surface hidden min-w-[220px] rounded-2xl p-3.5 sm:block">
+              <p className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-white/60">
+                <HardDrive className="h-4 w-4" /> Storage
+              </p>
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                <motion.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${free ? Math.max(2, Math.min(100, (used / (used + free)) * 100)) : 0}%` }} transition={{ duration: 1, ease: 'easeOut' }} />
+              </div>
+              <p className="mt-1.5 flex justify-between gap-3 text-[11px] text-white/45">
+                <span>StreamVault · {formatBytes(used)}</span>
+                {free ? <span>{formatBytes(free)} free</span> : null}
+              </p>
+            </div>
+          ) : undefined
+        }
+      />
 
       {!isNativeApp && (
-        <p className="mb-4 rounded-xl bg-white/[0.04] p-4 text-[13px] text-white/65">Offline downloads work in the Android and Linux apps.</p>
+        <p className="surface mb-4 flex items-center gap-2.5 rounded-2xl p-4 text-[13px] text-white/65">
+          <Info className="h-4 w-4 shrink-0" /> Offline downloads work in the Android and Linux apps.
+        </p>
       )}
 
       {downloads.length === 0 ? (
-        <div className="flex flex-col items-center px-6 pt-16 text-center fade-up">
-          <span className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/[0.05]">
-            <Download className="h-9 w-9 text-white/60" />
-          </span>
-          <p className="text-[17px] font-bold">Watch without the internet</p>
-          <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-white/55">
-            Download movies and episodes to this device and play them anywhere — on a flight, on the metro, anywhere.
-          </p>
-          {premium ? (
-            <button onClick={() => navigate('/')} className="press mt-6 rounded-md bg-white px-5 py-2.5 text-[13.5px] font-semibold text-black">
-              Find something to download
-            </button>
-          ) : (
-            <Link to="/premium" className="press mt-6 flex items-center gap-2 rounded-md bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-2.5 text-[13.5px] font-semibold text-black">
-              <Zap className="h-4 w-4" /> Downloads come with Premium
-            </Link>
-          )}
-        </div>
+        <EmptyState
+          icon={<Download className="h-10 w-10 text-white" />}
+          title="Watch without the internet"
+          text="Save movies and episodes to this device and watch them with no connection."
+          action={
+            premium ? (
+              <button onClick={() => navigate('/')} className="press rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black">
+                Find something to download
+              </button>
+            ) : (
+              <Link to="/premium" className="press flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-300 px-6 py-2.5 text-[14px] font-bold text-black shadow-[0_10px_30px_-10px_rgb(251_191_36/0.6)]">
+                <Zap className="h-4 w-4" /> Downloads come with Premium
+              </Link>
+            )
+          }
+        />
       ) : (
-        <>
-          <ul className="flex flex-col gap-1">
-            {[...groups.values()].flatMap((items) => items).map((d) => (
-              <li key={d.id}>
-                <DownloadRow record={d} onPlay={() => navigate(`/offline/${encodeURIComponent(d.id)}`)} onMore={() => setEditing(d)} />
-              </li>
-            ))}
-          </ul>
-          {isNativeApp && (
-            <div className="mt-6">
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full bg-primary" style={{ width: `${free ? Math.min(100, (used / (used + free)) * 100) : 0}%` }} />
-              </div>
-              <p className="mt-1.5 flex justify-between text-[11px] text-white/45">
-                <span>StreamVault · {formatBytes(used)}</span>
-                {free ? <span>Free · {formatBytes(free)}</span> : null}
-              </p>
-            </div>
-          )}
-        </>
+        <motion.ul variants={stagger(0.04)} initial="hidden" animate="show" className="grid gap-2 lg:grid-cols-2 lg:gap-3">
+          {[...groups.values()].flatMap((items) => items).map((d) => (
+            <motion.li key={d.id} variants={item} layout>
+              <DownloadRow record={d} onPlay={() => navigate(`/offline/${encodeURIComponent(d.id)}`)} onMore={() => setEditing(d)} />
+            </motion.li>
+          ))}
+        </motion.ul>
       )}
 
       <Sheet open={!!editing} onOpenChange={(open) => !open && setEditing(null)} title={editing?.title ?? ''} description={editing?.fileName}>
@@ -91,7 +98,7 @@ export function DownloadsScreen() {
                   navigate(`/offline/${encodeURIComponent(editing.id)}`)
                   setEditing(null)
                 }}
-                className="press flex items-center gap-3 rounded-xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold"
+                className="press flex items-center gap-3 rounded-2xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold transition-colors hover:bg-white/[0.09]"
               >
                 <Play className="h-5 w-5" /> Play
               </button>
@@ -99,13 +106,13 @@ export function DownloadsScreen() {
             <Link
               to={`/title/${editing.mediaType}/${editing.tmdbId}`}
               onClick={() => setEditing(null)}
-              className="press flex items-center gap-3 rounded-xl bg-white/[0.05] p-3.5 text-[14px] font-semibold"
+              className="press flex items-center gap-3 rounded-2xl bg-white/[0.05] p-3.5 text-[14px] font-semibold transition-colors hover:bg-white/[0.09]"
             >
-              <Download className="h-5 w-5" /> Go to title
+              <ExternalLink className="h-5 w-5" /> Go to title
             </Link>
             {desktop && editing.status === 'done' && (
-              <button onClick={() => void desktop!.showInFolder(editing.path)} className="press flex items-center gap-3 rounded-xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold">
-                <Download className="h-5 w-5" /> Show in folder
+              <button onClick={() => void desktop!.showInFolder(editing.path)} className="press flex items-center gap-3 rounded-2xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold transition-colors hover:bg-white/[0.09]">
+                <FolderOpen className="h-5 w-5" /> Show in folder
               </button>
             )}
             <button
@@ -113,7 +120,7 @@ export function DownloadsScreen() {
                 void removeDownload(editing.id)
                 setEditing(null)
               }}
-              className="press flex items-center gap-3 rounded-xl bg-red-500/10 p-3.5 text-left text-[14px] font-semibold text-red-300"
+              className="press flex items-center gap-3 rounded-2xl bg-red-500/10 p-3.5 text-left text-[14px] font-semibold text-red-300 transition-colors hover:bg-red-500/20"
             >
               <Trash2 className="h-5 w-5" /> {editing.status === 'done' ? 'Delete download' : 'Cancel download'}
             </button>
@@ -128,8 +135,8 @@ function DownloadRow({ record, onPlay, onMore }: { record: DownloadRecord; onPla
   const percent = record.total > 0 ? record.bytes / record.total : 0
   const done = record.status === 'done'
   return (
-    <div className="flex items-center gap-3 rounded-xl p-2 active:bg-white/[0.03]">
-      <button onClick={done ? onPlay : onMore} className="press relative w-[118px] shrink-0 overflow-hidden rounded-md bg-white/[0.05]">
+    <div className="group flex items-center gap-3 rounded-2xl bg-white/[0.03] p-2 pr-3 ring-1 ring-white/[0.05] transition-colors hover:bg-white/[0.06]">
+      <button onClick={done ? onPlay : onMore} className="press relative w-[128px] shrink-0 overflow-hidden rounded-xl bg-white/[0.05]">
         {record.poster ? (
           <img src={record.poster} alt="" className="aspect-video w-full object-cover object-[center_20%]" />
         ) : (
@@ -137,12 +144,14 @@ function DownloadRow({ record, onPlay, onMore }: { record: DownloadRecord; onPla
         )}
         {done && (
           <span className="absolute inset-0 flex items-center justify-center bg-black/30">
-            <Play className="h-6 w-6 fill-white text-white" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/50 backdrop-blur transition-all group-hover:scale-110 group-hover:bg-white group-hover:text-black">
+              <Play className="ml-0.5 h-4 w-4 fill-current" />
+            </span>
           </span>
         )}
       </button>
       <button onClick={onMore} className="min-w-0 flex-1 text-left">
-        <p className="truncate text-[14px] font-semibold">{record.title}</p>
+        <p className="font-display truncate text-[14.5px] font-extrabold">{record.title}</p>
         {record.mediaType === 'tv' && (
           <p className="truncate text-[12px] text-white/60">
             S{record.season} · E{record.episode}
@@ -158,6 +167,11 @@ function DownloadRow({ record, onPlay, onMore }: { record: DownloadRecord; onPla
                 ? `Paused${record.error ? ` · ${record.error}` : ''}`
                 : `${formatBytes(record.bytes)} of ${formatBytes(record.total)}`}
         </p>
+        {!done && record.status !== 'failed' && (
+          <span className="mt-2 block h-1 overflow-hidden rounded-full bg-white/10">
+            <motion.span className="block h-full rounded-full bg-primary" animate={{ width: `${Math.round(percent * 100)}%` }} transition={{ ease: 'easeOut' }} />
+          </span>
+        )}
       </button>
       <span className="flex h-9 w-9 shrink-0 items-center justify-center">
         {done ? (

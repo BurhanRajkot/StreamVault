@@ -24,7 +24,8 @@ const { pipeline } = require('node:stream/promises')
 
 const SITE_HOST = 'stream-vault.site'
 const SITE_ORIGIN = `https://${SITE_HOST}`
-const PORT = 47321
+/** SV_PORT runs a development copy beside an installed one (each needs its own --user-data-dir). */
+const PORT = Number(process.env.SV_PORT) || 47321
 /** Hosts the window itself may navigate to: the app, and the sign-in pages. */
 const AUTH_HOSTS = [/\.auth0\.com$/, /^accounts\.google\.com$/, /^appleid\.apple\.com$/, /^accounts\.youtube\.com$/, /^(www\.)?google\.[a-z.]+$/]
 /** Google turns sign-in away from browsers that say "Electron"; present as the Chrome underneath. */
@@ -254,10 +255,12 @@ function createWindow() {
     height: 860,
     minWidth: 380,
     minHeight: 560,
-    backgroundColor: '#0a0a0c',
+    backgroundColor: '#08080b',
     title: 'StreamVault',
     icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
+    // The app draws its own title bar (drag area + window buttons) — see TitleBar.tsx
+    frame: false,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -270,6 +273,13 @@ function createWindow() {
   })
   Menu.setApplicationMenu(null)
   win.once('ready-to-show', () => win.show())
+
+  // The app's window buttons and its full-screen player follow the window's state
+  const sendState = () => {
+    if (!win || win.isDestroyed()) return
+    win.webContents.send('sv:window-state', { maximized: win.isMaximized(), fullscreen: win.isFullScreen() })
+  }
+  for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'restore']) win.on(event, sendState)
 
   // Links meant for outside (magnet:, upi:, the releases page) go to the system;
   // pop-ups from embed players are dropped.
@@ -284,6 +294,8 @@ function createWindow() {
   })
   win.webContents.on('before-input-event', (_event, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen())
+    // An embedded player's frame swallows keys; Escape still has to reach the app (show the controls, close a panel)
+    if (input.type === 'keyDown' && input.key === 'Escape') win.webContents.send('sv:key', 'Escape')
     if (input.type === 'keyDown' && input.key === 'F12' && !app.isPackaged) win.webContents.toggleDevTools()
   })
 
@@ -366,6 +378,13 @@ function registerIpc() {
   })
   ipcMain.handle('sv:fullscreen', (_e, enabled) => {
     if (win && win.isFullScreen() !== !!enabled) win.setFullScreen(!!enabled)
+  })
+  ipcMain.handle('sv:window', (_e, action) => {
+    if (!win) return null
+    if (action === 'minimize') win.minimize()
+    else if (action === 'maximize') (win.isMaximized() ? win.unmaximize() : win.maximize())
+    else if (action === 'close') win.close()
+    return { maximized: win.isMaximized(), fullscreen: win.isFullScreen() }
   })
   ipcMain.handle('sv:free-space', async () => {
     const dir = downloadsDir()

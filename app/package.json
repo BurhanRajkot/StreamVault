@@ -32,6 +32,8 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.6.0",
+    "@fontsource-variable/inter": "5.2.8",
+    "@fontsource-variable/manrope": "5.2.8",
     "electron": "45.2.1",
     "electron-builder": "26.18.0"
   },
