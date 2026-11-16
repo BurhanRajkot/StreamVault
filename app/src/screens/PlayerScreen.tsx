@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ChevronDown, ListVideo, Maximize, Minimize, Server, SkipForward, X, Zap } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ListVideo, Maximize, Minimize, Server, SkipForward, X, Zap } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, defaultServer, serverOptions, type Media } from '@/lib/config'
 import { buildEmbedUrl, logRecommendationInteraction, saveGuestProgress, updateContinueWatching } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
@@ -19,6 +19,7 @@ import { spring } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
 import { ServerList, serverName, useServerOptions } from '@app/components/ServerSheet'
 import { Sheet } from '@app/components/Sheet'
+import { SegmentedControl } from '@app/components/kit'
 import { CONTINUE_WATCHING_KEY } from '@app/components/ContinueWatchingRow'
 import { tmdbImg } from '@app/components/media'
 
@@ -260,15 +261,14 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
       whileTap={{ scale: 0.94 }}
       onClick={() => openPanel('servers')}
       className={cn(
-        'flex h-10 items-center gap-2 rounded-full pl-2 pr-3 text-[13px] font-bold text-white shadow-lg backdrop-blur-xl transition-colors',
-        isPremium ? 'bg-amber-400/20 ring-1 ring-amber-300/40 hover:bg-amber-400/30' : 'bg-white/15 ring-1 ring-white/20 hover:bg-white/25'
+        'glass-button flex h-10 items-center gap-2 rounded-full pl-1.5 pr-3 text-[14px] font-semibold text-white transition-colors hover:bg-white/25'
       )}
     >
-      <span className={cn('flex h-6 w-6 items-center justify-center rounded-full', isPremium ? 'bg-amber-400 text-black' : 'bg-primary')}>
-        {isPremium ? <Zap className="h-3.5 w-3.5" /> : <Server className="h-3.5 w-3.5" />}
+      <span className={cn('flex h-7 w-7 items-center justify-center rounded-full', isPremium ? 'bg-ios-yellow text-black' : 'bg-white/20')}>
+        {isPremium ? <Zap className="h-3.5 w-3.5 fill-current" /> : <Server className="h-3.5 w-3.5" />}
       </span>
       <span className="hidden sm:inline">Server:</span> {serverName(server)}
-      <ChevronDown className="h-4 w-4 opacity-70" />
+      <ChevronDown className="h-4 w-4 opacity-60" strokeWidth={2.4} />
     </motion.button>
   )
 
@@ -339,11 +339,11 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                 onMouseMove={() => setChromeVisible(true)}
               >
                 {/* Everything on the left: embeds keep their own quality/subtitle buttons in the top-right corner */}
-                <button onClick={close} aria-label="Back" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15 active:bg-white/20">
-                  <ArrowLeft className="h-5 w-5" />
+                <button onClick={close} aria-label="Back" className="glass-button press flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white">
+                  <ChevronLeft className="-ml-0.5 h-[22px] w-[22px]" strokeWidth={2.4} />
                 </button>
                 {/* No title here — the embeds print their own just below, and two overlapped */}
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1.5">
                   {serverButton}
                   {kind === 'tv' && (
                     <BarButton onClick={() => openPanel('episodes')} label={subtitle ?? 'Episodes'}>
@@ -377,7 +377,7 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                   openPanel('servers')
                 }}
                 aria-label={`Server: ${serverName(server)} — change`}
-                className="mt-[max(var(--sat),6px)] flex h-7 items-center gap-1.5 rounded-full bg-black/45 px-3 text-[11px] font-bold text-white/70 ring-1 ring-white/15 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white"
+                className="glass-button mt-[max(var(--sat),6px)] flex h-7 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold text-white/80 transition-colors hover:text-white"
               >
                 <Server className="h-3 w-3" />
                 {serverName(server)}
@@ -396,21 +396,21 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                 transition={spring}
                 className="absolute inset-x-0 top-[calc(max(var(--sat),10px)+64px)] z-[312] mx-auto w-[min(460px,calc(100%-2rem))]"
               >
-                <div className="glass-strong flex items-center gap-3 rounded-2xl p-3 pl-4">
+                <div className="material-float flex items-center gap-3 rounded-[22px] p-2.5 pl-4">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13.5px] font-bold text-white">{reports ? `${serverName(server)} isn’t starting` : 'Not playing?'}</p>
-                    <p className="text-[11.5px] text-white/55">Servers come and go — another usually works.</p>
+                    <p className="t-subhead font-semibold text-white">{reports ? `${serverName(server)} isn’t starting` : 'Not playing?'}</p>
+                    <p className="t-footnote text-label-2">Servers come and go — another usually works.</p>
                   </div>
                   {nextServer && (
                     <motion.button
                       whileTap={{ scale: 0.94 }}
                       onClick={() => switchServer(nextServer.id, true)}
-                      className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[12.5px] font-bold text-black"
+                      className="flex h-[30px] shrink-0 items-center gap-1.5 rounded-full bg-tint px-3.5 text-[14px] font-semibold text-white"
                     >
                       Try {nextServer.name} <SkipForward className="h-3.5 w-3.5" />
                     </motion.button>
                   )}
-                  <button onClick={() => openPanel('servers')} className="shrink-0 rounded-full px-2.5 py-2 text-[12px] font-semibold text-white/70 hover:text-white">
+                  <button onClick={() => openPanel('servers')} className="shrink-0 rounded-full px-2 py-2 text-[14px] font-medium text-tint">
                     All
                   </button>
                   <button onClick={() => setStallDismissed(true)} aria-label="Dismiss" className="-ml-1 shrink-0 rounded-full p-1.5 text-white/45 hover:text-white">
@@ -430,15 +430,17 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
         title={panel === 'episodes' ? 'Episodes' : 'Servers'}
         description={panel === 'episodes' ? display.title : 'If one doesn’t play, try the next.'}
       >
-        {kind === 'tv' && (
-          <div className="mb-4 flex rounded-full bg-white/[0.06] p-1">
-            {(['servers', 'episodes'] as const).map((p) => (
-              <button key={p} onClick={() => setPanel(p)} className={cn('relative flex-1 rounded-full py-1.5 text-[12.5px] font-bold capitalize transition-colors', panel === p ? 'text-black' : 'text-white/60')}>
-                {panel === p && <motion.span layoutId="player-panel-tab" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}
-                {p}
-              </button>
-            ))}
-          </div>
+        {kind === 'tv' && panel && (
+          <SegmentedControl
+            options={[
+              { id: 'servers' as const, label: 'Servers' },
+              { id: 'episodes' as const, label: 'Episodes' },
+            ]}
+            value={panel}
+            onChange={setPanel}
+            layoutId="player-panel-tab"
+            className="mb-4"
+          />
         )}
         {panel === 'episodes' ? episodesList : <ServerList kind={kind} server={server} failed={failed} onPick={(id) => switchServer(id)} onLocked={() => setPanel(null)} />}
       </Sheet>
@@ -453,7 +455,7 @@ function BarButton({ onClick, label, children, iconOnly }: { onClick: () => void
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={cn('flex h-10 shrink-0 items-center gap-1.5 rounded-full text-[13px] font-bold text-white transition-colors hover:bg-white/15', iconOnly ? 'w-10 justify-center' : 'px-3')}
+      className={cn('glass-button flex h-10 shrink-0 items-center gap-1.5 rounded-full text-[14px] font-semibold text-white transition-colors hover:bg-white/25', iconOnly ? 'w-10 justify-center' : 'px-3')}
     >
       {children}
       {!iconOnly && <span className="hidden md:inline">{label}</span>}
@@ -484,28 +486,30 @@ function EpisodePicker({
             <button
               key={s.season_number}
               onClick={() => setShownSeason(s.season_number)}
-              className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-bold transition-colors ${s.season_number === shownSeason ? 'bg-white text-black' : 'bg-white/10 text-white/75 hover:bg-white/15'}`}
+              className={`h-[30px] shrink-0 rounded-full px-3 text-[13px] font-semibold transition-colors ${s.season_number === shownSeason ? 'bg-white text-black' : 'bg-fill text-white/85 hover:bg-white/15'}`}
             >
               S{s.season_number}
             </button>
           ))}
         </div>
       )}
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-0.5">
         {episodes?.map((ep) => {
           const current = shownSeason === season && ep.episode_number === episode
           return (
             <li key={ep.episode_number}>
               <button
                 onClick={() => onPick(shownSeason, ep.episode_number)}
-                className={`flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors ${current ? 'bg-primary/15 ring-1 ring-primary/40' : 'hover:bg-white/5 active:bg-white/5'}`}
+                className={`flex w-full items-center gap-3 rounded-[12px] p-2 text-left transition-colors ${current ? 'bg-white/[0.08]' : 'hover:bg-white/5 active:bg-white/5'}`}
               >
-                <img src={tmdbImg(ep.still_path || media.backdrop_path, 'w300')} alt="" loading="lazy" className="aspect-video w-24 shrink-0 rounded-lg object-cover" />
+                <img src={tmdbImg(ep.still_path || media.backdrop_path, 'w300')} alt="" loading="lazy" className="aspect-video w-24 shrink-0 rounded-[6px] object-cover" />
                 <span className="min-w-0 flex-1">
-                  <span className="line-clamp-2 text-[12.5px] font-semibold text-white">
+                  <span className="t-footnote line-clamp-2 font-semibold text-white">
                     {ep.episode_number}. {ep.name}
                   </span>
-                  {ep.runtime ? <span className="text-[11px] text-white/45">{ep.runtime}m</span> : null}
+                  <span className="t-caption text-label-2">
+                    {current ? <span className="text-tint">Now playing</span> : ep.runtime ? `${ep.runtime} min` : null}
+                  </span>
                 </span>
               </button>
             </li>

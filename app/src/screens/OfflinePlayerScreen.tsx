@@ -79,7 +79,7 @@ export function OfflinePlayerScreen() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="font-display truncate text-[15px] font-extrabold text-white">{record.title}</p>
+          <p className="t-subhead truncate font-semibold text-white">{record.title}</p>
           <p className="text-[11.5px] text-white/55">
             {record.mediaType === 'tv' ? `S${record.season} · E${record.episode} · ` : ''}Offline · {record.quality}
           </p>

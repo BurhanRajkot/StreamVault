@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Copy, Download, Minus, Search, Square, X, Zap } from 'lucide-react'
+import { ChevronLeft, Copy, Download, Minus, Search, Square, X, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { desktop } from '@app/native/platform'
 import { useDownloads } from '@app/downloads/store'
@@ -50,7 +50,7 @@ export function TitleBar() {
     <header
       className={cn(
         'drag fixed inset-x-0 top-0 z-50 hidden h-[var(--topbar-h)] items-center gap-2 pl-5 pr-2 transition-[background-color,box-shadow,backdrop-filter] duration-500 lg:flex',
-        solid ? 'glass-strong !shadow-[inset_0_-1px_0_hsl(0_0%_100%/0.06)]' : 'bg-gradient-to-b from-black/70 via-black/25 to-transparent'
+        solid ? 'material-bar' : 'bg-gradient-to-b from-black/60 via-black/20 to-transparent'
       )}
       onDoubleClick={(e) => {
         if (e.target === e.currentTarget) void desktop?.windowControl?.('maximize')
@@ -63,9 +63,9 @@ export function TitleBar() {
         onClick={() => navigate(-1)}
         aria-label="Back"
         tabIndex={canGoBack ? 0 : -1}
-        className="flex h-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+        className="glass-button flex h-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-white"
       >
-        <ArrowLeft className="h-5 w-5 shrink-0" />
+        <ChevronLeft className="-ml-0.5 h-5 w-5 shrink-0" strokeWidth={2.4} />
       </motion.button>
 
       <Link to="/" className="mr-6 shrink-0" aria-label="StreamVault home">
@@ -80,13 +80,11 @@ export function TitleBar() {
               key={link.to}
               to={link.to}
               className={cn(
-                'relative rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold transition-colors',
-                isActive ? 'text-white' : 'text-white/60 hover:text-white'
+                'relative rounded-full px-3.5 py-[7px] text-[14px] font-medium transition-colors',
+                isActive ? 'text-white' : 'text-white/65 hover:text-white'
               )}
             >
-              {isActive && (
-                <motion.span layoutId="topbar-pill" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white/[0.12] shadow-[inset_0_0_0_1px_hsl(0_0%_100%/0.1)]" />
-              )}
+              {isActive && <motion.span layoutId="topbar-pill" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white/[0.13]" />}
               {link.label}
             </NavLink>
           )
@@ -98,38 +96,38 @@ export function TitleBar() {
       <button
         onClick={() => navigate('/search')}
         className={cn(
-          'group flex h-9 w-[240px] shrink-0 items-center gap-2 rounded-full bg-white/[0.07] px-3.5 text-[13px] text-white/50 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.11] hover:text-white/80 xl:w-[300px]',
-          pathname === '/search' && 'bg-white/[0.12] text-white/80 ring-primary/40'
+          'group flex h-9 w-[240px] shrink-0 items-center gap-2 rounded-full bg-fill px-3.5 text-[14px] text-label-2 transition-colors hover:bg-[rgb(118_118_128/0.32)] xl:w-[300px]',
+          pathname === '/search' && 'text-white/80'
         )}
       >
-        <Search className="h-4 w-4" />
-        <span className="flex-1 text-left">Search titles, people…</span>
-        <kbd className="rounded-md bg-white/10 px-1.5 py-0.5 font-sans text-[10.5px] font-semibold text-white/50">Ctrl K</kbd>
+        <Search className="h-4 w-4" strokeWidth={2.2} />
+        <span className="flex-1 text-left">Search</span>
+        <kbd className="font-sans text-[12px] text-label-3">Ctrl K</kbd>
       </button>
 
       <IconLink to="/downloads" label="Downloads" active={pathname === '/downloads'}>
         <Download className="h-[18px] w-[18px]" />
         {active > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ios-red px-1 text-[10px] font-semibold text-white">
             {active}
           </span>
         )}
       </IconLink>
       <IconLink to="/premium" label="Premium" active={pathname === '/premium'}>
-        <Zap className="h-[18px] w-[18px] text-amber-300" />
+        <Zap className="h-[18px] w-[18px] text-ios-yellow" />
       </IconLink>
       <Link
         to="/me"
         aria-label="My Space"
         className={cn(
-          'ml-1 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full ring-2 transition-all hover:scale-105',
-          pathname === '/me' ? 'ring-primary' : 'ring-white/15 hover:ring-white/40'
+          'ml-1.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-2 transition-shadow',
+          pathname === '/me' ? 'ring-tint' : 'ring-transparent hover:ring-white/25'
         )}
       >
         {isAuthenticated && user?.picture ? (
           <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
         ) : (
-          <span className="flex h-full w-full items-center justify-center bg-primary text-[13px] font-bold">
+          <span className="flex h-full w-full items-center justify-center bg-ios-gray text-[13px] font-semibold">
             {(user?.name ?? 'You').slice(0, 1).toUpperCase()}
           </span>
         )}
@@ -148,7 +146,7 @@ function IconLink({ to, label, active, children }: { to: string; label: string; 
       title={label}
       className={cn(
         'relative ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors',
-        active ? 'bg-white/[0.14] text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+        active ? 'bg-white/[0.13] text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
       )}
     >
       {children}
@@ -162,7 +160,7 @@ function WindowButtons() {
   const control = (action: 'minimize' | 'maximize' | 'close') => void desktop?.windowControl?.(action)
   const base = 'flex h-8 w-10 items-center justify-center rounded-lg text-white/60 transition-colors hover:text-white'
   return (
-    <div className="ml-3 flex items-center gap-0.5 border-l border-white/10 pl-2">
+    <div className="ml-3 flex items-center gap-0.5 pl-1">
       <button onClick={() => control('minimize')} aria-label="Minimize" className={cn(base, 'hover:bg-white/10')}>
         <Minus className="h-4 w-4" />
       </button>

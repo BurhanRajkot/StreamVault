@@ -8,7 +8,6 @@ import { DislikesProvider } from '@/context/DislikesContext'
 import { AccountSync } from '@/components/layout/AccountSync'
 import { desktop, isAndroid } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
-import { AmbientBackdrop } from '@app/lib/ambient'
 import { TitleBar } from '@app/components/shell/TitleBar'
 import { TabBar } from '@app/components/shell/TabBar'
 import { UpdateBanner } from '@app/components/UpdateBanner'
@@ -50,7 +49,6 @@ export function App() {
         <DislikesProvider>
           <AccountSync />
           <UserSwitchGuard />
-          {!fullscreen && <AmbientBackdrop />}
           {!fullscreen && <TitleBar />}
           <main className="relative z-10 min-h-[100dvh] text-foreground">
             <Suspense fallback={<div className="min-h-[100dvh]" />}>
@@ -59,7 +57,7 @@ export function App() {
                 key={fullscreen ? 'player' : location.pathname}
                 initial={fullscreen ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.32, ease: 'easeOut' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
               >
                 <Routes location={location}>
                   <Route path="/" element={<HomeScreen mode="home" />} />

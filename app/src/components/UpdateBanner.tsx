@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowDownToLine, Loader2, X } from 'lucide-react'
-import { spring } from '@app/lib/motion'
+import { Loader2, X } from 'lucide-react'
+import { softSpring } from '@app/lib/motion'
+import { LogoMark } from './Logo'
 import { isNativeApp } from '@app/native/platform'
 import { useAvailableUpdate } from '@app/native/updates'
 import { useInstallUpdate } from '@app/native/installUpdate'
@@ -25,34 +26,32 @@ export function UpdateBanner() {
   const label =
     state.phase === 'downloading'
       ? state.percent !== null ? `Downloading ${state.percent}%` : 'Downloading…'
-      : state.phase === 'installing' ? 'Installing…' : 'Update now'
+      : state.phase === 'installing' ? 'Installing…' : 'Update'
 
   return (
     <AnimatePresence>
       {show && update && (
         <motion.div
-          initial={{ opacity: 0, y: 40, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 40, scale: 0.96 }}
-          transition={{ ...spring, delay: 1.2 }}
-          className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+var(--sab)+20px)] z-40 mx-auto max-w-md lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[360px]"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 24 }}
+          transition={{ ...softSpring, delay: 1.2 }}
+          className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+var(--sab)+20px)] z-40 mx-auto max-w-[420px] lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[360px]"
         >
-          <div className="glass-strong relative overflow-hidden rounded-2xl p-3.5">
+          <div className="material-float relative overflow-hidden rounded-[22px] py-2.5 pl-2.5 pr-3">
             {state.phase === 'downloading' && state.percent !== null && (
-              <motion.span className="absolute inset-y-0 left-0 bg-primary/15" animate={{ width: `${state.percent}%` }} transition={{ ease: 'linear' }} />
+              <motion.span className="absolute inset-y-0 left-0 bg-white/[0.08]" animate={{ width: `${state.percent}%` }} transition={{ ease: 'linear' }} />
             )}
             <div className="relative flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary">
-                <ArrowDownToLine className="h-5 w-5 text-white" />
-              </span>
-              <p className="min-w-0 flex-1 text-[12.5px] leading-tight text-white/65">
-                <span className="block text-[13.5px] font-bold text-white">StreamVault {update.version}</span>
-                {state.phase === 'error' ? <span className="text-red-300">{state.message}</span> : 'A new version is ready.'}
+              <LogoMark className="h-[38px] w-[38px] shrink-0" />
+              <p className="min-w-0 flex-1">
+                <span className="t-subhead block truncate font-semibold text-white">StreamVault {update.version}</span>
+                <span className={state.phase === 'error' ? 't-footnote block text-ios-red' : 't-footnote block text-label-2'}>{state.phase === 'error' ? state.message : 'Update available'}</span>
               </p>
               <button
                 onClick={() => void install(update)}
                 disabled={busy}
-                className="press flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[12px] font-bold text-black disabled:opacity-80"
+                className="press flex h-[30px] shrink-0 items-center gap-1.5 rounded-full bg-tint px-3.5 text-[14px] font-semibold text-white disabled:opacity-80"
               >
                 {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {label}
@@ -68,7 +67,7 @@ export function UpdateBanner() {
                       /* shown again next launch */
                     }
                   }}
-                  className="-mr-1 rounded-full p-1.5 text-white/40 hover:bg-white/10 hover:text-white"
+                  className="-mr-1 flex h-7 w-7 items-center justify-center rounded-full text-label-2 hover:bg-white/10 hover:text-white"
                 >
                   <X className="h-4 w-4" />
                 </button>
