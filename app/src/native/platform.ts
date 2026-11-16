@@ -48,6 +48,14 @@ export interface DesktopBridge {
   openWith(path: string): Promise<void>
   showInFolder(path: string): Promise<void>
   openExternal(url: string): Promise<void>
+  /**
+   * Sign in through the system browser (Google refuses embedded browsers):
+   * opens the Auth0 authorize URL there, and answers the site URL Auth0
+   * returned to (?code=…&state=…), or null if it was cancelled or timed out.
+   * Missing on shells older than it.
+   */
+  signIn?(authorizeUrl: string): Promise<string | null>
+  cancelSignIn?(): Promise<void>
   setFullscreen(enabled: boolean): Promise<void>
   /** Fetch the newer AppImage / Windows installer (its parts joined in order, checked against sha256), install it, restart. */
   installUpdate(source: { urls: string[]; sha256?: string }): Promise<{ ok: boolean; reason?: string }>
