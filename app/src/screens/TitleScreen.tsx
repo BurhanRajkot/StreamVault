@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
-import { ArrowLeft, Check, CheckCircle2, ChevronDown, Download, Loader2, Play, Plus, Share2, Star, ThumbsUp, Zap } from 'lucide-react'
+import { Check, CheckCircle2, ChevronDown, Download, Play, Plus, Share, Star, ThumbsUp, Zap } from 'lucide-react'
 import { DEBRID_SERVER_ID, defaultServer, serverOptions, type Media } from '@/lib/config'
 import { logRecommendationInteraction } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
@@ -13,8 +13,7 @@ import { useFavorites } from '@/context/FavoritesContext'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { SITE_URL } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
-import { useAmbient } from '@app/lib/ambient'
-import { useIsWide, useScrolled } from '@app/lib/hooks'
+import { useIsWide } from '@app/lib/hooks'
 import { EASE_OUT, item, spring, stagger } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
 import { useDownloadAction, type DownloadTarget } from '@app/downloads/useDownloadAction'
@@ -23,6 +22,7 @@ import { FadeImg, PosterGrid, tmdbImg } from '@app/components/media'
 import { ServerChips } from '@app/components/ServerSheet'
 import { DownloadOptionsSheet } from '@app/components/DownloadOptionsSheet'
 import { Sheet } from '@app/components/Sheet'
+import { Button, CircleButton, IconTile, ListRow, ListSection, NavBar, SegmentedControl } from '@app/components/kit'
 
 export function TitleScreen() {
   const params = useParams()
@@ -39,44 +39,15 @@ export function TitleScreen() {
       ) : isLoading ? (
         <TitleSkeleton />
       ) : (
-        <div className="flex min-h-[80dvh] flex-col items-center justify-center gap-3 px-8 text-center">
-          <PhoneBar title="" />
-          <p className="font-display text-[18px] font-extrabold">Couldn&apos;t load this title</p>
-          <p className="text-[13px] text-white/55">{isError ? 'The server may be waking up.' : 'It may not exist.'} Trying again usually works.</p>
-          <button onClick={() => void refetch()} className="press mt-2 rounded-full bg-white px-6 py-2.5 text-[13.5px] font-bold text-black">
-            Try again
-          </button>
+        <div className="flex min-h-[80dvh] flex-col items-center justify-center gap-2 px-8 text-center">
+          <NavBar title="" back />
+          <p className="t-title3">Couldn&apos;t load this title</p>
+          <p className="t-subhead text-label-2">{isError ? 'The server may be waking up.' : 'It may not exist.'} Trying again usually works.</p>
+          <Button variant="tinted" onClick={() => void refetch()} className="mt-4">
+            Try Again
+          </Button>
         </div>
       )}
-    </div>
-  )
-}
-
-/** The phone's back button, and the title once you've scrolled past the artwork. */
-function PhoneBar({ title }: { title: string }) {
-  const navigate = useNavigate()
-  const scrolled = useScrolled(260)
-  return (
-    <div
-      className={cn(
-        'fixed inset-x-0 top-0 z-30 flex items-center gap-2 px-3 pb-2 pt-[calc(var(--sat)+8px)] transition-[background-color,backdrop-filter] duration-300 lg:hidden',
-        scrolled ? 'glass-strong' : 'bg-transparent'
-      )}
-    >
-      <button
-        onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/'))}
-        aria-label="Back"
-        className="press flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md"
-      >
-        <ArrowLeft className="h-5 w-5" />
-      </button>
-      <AnimatePresence>
-        {scrolled && title && (
-          <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="font-display truncate text-[16px] font-extrabold">
-            {title}
-          </motion.p>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
@@ -84,12 +55,12 @@ function PhoneBar({ title }: { title: string }) {
 function TitleSkeleton() {
   return (
     <div>
-      <PhoneBar title="" />
+      <NavBar title="" back />
       <div className="skeleton h-[58vh] w-full lg:h-[88vh]" />
       <div className="-mt-32 space-y-3 px-4 lg:px-12">
         <div className="skeleton h-14 w-2/3 max-w-md rounded-xl" />
         <div className="skeleton h-4 w-1/2 max-w-sm rounded" />
-        <div className="skeleton h-12 w-full max-w-sm rounded-full" />
+        <div className="skeleton h-[50px] w-full max-w-sm rounded-full" />
       </div>
     </div>
   )
@@ -109,8 +80,6 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
   const { data: continueEntries } = useContinueWatching()
   const progress = continueEntries?.find((e) => e.item.tmdbId === media.id && e.item.mediaType === kind)?.item
 
-  useAmbient(tmdbImg(media.backdrop_path || media.poster_path, 'w300'))
-
   const [server, setServer] = useState(() => {
     const saved = progress?.server
     const preferred = saved || settings.defaultServer
@@ -129,11 +98,10 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
   const inList = isFavorited(media.id, kind)
   const downloads = useDownloadAction()
 
-  // Parallax: the artwork drifts and dims as the page scrolls over it
+  // The artwork drifts a little slower than the page and dims as the page covers it
   const { scrollY } = useScroll()
-  const artY = useTransform(scrollY, [0, 800], [0, wide ? 160 : 120])
-  const artScale = useTransform(scrollY, [0, 800], [1.04, 1.16])
-  const artOpacity = useTransform(scrollY, [0, wide ? 900 : 500], [1, wide ? 0.25 : 0.1])
+  const artY = useTransform(scrollY, [0, 800], [0, wide ? 140 : 100])
+  const artOpacity = useTransform(scrollY, [0, wide ? 900 : 480], [1, wide ? 0.3 : 0.15])
 
   const play = (s?: number, e?: number) => {
     const qs = new URLSearchParams({ server })
@@ -185,7 +153,7 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
   }
 
   const movieRecord = kind === 'movie' ? downloads.recordFor({ tmdbId: media.id, mediaType: 'movie' }) : undefined
-  const resumeLabel = kind === 'tv' && progress ? `Resume S${progress.season ?? 1} · E${progress.episode ?? 1}` : progress ? 'Resume' : 'Play'
+  const resumeLabel = kind === 'tv' && progress ? `Resume S${progress.season ?? 1}, E${progress.episode ?? 1}` : progress ? 'Resume' : 'Play'
   const similar = (media.similar?.results ?? []).filter((m) => m.poster_path).slice(0, 18)
   const tabs: { id: Tab; label: string }[] = [
     ...(kind === 'tv' ? [{ id: 'episodes' as const, label: 'Episodes' }] : []),
@@ -193,151 +161,119 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
     { id: 'details', label: 'Details' },
   ]
   const shownTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id
-  const rise = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.65, ease: EASE_OUT } } }
+  const meta = [display.year, display.contentRating !== 'NR' ? display.contentRating : '', display.durationStr, display.genres.slice(0, 2).join(', ')].filter(Boolean)
 
   return (
     <div>
-      <PhoneBar title={display.title} />
+      <NavBar
+        title={display.title}
+        back
+        threshold={wide ? 9999 : 320}
+        actions={
+          <CircleButton label="Share" onClick={() => void share()}>
+            <Share className="h-[18px] w-[18px]" strokeWidth={2.2} />
+          </CircleButton>
+        }
+      />
 
       {/* Artwork: fixed behind a wide window, at the top of a phone's page */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[62vh] overflow-hidden lg:fixed lg:inset-0 lg:h-auto">
-        <motion.div style={{ y: artY, scale: artScale, opacity: artOpacity }} className="absolute inset-0">
+        <motion.div style={{ y: artY, opacity: artOpacity }} className="absolute inset-0">
           {/* A small copy shows at once; the full-size one fades in over it */}
           <img src={tmdbImg(media.backdrop_path || media.poster_path, 'w300')} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
           <FadeImg src={tmdbImg(media.backdrop_path || media.poster_path, wide ? 'original' : 'w1280')} fetchPriority="high" className="relative h-full w-full object-cover object-top" />
         </motion.div>
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-black/30 lg:via-background/20" />
-        <div className="absolute inset-0 hidden bg-gradient-to-r from-background via-background/70 to-transparent lg:block" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/20 lg:via-black/15" />
+        <div className="absolute inset-0 hidden bg-gradient-to-r from-black/90 via-black/55 to-transparent lg:block" />
       </div>
 
       {/* Headline */}
       <motion.section
-        variants={stagger(0.07, 0.1)}
-        initial="hidden"
-        animate="show"
-        className="relative z-10 flex flex-col px-4 pb-2 pt-[38vh] lg:min-h-[92vh] lg:max-w-[min(52rem,62%)] lg:justify-end lg:px-12 lg:pb-14 lg:pt-[calc(var(--topbar-h)+2rem)]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, ease: EASE_OUT }}
+        className="relative z-10 flex flex-col items-center px-4 pb-2 pt-[36vh] text-center lg:min-h-[90vh] lg:max-w-[min(50rem,60%)] lg:items-start lg:justify-end lg:px-12 lg:pb-14 lg:pt-[calc(var(--topbar-h)+2rem)] lg:text-left"
       >
-        <motion.div variants={rise} className="mb-3 lg:mb-5">
+        <div className="mb-3 lg:mb-5">
           {display.logoImage ? (
-            <img src={display.logoImage} alt={display.title} className="max-h-24 max-w-[80%] object-contain object-left drop-shadow-[0_4px_24px_rgb(0_0_0/0.7)] lg:max-h-40 lg:max-w-[32rem]" />
+            <img src={display.logoImage} alt={display.title} className="max-h-24 max-w-[78vw] object-contain drop-shadow-[0_2px_16px_rgb(0_0_0/0.6)] lg:max-h-40 lg:max-w-[30rem] lg:object-left" />
           ) : (
-            <h1 className="font-display text-[34px] font-extrabold leading-[1.02] tracking-tight drop-shadow-lg lg:text-[clamp(2.75rem,4.6vw,5rem)]">{display.title}</h1>
+            <h1 className="t-large lg:text-[clamp(2.75rem,4.4vw,4.5rem)] lg:leading-[1.05]">{display.title}</h1>
           )}
-        </motion.div>
+        </div>
 
-        <motion.div variants={rise} className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] font-medium text-white/70 lg:text-[14.5px]">
+        <p className="t-footnote mb-3 flex flex-wrap items-center justify-center gap-x-1.5 font-medium text-white/70 lg:justify-start lg:text-[15px]">
           {display.rating > 0 && (
-            <span className="flex items-center gap-1 font-bold text-amber-300">
-              <Star className="h-4 w-4 fill-current" /> {display.rating.toFixed(1)}
+            <span className="mr-1 inline-flex items-center gap-1 text-white">
+              <Star className="h-3.5 w-3.5 fill-ios-yellow text-ios-yellow" /> {display.rating.toFixed(1)}
             </span>
           )}
-          {display.year && <span>{display.year}</span>}
-          {display.contentRating !== 'NR' && <span className="rounded-md border border-white/30 px-1.5 text-[11px] font-bold leading-5">{display.contentRating}</span>}
-          {display.durationStr && <span>{display.durationStr}</span>}
-          <span className="rounded-md bg-white/15 px-1.5 text-[10.5px] font-extrabold leading-5 tracking-wider text-white">HD</span>
-        </motion.div>
+          {meta.join(' · ')}
+        </p>
 
-        {display.genres.length > 0 && (
-          <motion.div variants={rise} className="mb-4 flex flex-wrap gap-1.5">
-            {display.genres.slice(0, 4).map((g) => (
-              <span key={g} className="rounded-full bg-white/[0.08] px-3 py-1 text-[11.5px] font-semibold text-white/80 ring-1 ring-inset ring-white/10 backdrop-blur-sm">
-                {g}
-              </span>
-            ))}
-          </motion.div>
-        )}
-
-        <motion.p
-          variants={rise}
+        <button
+          type="button"
           onClick={() => setExpanded((v) => !v)}
-          className={cn('mb-5 max-w-[42rem] cursor-pointer text-[14px] leading-relaxed text-white/80 lg:text-[15.5px]', !expanded && 'line-clamp-3')}
+          className={cn('t-subhead mb-5 max-w-[40rem] text-left text-white/80 lg:text-[16px] lg:leading-[1.5]', !expanded && 'line-clamp-3')}
         >
           {display.description}
-        </motion.p>
+        </button>
 
-        {/* Play, download, list */}
-        <motion.div variants={rise} className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center lg:gap-3">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-            transition={spring}
-            onClick={() => play()}
-            className="relative flex items-center justify-center gap-2.5 overflow-hidden rounded-full bg-white px-8 py-3.5 text-[15.5px] font-extrabold text-black shadow-[0_12px_40px_-12px_rgb(255_255_255/0.55)] lg:px-10 lg:text-[16px]"
-          >
-            <Play className="h-5 w-5 fill-current" /> {resumeLabel}
+        {/* Play, then the smaller actions */}
+        <div className="flex w-full flex-col items-center gap-4 lg:w-auto lg:flex-row lg:items-center lg:gap-6">
+          <Button size="lg" onClick={() => play()} className="relative w-full max-w-[26rem] overflow-hidden lg:w-auto lg:px-10">
+            <Play className="fill-current" /> {resumeLabel}
             {progress && (
-              <span className="absolute inset-x-6 bottom-1.5 h-[3px] overflow-hidden rounded-full bg-black/15">
-                <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round(progress.progress * 100)}%` }} />
+              <span className="absolute inset-x-8 bottom-[7px] h-[3px] overflow-hidden rounded-full bg-black/15">
+                <span className="block h-full rounded-full bg-black/70" style={{ width: `${Math.round(progress.progress * 100)}%` }} />
               </span>
             )}
-          </motion.button>
-          {kind === 'movie' && (
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.96 }}
-              transition={spring}
-              onClick={() => (movieRecord?.status === 'done' ? navigate(`/offline/${encodeURIComponent(movieRecord.id)}`) : setDownload(downloadTarget()))}
-              className="glass flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-bold text-white"
-            >
-              {movieRecord?.status === 'done' ? (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-emerald-400" /> Downloaded
-                </>
-              ) : movieRecord && movieRecord.status !== 'failed' ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" /> {movieRecord.total ? Math.round((movieRecord.bytes / movieRecord.total) * 100) : 0}%
-                </>
-              ) : (
-                <>
-                  <Download className="h-5 w-5" /> Download
-                </>
-              )}
-            </motion.button>
-          )}
-          <div className="flex justify-center gap-2 sm:justify-start">
-            <RoundAction label={inList ? 'In My List' : 'My List'} onClick={() => toggleFavorite(media.id, kind, genreIdsOf(media))} active={inList}>
+          </Button>
+          <div className="flex justify-center gap-2 lg:gap-1">
+            <ActionButton label={inList ? 'In My List' : 'My List'} onClick={() => toggleFavorite(media.id, kind, genreIdsOf(media))}>
               <AnimatePresence mode="wait" initial={false}>
-                <motion.span key={String(inList)} initial={{ scale: 0.3, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0.3 }} transition={spring}>
-                  {inList ? <Check className="h-5 w-5" strokeWidth={2.6} /> : <Plus className="h-5 w-5" />}
+                <motion.span key={String(inList)} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} transition={spring}>
+                  {inList ? <Check className="h-[22px] w-[22px]" strokeWidth={2.4} /> : <Plus className="h-[22px] w-[22px]" strokeWidth={2.4} />}
                 </motion.span>
               </AnimatePresence>
-            </RoundAction>
-            <RoundAction label="I like this" onClick={() => void like()} active={liked}>
-              <motion.span animate={liked ? { scale: [1, 1.4, 1], rotate: [0, -15, 0] } : { scale: 1 }} transition={{ duration: 0.45 }}>
-                <ThumbsUp className={cn('h-5 w-5', liked && 'fill-current')} />
-              </motion.span>
-            </RoundAction>
-            <RoundAction label="Share" onClick={() => void share()}>
-              <Share2 className="h-5 w-5" />
-            </RoundAction>
+            </ActionButton>
+            <ActionButton label={liked ? 'Liked' : 'Like'} onClick={() => void like()}>
+              <ThumbsUp className={cn('h-5 w-5', liked && 'fill-current')} strokeWidth={2} />
+            </ActionButton>
+            {kind === 'movie' && (
+              <ActionButton
+                label={movieRecord?.status === 'done' ? 'Downloaded' : movieRecord && movieRecord.status !== 'failed' ? `${movieRecord.total ? Math.round((movieRecord.bytes / movieRecord.total) * 100) : 0}%` : 'Download'}
+                onClick={() => (movieRecord?.status === 'done' ? navigate(`/offline/${encodeURIComponent(movieRecord.id)}`) : setDownload(downloadTarget()))}
+              >
+                {movieRecord?.status === 'done' ? (
+                  <CheckCircle2 className="h-5 w-5 text-ios-green" />
+                ) : movieRecord && movieRecord.status !== 'failed' ? (
+                  <ProgressRing value={movieRecord.total ? movieRecord.bytes / movieRecord.total : 0} />
+                ) : (
+                  <Download className="h-5 w-5" strokeWidth={2} />
+                )}
+              </ActionButton>
+            )}
+            <ActionButton label="Share" onClick={() => void share()} className="max-lg:hidden">
+              <Share className="h-5 w-5" strokeWidth={2} />
+            </ActionButton>
           </div>
-        </motion.div>
+        </div>
 
         {/* Where it plays — chosen before pressing Play, changeable again in the player */}
-        <motion.div variants={rise} className="mt-5">
-          <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.16em] text-white/45">Play on</p>
+        <div className="mt-6 w-full text-left">
+          <p className="t-footnote mb-2 font-semibold text-label-2">Play on</p>
           <ServerChips kind={kind} server={server} onPick={setServer} />
-        </motion.div>
+        </div>
       </motion.section>
 
       {/* Below the fold */}
-      <div className="relative z-10 bg-gradient-to-b from-transparent via-background/95 to-background pt-6 lg:via-background/90 lg:pt-10">
+      <div className="relative z-10 bg-gradient-to-b from-transparent via-black/95 to-black pt-6 lg:via-black/90 lg:pt-10">
         <div className="px-4 lg:px-12">
-          <div className="no-scrollbar mb-5 flex gap-6 overflow-x-auto border-b border-white/[0.08]">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={cn('font-display relative shrink-0 pb-3 text-[15px] font-extrabold transition-colors lg:text-[17px]', shownTab === t.id ? 'text-white' : 'text-white/45 hover:text-white/75')}
-              >
-                {t.label}
-                {shownTab === t.id && <motion.span layoutId="title-tab" transition={spring} className="absolute inset-x-0 -bottom-px h-[3px] rounded-full bg-primary" />}
-              </button>
-            ))}
-          </div>
+          {tabs.length > 1 && <SegmentedControl options={tabs} value={shownTab} onChange={setTab} layoutId="title-tab" className="mb-6 w-full lg:max-w-md" />}
 
           <AnimatePresence mode="wait">
-            <motion.div key={shownTab} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3, ease: EASE_OUT }}>
+            <motion.div key={shownTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
               {shownTab === 'episodes' && (
                 <Episodes
                   media={media}
@@ -357,64 +293,50 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
           </AnimatePresence>
 
           {!premium && (
-            <Link
-              to="/premium"
-              className="group mt-10 flex items-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/[0.16] via-amber-500/[0.05] to-transparent p-4 ring-1 ring-amber-400/25 transition-colors hover:from-amber-500/25 lg:max-w-2xl"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-black transition-transform group-hover:rotate-12 group-hover:scale-110">
-                <Zap className="h-5 w-5" />
-              </span>
-              <span className="text-[13px] text-white/70">
-                <span className="font-display block text-[15px] font-extrabold text-amber-200">StreamVault Premium</span>
-                4K from Real-Debrid, subtitles and offline downloads.
-              </span>
-            </Link>
+            <ListSection className="mb-0 mt-10 lg:max-w-xl">
+              <ListRow
+                to="/premium"
+                icon={
+                  <IconTile color="yellow">
+                    <Zap className="fill-current" />
+                  </IconTile>
+                }
+                label="StreamVault Premium"
+                detail="4K from Real-Debrid, subtitles and offline downloads."
+              />
+            </ListSection>
           )}
         </div>
       </div>
 
       <DownloadOptionsSheet target={download} onClose={() => setDownload(null)} />
       <Sheet open={seasonsOpen} onOpenChange={setSeasonsOpen} title="Seasons">
-        <ul className="flex flex-col gap-1">
+        <div className="overflow-hidden rounded-[12px] bg-grouped">
           {seasons.map((s) => (
-            <li key={s.season_number}>
-              <button
-                onClick={() => {
-                  setSeason(s.season_number)
-                  setSeasonsOpen(false)
-                }}
-                className={cn(
-                  'flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-left text-[14px] transition-colors',
-                  s.season_number === activeSeason ? 'bg-white/[0.1] font-bold text-white' : 'text-white/70 hover:bg-white/[0.05]'
-                )}
-              >
-                <span>{s.name || `Season ${s.season_number}`}</span>
-                <span className="text-[12px] text-white/40">{s.episode_count} episodes</span>
-              </button>
-            </li>
+            <ListRow
+              key={s.season_number}
+              onClick={() => {
+                setSeason(s.season_number)
+                setSeasonsOpen(false)
+              }}
+              label={s.name || `Season ${s.season_number}`}
+              detail={`${s.episode_count} episodes`}
+              accessory={s.season_number === activeSeason ? 'check' : 'none'}
+            />
           ))}
-        </ul>
+        </div>
       </Sheet>
     </div>
   )
 }
 
-function RoundAction({ label, onClick, active, children }: { label: string; onClick: () => void; active?: boolean; children: React.ReactNode }) {
+/** A round frosted button with its name under it, as in iOS's action rows. */
+function ActionButton({ label, onClick, children, className }: { label: string; onClick: () => void; children: React.ReactNode; className?: string }) {
   return (
-    <motion.button
-      whileHover={{ scale: 1.08 }}
-      whileTap={{ scale: 0.9 }}
-      transition={spring}
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={cn(
-        'flex h-[50px] w-[50px] items-center justify-center rounded-full transition-colors',
-        active ? 'bg-white text-black' : 'glass text-white hover:bg-white/15'
-      )}
-    >
-      {children}
-    </motion.button>
+    <button type="button" onClick={onClick} aria-label={label} className={cn('press flex w-[76px] flex-col items-center gap-1.5', className)}>
+      <span className="glass-button flex h-11 w-11 items-center justify-center rounded-full text-white">{children}</span>
+      <span className="t-caption2 font-medium text-white/70">{label}</span>
+    </button>
   )
 }
 
@@ -449,78 +371,80 @@ function Episodes({
     <div>
       {seasons.length > 1 &&
         (fewSeasons ? (
-          <div className="no-scrollbar -mx-4 mb-5 flex gap-1.5 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+          <div className="no-scrollbar -mx-4 mb-4 flex gap-5 overflow-x-auto px-4 lg:mx-0 lg:px-0">
             {seasons.map((s) => (
               <button
                 key={s.season_number}
+                type="button"
                 onClick={() => onSeason(s.season_number)}
-                className={cn('relative shrink-0 rounded-full px-4 py-2 text-[13px] font-bold transition-colors', s.season_number === season ? 'text-black' : 'text-white/65 ring-1 ring-inset ring-white/12 hover:text-white')}
+                className={cn('t-headline shrink-0 transition-colors', s.season_number === season ? 'text-white' : 'text-label-3 hover:text-label-2')}
               >
-                {s.season_number === season && <motion.span layoutId="season-pill" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}
                 Season {s.season_number}
               </button>
             ))}
           </div>
         ) : (
-          <button onClick={onOpenSeasons} className="press mb-5 flex items-center gap-1.5 rounded-full bg-white/[0.08] px-4 py-2 text-[13.5px] font-bold ring-1 ring-white/10">
-            Season {season} <ChevronDown className="h-4 w-4" />
+          <button type="button" onClick={onOpenSeasons} className="t-headline press mb-4 flex items-center gap-1">
+            Season {season} <ChevronDown className="h-[18px] w-[18px] text-label-2" strokeWidth={2.4} />
           </button>
         ))}
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="skeleton aspect-video rounded-xl" />
+            <div key={i} className="skeleton aspect-video max-md:h-[74px] max-md:w-[132px] rounded-[8px]" />
           ))}
         </div>
       ) : (
-        <motion.ul key={season} variants={stagger(0.04)} initial="hidden" animate="show" className="grid gap-x-4 gap-y-5 md:grid-cols-2 xl:grid-cols-3">
+        <motion.ul key={season} variants={stagger(0.015)} initial="hidden" animate="show" className="grid gap-x-4 gap-y-4 md:grid-cols-2 md:gap-y-7 xl:grid-cols-3">
           {episodes?.map((ep) => {
             const record = downloads.recordFor({ tmdbId: media.id, mediaType: 'tv', season, episode: ep.episode_number })
             const isCurrent = progress?.season === season && progress?.episode === ep.episode_number
             return (
-              <motion.li key={ep.episode_number} variants={item} className="group/ep flex gap-3 md:flex-col md:gap-0">
+              <motion.li key={ep.episode_number} variants={item} className="group/ep flex items-center gap-3 md:flex-col md:items-stretch md:gap-0">
                 <button
+                  type="button"
                   onClick={() => onPlay(ep.episode_number)}
-                  className="press relative w-[140px] shrink-0 overflow-hidden rounded-xl ring-1 ring-white/[0.08] transition-shadow md:w-full hover:shadow-[0_20px_40px_-14px_rgb(0_0_0/0.9),0_0_0_1px_rgb(255_255_255/0.16)]"
+                  className="press relative w-[132px] shrink-0 overflow-hidden rounded-[8px] md:w-full"
                   aria-label={`Play episode ${ep.episode_number}`}
                 >
                   <span className="skeleton block aspect-video w-full">
-                    <FadeImg src={tmdbImg(ep.still_path || media.backdrop_path, 'w500')} loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover/ep:scale-105" />
+                    <FadeImg src={tmdbImg(ep.still_path || media.backdrop_path, 'w500')} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 [@media(hover:hover)]:group-hover/ep:scale-105" />
                   </span>
-                  <span className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                  <span className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/50 backdrop-blur transition-all duration-300 group-hover/ep:scale-110 group-hover/ep:bg-white group-hover/ep:text-black md:h-12 md:w-12">
-                      <Play className="ml-0.5 h-4 w-4 fill-current md:h-5 md:w-5" />
+                  <span className="absolute inset-0 hidden items-center justify-center bg-black/25 opacity-0 transition-opacity group-hover/ep:opacity-100 lg:flex">
+                    <span className="glass-button flex h-11 w-11 items-center justify-center rounded-full">
+                      <Play className="ml-0.5 h-5 w-5 fill-white text-white" />
                     </span>
                   </span>
-                  <span className="font-display absolute bottom-1.5 left-2.5 text-[20px] font-extrabold text-white/90 drop-shadow md:bottom-2 md:left-3 md:text-[26px]">{ep.episode_number}</span>
                   {isCurrent && progress && (
-                    <span className="absolute inset-x-0 bottom-0 h-1 bg-white/25">
-                      <span className="block h-full bg-primary" style={{ width: `${Math.round(progress.progress * 100)}%` }} />
+                    <span className="absolute inset-x-2 bottom-2 h-[3px] overflow-hidden rounded-full bg-white/30">
+                      <span className="block h-full rounded-full bg-white" style={{ width: `${Math.round(progress.progress * 100)}%` }} />
                     </span>
                   )}
                 </button>
                 <div className="flex min-w-0 flex-1 items-start gap-2 md:mt-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-[13.5px] font-bold leading-snug lg:text-[14.5px]">{ep.name}</p>
-                    <p className="mt-0.5 text-[11.5px] text-white/45">
-                      {ep.runtime ? `${ep.runtime}m` : ''}
-                      {isCurrent ? <span className="ml-1.5 font-semibold text-primary">· Watching</span> : null}
+                  <button type="button" onClick={() => onPlay(ep.episode_number)} className="min-w-0 flex-1 text-left">
+                    <p className="t-subhead line-clamp-2 font-semibold">
+                      <span className="text-label-2">{ep.episode_number}.</span> {ep.name}
                     </p>
-                    {ep.overview && <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-white/50 max-md:hidden">{ep.overview}</p>}
-                  </div>
+                    <p className="t-footnote mt-0.5 text-label-2">
+                      {ep.runtime ? `${ep.runtime} min` : ''}
+                      {isCurrent ? <span className="text-tint">{ep.runtime ? ' · ' : ''}Watching</span> : null}
+                    </p>
+                    {ep.overview && <p className="t-footnote mt-1 line-clamp-2 text-label-2 max-md:hidden">{ep.overview}</p>}
+                  </button>
                   <button
+                    type="button"
                     onClick={() => (record?.status === 'done' ? navigate(`/offline/${encodeURIComponent(record.id)}`) : onDownload(ep.episode_number, ep.name))}
                     aria-label={`Download episode ${ep.episode_number}`}
-                    className="press -mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                    className="press -mr-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-tint"
                   >
                     {record?.status === 'done' ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                      <CheckCircle2 className="h-[22px] w-[22px] text-ios-green" />
                     ) : record && record.status !== 'failed' ? (
                       <ProgressRing value={record.total ? record.bytes / record.total : 0} />
                     ) : (
-                      <Download className="h-[18px] w-[18px]" />
+                      <Download className="h-[20px] w-[20px]" strokeWidth={2.2} />
                     )}
                   </button>
                 </div>
@@ -540,37 +464,31 @@ function Details({ media, kind, display }: { media: Media; kind: TitleKind; disp
     ['Rated', display.contentRating],
     ['Genres', display.genres.join(', ') || '—'],
     ...(kind === 'movie' && display.director !== 'Unknown' ? [['Director', display.director] as [string, string]] : []),
-    ['Rating', display.rating > 0 ? `${display.rating.toFixed(1)} / 10 on TMDB` : '—'],
+    ['TMDB rating', display.rating > 0 ? `${display.rating.toFixed(1)} / 10` : '—'],
   ]
-  const castRef = useRef<HTMLDivElement>(null)
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-      <div>
-        {display.cast.length > 0 && (
-          <>
-            <h3 className="font-display mb-3 text-[15px] font-extrabold">Cast</h3>
-            <motion.div ref={castRef} variants={stagger(0.04)} initial="hidden" animate="show" className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
-              {display.cast.map((c) => (
-                <motion.div key={c.name + c.role} variants={item} className="text-center">
-                  <div className="skeleton mx-auto aspect-square w-full max-w-[96px] overflow-hidden rounded-full ring-1 ring-white/10">
-                    {!c.image.endsWith('placeholder.svg') && <FadeImg src={c.image} loading="lazy" className="h-full w-full object-cover" />}
-                  </div>
-                  <p className="mt-2 line-clamp-1 text-[12.5px] font-bold">{c.name}</p>
-                  <p className="line-clamp-1 text-[11px] text-white/45">{c.role}</p>
-                </motion.div>
-              ))}
-            </motion.div>
-          </>
-        )}
-      </div>
-      <dl className="surface h-fit rounded-2xl p-5">
-        {facts.map(([k, v]) => (
-          <div key={k} className="flex gap-4 border-b border-white/[0.06] py-2.5 text-[13px] last:border-0">
-            <dt className="w-20 shrink-0 text-white/45">{k}</dt>
-            <dd className="text-white/85">{v}</dd>
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      {display.cast.length > 0 && (
+        <div className="min-w-0">
+          <h3 className="t-title3 mb-3">Cast</h3>
+          <div className="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0 xl:grid-cols-6">
+            {display.cast.map((c) => (
+              <div key={c.name + c.role} className="w-[84px] shrink-0 text-center lg:w-auto">
+                <div className="skeleton mx-auto aspect-square w-[76px] overflow-hidden rounded-full lg:w-full lg:max-w-[96px]">
+                  {!c.image.endsWith('placeholder.svg') && <FadeImg src={c.image} loading="lazy" className="h-full w-full object-cover" />}
+                </div>
+                <p className="t-footnote mt-2 line-clamp-1 font-semibold">{c.name}</p>
+                <p className="t-caption line-clamp-1 text-label-2">{c.role}</p>
+              </div>
+            ))}
           </div>
+        </div>
+      )}
+      <ListSection header="Information" className="mb-0">
+        {facts.map(([k, v]) => (
+          <ListRow key={k} label={k} value={v} />
         ))}
-      </dl>
+      </ListSection>
     </div>
   )
 }
@@ -585,7 +503,7 @@ export function ProgressRing({ value, size = 22 }: { value: number; size?: numbe
         cx={size / 2}
         cy={size / 2}
         r={r}
-        stroke="hsl(var(--primary))"
+        stroke="#0a84ff"
         strokeWidth="2.5"
         fill="none"
         strokeDasharray={c}

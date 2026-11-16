@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
 import { motion } from 'framer-motion'
-import { Search } from 'lucide-react'
 import type { MediaMode } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useRecommendations } from '@/hooks/useRecommendations'
@@ -42,7 +41,7 @@ export function HomeScreen({ mode }: { mode: MediaMode }) {
       <HeroCarousel items={featured} fallbackKind={heroRow.kind} />
 
       {/* The rows ride up over the hero's fade */}
-      <div className="relative z-10 mt-1 lg:-mt-[7vw]">
+      <div className="relative z-10 mt-2 lg:-mt-[6vw]">
         {(mode === 'home' || mode === 'movie' || mode === 'tv') && <ContinueWatchingRow />}
         {mode === 'home' && <Recommendations />}
         {rows.map((row) => (
@@ -62,23 +61,20 @@ function rotateDaily<T>(items: T[]): T[] {
   return [...items.slice(head), ...items.slice(0, head)]
 }
 
-/** The phone's header: logo and categories, clear over the hero, glass once scrolled. */
+/** The phone's header: logo and categories, clear over the hero, frosted glass once scrolled. */
 function PhoneHeader({ mode }: { mode: MediaMode }) {
   const scrolled = useScrolled(40)
   return (
     <header
       className={cn(
-        'fixed inset-x-0 top-0 z-30 pt-safe transition-[background-color,backdrop-filter,box-shadow] duration-500 lg:hidden',
-        scrolled ? 'glass-strong !shadow-[inset_0_-1px_0_hsl(0_0%_100%/0.06)]' : 'bg-gradient-to-b from-black/75 via-black/30 to-transparent'
+        'fixed inset-x-0 top-0 z-30 pt-safe transition-[background-color,backdrop-filter,box-shadow] duration-300 lg:hidden',
+        scrolled ? 'material-bar' : 'bg-gradient-to-b from-black/60 via-black/25 to-transparent'
       )}
     >
-      <div className="flex items-center justify-between px-4 pt-2.5">
+      <div className="flex h-11 items-center px-4">
         <Logo />
-        <Link to="/search" aria-label="Search" className="press -mr-1.5 flex h-10 w-10 items-center justify-center rounded-full text-white">
-          <Search className="h-[22px] w-[22px]" />
-        </Link>
       </div>
-      <nav className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 pb-3 pt-2" aria-label="Categories">
+      <nav className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2.5 pt-1" aria-label="Categories">
         {CATEGORIES.map((c) => {
           const active = c.mode === mode
           return (
@@ -86,9 +82,10 @@ function PhoneHeader({ mode }: { mode: MediaMode }) {
               key={c.mode}
               to={c.to}
               replace
+              aria-current={active ? 'page' : undefined}
               className={cn(
-                'relative shrink-0 rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors',
-                active ? 'text-black' : 'text-white/80 ring-1 ring-inset ring-white/20'
+                'relative flex h-8 shrink-0 items-center rounded-full px-3.5 text-[14px] font-semibold transition-colors',
+                active ? 'text-black' : 'glass-button text-white'
               )}
             >
               {active && <motion.span layoutId="category-pill" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}

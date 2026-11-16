@@ -1,27 +1,33 @@
 import type { Transition, Variants } from 'framer-motion'
 
-/** The app's motion vocabulary — one place, so every screen moves alike. */
-export const EASE_OUT = [0.22, 1, 0.36, 1] as const
+/**
+ * The app's motion vocabulary — one place, so every screen moves alike.
+ * Modelled on iOS: content is simply there; controls answer with short,
+ * critically damped springs; nothing bounces for show.
+ */
+export const EASE_OUT = [0.25, 1, 0.5, 1] as const
 
-export const spring: Transition = { type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }
-export const softSpring: Transition = { type: 'spring', stiffness: 240, damping: 30 }
+/** Controls: pills sliding between segments, switches, checkmarks. */
+export const spring: Transition = { type: 'spring', stiffness: 500, damping: 42, mass: 0.8 }
+/** Larger surfaces: sheets, the tab bar. */
+export const softSpring: Transition = { type: 'spring', stiffness: 320, damping: 36 }
 
 export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 18 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_OUT } },
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT } },
 }
 
 export const fadeIn: Variants = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { duration: 0.4, ease: EASE_OUT } },
+  show: { opacity: 1, transition: { duration: 0.25, ease: EASE_OUT } },
 }
 
-export function stagger(each = 0.045, delay = 0): Variants {
+export function stagger(each = 0.02, delay = 0): Variants {
   return { hidden: {}, show: { transition: { staggerChildren: each, delayChildren: delay } } }
 }
 
-/** Items of a row or grid: rise in one after another. */
+/** Items of a grid or list: a quick fade, no travel. */
 export const item: Variants = {
-  hidden: { opacity: 0, y: 14, scale: 0.98 },
-  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: EASE_OUT } },
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: 0.25, ease: EASE_OUT } },
 }

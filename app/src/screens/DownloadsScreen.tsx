@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { AlertCircle, CheckCircle2, Download, ExternalLink, FolderOpen, HardDrive, Info, Pause, Play, Trash2, Zap } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Download, ExternalLink, FolderOpen, Info, Pause, Play, Trash2, Zap } from 'lucide-react'
 import { formatBytes } from '@/lib/debridApi'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,7 @@ import { desktop, isAndroid, isNativeApp, SvNative } from '@app/native/platform'
 import { removeDownload, useDownloads, type DownloadRecord } from '@app/downloads/store'
 import { Sheet } from '@app/components/Sheet'
 import { EmptyState, PageHeader } from '@app/components/PageHeader'
-import { item, stagger } from '@app/lib/motion'
+import { Button, ButtonLink, IconTile, ListRow, ListSection } from '@app/components/kit'
 import { ProgressRing } from './TitleScreen'
 
 export function DownloadsScreen() {
@@ -33,97 +33,126 @@ export function DownloadsScreen() {
     groups.set(key, [...(groups.get(key) ?? []), d])
   }
 
+  const usedShare = free ? Math.max(1.5, Math.min(100, (used / (used + free)) * 100)) : 0
+
   return (
-    <div className="mx-auto max-w-5xl px-4 pb-tabbar pt-page lg:px-12">
-      <PageHeader
-        title="Downloads"
-        subtitle={downloads.length > 0 ? 'Saved to this device — they play with no connection.' : undefined}
-        actions={
-          isNativeApp && downloads.length > 0 ? (
-            <div className="surface hidden min-w-[220px] rounded-2xl p-3.5 sm:block">
-              <p className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-white/60">
-                <HardDrive className="h-4 w-4" /> Storage
-              </p>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <motion.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${free ? Math.max(2, Math.min(100, (used / (used + free)) * 100)) : 0}%` }} transition={{ duration: 1, ease: 'easeOut' }} />
-              </div>
-              <p className="mt-1.5 flex justify-between gap-3 text-[11px] text-white/45">
-                <span>StreamVault · {formatBytes(used)}</span>
-                {free ? <span>{formatBytes(free)} free</span> : null}
-              </p>
-            </div>
-          ) : undefined
-        }
-      />
+    <div className="mx-auto max-w-3xl px-4 pb-tabbar pt-page lg:px-8">
+      <PageHeader title="Downloads" subtitle={downloads.length > 0 ? 'Saved to this device — they play with no connection.' : undefined} />
 
       {!isNativeApp && (
-        <p className="surface mb-4 flex items-center gap-2.5 rounded-2xl p-4 text-[13px] text-white/65">
-          <Info className="h-4 w-4 shrink-0" /> Offline downloads work in the Android, Linux and Windows apps.
-        </p>
+        <ListSection>
+          <ListRow
+            icon={
+              <IconTile color="gray">
+                <Info />
+              </IconTile>
+            }
+            label="Downloads live in the apps"
+            detail="Offline downloads work in the Android, Linux and Windows apps."
+          />
+        </ListSection>
       )}
 
       {downloads.length === 0 ? (
         <EmptyState
-          icon={<Download className="h-10 w-10 text-white" />}
+          icon={<Download />}
           title="Watch without the internet"
           text="Save movies and episodes to this device and watch them with no connection."
           action={
             premium ? (
-              <button onClick={() => navigate('/')} className="press rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black">
-                Find something to download
-              </button>
+              <Button variant="tinted" onClick={() => navigate('/')}>
+                Find Something to Download
+              </Button>
             ) : (
-              <Link to="/premium" className="press flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-300 px-6 py-2.5 text-[14px] font-bold text-black shadow-[0_10px_30px_-10px_rgb(251_191_36/0.6)]">
-                <Zap className="h-4 w-4" /> Downloads come with Premium
-              </Link>
+              <ButtonLink to="/premium" variant="gray">
+                <Zap className="fill-ios-yellow text-ios-yellow" /> Downloads Come with Premium
+              </ButtonLink>
             )
           }
         />
       ) : (
-        <motion.ul variants={stagger(0.04)} initial="hidden" animate="show" className="grid gap-2 lg:grid-cols-2 lg:gap-3">
-          {[...groups.values()].flatMap((items) => items).map((d) => (
-            <motion.li key={d.id} variants={item} layout>
-              <DownloadRow record={d} onPlay={() => navigate(`/offline/${encodeURIComponent(d.id)}`)} onMore={() => setEditing(d)} />
-            </motion.li>
-          ))}
-        </motion.ul>
+        <>
+          {isNativeApp && (
+            <ListSection header="Storage">
+              <div className="px-4 py-3.5">
+                <div className="flex h-[6px] overflow-hidden rounded-full bg-fill">
+                  <motion.div className="h-full rounded-full bg-tint" initial={{ width: 0 }} animate={{ width: `${usedShare}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} />
+                </div>
+                <p className="t-footnote mt-2 flex justify-between gap-3 text-label-2">
+                  <span>StreamVault · {formatBytes(used)}</span>
+                  {free ? <span>{formatBytes(free)} available</span> : null}
+                </p>
+              </div>
+            </ListSection>
+          )}
+          <ListSection header={`${downloads.length} item${downloads.length === 1 ? '' : 's'}`}>
+            {[...groups.values()].flatMap((items) => items).map((d) => (
+              <DownloadRow key={d.id} record={d} onPlay={() => navigate(`/offline/${encodeURIComponent(d.id)}`)} onMore={() => setEditing(d)} />
+            ))}
+          </ListSection>
+        </>
       )}
 
       <Sheet open={!!editing} onOpenChange={(open) => !open && setEditing(null)} title={editing?.title ?? ''} description={editing?.fileName}>
         {editing && (
-          <div className="flex flex-col gap-2">
-            {editing.status === 'done' && (
-              <button
+          <div className="flex flex-col gap-6">
+            <ListSection className="mb-0">
+              {editing.status === 'done' && (
+                <ListRow
+                  onClick={() => {
+                    navigate(`/offline/${encodeURIComponent(editing.id)}`)
+                    setEditing(null)
+                  }}
+                  icon={
+                    <IconTile color="blue">
+                      <Play className="fill-current" />
+                    </IconTile>
+                  }
+                  label="Play"
+                  accessory="none"
+                />
+              )}
+              <ListRow
                 onClick={() => {
-                  navigate(`/offline/${encodeURIComponent(editing.id)}`)
+                  navigate(`/title/${editing.mediaType}/${editing.tmdbId}`)
                   setEditing(null)
                 }}
-                className="press flex items-center gap-3 rounded-2xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold transition-colors hover:bg-white/[0.09]"
-              >
-                <Play className="h-5 w-5" /> Play
-              </button>
-            )}
-            <Link
-              to={`/title/${editing.mediaType}/${editing.tmdbId}`}
-              onClick={() => setEditing(null)}
-              className="press flex items-center gap-3 rounded-2xl bg-white/[0.05] p-3.5 text-[14px] font-semibold transition-colors hover:bg-white/[0.09]"
-            >
-              <ExternalLink className="h-5 w-5" /> Go to title
-            </Link>
-            {desktop && editing.status === 'done' && (
-              <button onClick={() => void desktop!.showInFolder(editing.path)} className="press flex items-center gap-3 rounded-2xl bg-white/[0.05] p-3.5 text-left text-[14px] font-semibold transition-colors hover:bg-white/[0.09]">
-                <FolderOpen className="h-5 w-5" /> Show in folder
-              </button>
-            )}
-            <button
-              onClick={() => {
-                void removeDownload(editing.id)
-                setEditing(null)
-              }}
-              className="press flex items-center gap-3 rounded-2xl bg-red-500/10 p-3.5 text-left text-[14px] font-semibold text-red-300 transition-colors hover:bg-red-500/20"
-            >
-              <Trash2 className="h-5 w-5" /> {editing.status === 'done' ? 'Delete download' : 'Cancel download'}
-            </button>
+                icon={
+                  <IconTile color="graphite">
+                    <ExternalLink />
+                  </IconTile>
+                }
+                label="Go to Title"
+              />
+              {desktop && editing.status === 'done' && (
+                <ListRow
+                  onClick={() => void desktop!.showInFolder(editing.path)}
+                  icon={
+                    <IconTile color="graphite">
+                      <FolderOpen />
+                    </IconTile>
+                  }
+                  label="Show in Folder"
+                  accessory="none"
+                />
+              )}
+            </ListSection>
+            <ListSection className="mb-0">
+              <ListRow
+                onClick={() => {
+                  void removeDownload(editing.id)
+                  setEditing(null)
+                }}
+                icon={
+                  <IconTile color="red">
+                    <Trash2 />
+                  </IconTile>
+                }
+                label={editing.status === 'done' ? 'Delete Download' : 'Cancel Download'}
+                destructive
+                accessory="none"
+              />
+            </ListSection>
           </div>
         )}
       </Sheet>
@@ -135,32 +164,26 @@ function DownloadRow({ record, onPlay, onMore }: { record: DownloadRecord; onPla
   const percent = record.total > 0 ? record.bytes / record.total : 0
   const done = record.status === 'done'
   return (
-    <div className="group flex items-center gap-3 rounded-2xl bg-white/[0.03] p-2 pr-3 ring-1 ring-white/[0.05] transition-colors hover:bg-white/[0.06]">
-      <button onClick={done ? onPlay : onMore} className="press relative w-[128px] shrink-0 overflow-hidden rounded-xl bg-white/[0.05]">
-        {record.poster ? (
-          <img src={record.poster} alt="" className="aspect-video w-full object-cover object-[center_20%]" />
-        ) : (
-          <div className="aspect-video w-full bg-gradient-to-br from-white/10 to-white/[0.02]" />
-        )}
+    <div className="cell-sep-inset tap relative flex items-center gap-3 px-3 py-2.5" style={{ '--sep-inset': '124px' } as React.CSSProperties}>
+      <button type="button" onClick={done ? onPlay : onMore} className="press relative w-[100px] shrink-0 overflow-hidden rounded-[6px] bg-fill" aria-label={done ? `Play ${record.title}` : record.title}>
+        {record.poster ? <img src={record.poster} alt="" className="aspect-video w-full object-cover object-[center_20%]" /> : <div className="aspect-video w-full" />}
         {done && (
-          <span className="absolute inset-0 flex items-center justify-center bg-black/30">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/50 backdrop-blur transition-all group-hover:scale-110 group-hover:bg-white group-hover:text-black">
-              <Play className="ml-0.5 h-4 w-4 fill-current" />
-            </span>
+          <span className="absolute inset-0 flex items-center justify-center bg-black/25">
+            <Play className="h-5 w-5 fill-white text-white drop-shadow" />
           </span>
         )}
       </button>
-      <button onClick={onMore} className="min-w-0 flex-1 text-left">
-        <p className="font-display truncate text-[14.5px] font-extrabold">{record.title}</p>
+      <button type="button" onClick={onMore} className="min-w-0 flex-1 text-left">
+        <p className="t-subhead truncate font-semibold">{record.title}</p>
         {record.mediaType === 'tv' && (
-          <p className="truncate text-[12px] text-white/60">
-            S{record.season} · E{record.episode}
+          <p className="t-footnote truncate text-white/80">
+            S{record.season}, E{record.episode}
             {record.episodeName ? ` · ${record.episodeName}` : ''}
           </p>
         )}
-        <p className={cn('mt-0.5 text-[11.5px]', record.status === 'failed' ? 'text-red-300' : 'text-white/45')}>
+        <p className={cn('t-footnote mt-0.5 truncate', record.status === 'failed' ? 'text-ios-red' : 'text-label-2')}>
           {done
-            ? `${record.quality ?? ''} · ${formatBytes(record.total)}`
+            ? [record.quality, formatBytes(record.total)].filter(Boolean).join(' · ')
             : record.status === 'failed'
               ? record.error ?? 'Failed'
               : record.status === 'paused'
@@ -168,20 +191,20 @@ function DownloadRow({ record, onPlay, onMore }: { record: DownloadRecord; onPla
                 : `${formatBytes(record.bytes)} of ${formatBytes(record.total)}`}
         </p>
         {!done && record.status !== 'failed' && (
-          <span className="mt-2 block h-1 overflow-hidden rounded-full bg-white/10">
-            <motion.span className="block h-full rounded-full bg-primary" animate={{ width: `${Math.round(percent * 100)}%` }} transition={{ ease: 'easeOut' }} />
+          <span className="mt-1.5 block h-[4px] overflow-hidden rounded-full bg-fill">
+            <motion.span className="block h-full rounded-full bg-tint" animate={{ width: `${Math.round(percent * 100)}%` }} transition={{ ease: 'easeOut' }} />
           </span>
         )}
       </button>
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center">
         {done ? (
-          <CheckCircle2 className="h-5 w-5 text-emerald-400/80" />
+          <CheckCircle2 className="h-5 w-5 text-ios-green" />
         ) : record.status === 'failed' ? (
-          <AlertCircle className="h-5 w-5 text-red-400" />
+          <AlertCircle className="h-5 w-5 text-ios-red" />
         ) : record.status === 'paused' ? (
-          <Pause className="h-5 w-5 text-white/50" />
+          <Pause className="h-5 w-5 fill-current text-label-2" />
         ) : (
-          <ProgressRing value={percent} size={26} />
+          <ProgressRing value={percent} size={24} />
         )}
       </span>
     </div>

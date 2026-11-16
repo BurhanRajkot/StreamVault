@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Check, Loader2, LogOut, ShieldCheck, X } from 'lucide-react'
 import { PageHeader } from '@app/components/PageHeader'
+import { Button } from '@app/components/kit'
 import { clearAdminToken, getAdminToken } from '@/lib/api'
 import { useIsAdmin } from '@/hooks/useIsAdmin'
 import AdminLoginModal from '@/components/admin/AdminLoginModal'
@@ -39,9 +40,9 @@ export function AdminScreen() {
         title="Admin"
         actions={
           isAdmin ? (
-            <button onClick={() => clearAdminToken()} className="press mb-1 flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3.5 py-2 text-[12.5px] font-semibold text-white/70 ring-1 ring-white/10 hover:text-white">
-              <LogOut className="h-3.5 w-3.5" /> Sign out
-            </button>
+            <Button variant="gray" size="sm" onClick={() => clearAdminToken()} className="mb-1.5">
+              <LogOut /> Sign Out
+            </Button>
           ) : undefined
         }
       />
@@ -55,12 +56,12 @@ export function AdminScreen() {
         </div>
       ) : (
         <div className="flex flex-col items-center pt-16 text-center">
-          <ShieldCheck className="mb-4 h-12 w-12 text-primary" />
-          <p className="text-[16px] font-bold">Admin sign-in</p>
-          <p className="mt-1.5 max-w-xs text-[13px] text-white/55">Enter the 6-digit code from your authenticator app.</p>
-          <button onClick={() => setLoginOpen(true)} className="press mt-5 rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black">
-            Enter code
-          </button>
+          <ShieldCheck className="mb-4 h-14 w-14 text-label-2" strokeWidth={1.5} />
+          <p className="t-title2">Admin sign-in</p>
+          <p className="t-subhead mt-1.5 max-w-xs text-label-2">Enter the 6-digit code from your authenticator app.</p>
+          <Button variant="tinted" onClick={() => setLoginOpen(true)} className="mt-6">
+            Enter Code
+          </Button>
         </div>
       )}
 
@@ -105,10 +106,10 @@ function PaymentRequests() {
   const recent = (requests ?? []).filter((r) => r.status !== 'pending').slice(0, 5)
 
   return (
-    <section className="surface rounded-[22px] p-5">
-      <h2 className="mb-3 flex items-center justify-between text-[15px] font-bold">
+    <section className="rounded-[12px] bg-grouped p-4">
+      <h2 className="t-headline mb-3 flex items-center justify-between">
         Payment requests
-        {pending.length > 0 && <span className="rounded-full bg-amber-400 px-2 text-[11px] font-bold text-black">{pending.length} pending</span>}
+        {pending.length > 0 && <span className="rounded-full bg-ios-red px-2 text-[12px] font-semibold leading-5 text-white">{pending.length} pending</span>}
       </h2>
       {isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-white/50" />
@@ -117,7 +118,7 @@ function PaymentRequests() {
       ) : (
         <ul className="flex flex-col gap-2">
           {[...pending, ...recent].map((r) => (
-            <li key={r.id} className="rounded-xl bg-black/20 p-3">
+            <li key={r.id} className="rounded-[10px] bg-grouped-2 p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-[13.5px] font-semibold">{r.email || 'No email'}</p>

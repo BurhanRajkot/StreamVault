@@ -5,6 +5,7 @@ import { CONFIG, DEBRID_SERVER_ID, serverOptions } from '@/lib/config'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { cn } from '@/lib/utils'
 import { spring } from '@app/lib/motion'
+import { IconTile } from './kit'
 import { Sheet } from './Sheet'
 
 export function useServerOptions(kind: 'movie' | 'tv') {
@@ -38,65 +39,57 @@ export function ServerList({
   const navigate = useNavigate()
   const options = useServerOptions(kind)
   return (
-    <ul className="flex flex-col gap-1.5">
+    <div className="overflow-hidden rounded-[12px] bg-grouped">
       {options.map((option, i) => {
         const isPremium = option.id === DEBRID_SERVER_ID
         const meta = CONFIG.PROVIDER_METADATA[option.id]
         const active = option.id === server
         const didFail = !active && failed?.has(option.id)
         return (
-          <motion.li key={option.id} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ ...spring, delay: i * 0.03 }}>
-            <button
-              onClick={() => {
-                if (option.locked) {
-                  onLocked?.()
-                  navigate('/premium')
-                  return
-                }
-                onPick(option.id)
-              }}
-              className={cn(
-                'press relative flex w-full items-center gap-3 overflow-hidden rounded-2xl px-3.5 py-3 text-left transition-colors',
-                active ? 'bg-primary/[0.16] ring-1 ring-primary/60' : 'bg-white/[0.045] hover:bg-white/[0.08]',
-                isPremium && !active && 'bg-gradient-to-r from-amber-500/[0.12] to-transparent ring-1 ring-amber-400/25'
-              )}
-            >
-              <span
-                className={cn(
-                  'font-display flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[14px] font-extrabold',
-                  isPremium ? 'bg-amber-400/15 text-amber-300' : active ? 'bg-primary text-white' : 'bg-white/[0.08] text-white/80'
-                )}
-              >
-                {isPremium ? <Zap className="h-[18px] w-[18px]" /> : option.name.slice(0, 2)}
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => {
+              if (option.locked) {
+                onLocked?.()
+                navigate('/premium')
+                return
+              }
+              onPick(option.id)
+            }}
+            className="tap cell-sep-inset relative flex min-h-[58px] w-full items-center gap-3 px-4 py-2.5 text-left"
+            style={{ '--sep-inset': '58px' } as React.CSSProperties}
+          >
+            <IconTile color={isPremium ? 'yellow' : active ? 'blue' : 'graphite'}>
+              {isPremium ? <Zap className="fill-current" /> : <span className="text-[13px] font-semibold">{option.name.slice(0, 1)}</span>}
+            </IconTile>
+            <span className="min-w-0 flex-1">
+              <span className="t-body flex items-center gap-2">
+                {option.name}
+                {option.detail && <span className="rounded-[5px] bg-fill px-1.5 text-[11px] font-semibold leading-[18px] text-white/80">{option.detail}</span>}
+                {i === 0 && !isPremium && <span className="text-[12px] font-medium text-label-2">Default</span>}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2 text-[14.5px] font-bold">
-                  {option.name}
-                  {option.detail && <span className="rounded-md bg-white/10 px-1.5 py-px text-[10px] font-bold tracking-wide text-white/75">{option.detail}</span>}
-                  {i === 0 && !isPremium && <span className="rounded-md bg-emerald-400/15 px-1.5 py-px text-[10px] font-bold tracking-wide text-emerald-300">DEFAULT</span>}
-                </span>
-                <span className={cn('mt-0.5 block truncate text-[11.5px]', didFail ? 'text-amber-300/90' : 'text-white/50')}>
-                  {didFail
-                    ? 'Didn’t start just now'
-                    : isPremium
-                      ? option.locked ? 'Invite only — tap to get Premium' : 'Real-Debrid · our own player, subtitles, downloads'
-                      : meta?.quality}
-                </span>
+              <span className={cn('t-footnote mt-0.5 block truncate', didFail ? 'text-ios-orange' : 'text-label-2')}>
+                {didFail
+                  ? 'Didn’t start just now'
+                  : isPremium
+                    ? option.locked ? 'Invite only — tap to get Premium' : 'Real-Debrid · our own player, subtitles, downloads'
+                    : meta?.quality}
               </span>
-              {option.locked ? (
-                <Lock className="h-4 w-4 text-white/40" />
-              ) : active ? (
-                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={spring} className="flex h-6 w-6 items-center justify-center rounded-full bg-primary">
-                  <Check className="h-4 w-4 text-white" strokeWidth={3} />
-                </motion.span>
-              ) : didFail ? (
-                <AlertTriangle className="h-4 w-4 text-amber-300/70" />
-              ) : null}
-            </button>
-          </motion.li>
+            </span>
+            {option.locked ? (
+              <Lock className="h-4 w-4 shrink-0 text-label-3" />
+            ) : active ? (
+              <motion.span initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring}>
+                <Check className="h-5 w-5 text-tint" strokeWidth={2.6} />
+              </motion.span>
+            ) : didFail ? (
+              <AlertTriangle className="h-4 w-4 shrink-0 text-ios-orange" />
+            ) : null}
+          </button>
         )
       })}
-    </ul>
+    </div>
   )
 }
 
@@ -105,7 +98,7 @@ export function ServerChips({ kind, server, onPick, layoutId = 'server-chip' }: 
   const navigate = useNavigate()
   const options = useServerOptions(kind)
   return (
-    <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0">
+    <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0">
       {options.map((option) => {
         const active = option.id === server
         const isPremium = option.id === DEBRID_SERVER_ID
@@ -114,14 +107,14 @@ export function ServerChips({ kind, server, onPick, layoutId = 'server-chip' }: 
             key={option.id}
             onClick={() => (option.locked ? navigate('/premium') : onPick(option.id))}
             className={cn(
-              'press relative flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold transition-colors',
-              active ? 'text-white' : isPremium ? 'text-amber-300 ring-1 ring-inset ring-amber-400/30 hover:bg-amber-400/10' : 'text-white/65 ring-1 ring-inset ring-white/12 hover:bg-white/[0.06] hover:text-white'
+              'press relative z-0 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-semibold transition-colors',
+              active ? 'text-black' : 'bg-fill text-white/85 hover:bg-[rgb(118_118_128/0.32)]'
             )}
           >
-            {active && <motion.span layoutId={layoutId} transition={spring} className="absolute inset-0 -z-10 rounded-full bg-primary" />}
-            {isPremium && (option.locked ? <Lock className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />)}
+            {active && <motion.span layoutId={layoutId} transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}
+            {isPremium && (option.locked ? <Lock className="h-3.5 w-3.5" /> : <Zap className={cn('h-3.5 w-3.5 fill-current', !active && 'text-ios-yellow')} />)}
             {option.name}
-            {option.detail && <span className={cn('text-[10px] font-bold', active ? 'text-white/80' : 'text-white/40')}>{option.detail}</span>}
+            {option.detail && <span className={cn('text-[11px] font-semibold', active ? 'text-black/55' : 'text-label-2')}>{option.detail}</span>}
           </button>
         )
       })}

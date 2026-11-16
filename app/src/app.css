@@ -1,56 +1,83 @@
 /*
  * The app's styles. It borrows the website's design system (tokens, the
  * Premium player's classes, the shared components' utilities) and lays its
- * own look over it: near-black glass, one solid blue accent, bundled
- * Manrope + Inter, and motion everywhere — the app runs on the device, not in
- * a browser tab, so it can afford what the website leaves out for speed.
+ * own look over it, modelled on iOS: true black, grouped gray surfaces,
+ * frosted materials only where content slides under them, system blue as the
+ * one tint, and Inter with optical sizes (its Display cut at large sizes, the
+ * way SF Pro switches between Display and Text).
  */
 @import "../../src/index.css";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/inter/opsz.css";
 
 @source "../../src";
 @source "./";
 
 @theme inline {
-  --font-display: "Manrope Variable", "Inter Variable", system-ui, sans-serif;
+  --font-display: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* iOS dark-mode system colours */
+  --color-tint: #0a84ff;
+  --color-grouped: #1c1c1e;
+  --color-grouped-2: #2c2c2e;
+  --color-fill: rgb(118 118 128 / 0.24);
+  --color-fill-2: rgb(118 118 128 / 0.16);
+  --color-label-2: rgb(235 235 245 / 0.6);
+  --color-label-3: rgb(235 235 245 / 0.3);
+  --color-separator: rgb(84 84 88 / 0.6);
+  --color-ios-green: #30d158;
+  --color-ios-red: #ff453a;
+  --color-ios-orange: #ff9f0a;
+  --color-ios-yellow: #ffd60a;
+  --color-ios-pink: #ff375f;
+  --color-ios-indigo: #5e5ce6;
+  --color-ios-teal: #40c8e0;
+  --color-ios-gray: #8e8e93;
 }
 
 :root,
 .dark {
-  --background: 240 10% 3.5%;
-  --foreground: 0 0% 97%;
-  --card: 240 8% 7%;
-  --card-foreground: 0 0% 97%;
-  --popover: 240 8% 8%;
-  --popover-foreground: 0 0% 97%;
-  --primary: 222 100% 59%;
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --card: 240 3% 11%;
+  --card-foreground: 0 0% 100%;
+  --popover: 240 3% 11%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 211 100% 52%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 6% 13%;
-  --secondary-foreground: 0 0% 97%;
-  --muted: 240 6% 12%;
-  --muted-foreground: 240 5% 64%;
-  --accent: 222 100% 59%;
+  --secondary: 240 2% 18%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 240 2% 18%;
+  --muted-foreground: 240 4% 62%;
+  --accent: 211 100% 52%;
   --accent-foreground: 0 0% 100%;
-  --border: 240 6% 15%;
-  --input: 240 6% 17%;
-  --ring: 222 100% 59%;
+  --border: 240 2% 20%;
+  --input: 240 2% 22%;
+  --ring: 211 100% 52%;
 
+  /* A hairline is one device pixel where the screen is dense enough to show it */
+  --hairline: 0.5px;
 
   /* Safe areas: Capacitor's SystemBars writes --safe-area-inset-*; elsewhere env() */
   --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
   --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   --sal: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
   --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
-  --tabbar-h: 64px;
-  --topbar-h: 64px;
+  --tabbar-h: 62px;
+  --navbar-h: 52px;
+  --topbar-h: 60px;
+}
+
+@media (max-resolution: 1.5dppx) {
+  :root {
+    --hairline: 1px;
+  }
 }
 
 html,
 body {
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: #000;
+  color: #fff;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
@@ -59,29 +86,31 @@ body {
 
 body {
   font-family: var(--font-sans);
-  font-size: 14px;
-  font-feature-settings: "cv11", "ss01", "ss03";
+  font-size: 15px;
+  line-height: 1.35;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer base {
-h1,
-h2,
-h3,
-.font-display {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  /* The site's fluid heading sizes don't apply here — every heading sets its own */
+  h1,
+  h2,
+  h3 {
+    font-size: inherit;
+  }
 }
 
-/* The site's fluid heading sizes don't apply here — every heading sets its own */
-h1,
-h2,
-h3 {
-  font-size: inherit;
-}
-}
-
-/* The site paints decorative glows behind the page; the app has its own ambient light */
+/* The site paints decorative glows behind the page; the app is plain black */
 body::before,
 .dark body::before {
   display: none !important;
@@ -115,129 +144,244 @@ textarea {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(0 0% 100% / 0.1);
+    background: rgb(255 255 255 / 0.12);
     border: 3px solid transparent;
     background-clip: padding-box;
     border-radius: 10px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(0 0% 100% / 0.22);
+    background: rgb(255 255 255 / 0.25);
     background-clip: padding-box;
     border: 3px solid transparent;
   }
 }
 
+/* ── Type: the iOS scale ─────────────────────────────────────────────────── */
+
+@utility t-large {
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+@utility t-title1 {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+@utility t-title2 {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.008em;
+}
+@utility t-title3 {
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+@utility t-headline {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+@utility t-body {
+  font-size: 17px;
+  line-height: 22px;
+  letter-spacing: -0.005em;
+}
+@utility t-callout {
+  font-size: 16px;
+  line-height: 21px;
+}
+@utility t-subhead {
+  font-size: 15px;
+  line-height: 20px;
+}
+@utility t-footnote {
+  font-size: 13px;
+  line-height: 18px;
+}
+@utility t-caption {
+  font-size: 12px;
+  line-height: 16px;
+}
+@utility t-caption2 {
+  font-size: 11px;
+  line-height: 13px;
+  letter-spacing: 0.01em;
+}
+
+/* ── Materials ───────────────────────────────────────────────────────────── */
+
+/* Bars that content scrolls under: the navigation bar, the desktop top bar */
+@utility material-bar {
+  background: rgb(18 18 20 / 0.72);
+  backdrop-filter: blur(30px) saturate(190%);
+  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 rgb(255 255 255 / 0.1);
+}
+
+/* Floating controls — the tab bar, banners: lit from the top edge */
+@utility material-float {
+  background: rgb(38 38 42 / 0.62);
+  backdrop-filter: blur(26px) saturate(190%);
+  box-shadow:
+    inset 0 var(--hairline) 0 rgb(255 255 255 / 0.2),
+    inset 0 0 0 var(--hairline) rgb(255 255 255 / 0.08),
+    0 10px 36px -6px rgb(0 0 0 / 0.55);
+}
+
+/* Sheets and menus */
+@utility material-sheet {
+  background: rgb(28 28 30 / 0.86);
+  backdrop-filter: blur(40px) saturate(180%);
+  box-shadow: inset 0 var(--hairline) 0 rgb(255 255 255 / 0.12);
+}
+
+/* Round buttons over artwork */
+@utility glass-button {
+  background: rgb(120 120 128 / 0.28);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 var(--hairline) 0 rgb(255 255 255 / 0.22), inset 0 0 0 var(--hairline) rgb(255 255 255 / 0.08);
+}
+
 @layer components {
-/* Horizontal rows: swipe or arrow through, no bar */
-.row-scroll {
-  display: flex;
-  overflow-x: auto;
-  overflow-y: visible;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: 1rem;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.row-scroll::-webkit-scrollbar {
-  display: none;
-}
-@media (min-width: 1024px) {
+  /* Older names, kept for the screens and site parts that use them */
+  .glass {
+    background: rgb(120 120 128 / 0.22);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: inset 0 var(--hairline) 0 rgb(255 255 255 / 0.18), inset 0 0 0 var(--hairline) rgb(255 255 255 / 0.07);
+  }
+  .glass-strong {
+    background: rgb(28 28 30 / 0.88);
+    backdrop-filter: blur(36px) saturate(180%);
+    box-shadow: inset 0 var(--hairline) 0 rgb(255 255 255 / 0.12), 0 24px 60px -12px rgb(0 0 0 / 0.7);
+  }
+  .surface {
+    background: #1c1c1e;
+  }
+
+  /* Horizontal rows: swipe or arrow through, no bar */
   .row-scroll {
-    scroll-padding-inline: 3rem;
-    scroll-snap-type: none;
-    /* Room for a hovered card to grow without being clipped */
-    padding-block: 18px 22px;
-    margin-block: -18px -22px;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 1rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
-}
-.row-scroll > * {
-  scroll-snap-align: start;
-}
+  .row-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  @media (min-width: 1024px) {
+    .row-scroll {
+      scroll-padding-inline: 3rem;
+      scroll-snap-type: none;
+      /* Room for a hovered card to grow without being clipped */
+      padding-block: 10px 14px;
+      margin-block: -10px -14px;
+    }
+  }
+  .row-scroll > * {
+    scroll-snap-align: start;
+  }
 
-.no-scrollbar {
-  scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 
-.pt-safe {
-  padding-top: var(--sat);
-}
-.pb-safe {
-  padding-bottom: var(--sab);
-}
-.pb-tabbar {
-  padding-bottom: calc(var(--tabbar-h) + var(--sab) + 32px);
-}
-@media (min-width: 1024px) {
+  .pt-safe {
+    padding-top: var(--sat);
+  }
+  .pb-safe {
+    padding-bottom: var(--sab);
+  }
   .pb-tabbar {
-    padding-bottom: 64px;
+    padding-bottom: calc(var(--tabbar-h) + var(--sab) + 36px);
   }
-}
-/* Pages without a hero start under the desktop top bar */
-.pt-page {
-  padding-top: calc(var(--sat) + 12px);
-}
-@media (min-width: 1024px) {
+  @media (min-width: 1024px) {
+    .pb-tabbar {
+      padding-bottom: 64px;
+    }
+  }
+  /* Pages without a hero start under the navigation bar */
   .pt-page {
-    padding-top: calc(var(--topbar-h) + 28px);
+    padding-top: calc(var(--sat) + var(--navbar-h));
+  }
+  @media (min-width: 1024px) {
+    .pt-page {
+      padding-top: calc(var(--topbar-h) + 32px);
+    }
+  }
+
+  /* A grouped list's cells: hairlines between them, inset past the icon */
+  .cell-sep + .cell-sep {
+    box-shadow: inset 0 var(--hairline) 0 rgb(84 84 88 / 0.55);
+  }
+  .cell-sep-inset + .cell-sep-inset::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--sep-inset, 16px);
+    height: var(--hairline);
+    background: rgb(84 84 88 / 0.55);
+  }
+
+  /* Image placeholders: a slow, quiet shimmer while TMDB art loads */
+  .skeleton {
+    background: linear-gradient(90deg, #161618 0, #222225 90px, #161618 180px);
+    background-size: 480px 100%;
+    animation: sv-shimmer 1.8s infinite linear;
+  }
+
+  /* Images fade in as they arrive */
+  .img-fade {
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .img-fade[data-loaded="true"] {
+    opacity: 1;
+  }
+
+  /* Touch feedback: a slight give, the way iOS buttons dim and shrink */
+  .press {
+    transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease;
+  }
+  .press:active {
+    transform: scale(0.97);
+    opacity: 0.8;
+  }
+  /* A list cell highlights rather than shrinking */
+  .tap {
+    transition: background-color 0.25s ease;
+  }
+  .tap:active {
+    background-color: rgb(255 255 255 / 0.08);
+    transition-duration: 0s;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .tap:hover {
+      background-color: rgb(255 255 255 / 0.04);
+    }
   }
 }
 
-/* Glass surfaces */
-.glass {
-  background: hsl(240 10% 8% / 0.62);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.08);
-}
-.glass-strong {
-  background: hsl(240 10% 7% / 0.86);
-  backdrop-filter: blur(32px) saturate(180%);
-  -webkit-backdrop-filter: blur(32px) saturate(180%);
-  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.09), 0 24px 60px -12px rgb(0 0 0 / 0.7);
-}
-.surface {
-  background: linear-gradient(180deg, hsl(0 0% 100% / 0.055), hsl(0 0% 100% / 0.025));
-  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.07);
-}
-
-/* Image placeholders shimmer while TMDB art loads */
 @keyframes sv-shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: calc(400px + 100%) 0; }
-}
-.skeleton {
-  background: linear-gradient(90deg, hsl(240 6% 9%) 0, hsl(240 6% 14%) 80px, hsl(240 6% 9%) 160px);
-  background-size: 400px 100%;
-  animation: sv-shimmer 1.6s infinite linear;
-}
-
-/* Images fade in as they arrive */
-.img-fade {
-  opacity: 0;
-  transition: opacity 0.5s ease;
-}
-.img-fade[data-loaded="true"] {
-  opacity: 1;
-}
-
-.press {
-  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.18s ease;
-}
-.press:active {
-  transform: scale(0.95);
-}
-
-/* The Top 10 numerals: an outlined figure lit from below */
-.rank-numeral {
-  font-family: var(--font-display);
-  font-weight: 800;
-  color: hsl(var(--background));
-  -webkit-text-stroke: 2px hsl(0 0% 100% / 0.38);
-}
+  0% {
+    background-position: -480px 0;
+  }
+  100% {
+    background-position: calc(480px + 100%) 0;
+  }
 }
 
 /*
