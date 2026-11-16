@@ -6,7 +6,10 @@ import { Toaster } from 'sonner'
 import { queryClient } from '@/lib/queryClient'
 import { AppAuthProvider } from '@app/auth/AppAuthProvider'
 import { App } from '@app/App'
+import { registerPremiumStreams } from '@app/native/premiumStreams'
 import './app.css'
+
+registerPremiumStreams()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

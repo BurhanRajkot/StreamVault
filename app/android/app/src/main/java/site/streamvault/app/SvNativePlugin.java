@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -39,7 +40,9 @@ import java.util.Locale;
  * What the StreamVault app needs from Android that a web view can't do:
  * the system downloader (offline copies, app updates), a local server that
  * plays downloaded files back with seeking, opening a file in another app,
- * installing an update, and full-screen sideways playback.
+ * installing an update, full-screen sideways playback — and Premium played
+ * through the phone (RdStreamServer: Real-Debrid files relayed, loaded far
+ * ahead, their Dolby/DTS audio converted).
  *
  * The TypeScript side is app/src/native/platform.ts (SvNativePlugin).
  */
@@ -47,6 +50,61 @@ import java.util.Locale;
 public class SvNativePlugin extends Plugin {
 
     private LocalFileServer fileServer;
+    private RdStreamServer rdServer;
+
+    private synchronized RdStreamServer rd() throws IOException {
+        if (rdServer == null) {
+            boolean debuggable = (getContext().getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+            RdStreamServer server = new RdStreamServer(getContext(), debuggable);
+            server.start();
+            rdServer = server;
+        }
+        return rdServer;
+    }
+
+    @PluginMethod
+    public void rdCaps(PluginCall call) {
+        try {
+            JSObject result = new JSObject();
+            result.put("canConvert", rd().canConvert());
+            call.resolve(result);
+        } catch (IOException e) {
+            call.reject("Couldn't start the Premium server", e);
+        }
+    }
+
+    @PluginMethod
+    public void rdOpen(PluginCall call) {
+        try {
+            JSArray list = call.getArray("urls");
+            List<String> urls = new java.util.ArrayList<>();
+            if (list != null) for (int i = 0; i < list.length(); i++) urls.add(list.getString(i));
+            RdStreamServer server = rd();
+            String token = server.open(
+                    urls,
+                    call.getData().optLong("size", 0),
+                    call.getData().optDouble("duration", 0),
+                    call.getData().optInt("audioIndex", 0),
+                    call.getData().optString("videoCodec", "")
+            );
+            JSObject result = new JSObject();
+            result.put("token", token);
+            result.put("fileUrl", server.fileUrl(token));
+            result.put("convertUrl", server.canConvert() ? server.convertUrl(token) : JSObject.NULL);
+            call.resolve(result);
+        } catch (IllegalArgumentException | JSONException e) {
+            call.reject(e.getMessage());
+        } catch (IOException e) {
+            call.reject("Couldn't start the Premium server", e);
+        }
+    }
+
+    @PluginMethod
+    public void rdClose(PluginCall call) {
+        String token = call.getString("token");
+        if (token != null && rdServer != null) rdServer.close(token);
+        call.resolve();
+    }
 
     private DownloadManager downloads() {
         return (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
@@ -324,6 +382,7 @@ public class SvNativePlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         if (fileServer != null) fileServer.stop();
+        if (rdServer != null) rdServer.stop();
         super.handleOnDestroy();
     }
 }

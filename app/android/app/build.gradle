@@ -62,6 +62,8 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // ffmpeg for Premium's audio conversion (RdStreamServer): FFmpeg 8.1, LGPL build, ARM only — what phones are
+    implementation "io.github.maitrungduc1410:ffmpeg-kit-min:8.1.2"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

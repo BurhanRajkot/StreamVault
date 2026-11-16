@@ -33,6 +33,11 @@
  * ahead than the browser does by itself (lib/readAhead), so a Real-Debrid
  * server going quiet for a while doesn't stop it.
  *
+ * In the StreamVault app the file goes through the app's own server first
+ * (lib/localStream): relayed — loaded minutes ahead — or, when its audio is
+ * Dolby/DTS, converted there to AAC with the picture untouched, and fed to
+ * the element through Media Source Extensions (ConvertedFeed).
+ *
  * A film that keeps stalling, or drops frames because the device can't
  * decode it in time, is reported through `onStruggle`, so the caller can
  * move to a release that plays smoothly.
@@ -43,6 +48,7 @@ import { knownThroughput, noteThroughput } from '@/lib/connection'
 import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
 import { forgetEdge, nearestDirectUrl, type EdgeChoice } from '@/lib/debridHost'
 import { ReadAhead, sharesMediaCache } from '@/lib/readAhead'
+import { ConvertedFeed, canFeedConverted, localStreamProvider, type LocalStream } from '@/lib/localStream'
 import {
   convertedStreamUrl,
   detectBrowserVideoSupport,
@@ -272,7 +278,46 @@ export function DebridVideo({
   // The server is settled for the life of the file: a measurement landing
   // mid-film mustn't swap the link under the viewer.
   const [nearUrl] = useState(() => nearestDirectUrl(playback, edge))
-  const modes = useMemo(() => planPlaybackModes(playback, detectBrowserVideoSupport(), nearUrl), [playback, nearUrl])
+  /**
+   * The StreamVault app's own server for this file (lib/localStream):
+   * undefined while it's being asked, null on the website or when it can't.
+   */
+  const [appStreams, setAppStreams] = useState<LocalStream | null | undefined>(() => (localStreamProvider() ? undefined : null))
+  useEffect(() => {
+    const provider = localStreamProvider()
+    if (!provider) return
+    let live = true
+    let opened: LocalStream | null = null
+    const media = playback.media
+    const audioIndex = media ? Math.max(0, media.audioTracks.findIndex((t) => t.id === media.selectedAudio)) : 0
+    const videoCodec = media?.videoCodec ?? null
+    provider
+      .open({
+        urls: [...new Set([nearUrl, playback.directUrl].filter((u): u is string => !!u))],
+        size: playback.fileSize,
+        duration: media?.duration ?? null,
+        audioIndex,
+        videoCodec,
+      })
+      .then((stream) => {
+        opened = stream
+        if (!live) return stream?.close()
+        // The conversion only helps where this browser can take the stream it makes.
+        setAppStreams(stream && stream.convertUrl && !canFeedConverted(videoCodec) ? { ...stream, convertUrl: null } : stream)
+      })
+      .catch((err: unknown) => {
+        console.warn('The app could not open this file — playing it from Real-Debrid', err)
+        if (live) setAppStreams(null)
+      })
+    return () => {
+      live = false
+      opened?.close()
+    }
+  }, [playback, nearUrl])
+  const modes = useMemo(
+    () => (appStreams === undefined ? [] : planPlaybackModes(playback, detectBrowserVideoSupport(), nearUrl, appStreams)),
+    [playback, nearUrl, appStreams]
+  )
   const [modeIndex, setModeIndex] = useState(0)
   const mode = modes[modeIndex] as PlaybackMode | undefined
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -324,6 +369,8 @@ export function DebridVideo({
   const offsetRef = useRef(0)
   /** Where the converted stream (re)starts, in seconds into the file. */
   const convertedAtRef = useRef(startAt && startAt > 0 ? startAt : 0)
+  /** The app's converted stream, while that mode plays (lib/localStream). */
+  const feedRef = useRef<ConvertedFeed | null>(null)
   /** Bumped to restart the converted stream at `convertedAtRef`. */
   const [convertedRun, setConvertedRun] = useState(0)
   /** A jump is restarting the converted stream; true until it can play. */
@@ -421,6 +468,13 @@ export function DebridVideo({
     if (!video || !mode) return
     const at = positionRef.current
     setRetryRun((n) => n + 1)
+    if (mode.kind === 'local') {
+      // The app's conversion picks up where the viewer is.
+      pauseAfterRestartRef.current = !wantPlayingRef.current
+      setRestarting(true)
+      void feedRef.current?.start(at)
+      return
+    }
     if (mode.kind === 'hls') {
       convertedAtRef.current = at
       pauseAfterRestartRef.current = !wantPlayingRef.current
@@ -895,7 +949,7 @@ export function DebridVideo({
      * so the race goes there; with nothing else, to the same link.
      */
     const next = modes[modeIndex + 1]
-    const alternate = mode.kind === 'direct' && next?.kind === 'direct' ? next : null
+    const alternate = mode.kind === 'direct' && next?.kind === 'direct' && !next.viaApp ? next : null
 
     const check = () => {
       timer = null
@@ -966,7 +1020,8 @@ export function DebridVideo({
       clearTimers()
       if (document.hidden) return
       timer = setTimeout(check, timeoutMs)
-      if (mode.kind === 'direct' && !hedged && mayHedge) hedgeTimer = setTimeout(hedge, DIRECT_STARTUP_HEDGE_MS)
+      // Through the app, the app races its own connections to Real-Debrid.
+      if (mode.kind === 'direct' && !mode.viaApp && !hedged && mayHedge) hedgeTimer = setTimeout(hedge, DIRECT_STARTUP_HEDGE_MS)
     }
     const onVisibility = () => {
       if (startedRef.current) return
@@ -1019,7 +1074,8 @@ export function DebridVideo({
   // itself (lib/readAhead) — once the film has started, and only on a
   // connection with room to spare for it.
   useEffect(() => {
-    if (starting || !videoEl || mode?.kind !== 'direct' || !sharesMediaCache()) return
+    // Through the app, the app loads the film far ahead itself.
+    if (starting || !videoEl || mode?.kind !== 'direct' || mode.viaApp || !sharesMediaCache()) return
     const kbps = knownThroughput()
     const duration = fullDuration || (Number.isFinite(videoEl.duration) ? videoEl.duration : 0)
     const fileKbps = playback.fileSize > 0 && duration > 0 ? (playback.fileSize * 8) / duration / 1000 : null
@@ -1083,6 +1139,44 @@ export function DebridVideo({
     }
   }, [mode])
 
+  // The app's conversion (lib/localStream), fed through Media Source
+  // Extensions: from where the viewer is, and again from wherever they jump
+  // to that isn't loaded yet. Its stream keeps the film's own clock, so the
+  // controls need no offset.
+  const feedCodec = playback.media?.videoCodec ?? null
+  useEffect(() => {
+    if (!mode || mode.kind !== 'local') return
+    const video = videoRef.current
+    if (!video) return
+    const feed = new ConvertedFeed(video, {
+      url: mode.url,
+      duration: fullDuration,
+      videoCodec: feedCodec,
+      onFatal: (reason) => advanceRef.current(`the app's conversion failed: ${reason}`),
+    })
+    feedRef.current = feed
+    const at = pendingSeekRef.current ?? 0
+    pendingSeekRef.current = null
+    void feed.start(at)
+    return () => {
+      feed.destroy()
+      if (feedRef.current === feed) feedRef.current = null
+    }
+  }, [mode, fullDuration, feedCodec])
+
+  /** A jump in the app's converted stream: instant within what's loaded, else it restarts there. */
+  const seekLocal = useCallback((target: number) => {
+    const feed = feedRef.current
+    if (!feed) return
+    const time = Math.max(0, target)
+    positionRef.current = time
+    if (!feed.covers(time)) {
+      pauseAfterRestartRef.current = !!videoRef.current?.paused
+      setRestarting(true)
+    }
+    feed.seek(time)
+  }, [])
+
   /** Seek in the converted stream — restarting it when the spot isn't loaded (see planConvertedSeek). */
   const seekConverted = useCallback(
     (target: number) => {
@@ -1119,11 +1213,12 @@ export function DebridVideo({
   const timeline = useMemo<PlayerTimeline | null>(() => {
     const frozenAt = reconnecting ? heldAt : undefined
     if (mode?.kind === 'hls') return { offset, duration: fullDuration, seek: seekConverted, restarting, frozenAt }
+    if (mode?.kind === 'local') return { offset: 0, duration: fullDuration || knownDuration, seek: seekLocal, restarting, frozenAt }
     if (reconnecting) {
       return { offset: 0, duration: fullDuration || knownDuration, seek: seekWhileReconnecting, restarting: false, frozenAt }
     }
     return null
-  }, [mode?.kind, offset, fullDuration, knownDuration, seekConverted, seekWhileReconnecting, restarting, reconnecting, heldAt])
+  }, [mode?.kind, offset, fullDuration, knownDuration, seekConverted, seekLocal, seekWhileReconnecting, restarting, reconnecting, heldAt])
 
   const handleError = () => {
     const video = videoRef.current
@@ -1140,7 +1235,14 @@ export function DebridVideo({
     advance(`video element error${code ? ` ${code}` : ''}`)
   }
 
-  if (!mode) return null
+  if (!mode) {
+    // Asking the app about the file: a moment, under the same loading screen.
+    return appStreams === undefined && loadingScreen ? (
+      <div className={cn('relative overflow-hidden bg-black', className)}>
+        <div className="absolute inset-0 z-10">{loadingScreen(startingMessage('direct', false, false))}</div>
+      </div>
+    ) : null
+  }
 
   return (
     <div ref={setContainer} className={cn('relative overflow-hidden bg-black', className)}>

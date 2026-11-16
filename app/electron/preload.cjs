@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('svDesktop', {
   windowControl: (action) => ipcRenderer.invoke('sv:window', action),
   onWindowState: (callback) => subscribe('sv:window-state', callback),
   onKey: (callback) => subscribe('sv:key', callback),
+  rdCaps: () => ipcRenderer.invoke('sv:rd-caps'),
+  rdOpen: (request) => ipcRenderer.invoke('sv:rd-open', request),
+  rdClose: (token) => ipcRenderer.invoke('sv:rd-close', token),
 })
 
 function subscribe(channel, callback) {
