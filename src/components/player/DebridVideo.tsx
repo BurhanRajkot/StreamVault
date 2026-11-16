@@ -29,14 +29,20 @@
  *     can move on to another release — or, when it was the connection that
  *     failed, wait for it and pick the film up again.
  *
- * A film that keeps stalling is reported through `onStruggle`, so the caller
- * can move to a release the connection can carry.
+ * While the direct link plays, hidden helpers keep the film loaded further
+ * ahead than the browser does by itself (lib/readAhead), so a Real-Debrid
+ * server going quiet for a while doesn't stop it.
+ *
+ * A film that keeps stalling, or drops frames because the device can't
+ * decode it in time, is reported through `onStruggle`, so the caller can
+ * move to a release that plays smoothly.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { knownThroughput, noteThroughput } from '@/lib/connection'
 import { formatBytes, type DebridReadyPlayback } from '@/lib/debridApi'
 import { forgetEdge, nearestDirectUrl, type EdgeChoice } from '@/lib/debridHost'
+import { ReadAhead, sharesMediaCache } from '@/lib/readAhead'
 import {
   convertedStreamUrl,
   detectBrowserVideoSupport,
@@ -44,8 +50,9 @@ import {
   planPlaybackModes,
   previewStreamUrl,
   type PlaybackMode,
+  type StruggleCause,
 } from '@/lib/releasePlayback'
-import { reconnectDelayMs, shouldHedge, StallMeter, stallThroughputKbps, startupPatience } from '@/lib/streamRecovery'
+import { FrameMeter, reconnectDelayMs, shouldHedge, StallMeter, stallThroughputKbps, startupPatience } from '@/lib/streamRecovery'
 import { cn } from '@/lib/utils'
 import { PlayerControls, type PlayerControlsProps, type PlayerTimeline } from './PlayerControls'
 
@@ -66,6 +73,15 @@ type ChromeProps = Pick<
   | 'topActions'
 >
 
+/** Why a file isn't playing smoothly (see `onStruggle`). */
+export interface Struggle {
+  cause: StruggleCause
+  /** What the connection delivered while the film stalled, in kbit/s, when that could be told. */
+  kbps: number | null
+  /** It was Real-Debrid's converted stream that struggled, not the file itself. */
+  converted: boolean
+}
+
 /**
  * Mount one per file — give it a `key` that changes with `playback` — so a
  * new file starts fresh from its first mode and its own `startAt`.
@@ -78,11 +94,11 @@ interface DebridVideoProps extends ChromeProps {
    */
   onExhausted: (reason: string, position: number, network: boolean) => void
   /**
-   * The film keeps stalling: the connection isn't keeping up with this file.
-   * `kbps` is what the connection delivered while it stalled, when that
-   * could be told. Reported once per file.
+   * The film isn't playing smoothly: it keeps stalling (the connection, or
+   * Real-Debrid's converter, isn't keeping up with this file), or the device
+   * drops frames decoding it. Reported once per file.
    */
-  onStruggle?: (kbps: number | null) => void
+  onStruggle?: (struggle: Struggle) => void
   /** The mode now playing — e.g. to label it in the UI. */
   onModeChange?: (mode: PlaybackMode) => void
   /** Where to start, in seconds (a resume point). */
@@ -184,6 +200,16 @@ const MAX_STARTUP_EXTENSIONS = 6
 const MIN_CONVERTED_START_S = 10
 
 const PROGRESS_INTERVAL_MS = 5000
+
+/**
+ * Loading further ahead (lib/readAhead) only on a connection that carries at
+ * least this many times what the file needs: on a tighter one the helpers
+ * would take bandwidth the film itself needs.
+ */
+const READ_AHEAD_MIN_HEADROOM = 1.5
+
+/** How often the dropped-frame count is read while the film plays (see FrameMeter). */
+const FRAME_CHECK_MS = 2000
 
 /** Where the loaded media ends, in the element's time (0 when nothing is loaded). */
 function bufferedEnd(video: HTMLVideoElement): number {
@@ -549,7 +575,7 @@ export function DebridVideo({
       console.warn(
         `Debrid ${mode.label} stream keeps stalling${measured ? ` — the connection carries ~${(measured / 1000).toFixed(1)} Mbit/s` : ''}`
       )
-      onStruggleRef.current?.(measured)
+      onStruggleRef.current?.({ cause: 'stalls', kbps: measured, converted: mode.kind === 'hls' })
     }
     /** The stall is over: count it (unless `counted` is false), and note what the connection delivered meanwhile. */
     const endStall = (counted = true) => {
@@ -768,6 +794,12 @@ export function DebridVideo({
           startPosition: 0,
           maxBufferLength: 90,
           maxMaxBufferLength: 180,
+          // What has played is let go of after half a minute (hls.js keeps
+          // it all by default). Real-Debrid converts at the source's quality,
+          // so a film fills Chrome's media memory (~150 MB) within minutes,
+          // and hls.js clears room then by flushing — a stutter. A jump back
+          // further than this loads those segments again.
+          backBufferLength: 30,
           fragLoadPolicy: segmentLoadPolicy,
         })
         hls.loadSource(url)
@@ -980,6 +1012,74 @@ export function DebridVideo({
     return () => {
       if (timer) clearTimeout(timer)
       video.removeEventListener('playing', handlePlaying)
+    }
+  }, [mode])
+
+  // Keep the direct link loaded further ahead than the browser does by
+  // itself (lib/readAhead) — once the film has started, and only on a
+  // connection with room to spare for it.
+  useEffect(() => {
+    if (starting || !videoEl || mode?.kind !== 'direct' || !sharesMediaCache()) return
+    const kbps = knownThroughput()
+    const duration = fullDuration || (Number.isFinite(videoEl.duration) ? videoEl.duration : 0)
+    const fileKbps = playback.fileSize > 0 && duration > 0 ? (playback.fileSize * 8) / duration / 1000 : null
+    if (!shouldHedge(kbps) || (kbps !== null && fileKbps !== null && kbps < fileKbps * READ_AHEAD_MIN_HEADROOM)) return
+    const readAhead = new ReadAhead(mode.url, videoEl)
+    return () => readAhead.destroy()
+  }, [starting, videoEl, mode, fullDuration, playback.fileSize])
+
+  // Frames the device decodes too late to show: the file plays on without a
+  // stall, but judders — a 4K or high-bitrate file, or a codec this device
+  // decodes in software (FrameMeter). Judged only over smooth, visible,
+  // normal-speed playback; reported like stalls, once per file.
+  useEffect(() => {
+    if (!mode) return
+    const video = videoRef.current
+    if (!video || typeof video.getVideoPlaybackQuality !== 'function') return
+    const meter = new FrameMeter()
+    const interrupt = () => meter.reset(Date.now())
+    // Scrolled out of view (the title page, reading on while it plays), the
+    // browser may stop painting it: frames not shown, but not for want of time.
+    let inView = true
+    const observer =
+      typeof IntersectionObserver === 'function'
+        ? new IntersectionObserver(([entry]) => {
+            inView = entry.isIntersecting
+            interrupt()
+          }, { threshold: 0.5 })
+        : null
+    observer?.observe(video)
+    const timer = setInterval(() => {
+      if (struggleReportedRef.current) return
+      const now = Date.now()
+      const smooth =
+        inView &&
+        !video.paused &&
+        !video.seeking &&
+        !document.hidden &&
+        video.playbackRate === 1 &&
+        video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA
+      if (!smooth) {
+        meter.reset(now)
+        return
+      }
+      const quality = video.getVideoPlaybackQuality()
+      meter.note(now, quality.totalVideoFrames, quality.droppedVideoFrames)
+      if (!meter.struggling()) return
+      struggleReportedRef.current = true
+      console.warn(
+        `Debrid ${mode.label} stream drops frames (${quality.droppedVideoFrames} of ${quality.totalVideoFrames}) — this device can't decode it smoothly`
+      )
+      onStruggleRef.current?.({ cause: 'frames', kbps: null, converted: mode.kind === 'hls' })
+    }, FRAME_CHECK_MS)
+    const events = ['waiting', 'seeking', 'pause', 'emptied', 'ratechange'] as const
+    events.forEach((e) => video.addEventListener(e, interrupt))
+    document.addEventListener('visibilitychange', interrupt)
+    return () => {
+      clearInterval(timer)
+      observer?.disconnect()
+      events.forEach((e) => video.removeEventListener(e, interrupt))
+      document.removeEventListener('visibilitychange', interrupt)
     }
   }, [mode])
 

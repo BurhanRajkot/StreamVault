@@ -20,7 +20,7 @@
 
 import { test as base } from '@e2e-dev/web'
 import { MOCK_API_ORIGIN, MockApi } from '../fixtures/mock-api'
-import { EMBED_STUB_TEXT } from '../fixtures/network'
+import { EMBED_STUB_TEXT, convertedResponse } from '../fixtures/network'
 import { ADMIN_TOKEN, SIGNED_IN, type TestUser } from '../fixtures/users'
 
 export { SIGNED_IN, type TestUser }
@@ -45,6 +45,10 @@ export const firstVisitTest = base.extend<{ mockApi: MockApi }>({
       // ⚡ Premium's file: the same 8 s clip the Playwright suite plays.
       if (url.hostname === 'media.e2e.test' && url.pathname === '/sample.webm') {
         return route.fulfill({ status: 200, contentType: 'video/webm', path: 'e2e/fixtures/media/sample.webm' })
+      }
+      // …and Real-Debrid's converted stream of a longer file (see convertedPlayback).
+      if (url.hostname === 'media.e2e.test' && url.pathname.startsWith('/converted/')) {
+        return route.fulfill(convertedResponse(url))
       }
       // A document request from another origin is a streaming embed's iframe.
       if ((route.request.headers['accept'] ?? '').startsWith('text/html')) {

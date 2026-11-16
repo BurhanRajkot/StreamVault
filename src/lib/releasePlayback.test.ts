@@ -17,21 +17,27 @@ import {
   releaseKbps,
   fitReleasesToConnection,
   lighterRelease,
+  replacementReleases,
+  isHeavyRelease,
 } from './releasePlayback'
 import type { DebridRelease, DebridReadyPlayback, DebridMediaSummary } from './debridApi'
 
-const release = (name: string, opts: { cached?: boolean; size?: number; seeders?: number } = {}): DebridRelease => ({
+const release = (
+  name: string,
+  opts: { cached?: boolean; size?: number; seeders?: number; numFiles?: number; fileName?: string } = {}
+): DebridRelease => ({
   id: name,
   name,
   info_hash: name,
   seeders: String(opts.seeders ?? 0),
   leechers: '0',
   size: String(opts.size ?? 0),
-  num_files: '1',
+  num_files: String(opts.numFiles ?? 1),
   username: 'torrentio',
   added: '0',
   category: '208',
   cached: opts.cached ?? true,
+  ...(opts.fileName ? { file_name: opts.fileName } : {}),
 })
 
 const noHevc = { hevc: false, av1: false }
@@ -68,6 +74,19 @@ describe('isDolbyVisionOnly', () => {
 })
 
 describe('isBrowserPlayable', () => {
+  it('rejects 10-bit H.264, which no browser decodes, but not 10-bit HEVC where HEVC plays', () => {
+    expect(isBrowserPlayable('[Group] Show - 01 (1080p Hi10P FLAC)', noHevc)).toBe(false)
+    expect(isBrowserPlayable('Show.S01E01.1080p.BluRay.x264.10bit.AAC-GRP', withHevc)).toBe(false)
+    expect(isBrowserPlayable('Show.S01E01.1080p.BluRay.x265.10bit.AAC-GRP', withHevc)).toBe(true)
+    expect(isBrowserPlayable('Show.S01E01.1080p.BluRay.x264.AAC-GRP', noHevc)).toBe(true)
+  })
+
+  it('rejects XviD/DivX and AVI files, which no browser plays', () => {
+    expect(isBrowserPlayable('Eat the Rich The GameStop Saga S01E01 XviD-AFG', withHevc)).toBe(false)
+    expect(isBrowserPlayable('Movie.2004.DVDRip.DivX-GRP', withHevc)).toBe(false)
+    expect(isBrowserPlayable('Eat.the.Rich.The.GameStop.Saga.S01E01.XviD-AFG.avi', withHevc)).toBe(false)
+  })
+
   it('rejects HEVC only when the browser lacks it', () => {
     const name = 'Breaking Bad S02E03 2160p NF WEB-DL DDP5 1 H 265-XEBEC'
     expect(isBrowserPlayable(name, noHevc)).toBe(false)
@@ -404,5 +423,79 @@ describe('fitting the release to the connection', () => {
     it('skips releases known not to be instant', () => {
       expect(lighterRelease(ranked, big, { ...opts, kbps: null, exclude: new Set([web.info_hash]) })).toBe(hd)
     })
+  })
+})
+
+describe('heavy files', () => {
+  const TWO_HOURS = 7200
+  // ~23.9, ~11.9 and ~4.8 Mbit/s over two hours.
+  const heavy = release('Movie.2024.1080p.BluRay.x264.AAC-HEAVY', { size: 20 * GB, seeders: 900 })
+  const big = release('Movie.2024.1080p.BluRay.x264.AAC-BIG', { size: 10 * GB, seeders: 50 })
+  const web = release('Movie.2024.1080p.WEB-DL.x264.AAC-WEB', { size: 4 * GB, seeders: 10 })
+  const hd = release('Movie.2024.720p.WEB-DL.x264.AAC-HD', { size: 1.5 * GB, seeders: 500 })
+
+  it('counts a file as heavy only past HEAVY_FILE_KBPS, and only when the running time is known', () => {
+    expect(isHeavyRelease(heavy, TWO_HOURS)).toBe(true)
+    expect(isHeavyRelease(big, TWO_HOURS)).toBe(false)
+    expect(isHeavyRelease(heavy, undefined)).toBe(false)
+  })
+
+  it('doesn’t take a season pack’s size for the episode’s', () => {
+    const pack = release('Show.S02.1080p.WEB-DL.x264.AAC-PACK', { size: 30 * GB, numFiles: 10 })
+    const matched = release('Show.S02.1080p.WEB-DL.x264.AAC-PACK', { size: 30 * GB, numFiles: 10, fileName: 'Show.S02E03.mkv' })
+    expect(isHeavyRelease(pack, 2700)).toBe(false)
+    expect(isHeavyRelease(matched, 2700)).toBe(true)
+  })
+
+  it('starts a lighter 1080p ahead of a heavy one with more seeders, but not a 720p', () => {
+    const names = (list: DebridRelease[]) => list.map((r) => r.name)
+    expect(names(rankReleasesForPlayback([heavy, hd, big, web], noHevc, { durationS: TWO_HOURS }))).toEqual(
+      names([big, web, heavy, hd])
+    )
+    // Without the running time, seeders decide as before.
+    expect(rankReleasesForPlayback([big, heavy], noHevc)[0]).toBe(heavy)
+  })
+})
+
+describe('replacementReleases', () => {
+  const TWO_HOURS = 7200
+  const base = { durationS: TWO_HOURS, support: noHevc, kbps: null }
+  const names = (list: DebridRelease[]) => list.map((r) => r.name)
+  const uhd = release('Movie.2024.2160p.WEB-DL.DDP5.1.H.265-UHD', { size: 20 * GB })
+  const big = release('Movie.2024.1080p.BluRay.x264.DTS-BIG', { size: 10 * GB })
+  const web = release('Movie.2024.1080p.WEB-DL.x264.AAC-WEB', { size: 4 * GB })
+  const webHevc = release('Movie.2024.1080p.WEB-DL.x265.AAC-HEVC', { size: 2 * GB })
+  const hd = release('Movie.2024.720p.WEB-DL.x264.AAC-HD', { size: 1.5 * GB })
+
+  it('moves a stalling file to lighter ones, the best the connection carries first', () => {
+    expect(names(replacementReleases([big, web, hd], big, { ...base, cause: 'stalls', converted: false, kbps: 3000 }))).toEqual(
+      names([hd, web])
+    )
+    expect(names(replacementReleases([big, web, hd], big, { ...base, cause: 'stalls', converted: false }))).toEqual(names([web, hd]))
+  })
+
+  it('moves a stalling conversion to a release that plays from its file, whatever its size', () => {
+    const directBig = release('Movie.2024.1080p.BluRay.x264.AAC-DIRECT', { size: 12 * GB })
+    const out = replacementReleases([big, directBig, web, hd], big, { ...base, cause: 'stalls', converted: true })
+    expect(out[0]).toBe(directBig)
+    expect(out).toContain(web)
+  })
+
+  it('moves a file that drops frames to a lighter H.264 one first', () => {
+    const withHevcSupport = { ...base, support: withHevc }
+    const out = replacementReleases([uhd, webHevc, web, hd], uhd, { ...withHevcSupport, cause: 'frames', converted: false })
+    expect(out[0]).toBe(web)
+    expect(out).toContain(webHevc)
+  })
+
+  it('never offers the playing release, an excluded one, or one this browser can’t play as it is', () => {
+    const cam = release('Movie.2024.HDCAM.x264-CAM', { size: 0.7 * GB })
+    const out = replacementReleases([big, web, webHevc, cam, hd], big, {
+      ...base,
+      cause: 'stalls',
+      converted: true,
+      exclude: new Set([web.info_hash]),
+    })
+    expect(names(out)).toEqual(names([hd]))
   })
 })

@@ -19,11 +19,17 @@
  *   7. Where the viewer stopped is remembered per title/episode (see
  *      playbackPosition) and playback resumes there next time.
  *   8. On a slow connection (measured while the release is found, see
- *      lib/connection) the first pick is a release the line can carry; a
- *      film that keeps stalling offers a lighter one. A connection that
- *      drops mid-film is reconnected in place (DebridVideo); one that stays
- *      down ends on "Connection lost", which picks the film up where it
- *      stopped once the browser is back online.
+ *      lib/connection) the first pick is a release the line can carry, and
+ *      a heavy file (HEAVY_FILE_KBPS) never is when a lighter one of the
+ *      same resolution is there. A connection that drops mid-film is
+ *      reconnected in place (DebridVideo); one that stays down ends on
+ *      "Connection lost", which picks the film up where it stopped once the
+ *      browser is back online.
+ *   9. A film that doesn't play smoothly — it keeps stalling, or the device
+ *      drops frames — is moved to a release that should, the way a viewer
+ *      would from the Quality menu: found in the background while the film
+ *      plays on, started where the viewer is, with a notice that can undo
+ *      it (see handleStruggle).
  */
 
 import { useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from 'react'
@@ -45,9 +51,10 @@ import {
   detectBrowserVideoSupport,
   fitReleasesToConnection,
   isLikelyDirectPlayable,
-  lighterRelease,
   planPlaybackModes,
   rankReleasesForPlayback,
+  replacementReleases,
+  type StruggleCause,
 } from '@/lib/releasePlayback'
 import { estimateConnection, knownThroughput } from '@/lib/connection'
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
@@ -58,7 +65,7 @@ import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } f
 import { useQueryClient } from '@tanstack/react-query'
 import { clearAdminToken } from '@/lib/api'
 import { MY_ACCESS_QUERY_KEY, usePremiumAccess } from '@/hooks/usePremiumAccess'
-import { DebridVideo } from './DebridVideo'
+import { DebridVideo, type Struggle } from './DebridVideo'
 import { ActionRow, PaneBackdrop, PremiumLoading, StatusMessage, primaryAction, secondaryAction } from './PremiumLoading'
 import type { PlayerSource } from './PlayerControls'
 
@@ -107,6 +114,12 @@ export interface ReleaseControls {
   canDownload: boolean
   /** A release is being found or started. */
   busy: boolean
+}
+
+/** "1080p · 4.2 GB" — how the notices name a release. */
+function releaseLabel(rel: DebridRelease): string {
+  const source = toPlayerSource(rel)
+  return source.size ? `${source.label} · ${source.size}` : source.label
 }
 
 /** A release as the Quality menu and the release picker list it. */
@@ -202,6 +215,22 @@ const DOWNLOAD_POLL_INTERVAL_MS = 5000
  */
 const CONNECTION_WAIT_MS = 1500
 
+/**
+ * Automatic moves to a smoother release per title or episode. Past that —
+ * or once the viewer has undone one — a film that struggles gets an offer
+ * instead, and the choice is theirs.
+ */
+const MAX_AUTO_SWITCHES = 2
+
+/** How long the notice of an automatic switch stays up once the new file plays. */
+const SWITCH_NOTICE_MS = 12_000
+
+/** What the notice and the offer say about the file being left. */
+const STRUGGLE_REASON: Record<StruggleCause, string> = {
+  stalls: 'the last copy kept stalling',
+  frames: 'the last copy wasn’t playing smoothly on this device',
+}
+
 /** A running time to size releases by when the title's isn't known, in minutes. */
 const TYPICAL_RUNTIME_MIN = { movie: 120, tv: 45 } as const
 
@@ -296,13 +325,22 @@ export function DebridPlayerPane({
   const connectionLost = lostAt !== null
   /** The last search or start failed because the request didn't get through: try again once online. */
   const [failedOffline, setFailedOffline] = useState(false)
-  /** A lighter release to offer, for a film that keeps stalling. */
-  const [lighterOffer, setLighterOffer] = useState<DebridRelease | null>(null)
+  /** A smoother release to offer, for a film that isn't playing smoothly (when it isn't switched automatically). */
+  const [lighterOffer, setLighterOffer] = useState<{ release: DebridRelease; cause: StruggleCause } | null>(null)
+  /** The release the player just moved to by itself, and the one it left — for the notice and its Undo. */
+  const [autoSwitch, setAutoSwitch] = useState<{ from: DebridRelease; to: DebridRelease; cause: StruggleCause } | null>(null)
+  /** Automatic switches so far for this title or episode. */
+  const autoSwitchesRef = useRef(0)
+  /** The viewer undid an automatic switch: for this title, offer rather than switch. */
+  const autoSwitchOffRef = useRef(false)
   /** How long the film runs, in seconds — the title's own figure, or a typical one. */
   const expectedDurationS = (runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes : TYPICAL_RUNTIME_MIN[mediaType]) * 60
   /** Read by the search without being one of its inputs: details landing late mustn't search again. */
   const expectedDurationRef = useRef(expectedDurationS)
   expectedDurationRef.current = expectedDurationS
+  /** The title's own running time, in seconds — undefined when only the typical one is to go by. */
+  const knownDurationRef = useRef<number | undefined>(undefined)
+  knownDurationRef.current = runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes * 60 : undefined
 
   const episodeOpts = useMemo(() => (mediaType === 'tv' ? { season, episode } : {}), [mediaType, season, episode])
 
@@ -350,13 +388,15 @@ export function DebridPlayerPane({
    */
   const startPositionRef = useRef<number | undefined>(undefined)
 
-  const showPlayback = useCallback((release: DebridRelease, ready: DebridReadyPlayback) => {
+  /** `resumeToast: false` when the start position isn't a resume point (an automatic switch has its own notice). */
+  const showPlayback = useCallback((release: DebridRelease, ready: DebridReadyPlayback, { resumeToast = true } = {}) => {
     const start = startPositionRef.current
     playingKeyRef.current = storageKeyRef.current
     setActiveRelease(release)
     setPlayback(ready)
     setStartAt(start)
-    setResumeToast(!!start && start > 0)
+    setResumeToast(resumeToast && !!start && start > 0)
+    setAutoSwitch(null)
     setVideoStarted(false)
     setPlaybackFailed(false)
     setLostAt(null)
@@ -371,6 +411,11 @@ export function DebridPlayerPane({
     const timer = setTimeout(() => setResumeToast(false), 8000)
     return () => clearTimeout(timer)
   }, [resumeToast, videoStarted])
+  useEffect(() => {
+    if (!autoSwitch || !videoStarted) return
+    const timer = setTimeout(() => setAutoSwitch(null), SWITCH_NOTICE_MS)
+    return () => clearTimeout(timer)
+  }, [autoSwitch, videoStarted])
 
   const handleProgress = useCallback(
     (position: number, duration: number) => {
@@ -679,23 +724,71 @@ export function DebridPlayerPane({
   }, [])
 
   /**
-   * The film keeps stalling: the connection doesn't carry this file. Offer
-   * the best release it can (`kbps`, what it delivered meanwhile) — or,
-   * failing that, a real step down. The next film or episode starts from
-   * that measurement anyway (lib/connection).
+   * Move to `candidates[0]` — or the next, should Real-Debrid not have it
+   * ready — without stopping the film: it plays on while the release is
+   * resolved, and the new file starts where the viewer has got to by then.
+   * When none of them can start, the film just carries on as it was.
+   */
+  const switchInBackground = useCallback(
+    async (from: DebridRelease, candidates: DebridRelease[], struggle: Struggle) => {
+      // Anything the viewer does meanwhile (another release, another episode) wins.
+      const generation = ++generationRef.current
+      const support = detectBrowserVideoSupport()
+      const token = await getToken()
+      for (const rel of candidates) {
+        if (generationRef.current !== generation) return
+        try {
+          const res = await playDebridRelease(rel, token, { ...episodeOpts, instantOnly: true })
+          if (generationRef.current !== generation) return
+          if (res.status === 'not-cached') notInstantRef.current.add(rel.info_hash)
+          if (res.status !== 'ready') continue
+          // Out of a conversion that couldn't keep up: not into another one.
+          if (struggle.converted && struggle.cause === 'stalls' && planPlaybackModes(res, support)[0]?.kind === 'hls') continue
+          console.info(`Real-Debrid release ${STRUGGLE_REASON[struggle.cause]} — switched to ${rel.name}`)
+          startPositionRef.current = positionRef.current > 0 ? positionRef.current : startPositionRef.current
+          showPlayback(rel, res, { resumeToast: false })
+          setAutoSwitch({ from, to: rel, cause: struggle.cause })
+          return
+        } catch (err: unknown) {
+          // Refused, or no connection: the next one would be too.
+          if (isAccessRefused(err) || isDebridUnavailable(err) || isNetworkFailure(err)) return
+          console.warn('Real-Debrid release could not start, trying another:', rel.name, err)
+        }
+      }
+      console.warn(`Real-Debrid release ${STRUGGLE_REASON[struggle.cause]}, but no smoother one could start`)
+    },
+    [getToken, episodeOpts, showPlayback]
+  )
+
+  /**
+   * The film isn't playing smoothly: it keeps stalling — the connection, or
+   * Real-Debrid's converter, doesn't keep up with this file — or the device
+   * drops frames decoding it. Move to a release that should play smoothly
+   * (replacementReleases), the way the viewer would from the Quality menu,
+   * up to MAX_AUTO_SWITCHES times; after that, or once the viewer has undone
+   * one, offer it instead. The next film or episode starts from what the
+   * connection was measured to carry anyway (lib/connection).
    */
   const handleStruggle = useCallback(
-    (kbps: number | null) => {
+    (struggle: Struggle) => {
       if (!activeRelease) return
-      const lighter = lighterRelease(instantReleases, activeRelease, {
-        kbps,
+      const candidates = replacementReleases(instantReleases, activeRelease, {
+        cause: struggle.cause,
+        converted: struggle.converted,
+        kbps: struggle.kbps,
         durationS: playback?.media?.duration || expectedDurationS,
         support: detectBrowserVideoSupport(),
         exclude: notInstantRef.current,
       })
-      if (lighter) setLighterOffer(lighter)
+      if (candidates.length === 0) return
+      if (autoSwitchOffRef.current || autoSwitchesRef.current >= MAX_AUTO_SWITCHES) {
+        setLighterOffer({ release: candidates[0], cause: struggle.cause })
+        return
+      }
+      autoSwitchesRef.current++
+      void switchInBackground(activeRelease, candidates, struggle)
     },
-    [activeRelease, instantReleases, playback, expectedDurationS]
+    [activeRelease, instantReleases, playback, expectedDurationS, switchInBackground]
   )
 
   /** `fresh`: search again rather than reuse the title page's search (Try again). */
@@ -708,6 +801,9 @@ export function DebridPlayerPane({
     setLostAt(null)
     setFailedOffline(false)
     setLighterOffer(null)
+    setAutoSwitch(null)
+    autoSwitchesRef.current = 0
+    autoSwitchOffRef.current = false
     setPlayback(null)
     setInstantReleases([])
     setActiveRelease(null)
@@ -730,7 +826,8 @@ export function DebridPlayerPane({
       if (generationRef.current !== generation) return
 
       const support = detectBrowserVideoSupport()
-      const ranked = rankReleasesForPlayback(releases, support)
+      // A heavy file is only told by its bitrate, so only once the running time is actually known.
+      const ranked = rankReleasesForPlayback(releases, support, { durationS: knownDurationRef.current })
       const kbps = (await within(connection, CONNECTION_WAIT_MS)) ?? knownThroughput()
       if (generationRef.current !== generation) return
       /** Best first, as far as this connection can carry it. */
@@ -973,8 +1070,9 @@ export function DebridPlayerPane({
 
   // --- Ready ---
   const videoKey = `${activeRelease?.info_hash ?? ''}:${playback.directUrl}:${playNonce}`
-  const offered = lighterOffer ? toPlayerSource(lighterOffer) : null
-  const lighterLabel = offered ? `${offered.label}${offered.size ? ` · ${offered.size}` : ''}` : ''
+  const toast = 'flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg'
+  const toastAction = 'font-semibold text-white underline-offset-4 hover:underline'
+  const toastDismiss = '-m-1 p-1 text-white/60 hover:text-white'
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
@@ -1012,28 +1110,46 @@ export function DebridPlayerPane({
           />
         )}
         overlay={
-          (resumeToast && startAt !== undefined) || lighterOffer ? (
+          (resumeToast && startAt !== undefined) || lighterOffer || autoSwitch ? (
             <div className="flex flex-col items-start gap-2">
+              {autoSwitch && (
+                <div role="status" className={toast}>
+                  <span>
+                    Switched to {releaseLabel(autoSwitch.to)} — {STRUGGLE_REASON[autoSwitch.cause]}.
+                  </span>
+                  <button
+                    onClick={() => {
+                      // The viewer prefers the one they had: leave the choice to them from here on.
+                      autoSwitchOffRef.current = true
+                      setAutoSwitch(null)
+                      switchRelease(autoSwitch.from)
+                    }}
+                    className={toastAction}
+                  >
+                    Undo
+                  </button>
+                  <button onClick={() => setAutoSwitch(null)} aria-label="Dismiss" className={toastDismiss}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               {lighterOffer && (
-                <div
-                  role="status"
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg"
-                >
-                  <span>Your connection can’t keep up with this file.</span>
+                <div role="status" className={toast}>
+                  <span>
+                    {lighterOffer.cause === 'frames'
+                      ? 'This file isn’t playing smoothly on this device.'
+                      : 'Your connection can’t keep up with this file.'}
+                  </span>
                   <button
                     onClick={() => {
                       setLighterOffer(null)
-                      switchRelease(lighterOffer)
+                      switchRelease(lighterOffer.release)
                     }}
-                    className="font-semibold text-white underline-offset-4 hover:underline"
+                    className={toastAction}
                   >
-                    Switch to {lighterLabel}
+                    Switch to {releaseLabel(lighterOffer.release)}
                   </button>
-                  <button
-                    onClick={() => setLighterOffer(null)}
-                    aria-label="Keep this release"
-                    className="-m-1 p-1 text-white/60 hover:text-white"
-                  >
+                  <button onClick={() => setLighterOffer(null)} aria-label="Keep this release" className={toastDismiss}>
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -1041,7 +1157,7 @@ export function DebridPlayerPane({
               {resumeToast && startAt !== undefined && (
                 <div className="flex items-center gap-3 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg">
                   <span>Resumed from {formatPlayerTime(startAt)}</span>
-                  <button onClick={startOver} className="font-semibold text-white underline-offset-4 hover:underline">
+                  <button onClick={startOver} className={toastAction}>
                     Start over
                   </button>
                 </div>

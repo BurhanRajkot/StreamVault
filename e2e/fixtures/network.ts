@@ -64,9 +64,10 @@ function serveVideo(route: Route) {
 
 /**
  * Real-Debrid's converted stream, as Real-Debrid serves it: `?t=<seconds>`
- * on the playlist starts it there, listing only the rest of the file.
+ * on the playlist starts it there, listing only the rest of the file. A
+ * response for either suite's router (this one, and e2e/tests/fixtures.ts).
  */
-function serveConverted(route: Route, url: URL) {
+export function convertedResponse(url: URL): { status: number; contentType?: string; body: string | Buffer } {
   const name = url.pathname.slice('/converted/'.length)
   if (name === 'full.m3u8') {
     const first = Math.min(Math.floor(Number(url.searchParams.get('t') ?? 0) / CONVERTED_SEGMENT_S), CONVERTED_SEGMENTS - 1)
@@ -80,11 +81,15 @@ function serveConverted(route: Route, url: URL) {
     ]
     for (let i = first; i < CONVERTED_SEGMENTS; i++) lines.push(`#EXTINF:${CONVERTED_SEGMENT_S}.000,`, `seg${i}.m4s`)
     lines.push('#EXT-X-ENDLIST', '')
-    return route.fulfill({ status: 200, contentType: 'application/vnd.apple.mpegurl', body: lines.join('\n') })
+    return { status: 200, contentType: 'application/vnd.apple.mpegurl', body: lines.join('\n') }
   }
   const file = CONVERTED_FILES.get(name)
-  if (!file) return route.fulfill({ status: 404, body: '' })
-  return route.fulfill({ status: 200, contentType: 'video/mp4', body: file })
+  if (!file) return { status: 404, body: '' }
+  return { status: 200, contentType: 'video/mp4', body: file }
+}
+
+function serveConverted(route: Route, url: URL) {
+  return route.fulfill(convertedResponse(url))
 }
 
 /**
