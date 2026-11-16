@@ -35,7 +35,8 @@ export interface RowSpec {
   key: string
   title: string
   kind?: 'movie' | 'tv'
-  style?: 'top10'
+  /** Big ranked numerals, or landscape cards to break up the posters. */
+  style?: 'top10' | 'wide'
   load: () => Promise<Media[]>
 }
 
@@ -58,7 +59,7 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
       return [
         { key: 'top', title: 'Top 10 Movies Today', kind: 'movie', style: 'top10', load: () => fetchTrending('movie') },
         { key: 'popular', title: 'Popular Movies', kind: 'movie', load: async () => (await fetchPopular('movie', 1)).results },
-        { key: 'new', title: 'New Releases', kind: 'movie', load: () => fetchRecentlyAdded('movie') },
+        { key: 'new', title: 'New Releases', kind: 'movie', style: 'wide', load: () => fetchRecentlyAdded('movie') },
         { key: 'picks', title: "Editor's Picks", kind: 'movie', load: picks(AUTHORS_CHOICE_MOVIES) },
         { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '150' }) },
         { key: 'action', title: 'Action', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '28', 'vote_count.gte': '300' }) },
@@ -67,17 +68,17 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
         { key: 'scifi', title: 'Sci-Fi', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '878', 'vote_count.gte': '300' }) },
         { key: 'horror', title: 'Horror', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '27', 'vote_count.gte': '300' }) },
         { key: 'romance', title: 'Romance', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '10749', 'vote_count.gte': '300' }) },
-        { key: 'acclaimed', title: 'Critically Acclaimed', kind: 'movie', load: () => fetchDiscover('movie', { sort_by: 'vote_average.desc', 'vote_count.gte': '5000' }) },
+        { key: 'acclaimed', title: 'Critically Acclaimed', kind: 'movie', style: 'wide', load: () => fetchDiscover('movie', { sort_by: 'vote_average.desc', 'vote_count.gte': '5000' }) },
       ]
     case 'tv':
       return [
         { key: 'top', title: 'Top 10 Shows Today', kind: 'tv', style: 'top10', load: () => fetchTrending('tv') },
         { key: 'popular', title: 'Popular Shows', kind: 'tv', load: async () => (await fetchPopular('tv', 1)).results },
-        { key: 'new', title: 'New Seasons & Series', kind: 'tv', load: () => fetchRecentlyAdded('tv') },
+        { key: 'new', title: 'New Seasons & Series', kind: 'tv', style: 'wide', load: () => fetchRecentlyAdded('tv') },
         { key: 'picks', title: "Editor's Picks", kind: 'tv', load: picks(AUTHORS_CHOICE_TV) },
         { key: 'hindi', title: 'Indian Series', kind: 'tv', load: () => fetchDiscover('tv', { with_original_language: 'hi', 'vote_count.gte': '20' }) },
         { key: 'drama', title: 'Drama', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '18', 'vote_count.gte': '300' }) },
-        { key: 'crime', title: 'Crime', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '80', 'vote_count.gte': '200' }) },
+        { key: 'crime', title: 'Crime', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_genres: '80', 'vote_count.gte': '200' }) },
         { key: 'comedy', title: 'Comedy', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '35', 'vote_count.gte': '200' }) },
         { key: 'scifi', title: 'Sci-Fi & Fantasy', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '10765', 'vote_count.gte': '200' }) },
         { key: 'mystery', title: 'Mystery', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '9648', 'vote_count.gte': '200' }) },
@@ -87,7 +88,7 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
       return [
         { key: 'top', title: 'Top 10 Anime', style: 'top10', load: () => fetchTrending('anime') },
         { key: 'series', title: 'Popular Series', kind: 'tv', load: () => fetchAnimeRow('series') },
-        { key: 'movies', title: 'Anime Movies', kind: 'movie', load: () => fetchAnimeRow('movies') },
+        { key: 'movies', title: 'Anime Movies', kind: 'movie', style: 'wide', load: () => fetchAnimeRow('movies') },
         { key: 'picks', title: "Editor's Picks", load: picks(AUTHORS_CHOICE_ANIME) },
         { key: 'new', title: 'New Episodes & Releases', load: () => fetchAnimeRow('new') },
         { key: 'rated', title: 'Top Rated', load: () => fetchAnimeRow('top-rated') },
@@ -97,7 +98,7 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
         { key: 'popular', title: 'Popular Documentaries', load: async () => (await fetchPopular('documentary', 1)).results },
         { key: 'new', title: 'New Releases', load: () => fetchRecentlyAdded('documentary') },
         { key: 'picks', title: "Editor's Picks", load: picks(AUTHORS_CHOICE_DOCUMENTARIES) },
-        { key: 'series', title: 'Docuseries', kind: 'tv', load: () => fetchDiscover('tv', { with_genres: '99', 'vote_count.gte': '50' }) },
+        { key: 'series', title: 'Docuseries', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_genres: '99', 'vote_count.gte': '50' }) },
         { key: 'acclaimed', title: 'Acclaimed Films', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '99', sort_by: 'vote_average.desc', 'vote_count.gte': '400' }) },
       ]
     default:
@@ -106,7 +107,7 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
         { key: 'movies', title: 'Trending Movies', kind: 'movie', load: () => fetchTrending('movie') },
         { key: 'new', title: 'New Releases', load: () => fetchRecentlyAdded('home') },
         { key: 'picks', title: "Editor's Picks", kind: 'movie', load: picks(AUTHORS_CHOICE_MOVIES) },
-        { key: 'shows', title: 'Trending Shows', kind: 'tv', load: () => fetchTrending('tv') },
+        { key: 'shows', title: 'Trending Shows', kind: 'tv', style: 'wide', load: () => fetchTrending('tv') },
         { key: 'anime', title: 'Anime', kind: 'tv', load: () => fetchAnimeRow('series') },
         { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '40', 'primary_release_date.gte': recentWindow(), 'primary_release_date.lte': today() }) },
         { key: 'docs', title: 'Documentaries', load: async () => (await fetchPopular('documentary', 1)).results },

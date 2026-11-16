@@ -58,6 +58,22 @@ npm run linux:build      # release/StreamVault-<v>.AppImage, .pacman, .deb
 npm run android:apk      # android/app/build/outputs/apk/release/app-release.apk
 ```
 
+A development copy can run beside an installed StreamVault: give it another
+port and profile, e.g. `SV_PORT=47399 npx electron . --user-data-dir=/tmp/sv-dev`.
+
+## Look and feel
+
+The app has its own design, separate from the website's: the site stays
+static for speed, while the app runs on the device and animates freely
+(framer-motion: page fades, a drifting hero carousel, rows that rise in,
+cards that lift under the mouse, sheets you swipe away). Fonts (Manrope,
+Inter) are bundled. In a wide window it switches to the desktop layout — a
+glass top bar that is also the Linux window's title bar (the window is
+frameless; `TitleBar.tsx` draws the drag area and window buttons). On embed
+servers the player's bar fades, but a handle at the top always opens the
+server drawer, and Escape (forwarded by the shell even while the embed's
+frame has focus) brings the controls back.
+
 ## Release signing (Android)
 
 Every APK must be signed with **the same key**, or Android refuses to install

@@ -1,13 +1,16 @@
-import { lazy, Suspense, useEffect, useRef } from 'react'
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
+import { MotionConfig, motion } from 'framer-motion'
 import { FavoritesProvider } from '@/context/FavoritesContext'
 import { DislikesProvider } from '@/context/DislikesContext'
 import { AccountSync } from '@/components/layout/AccountSync'
-import { isAndroid } from '@app/native/platform'
+import { desktop, isAndroid } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
-import { AppNav } from '@app/components/AppNav'
+import { AmbientBackdrop } from '@app/lib/ambient'
+import { TitleBar } from '@app/components/shell/TitleBar'
+import { TabBar } from '@app/components/shell/TabBar'
 import { UpdateBanner } from '@app/components/UpdateBanner'
 import { Welcome } from '@app/screens/Welcome'
 import { HomeScreen } from '@app/screens/HomeScreen'
@@ -22,49 +25,121 @@ const MyListScreen = lazy(() => import('@app/screens/MyListScreen').then((m) => 
 const PremiumScreen = lazy(() => import('@app/screens/PremiumScreen').then((m) => ({ default: m.PremiumScreen })))
 const AdminScreen = lazy(() => import('@app/screens/AdminScreen').then((m) => ({ default: m.AdminScreen })))
 
-/** Screens that own the whole display — no tab bar. */
+/** Screens that own the whole display — no bars. */
 const FULLSCREEN = /^\/(watch|offline)\//
 
 export function App() {
   const settings = useSettings()
   const location = useLocation()
   useAndroidBackButton()
+  useEscapeBridge()
+  useScrollMemory()
 
-  if (!settings.acceptedTerms) return <Welcome />
+  if (!settings.acceptedTerms) {
+    return (
+      <MotionConfig reducedMotion="user">
+        <Welcome />
+      </MotionConfig>
+    )
+  }
 
   const fullscreen = FULLSCREEN.test(location.pathname)
   return (
-    <FavoritesProvider>
-      <DislikesProvider>
-        <AccountSync />
-        <UserSwitchGuard />
-        <div className="min-h-[100dvh] bg-background text-foreground lg:flex">
-          {!fullscreen && <AppNav />}
-          <main className="min-w-0 flex-1">
-            {!fullscreen && <UpdateBanner />}
+    <MotionConfig reducedMotion="user">
+      <FavoritesProvider>
+        <DislikesProvider>
+          <AccountSync />
+          <UserSwitchGuard />
+          {!fullscreen && <AmbientBackdrop />}
+          {!fullscreen && <TitleBar />}
+          <main className="relative z-10 min-h-[100dvh] text-foreground">
             <Suspense fallback={<div className="min-h-[100dvh]" />}>
-              <Routes>
-                <Route path="/" element={<HomeScreen mode="home" />} />
-                <Route path="/movies" element={<HomeScreen mode="movie" />} />
-                <Route path="/tv" element={<HomeScreen mode="tv" />} />
-                <Route path="/anime" element={<HomeScreen mode="anime" />} />
-                <Route path="/documentaries" element={<HomeScreen mode="documentary" />} />
-                <Route path="/search" element={<SearchScreen />} />
-                <Route path="/downloads" element={<DownloadsScreen />} />
-                <Route path="/me" element={<ProfileScreen />} />
-                <Route path="/my-list" element={<MyListScreen />} />
-                <Route path="/premium" element={<PremiumScreen />} />
-                <Route path="/admin" element={<AdminScreen />} />
-                <Route path="/title/:type/:id" element={<TitleScreen />} />
-                <Route path="/watch/:type/:id" element={<PlayerScreen />} />
-                <Route path="/offline/:id" element={<OfflinePlayerScreen />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+              {/* Each screen fades in. Opacity only: a transform here would trap the screens' fixed layers. */}
+              <motion.div
+                key={fullscreen ? 'player' : location.pathname}
+                initial={fullscreen ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.32, ease: 'easeOut' }}
+              >
+                <Routes location={location}>
+                  <Route path="/" element={<HomeScreen mode="home" />} />
+                  <Route path="/movies" element={<HomeScreen mode="movie" />} />
+                  <Route path="/tv" element={<HomeScreen mode="tv" />} />
+                  <Route path="/anime" element={<HomeScreen mode="anime" />} />
+                  <Route path="/documentaries" element={<HomeScreen mode="documentary" />} />
+                  <Route path="/search" element={<SearchScreen />} />
+                  <Route path="/downloads" element={<DownloadsScreen />} />
+                  <Route path="/me" element={<ProfileScreen />} />
+                  <Route path="/my-list" element={<MyListScreen />} />
+                  <Route path="/premium" element={<PremiumScreen />} />
+                  <Route path="/admin" element={<AdminScreen />} />
+                  <Route path="/title/:type/:id" element={<TitleScreen />} />
+                  <Route path="/watch/:type/:id" element={<PlayerScreen />} />
+                  <Route path="/offline/:id" element={<OfflinePlayerScreen />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </motion.div>
             </Suspense>
           </main>
-        </div>
-      </DislikesProvider>
-    </FavoritesProvider>
+          {!fullscreen && <TabBar />}
+          {!fullscreen && <UpdateBanner />}
+        </DislikesProvider>
+      </FavoritesProvider>
+    </MotionConfig>
+  )
+}
+
+/**
+ * New screens open at the top; going back returns to where you were on the
+ * previous one, once its content is tall enough to scroll there.
+ */
+function useScrollMemory() {
+  const location = useLocation()
+  const type = useNavigationType()
+  const positions = useRef(new Map<string, number>())
+  const currentKey = useRef(location.key)
+  const lastPath = useRef(location.pathname)
+
+  useEffect(() => {
+    const onScroll = () => positions.current.set(currentKey.current, window.scrollY)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useLayoutEffect(() => {
+    currentKey.current = location.key
+    const samePage = lastPath.current === location.pathname
+    lastPath.current = location.pathname
+    if (type !== 'POP') {
+      if (!samePage) window.scrollTo(0, 0)
+      return
+    }
+    const target = positions.current.get(location.key) ?? 0
+    let tries = 0
+    let frame = 0
+    const restore = () => {
+      const room = document.documentElement.scrollHeight - window.innerHeight
+      window.scrollTo(0, Math.min(target, room))
+      if (room < target && tries++ < 90) frame = requestAnimationFrame(restore)
+    }
+    restore()
+    return () => cancelAnimationFrame(frame)
+  }, [location.key, location.pathname, type])
+}
+
+/**
+ * Linux: while an embedded player's frame has focus it swallows the keyboard,
+ * so the shell forwards Escape and the app replays it here — sheets close and
+ * the player's controls come back as if the frame weren't there.
+ */
+function useEscapeBridge() {
+  useEffect(
+    () =>
+      desktop?.onKey?.((key) => {
+        if (key !== 'Escape' || document.activeElement?.tagName !== 'IFRAME') return
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      }),
+    []
   )
 }
 

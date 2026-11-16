@@ -16,4 +16,14 @@ contextBridge.exposeInMainWorld('svDesktop', {
   setFullscreen: (enabled) => ipcRenderer.invoke('sv:fullscreen', enabled),
   installUpdate: (source) => ipcRenderer.invoke('sv:install-update', source),
   freeSpace: () => ipcRenderer.invoke('sv:free-space'),
+  frameless: true,
+  windowControl: (action) => ipcRenderer.invoke('sv:window', action),
+  onWindowState: (callback) => subscribe('sv:window-state', callback),
+  onKey: (callback) => subscribe('sv:key', callback),
 })
+
+function subscribe(channel, callback) {
+  const handler = (_event, value) => callback(value)
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}

@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowLeft, Check, Loader2, LogOut, ShieldCheck, X } from 'lucide-react'
+import { Check, Loader2, LogOut, ShieldCheck, X } from 'lucide-react'
+import { PageHeader } from '@app/components/PageHeader'
 import { clearAdminToken, getAdminToken } from '@/lib/api'
 import { useIsAdmin } from '@/hooks/useIsAdmin'
 import AdminLoginModal from '@/components/admin/AdminLoginModal'
@@ -29,23 +29,22 @@ interface SubscriptionRequest {
  * in is the same authenticator code.
  */
 export function AdminScreen() {
-  const navigate = useNavigate()
   const isAdmin = useIsAdmin()
   const [loginOpen, setLoginOpen] = useState(!isAdmin)
 
   return (
-    <div className="mx-auto max-w-3xl px-4 pb-tabbar pt-safe lg:px-8 lg:pb-10">
-      <header className="flex items-center gap-2 pb-4 pt-3 lg:pt-8">
-        <button onClick={() => navigate(-1)} aria-label="Back" className="-ml-2 flex h-9 w-9 items-center justify-center rounded-full lg:hidden">
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h1 className="flex-1 text-[22px] font-extrabold tracking-tight">Admin</h1>
-        {isAdmin && (
-          <button onClick={() => clearAdminToken()} className="flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-[12px] font-semibold text-white/70">
-            <LogOut className="h-3.5 w-3.5" /> Sign out
-          </button>
-        )}
-      </header>
+    <div className="mx-auto max-w-4xl px-4 pb-tabbar pt-page lg:px-12">
+      <PageHeader
+        back
+        title="Admin"
+        actions={
+          isAdmin ? (
+            <button onClick={() => clearAdminToken()} className="press mb-1 flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3.5 py-2 text-[12.5px] font-semibold text-white/70 ring-1 ring-white/10 hover:text-white">
+              <LogOut className="h-3.5 w-3.5" /> Sign out
+            </button>
+          ) : undefined
+        }
+      />
 
       {isAdmin ? (
         <div className="flex flex-col gap-4">
@@ -59,7 +58,7 @@ export function AdminScreen() {
           <ShieldCheck className="mb-4 h-12 w-12 text-primary" />
           <p className="text-[16px] font-bold">Admin sign-in</p>
           <p className="mt-1.5 max-w-xs text-[13px] text-white/55">Enter the 6-digit code from your authenticator app.</p>
-          <button onClick={() => setLoginOpen(true)} className="press mt-5 rounded-md bg-white px-5 py-2.5 text-[13.5px] font-semibold text-black">
+          <button onClick={() => setLoginOpen(true)} className="press mt-5 rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black">
             Enter code
           </button>
         </div>
@@ -106,7 +105,7 @@ function PaymentRequests() {
   const recent = (requests ?? []).filter((r) => r.status !== 'pending').slice(0, 5)
 
   return (
-    <section className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/[0.06]">
+    <section className="surface rounded-[22px] p-5">
       <h2 className="mb-3 flex items-center justify-between text-[15px] font-bold">
         Payment requests
         {pending.length > 0 && <span className="rounded-full bg-amber-400 px-2 text-[11px] font-bold text-black">{pending.length} pending</span>}
