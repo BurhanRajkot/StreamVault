@@ -11,6 +11,7 @@
   "homepage": "https://stream-vault.site",
   "type": "module",
   "main": "electron/main.cjs",
+  "desktopName": "streamvault.desktop",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

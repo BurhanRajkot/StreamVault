@@ -23,10 +23,10 @@ Every version is on the [releases page](https://github.com/BurhanRajkot/StreamVa
 
 ### 🐧 Linux
 
-**AppImage (any distro).** This one command downloads it from the fast mirror and starts it:
+**AppImage (any distro).** This one command downloads it from the fast mirror into `~/Applications` and starts it. On first run it adds itself, with its icon, to your applications menu:
 
 ```bash
-curl -fL "https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/linux/StreamVault.AppImage.part[1-4]" > StreamVault.AppImage && chmod +x StreamVault.AppImage && ./StreamVault.AppImage
+mkdir -p ~/Applications && cd ~/Applications && curl -fL "https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/linux/StreamVault.AppImage.part[1-4]" > StreamVault.AppImage && chmod +x StreamVault.AppImage && ./StreamVault.AppImage
 ```
 
 **Arch / EndeavourOS / Manjaro:**
