@@ -51,9 +51,15 @@ export function TabBar() {
               key={tab.to}
               to={tab.to}
               replace={HOME_PATHS.includes(pathname) && tab.to === '/'}
-              className={cn('relative flex flex-1 flex-col items-center justify-center gap-[3px] rounded-full', isActive ? 'text-tint' : 'text-white')}
+              className={cn('press relative flex flex-1 flex-col items-center justify-center gap-[3px] rounded-full', isActive ? 'text-tint' : 'text-white')}
             >
-              {isActive && <motion.span layoutId="tab-lens" transition={spring} className="absolute inset-0 rounded-full bg-white/[0.11]" />}
+              {isActive && (
+                <motion.span
+                  layoutId="tab-lens"
+                  transition={spring}
+                  className="absolute inset-0 rounded-full bg-gradient-to-b from-white/[0.17] to-white/[0.07] shadow-[inset_0_0.5px_0_rgb(255_255_255/0.4),inset_0_0_0_0.5px_rgb(255_255_255/0.08),0_4px_14px_-6px_rgb(0_0_0/0.5)]"
+                />
+              )}
               <span className="relative">
                 {tab.to === '/me' && isAuthenticated && user?.picture ? (
                   <img

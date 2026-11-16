@@ -64,7 +64,7 @@ export const corsMiddleware = cors({
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS', 'PUT', 'PATCH'],
 
   // Headers the client is allowed to send
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-StreamVault-Client'],
 
   // Headers the client can read from the response
   exposedHeaders: ['Content-Length', 'X-Request-Id'],

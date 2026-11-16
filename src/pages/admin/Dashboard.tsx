@@ -22,6 +22,7 @@ import { DownloadsSelect } from '@/components/admin/DownloadsSelect'
 import { PremiumStatusCard } from '@/components/admin/PremiumStatusCard'
 import { PremiumSwitchCard } from '@/components/admin/PremiumSwitchCard'
 import { UsersPanel } from '@/components/admin/UsersPanel'
+import { AccessRequestsPanel } from '@/components/admin/AccessRequestsPanel'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
@@ -233,6 +234,7 @@ export default function AdminDashboard() {
           <div className="mx-auto max-w-7xl">
             <PremiumStatusCard />
             <PremiumSwitchCard />
+            <AccessRequestsPanel />
             <UsersPanel onUserChanged={syncDownloads} />
 
             <section aria-label="Subscription requests">

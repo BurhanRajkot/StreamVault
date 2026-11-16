@@ -38,13 +38,19 @@ export type PremiumDecision =
   /** Premium is paused for everyone but the admin. */
   | 'paused-for-all'
   | 'suspended'
+  /** Approved, but asking from the website: an account's Premium plays in the StreamVault app only. */
+  | 'app-only'
 
-/** The rule, on its own so it can be tested without a database. */
+/**
+ * The rule, on its own so it can be tested without a database. The admin
+ * plays anywhere; an approved account only from the app (see lib/clientKind).
+ */
 export function decidePremium(who: {
   admin: boolean
   signedIn: boolean
   access?: UserAccess
   pausedForAll: boolean
+  fromApp: boolean
 }): PremiumDecision {
   if (who.admin) return 'granted'
   if (!who.signedIn || !who.access) return 'sign-in-required'
@@ -52,6 +58,7 @@ export function decidePremium(who: {
   if (who.access.premiumAccess === 'none') return 'not-approved'
   if (who.access.premiumAccess === 'paused') return 'paused'
   if (who.pausedForAll) return 'paused-for-all'
+  if (!who.fromApp) return 'app-only'
   return 'granted'
 }
 

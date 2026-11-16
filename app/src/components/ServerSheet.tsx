@@ -39,7 +39,7 @@ export function ServerList({
   const navigate = useNavigate()
   const options = useServerOptions(kind)
   return (
-    <div className="overflow-hidden rounded-[12px] bg-grouped">
+    <div className="glass-card overflow-hidden rounded-[16px]">
       {options.map((option, i) => {
         const isPremium = option.id === DEBRID_SERVER_ID
         const meta = CONFIG.PROVIDER_METADATA[option.id]

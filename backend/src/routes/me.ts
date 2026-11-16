@@ -17,6 +17,7 @@ import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
 import { debridDownloadsAllowed, decidePremium, getUserAccess, isMissingSchema, isPremiumPausedForAll } from '../lib/userAccess'
 import { strictRateLimiter } from '../cybersecurity/rateLimiter'
+import { isAppRequest } from '../lib/clientKind'
 
 const router = Router()
 
@@ -27,7 +28,7 @@ router.get('/access', requireUserAllowSuspended, async (req: Request, res: Respo
     isPremiumPausedForAll(),
     debridDownloadsAllowed(userId),
   ])
-  const premium = decidePremium({ admin: false, signedIn: true, access, pausedForAll })
+  const premium = decidePremium({ admin: false, signedIn: true, access, pausedForAll, fromApp: isAppRequest(req) })
   res.set('Cache-Control', 'private, no-store')
   return res.json({
     premium: premium === 'granted',

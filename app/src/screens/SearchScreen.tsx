@@ -185,7 +185,7 @@ const ENTITY_LINE: Record<SearchEntity['kind'], (e: SearchEntity) => string> = {
 function EntityHeader({ entity }: { entity: SearchEntity }) {
   const isPerson = entity.kind === 'person'
   return (
-    <div className="mb-4 flex items-center gap-3.5 rounded-[14px] bg-grouped p-3 lg:mb-6 lg:p-4">
+    <div className="mb-4 flex items-center gap-3.5 glass-card rounded-[16px] p-3 lg:mb-6 lg:p-4">
       <span
         className={cn(
           'flex shrink-0 items-center justify-center overflow-hidden',

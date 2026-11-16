@@ -44,7 +44,13 @@ const NOTICES: Record<Exclude<PremiumReason, 'granted'>, { heading: string; body
     heading: 'This account is suspended',
     body: 'The admin has suspended this account. You can still watch on every other server.',
   },
+  'app-only': {
+    heading: 'Your Premium is in the app',
+    body: 'Premium on your account plays in the StreamVault app for Android, Linux and Windows. Every other server works here.',
+  },
 }
+
+const APP_DOWNLOAD_URL = 'https://github.com/dragon-manner/StreamVault/releases/latest'
 
 export function PremiumPane(props: DebridPlayerPaneProps) {
   const access = usePremiumAccess()
@@ -77,6 +83,11 @@ export function PremiumPane(props: DebridPlayerPaneProps) {
           <button onClick={props.onSwitchServer} className={primaryAction}>
             Switch server
           </button>
+          {access.reason === 'app-only' && (
+            <a href={APP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer" className={secondaryAction}>
+              Get the app
+            </a>
+          )}
           {access.reason === 'sign-in-required' && (
             <Link to="/login" className={secondaryAction}>
               Sign in

@@ -22,6 +22,7 @@ import subscriptionAdminRouter from './routes/admin'
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
 import subscriptionsRouter from './routes/subscriptions'
+import { adminAccessRequestRouter, userAccessRequestRouter } from './routes/accessRequests'
 import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
 import recommendationsRouter from './routes/recommendations'
@@ -125,7 +126,9 @@ app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin
 app.use('/subscriptions', subscriptionsRouter)
 // Before '/admin' so the Users panel's routes aren't swallowed by the login router.
 app.use('/admin', adminUsersRouter)
+app.use('/admin', adminAccessRequestRouter)
 app.use('/admin', adminRouter)
+app.use('/me', userAccessRequestRouter)
 app.use('/me', meRouter)
 app.use('/recommendations', recommendationsRouter)
 app.use('/dislikes', dislikesRouter)

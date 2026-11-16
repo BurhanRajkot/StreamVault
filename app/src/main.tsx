@@ -7,8 +7,10 @@ import { queryClient } from '@/lib/queryClient'
 import { AppAuthProvider } from '@app/auth/AppAuthProvider'
 import { App } from '@app/App'
 import { registerPremiumStreams } from '@app/native/premiumStreams'
+import { markAppRequests } from '@app/native/clientHeader'
 import './app.css'
 
+markAppRequests()
 registerPremiumStreams()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -21,7 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             theme="dark"
             position="top-center"
             offset="calc(var(--sat) + 12px)"
-            toastOptions={{ style: { background: 'hsl(240 5% 11%)', border: '1px solid hsl(240 4% 18%)', color: '#f5f5f5' } }}
+            toastOptions={{ className: 'sv-toast' }}
           />
         </AppAuthProvider>
       </BrowserRouter>
