@@ -139,9 +139,27 @@ export function detectBrowserVideoSupport(): BrowserVideoSupport {
   return cachedSupport
 }
 
+/**
+ * 10-bit H.264 ("Hi10P", common in anime encodes): no browser decodes it —
+ * the picture never comes (or comes out garbled), so the file only plays
+ * through Real-Debrid's transcode. 10-bit HEVC and AV1 are fine wherever
+ * those codecs are.
+ */
+function isTenBitAvc(name: string): boolean {
+  return assumedVideoCodec(name) === 'avc' && /\b(Hi10P?|10[ .-]?bits?)\b/i.test(name)
+}
+
+/**
+ * XviD/DivX (MPEG-4 Part 2), usually in an AVI: no browser plays either, and
+ * the names say nothing else about the codec, so they'd pass for H.264.
+ */
+function isLegacyCodec(name: string): boolean {
+  return /\b(XviD|DivX)\b|\.avi$/i.test(name)
+}
+
 /** True when this browser should be able to decode the release's video and render it with correct colours. */
 export function isBrowserPlayable(name: string, support: BrowserVideoSupport): boolean {
-  if (isDolbyVisionOnly(name)) return false
+  if (isDolbyVisionOnly(name) || isTenBitAvc(name) || isLegacyCodec(name)) return false
   const codec = assumedVideoCodec(name)
   return codec === 'avc' || (codec === 'hevc' && support.hevc) || (codec === 'av1' && support.av1)
 }
@@ -166,11 +184,51 @@ export function isLikelyDirectPlayable(name: string, support: BrowserVideoSuppor
 }
 
 /**
+ * Above this bitrate (kbit/s) a file is heavy to stream into a browser from
+ * Real-Debrid, however fast the line measured.
+ *
+ * A `<video>` playing a plain file keeps only ~10 seconds loaded ahead
+ * (Chrome sizes that from the file's bitrate, counting 20 Mbit/s at most),
+ * and a Real-Debrid server now and then goes quiet for several seconds — a
+ * slow answer on a new connection, a connection that sits (see
+ * DebridVideo). The film has to load faster than it plays to get that
+ * cushion back before the next one: a 6-10 Mbit/s 1080p encode does so
+ * several times over, a 25 Mbit/s one barely. Sol and the other servers
+ * stream 1080p at a few Mbit/s, which is why they never stutter.
+ */
+export const HEAVY_FILE_KBPS = 16_000
+
+export interface RankOptions {
+  /**
+   * How long the film or episode runs, in seconds — with each release's size
+   * it says which files are heavy (HEAVY_FILE_KBPS). Unknown: none is.
+   */
+  durationS?: number
+}
+
+/** Whether a release's file needs more than HEAVY_FILE_KBPS — false when that can't be told. */
+export function isHeavyRelease(release: DebridRelease, durationS: number | undefined): boolean {
+  if (!durationS || !trustsFileSize(release)) return false
+  const kbps = releaseKbps(release, durationS)
+  return kbps !== null && kbps > HEAVY_FILE_KBPS
+}
+
+/**
+ * Whether a release's size is the size of the file that would play. A
+ * season pack from apibay gives the whole torrent's (ten episodes' worth);
+ * Torrentio gives the matched file's.
+ */
+function trustsFileSize(release: DebridRelease): boolean {
+  return !!release.file_name || (parseInt(release.num_files, 10) || 1) <= 1 || !/\bS\d{1,2}(?!\s*E?\d)|\bSeason\b|\bComplete\b/i.test(release.name)
+}
+
+/**
  * Order releases for automatic playback, best first:
  *   decodable by this browser → cached → not a cam/telesync → audio not
  *   declared as Dolby/DTS → 1080p over 4K over 720p → likely English → one
- *   audio language → not a remux → audio declared browser-safe → IMAX →
- *   seeders → smaller file (lower bitrate, less buffering).
+ *   audio language → not a remux → not heavy (HEAVY_FILE_KBPS, when the
+ *   running time is known) → audio declared browser-safe → IMAX → seeders →
+ *   smaller file (lower bitrate, less buffering).
  *
  * Real-Debrid's HLS transcode can rescue an undecodable file (it always
  * outputs H.264 + AAC), but a jump outside what it has loaded restarts the
@@ -180,7 +238,8 @@ export function isLikelyDirectPlayable(name: string, support: BrowserVideoSuppor
  */
 export function rankReleasesForPlayback(
   releases: DebridRelease[],
-  support: BrowserVideoSupport
+  support: BrowserVideoSupport,
+  { durationS }: RankOptions = {}
 ): DebridRelease[] {
   const key = (r: DebridRelease): number[] => {
     const size = parseInt(r.size, 10)
@@ -193,6 +252,7 @@ export function rankReleasesForPlayback(
       isLikelyNonEnglishRelease(r.name) ? 1 : 0,
       isMultiAudio(r.name) ? 1 : 0,
       isRemux(r.name) ? 1 : 0,
+      isHeavyRelease(r, durationS) ? 1 : 0,
       audioRank(r.name),
       isImaxRelease(r.name) ? 0 : 1,
       -(parseInt(r.seeders, 10) || 0),
@@ -302,6 +362,81 @@ export function lighterRelease(
   const budget = opts.kbps * CONNECTION_SHARE
   const fitting = pool.find((r) => (releaseKbps(r, opts.durationS) ?? Infinity) <= budget)
   return fitting ?? [...pool].sort(byWeight(opts.support))[0]
+}
+
+/**
+ * What a film that isn't playing smoothly suffers from:
+ *   - `stalls`: it keeps stopping to load — the file needs more than the
+ *     connection (or, converted, Real-Debrid's converter) delivers;
+ *   - `frames`: it plays, but the device can't decode it in time and drops
+ *     frames — a 4K or high-bitrate file, or a codec decoded in software.
+ */
+export type StruggleCause = 'stalls' | 'frames'
+
+/** Releases tried, at most, when moving away from one that doesn't play smoothly. */
+const MAX_REPLACEMENTS = 3
+
+/**
+ * The releases to move to, best first, from one that isn't playing
+ * smoothly — what a viewer would otherwise do by hand from the Quality menu:
+ *
+ *   - Stalling while Real-Debrid converts it (`converted`): the converter is
+ *     the bottleneck, so a release likely to play straight from its file
+ *     comes first, whatever its size; a lighter one after that.
+ *   - Stalling from the file: a lighter release, the best one the connection
+ *     (`kbps`) carries first (see lighterRelease).
+ *   - Dropping frames: a lighter release, H.264 first — the codec every
+ *     device decodes in hardware.
+ *
+ * Only releases that play as they are in this browser and aren't cinema
+ * recordings; never the playing one or any in `exclude`.
+ */
+export function replacementReleases(
+  ranked: DebridRelease[],
+  current: DebridRelease,
+  opts: {
+    cause: StruggleCause
+    converted: boolean
+    kbps: number | null
+    durationS: number
+    support: BrowserVideoSupport
+    exclude?: ReadonlySet<string>
+  }
+): DebridRelease[] {
+  const out: DebridRelease[] = []
+  const add = (r: DebridRelease | null | undefined) => {
+    if (r && out.length < MAX_REPLACEMENTS && !out.some((o) => o.info_hash === r.info_hash)) out.push(r)
+  }
+  const usable = (r: DebridRelease) =>
+    r.info_hash !== current.info_hash && !opts.exclude?.has(r.info_hash) && isLightCandidate(r, opts.support)
+
+  if (opts.cause === 'stalls' && opts.converted) {
+    const direct = ranked.filter((r) => usable(r) && isLikelyDirectPlayable(r.name, opts.support))
+    const budget = opts.kbps !== null && opts.kbps > 0 ? opts.kbps * CONNECTION_SHARE : null
+    const fits = (r: DebridRelease) => budget === null || (releaseKbps(r, opts.durationS) ?? 0) <= budget
+    direct.filter(fits).forEach(add)
+    direct.filter((r) => !fits(r)).sort(byWeight(opts.support)).forEach(add)
+  }
+
+  const exclude = new Set(opts.exclude)
+  for (let i = 0; i < MAX_REPLACEMENTS; i++) {
+    const pool = opts.cause === 'frames' ? [...ranked].sort(byCodecEase) : ranked
+    const lighter = lighterRelease(pool, current, {
+      kbps: opts.cause === 'frames' ? null : opts.kbps,
+      durationS: opts.durationS,
+      support: opts.support,
+      exclude,
+    })
+    if (!lighter) break
+    add(lighter)
+    exclude.add(lighter.info_hash)
+  }
+  return out
+}
+
+/** H.264 before anything a device may have to decode in software; otherwise unchanged (the sort is stable). */
+function byCodecEase(a: DebridRelease, b: DebridRelease): number {
+  return Number(assumedVideoCodec(a.name) !== 'avc') - Number(assumedVideoCodec(b.name) !== 'avc')
 }
 
 // ---------------------------------------------------------------------------

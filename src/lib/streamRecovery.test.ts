@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { reconnectDelayMs, shouldHedge, StallMeter, stallThroughputKbps, startupPatience } from './streamRecovery'
+import { FrameMeter, reconnectDelayMs, shouldHedge, StallMeter, stallThroughputKbps, startupPatience } from './streamRecovery'
 
 describe('startupPatience', () => {
   it('gives a fast or unknown connection the usual time', () => {
@@ -94,5 +94,60 @@ describe('stallThroughputKbps', () => {
     expect(stallThroughputKbps(5, 10_000, null)).toBeNull()
     expect(stallThroughputKbps(0, 10_000, 8000)).toBeNull()
     expect(stallThroughputKbps(12, 10_000, 8000)).toBeNull()
+  })
+})
+
+describe('FrameMeter', () => {
+  /** Readings every second from `from` ms for `seconds`, at 24 fps with `dropShare` of them dropped. */
+  const play = (meter: FrameMeter, from: number, seconds: number, dropShare: number, start = { total: 0, dropped: 0 }) => {
+    let { total, dropped } = start
+    for (let s = 0; s <= seconds; s++) {
+      meter.note(from + s * 1000, total, dropped)
+      total += 24
+      dropped += Math.round(24 * dropShare)
+    }
+    return { total, dropped }
+  }
+
+  it('says nothing about a film that shows its frames', () => {
+    const meter = new FrameMeter()
+    play(meter, 0, 60, 0)
+    expect(meter.struggling()).toBe(false)
+  })
+
+  it('catches a film that drops a quarter of its frames or more, after ten seconds of it', () => {
+    const meter = new FrameMeter()
+    meter.reset(0)
+    play(meter, 0, 15, 0.3)
+    expect(meter.struggling()).toBe(false) // settling, then not yet a full window
+    play(meter, 16_000, 10, 0.3, { total: 16 * 24, dropped: 16 * 7 })
+    expect(meter.struggling()).toBe(true)
+  })
+
+  it('ignores the frames dropped while catching up after a jump or a stall', () => {
+    const meter = new FrameMeter()
+    meter.reset(0)
+    const after = play(meter, 0, 7, 0.9)
+    play(meter, 8000, 20, 0.02, after)
+    expect(meter.struggling()).toBe(false)
+  })
+
+  it('judges only what followed the last interruption', () => {
+    const meter = new FrameMeter()
+    const after = play(meter, 0, 30, 0.5)
+    expect(meter.struggling()).toBe(true)
+    meter.reset(31_000)
+    expect(meter.struggling()).toBe(false)
+    play(meter, 31_000, 30, 0, after)
+    expect(meter.struggling()).toBe(false)
+  })
+
+  it('needs enough frames to go by', () => {
+    const meter = new FrameMeter()
+    let dropped = 0
+    // A slideshow: one frame every two seconds, every other one dropped.
+    for (let s = 0; s <= 40; s++) meter.note(s * 1000, Math.floor(s / 2), (dropped = Math.floor(s / 4)))
+    expect(dropped).toBeGreaterThan(0)
+    expect(meter.struggling()).toBe(false)
   })
 })

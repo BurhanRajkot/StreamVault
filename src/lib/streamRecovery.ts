@@ -92,6 +92,56 @@ export class StallMeter {
   }
 }
 
+/** Frames are judged over this much smooth playing time... */
+const FRAME_WINDOW_MS = 10_000
+/** ...once playback has settled this long after starting, a jump or a stall (decoders drop a few catching up)... */
+const FRAME_SETTLE_MS = 8000
+/** ...and only with this many frames to go by (10 s of a 24 fps film is 240). */
+const MIN_WINDOW_FRAMES = 120
+/** A quarter of the frames never shown: the picture visibly stutters. */
+const DROPPED_SHARE_LIMIT = 0.25
+
+/**
+ * Keeps an eye on the frames a playing film drops — the ones the device
+ * decoded too late to show (`getVideoPlaybackQuality`). A file the device
+ * can't decode in time (4K, a high bitrate, a codec it decodes in
+ * software) plays on without a single stall, so StallMeter never sees it,
+ * but the picture judders.
+ *
+ * Fed readings only while the film plays smoothly and visibly; anything else
+ * (a jump, a stall, a pause, a hidden tab — where browsers skip frames on
+ * purpose) is a `reset`.
+ */
+export class FrameMeter {
+  private readings: { at: number; total: number; dropped: number }[] = []
+  private resetAt: number | null = null
+
+  /** The film was interrupted at `at` (ms): what follows is judged afresh. */
+  reset(at: number): void {
+    this.readings = []
+    this.resetAt = at
+  }
+
+  /** A reading at `at` (ms) of the element's running totals. */
+  note(at: number, total: number, dropped: number): void {
+    if (this.resetAt === null) this.resetAt = at
+    if (at - this.resetAt < FRAME_SETTLE_MS) return
+    this.readings.push({ at, total, dropped })
+    // Keep the last window, plus the reading it's measured from.
+    while (this.readings.length > 2 && at - this.readings[1].at >= FRAME_WINDOW_MS) this.readings.shift()
+  }
+
+  /** Whether the last window dropped too many frames. */
+  struggling(): boolean {
+    const first = this.readings[0]
+    const last = this.readings[this.readings.length - 1]
+    if (!first || last.at - first.at < FRAME_WINDOW_MS) return false
+    const total = last.total - first.total
+    const dropped = last.dropped - first.dropped
+    return total >= MIN_WINDOW_FRAMES && dropped / total >= DROPPED_SHARE_LIMIT
+  }
+}
+
 /**
  * What the connection delivered during a stall, in kbit/s: the film it
  * loaded (`bufferedS` seconds of a file that needs `fileKbps`) over the time
