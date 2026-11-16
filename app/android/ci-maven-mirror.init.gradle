@@ -1,0 +1,22 @@
+// Used by CI only (.github/workflows/app-release.yml: ./gradlew --init-script).
+//
+// Maven Central answers GitHub's runners with "429 Too Many Requests" when a
+// cold Gradle cache downloads everything at once (App Release run #11 failed
+// this way). So every project — build scripts and dependencies — reads Maven
+// Central through Google's mirror of it first. Anything the mirror lacks still
+// falls through to google() / mavenCentral() as the build files declare them.
+def centralMirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+
+def addMirror = { repos ->
+    repos.maven {
+        name = 'MavenCentralMirror'
+        url = centralMirror
+    }
+}
+
+// Runs as each project is created, before its build file adds google() and
+// mavenCentral(), so the mirror is the first repository asked.
+allprojects {
+    addMirror(buildscript.repositories)
+    addMirror(repositories)
+}
