@@ -204,6 +204,13 @@ export interface RankOptions {
    * it says which files are heavy (HEAVY_FILE_KBPS). Unknown: none is.
    */
   durationS?: number
+  /**
+   * The StreamVault app converts Dolby/DTS audio itself, picking the
+   * preferred-language track (lib/localStream): a release's audio or its
+   * second language no longer decides how it plays, so neither counts
+   * against it.
+   */
+  appConvertsAudio?: boolean
 }
 
 /** Whether a release's file needs more than HEAVY_FILE_KBPS — false when that can't be told. */
@@ -239,21 +246,22 @@ function trustsFileSize(release: DebridRelease): boolean {
 export function rankReleasesForPlayback(
   releases: DebridRelease[],
   support: BrowserVideoSupport,
-  { durationS }: RankOptions = {}
+  { durationS, appConvertsAudio = false }: RankOptions = {}
 ): DebridRelease[] {
   const key = (r: DebridRelease): number[] => {
     const size = parseInt(r.size, 10)
+    const audio = appConvertsAudio ? 0 : audioRank(r.name)
     return [
       isBrowserPlayable(r.name, support) ? 0 : 1,
       r.cached ? 0 : 1,
       isTheatricalRip(r.name) ? 1 : 0,
-      audioRank(r.name) === 2 ? 1 : 0,
+      audio === 2 ? 1 : 0,
       resolutionRank(r.name),
       isLikelyNonEnglishRelease(r.name) ? 1 : 0,
-      isMultiAudio(r.name) ? 1 : 0,
+      !appConvertsAudio && isMultiAudio(r.name) ? 1 : 0,
       isRemux(r.name) ? 1 : 0,
       isHeavyRelease(r, durationS) ? 1 : 0,
-      audioRank(r.name),
+      audio,
       isImaxRelease(r.name) ? 0 : 1,
       -(parseInt(r.seeders, 10) || 0),
       size > 0 ? size : Number.MAX_SAFE_INTEGER,
@@ -464,10 +472,38 @@ export function canDecodeVideoCodec(codec: string, support: BrowserVideoSupport)
 }
 
 export interface PlaybackMode {
-  kind: 'direct' | 'hls'
+  /** `local`: the StreamVault app's own conversion (lib/localStream) — Dolby/DTS audio to AAC, the video as it is. */
+  kind: 'direct' | 'hls' | 'local'
   url: string
   /** Shown in the player so it's clear when Real-Debrid is converting the stream. */
-  label: 'Direct' | 'RD stream'
+  label: 'Direct' | 'RD stream' | 'Converted'
+  /** Played through the StreamVault app's own server, which loads the file far ahead itself. */
+  viaApp?: boolean
+}
+
+/** What the StreamVault app offers for one file (lib/localStream): its relay, and its conversion when it can. */
+export interface AppStreams {
+  fileUrl: string
+  convertUrl: string | null
+}
+
+/** Whether a <video> plays the file as it is, by Real-Debrid's media info (null: no media info). */
+function playsAsIs(playback: DebridReadyPlayback, support: BrowserVideoSupport): boolean | null {
+  const media = playback.media
+  if (!media) return null
+  const firstAudio = media.audioTracks[0]
+  return (
+    media.videoCodec !== null &&
+    canDecodeVideoCodec(media.videoCodec, support) &&
+    (!firstAudio || (firstAudio.codec !== null && BROWSER_AUDIO_CODECS.has(firstAudio.codec.toLowerCase()))) &&
+    (!firstAudio || media.selectedAudio === null || media.selectedAudio === firstAudio.id)
+  )
+}
+
+/** Whether this browser decodes the file's video, by Real-Debrid's media info (assumed so without it). */
+function decodesVideo(playback: DebridReadyPlayback, support: BrowserVideoSupport): boolean {
+  const codec = playback.media?.videoCodec
+  return codec === undefined || codec === null || canDecodeVideoCodec(codec, support)
 }
 
 /**
@@ -483,30 +519,44 @@ export interface PlaybackMode {
  * `nearUrl` is the same file on the download server nearest the viewer (see
  * lib/debridHost): played first, with the link as Real-Debrid gave it right
  * behind, should that server let the viewer down.
+ *
+ * In the StreamVault app (`app`, see lib/localStream) the file plays through
+ * the app first — relayed, or converted there when its audio is Dolby/DTS —
+ * with Real-Debrid's links and transcode behind, should the app let it down.
+ * The app's conversion keeps the picture as it is, so it comes before
+ * Real-Debrid's whenever this browser decodes the video.
  */
 export function planPlaybackModes(
   playback: DebridReadyPlayback,
   support: BrowserVideoSupport,
-  nearUrl?: string | null
+  nearUrl?: string | null,
+  app?: AppStreams | null
 ): PlaybackMode[] {
   const issued: PlaybackMode = { kind: 'direct', url: playback.directUrl, label: 'Direct' }
   const direct: PlaybackMode[] =
     nearUrl && nearUrl !== playback.directUrl ? [{ kind: 'direct', url: nearUrl, label: 'Direct' }, issued] : [issued]
   const hls: PlaybackMode[] = playback.hls ? [{ kind: 'hls', url: playback.hls, label: 'RD stream' }] : []
+  const relayed: PlaybackMode[] = app ? [{ kind: 'direct', url: app.fileUrl, label: 'Direct', viaApp: true }] : []
+  const converted: PlaybackMode[] =
+    app?.convertUrl && decodesVideo(playback, support) ? [{ kind: 'local', url: app.convertUrl, label: 'Converted', viaApp: true }] : []
 
-  const media = playback.media
-  if (!media) return [...direct, ...hls]
-
-  const firstAudio = media.audioTracks[0]
-  const directPlayable =
-    media.videoCodec !== null &&
-    canDecodeVideoCodec(media.videoCodec, support) &&
-    (!firstAudio || (firstAudio.codec !== null && BROWSER_AUDIO_CODECS.has(firstAudio.codec.toLowerCase()))) &&
-    (!firstAudio || media.selectedAudio === null || media.selectedAudio === firstAudio.id)
-
+  const asIs = playsAsIs(playback, support)
+  // Unknown: try it as it is; should the sound not come, the app's conversion is next.
+  if (asIs === null) return [...relayed, ...converted, ...direct, ...hls]
   // Direct stays as the last resort even when it's expected to fail: picture
-  // without sound beats nothing if Real-Debrid's transcode is down.
-  return directPlayable ? [...direct, ...hls] : [...hls, ...direct]
+  // without sound beats nothing if every conversion is down.
+  return asIs ? [...relayed, ...direct, ...converted, ...hls] : [...converted, ...hls, ...relayed, ...direct]
+}
+
+/**
+ * Whether the file plays without Real-Debrid's transcode — from its link, or
+ * converted by the StreamVault app (`appConverts`). What the release search
+ * prefers: the transcode re-encodes the whole film live and restarts on
+ * every jump.
+ */
+export function playsWithoutRdTranscode(playback: DebridReadyPlayback, support: BrowserVideoSupport, appConverts = false): boolean {
+  const app = appConverts ? { fileUrl: 'app', convertUrl: 'app' } : null
+  return planPlaybackModes(playback, support, null, app)[0]?.kind !== 'hls'
 }
 
 /**

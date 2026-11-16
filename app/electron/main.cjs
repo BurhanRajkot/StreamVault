@@ -11,6 +11,9 @@
  *
  * The same server plays downloaded files back with range requests (seeking),
  * and the shell runs its own resumable downloader for offline copies.
+ *
+ * Premium files go through it too (rdStream.cjs): relayed from Real-Debrid
+ * loaded minutes ahead, or with their Dolby/DTS audio converted by ffmpeg.
  */
 
 const { app, BrowserWindow, ipcMain, shell, net, Menu } = require('electron')
@@ -21,6 +24,7 @@ const https = require('node:https')
 const crypto = require('node:crypto')
 const { Readable } = require('node:stream')
 const { pipeline } = require('node:stream/promises')
+const { createRdStreams, isRealDebridDownload } = require('./rdStream.cjs')
 
 const SITE_HOST = 'stream-vault.site'
 const SITE_ORIGIN = `https://${SITE_HOST}`
@@ -42,6 +46,22 @@ app.userAgentFallback = CHROME_UA
 app.setName('StreamVault')
 
 const distDir = path.join(__dirname, '..', 'dist')
+
+/**
+ * Premium playback through the app (rdStream.cjs). ffmpeg: SV_FFMPEG, else
+ * the copy packaged with the app (ffmpeg-static, see electron-builder.yml),
+ * else the system's.
+ */
+const rdStreams = createRdStreams({
+  ffmpegCandidates: [
+    process.env.SV_FFMPEG,
+    app.isPackaged ? path.join(process.resourcesPath, 'ffmpeg', 'ffmpeg') : path.join(__dirname, '..', 'node_modules', 'ffmpeg-static', 'ffmpeg'),
+    'ffmpeg',
+  ],
+  log: (message) => console.warn(message),
+  // Tests point the player at a stand-in server (SV_RD_ALLOW=<its address prefix>); the app only ever relays Real-Debrid.
+  allowUrl: (url) => isRealDebridDownload(url) || (!!process.env.SV_RD_ALLOW && url.startsWith(process.env.SV_RD_ALLOW)),
+})
 const userData = () => app.getPath('userData')
 const downloadsDir = () => path.join(app.getPath('videos') || app.getPath('downloads'), 'StreamVault')
 
@@ -132,6 +152,7 @@ function sendFileRange(req, res, filePath) {
 function startServer(tls) {
   const server = https.createServer({ key: tls.key, cert: tls.cert }, (req, res) => {
     const url = new URL(req.url || '/', SITE_ORIGIN)
+    if (rdStreams.handle(req, res, url)) return
     const offline = /^\/_offline\/([a-f0-9]{32})$/.exec(url.pathname)
     if (offline) {
       const filePath = servedFiles.get(offline[1])
@@ -367,6 +388,18 @@ function registerIpc() {
     return { url: `${SITE_ORIGIN}/_offline/${token}` }
   })
 
+  // Premium through the app (rdStream.cjs, src/lib/localStream.ts)
+  ipcMain.handle('sv:rd-caps', () => ({ canConvert: rdStreams.hasFfmpeg() }))
+  ipcMain.handle('sv:rd-open', (_e, request) => {
+    const { token, canConvert } = rdStreams.open(request || {})
+    return {
+      token,
+      fileUrl: `${SITE_ORIGIN}/_rd/${token}/file`,
+      convertUrl: canConvert ? `${SITE_ORIGIN}/_rd/${token}/convert` : null,
+    }
+  })
+  ipcMain.handle('sv:rd-close', (_e, token) => rdStreams.close(String(token)))
+
   ipcMain.handle('sv:open-with', async (_e, filePath) => {
     if (filePath.startsWith(downloadsDir())) await shell.openPath(filePath)
   })
@@ -450,3 +483,4 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => app.quit())
+app.on('will-quit', () => rdStreams.shutdown())

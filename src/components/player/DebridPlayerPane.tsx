@@ -51,11 +51,12 @@ import {
   detectBrowserVideoSupport,
   fitReleasesToConnection,
   isLikelyDirectPlayable,
-  planPlaybackModes,
+  playsWithoutRdTranscode,
   rankReleasesForPlayback,
   replacementReleases,
   type StruggleCause,
 } from '@/lib/releasePlayback'
+import { appConvertsAudio } from '@/lib/localStream'
 import { estimateConnection, knownThroughput } from '@/lib/connection'
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases } from '@/lib/premiumSearch'
@@ -545,7 +546,7 @@ export function DebridPlayerPane({
               const proven: DebridRelease = { ...rel, cached: true }
               setInstantReleases((prev) => (prev.some((r) => r.info_hash === proven.info_hash) ? prev : [...prev, proven]))
             }
-            return { kind: 'ready', playback: res, direct: planPlaybackModes(res, support)[0]?.kind !== 'hls' }
+            return { kind: 'ready', playback: res, direct: playsWithoutRdTranscode(res, support, appConvertsAudio()) }
           }
           if (res.status === 'not-cached') {
             notInstantRef.current.add(rel.info_hash)
@@ -601,8 +602,9 @@ export function DebridPlayerPane({
           speculated = true
           // A name that promises browser-safe audio usually plays directly;
           // any other may well need the transcode, so ask about the next
-          // likely-direct release at the same time.
-          if (!(declaresBrowserAudio(playing.name) && isLikelyDirectPlayable(playing.name, support))) {
+          // likely-direct release at the same time. (Not in the app, which
+          // converts the audio itself.)
+          if (!appConvertsAudio() && !(declaresBrowserAudio(playing.name) && isLikelyDirectPlayable(playing.name, support))) {
             releaseQueueRef.current
               .filter((r) => r.info_hash !== playing.info_hash && open(r) && isLikelyDirectPlayable(r.name, support))
               .slice(0, Math.max(0, Math.min(SPECULATIVE_DIRECT_PLAY_PROBES, MAX_AUTO_RELEASE_ATTEMPTS - autoAttemptsRef.current)))
@@ -743,7 +745,7 @@ export function DebridPlayerPane({
           if (res.status === 'not-cached') notInstantRef.current.add(rel.info_hash)
           if (res.status !== 'ready') continue
           // Out of a conversion that couldn't keep up: not into another one.
-          if (struggle.converted && struggle.cause === 'stalls' && planPlaybackModes(res, support)[0]?.kind === 'hls') continue
+          if (struggle.converted && struggle.cause === 'stalls' && !playsWithoutRdTranscode(res, support, appConvertsAudio())) continue
           console.info(`Real-Debrid release ${STRUGGLE_REASON[struggle.cause]} — switched to ${rel.name}`)
           startPositionRef.current = positionRef.current > 0 ? positionRef.current : startPositionRef.current
           showPlayback(rel, res, { resumeToast: false })
@@ -827,7 +829,7 @@ export function DebridPlayerPane({
 
       const support = detectBrowserVideoSupport()
       // A heavy file is only told by its bitrate, so only once the running time is actually known.
-      const ranked = rankReleasesForPlayback(releases, support, { durationS: knownDurationRef.current })
+      const ranked = rankReleasesForPlayback(releases, support, { durationS: knownDurationRef.current, appConvertsAudio: appConvertsAudio() })
       const kbps = (await within(connection, CONNECTION_WAIT_MS)) ?? knownThroughput()
       if (generationRef.current !== generation) return
       /** Best first, as far as this connection can carry it. */

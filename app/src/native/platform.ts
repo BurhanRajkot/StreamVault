@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
+import type { LocalStreamRequest } from '@/lib/localStream'
 
 /** A transfer the OS downloader (Android) or the desktop shell is running. */
 export interface NativeTransfer {
@@ -21,6 +22,18 @@ interface SvNativePlugin {
   installApk(options: { path: string }): Promise<{ needsPermission?: boolean }>
   setImmersive(options: { enabled: boolean }): Promise<void>
   freeSpace(): Promise<{ bytes: number }>
+  /** Premium through the app (RdStreamServer.java): whether it can convert audio (it has ffmpeg). */
+  rdCaps(): Promise<{ canConvert: boolean }>
+  /** Start relaying a Real-Debrid file; its addresses on the phone's own server. */
+  rdOpen(options: LocalStreamRequest): Promise<OpenedStream>
+  rdClose(options: { token: string }): Promise<void>
+}
+
+/** A Real-Debrid file the shell relays (and converts): see src/lib/localStream.ts. */
+export interface OpenedStream {
+  token: string
+  fileUrl: string
+  convertUrl: string | null
 }
 
 /** The desktop side: app/electron/preload.cjs. */
@@ -45,6 +58,10 @@ export interface DesktopBridge {
   onWindowState?(callback: (state: WindowState) => void): () => void
   /** Keys the shell sees even while an embedded player's frame has focus (Escape). */
   onKey?(callback: (key: string) => void): () => void
+  /** Premium through the app (electron/rdStream.cjs). Missing on shells older than it. */
+  rdCaps?(): Promise<{ canConvert: boolean }>
+  rdOpen?(request: LocalStreamRequest): Promise<OpenedStream>
+  rdClose?(token: string): Promise<void>
 }
 
 export interface WindowState {

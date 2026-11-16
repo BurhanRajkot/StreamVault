@@ -12,6 +12,17 @@ files:
   # The Android bridge has no place on the desktop
   - "!node_modules/@capacitor/**"
 asar: true
+# ffmpeg for Premium's audio conversion (electron/rdStream.cjs): a separate
+# program, GPL-3.0 — its licence and readme go with it. Fetched by
+# ffmpeg-static's install script (npm ci in CI); missing locally, the app
+# falls back to the system's ffmpeg.
+extraResources:
+  - from: node_modules/ffmpeg-static
+    to: ffmpeg
+    filter:
+      - ffmpeg
+      - ffmpeg.LICENSE
+      - ffmpeg.README
 linux:
   target:
     - AppImage
