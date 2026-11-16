@@ -103,9 +103,23 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # Maven Central rate-limits GitHub's runners (429) when the Gradle cache
+        # is cold, so dependencies come through Google's mirror of it
+        # (ci-maven-mirror.init.gradle). A build that still can't download
+        # them tries again; a real build error fails straight away.
         run: |
+          set -o pipefail
           chmod +x gradlew
-          ./gradlew "$APK_TASK" --no-daemon --console=plain
+          for attempt in 1 2 3; do
+            if ./gradlew "$APK_TASK" --no-daemon --console=plain --init-script ci-maven-mirror.init.gradle 2>&1 | tee "$RUNNER_TEMP/gradle.log"; then
+              break
+            fi
+            if [ "$attempt" = 3 ] || ! grep -qE 'Could not (resolve|GET|HEAD|download)|status code (429|5[0-9][0-9])|Read timed out|Connection reset' "$RUNNER_TEMP/gradle.log"; then
+              exit 1
+            fi
+            echo "::warning::Couldn't download the build's dependencies (attempt $attempt) — trying again in $((attempt * 45))s"
+            sleep $((attempt * 45))
+          done
           mkdir -p "$GITHUB_WORKSPACE/out"
           cp app/build/outputs/apk/*/app-*.apk "$GITHUB_WORKSPACE/out/StreamVault-${APP_VERSION}.apk"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
