@@ -1,7 +1,7 @@
-# StreamVault app (Android + Linux)
+# StreamVault app (Linux, Android, Windows)
 
 A compact, app-style StreamVault built from the website's own code. Downloads
-and install steps are in the [main README](../docs/README.md#-streamvault-apps--android--linux).
+and install steps are in the [main README](../docs/README.md#-streamvault-apps).
 
 ```
 app/
@@ -12,7 +12,7 @@ app/
 │   ├── native/       Platform bridge, GitHub update check + installer
 │   └── auth/         Auth0 for the app (Custom Tab on Android)
 ├── android/          Capacitor Android project (+ SvNativePlugin.java)
-├── electron/         Linux shell (main.cjs, preload.cjs)
+├── electron/         Desktop shell for Linux + Windows (main.cjs, preload.cjs)
 ├── electron-builder.yml
 └── capacitor.config.json
 ```
@@ -25,10 +25,10 @@ app/
   has it.
 - **It runs as `https://stream-vault.site`.** Capacitor's `server.hostname`
   (Android) and a local HTTPS server mapped with Chromium's
-  `host-resolver-rules` (Linux) serve the bundled files under the site's
+  `host-resolver-rules` (Linux, Windows) serve the bundled files under the site's
   origin, so the backend's CORS list, Auth0's allowed origins and the embed
   servers' domain checks all accept the app with no extra configuration.
-- **Sign-in.** Linux signs in inside the window, like the website. Android
+- **Sign-in.** Linux and Windows sign in inside the window, like the website. Android
   opens Auth0 in a Chrome Custom Tab (Google refuses logins inside web views);
   Auth0 returns to `https://stream-vault.site/?code=…`, which Android hands to
   the app as a verified App Link — that needs
@@ -36,12 +36,15 @@ app/
   live on the site, with the release key's SHA-256 fingerprint.
 - **Offline downloads** are Premium: the app finds a release the way the
   Premium player does, asks Real-Debrid for the direct file, and hands it to
-  Android's DownloadManager (or the Linux shell's resumable downloader). Files
+  Android's DownloadManager (or the desktop shell's resumable downloader). Files
   play back through a local server that answers range requests, so seeking
   works with no connection; "Open with…" hands a file to VLC & co.
 - **Updates.** `.github/workflows/app-release.yml` publishes `app-v1.0.<run>`
   on every push to `main` that touches `app/` or `src/`. The app compares its
-  version with the newest `app-v*` release and offers it.
+  version with the newest `app-v*` release and offers it: Android opens the
+  APK installer, the AppImage swaps itself, and Windows runs the new
+  installer silently over the old one (`/S --updated --force-run`), which
+  keeps the app's data and starts the new version.
 
 ## Build locally
 
@@ -55,6 +58,7 @@ npm ci
 npm run dev              # the UI in a browser (API calls need the site origin — use linux:dev)
 npm run linux:dev        # Linux shell against the built bundle
 npm run linux:build      # release/StreamVault-<v>.AppImage, .pacman, .deb
+npm run windows:build    # release/StreamVault-Setup-<v>.exe (on Windows; CI builds it on windows-latest)
 npm run android:apk      # android/app/build/outputs/apk/release/app-release.apk
 ```
 
@@ -68,7 +72,7 @@ static for speed, while the app runs on the device and animates freely
 (framer-motion: page fades, a drifting hero carousel, rows that rise in,
 cards that lift under the mouse, sheets you swipe away). Fonts (Manrope,
 Inter) are bundled. In a wide window it switches to the desktop layout — a
-glass top bar that is also the Linux window's title bar (the window is
+glass top bar that is also the desktop window's title bar (the window is
 frameless; `TitleBar.tsx` draws the drag area and window buttons). On embed
 servers the player's bar fades, but a handle at the top always opens the
 server drawer, and Escape (forwarded by the shell even while the embed's

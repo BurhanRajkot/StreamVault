@@ -12,6 +12,9 @@
 #                                   the newest AppImage in 4 equal parts — the
 #                                   free plan refuses files over 50 MiB; curl
 #                                   joins them: curl -L "<base>/linux/StreamVault.AppImage.part[1-4]" > StreamVault.AppImage
+#   windows/StreamVault-Setup.exe.part1..n
+#                                   the newest Windows installer, in parts under
+#                                   45 MiB (the app joins them to update itself)
 #   latest.json                     what the apps' update check reads
 set -euo pipefail
 
@@ -21,8 +24,6 @@ bucket=app-releases
 api="$SUPABASE_URL/storage/v1/object"
 public="$api/public/$bucket"
 auth=(-H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY")
-parts=4
-
 put() { # <file> <object path> <content type> <max-age seconds>
   curl -sSf --retry 3 --retry-all-errors "${auth[@]}" \
     -H "Content-Type: $3" -H "Cache-Control: max-age=$4" -H "x-upsert: true" \
@@ -30,23 +31,29 @@ put() { # <file> <object path> <content type> <max-age seconds>
   echo "uploaded $2 ($(stat -c%s "$1") bytes)"
 }
 
+put_parts() { # <file> <object path, ".part<i>" is added> <number of parts>; prints the parts' URLs as a JSON list
+  local work urls=() i
+  work=$(mktemp -d)
+  split -n "$3" --numeric-suffixes=1 --suffix-length=1 "$1" "$work/part"
+  for i in $(seq 1 "$3"); do
+    put "$work/part$i" "$2.part$i" application/octet-stream 300 >&2
+    # The version in the query keeps a CDN from mixing parts of two releases
+    urls+=("\"$public/$2.part$i?v=$version\"")
+  done
+  rm -rf "$work"
+  (IFS=,; echo "[${urls[*]}]")
+}
+
 apk="$dir/StreamVault-$version.apk"
-appimage=$(ls "$dir"/StreamVault-"$version".AppImage)
+appimage="$dir/StreamVault-$version.AppImage"
+installer="$dir/StreamVault-Setup-$version.exe"
 
 put "$apk" "android/StreamVault-$version.apk" application/vnd.android.package-archive 31536000
 put "$apk" "StreamVault.apk" application/vnd.android.package-archive 300
 
-work=$(mktemp -d)
-split -n "$parts" --numeric-suffixes=1 --suffix-length=1 "$appimage" "$work/StreamVault.AppImage.part"
-part_urls=()
-for i in $(seq 1 "$parts"); do
-  put "$work/StreamVault.AppImage.part$i" "linux/StreamVault.AppImage.part$i" application/octet-stream 300
-  # The version in the query keeps a CDN from mixing parts of two releases
-  part_urls+=("\"$public/linux/StreamVault.AppImage.part$i?v=$version\"")
-done
-rm -rf "$work"
-
-joined_urls=$(IFS=,; echo "${part_urls[*]}")
+# Always 4: the README's one-line Linux install asks for part[1-4]
+appimage_parts=$(put_parts "$appimage" linux/StreamVault.AppImage 4)
+installer_parts=$(put_parts "$installer" windows/StreamVault-Setup.exe $(( ($(stat -c%s "$installer") + 45 * 1048576 - 1) / (45 * 1048576) )))
 cat > "$dir/latest.json" <<JSON
 {
   "version": "$version",
@@ -59,9 +66,16 @@ cat > "$dir/latest.json" <<JSON
   },
   "linux": {
     "appimage": {
-      "parts": [$joined_urls],
+      "parts": $appimage_parts,
       "size": $(stat -c%s "$appimage"),
       "sha256": "$(sha256sum "$appimage" | cut -d' ' -f1)"
+    }
+  },
+  "windows": {
+    "installer": {
+      "parts": $installer_parts,
+      "size": $(stat -c%s "$installer"),
+      "sha256": "$(sha256sum "$installer" | cut -d' ' -f1)"
     }
   }
 }

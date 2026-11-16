@@ -58,7 +58,7 @@ export function DownloadsScreen() {
 
       {!isNativeApp && (
         <p className="surface mb-4 flex items-center gap-2.5 rounded-2xl p-4 text-[13px] text-white/65">
-          <Info className="h-4 w-4 shrink-0" /> Offline downloads work in the Android and Linux apps.
+          <Info className="h-4 w-4 shrink-0" /> Offline downloads work in the Android, Linux and Windows apps.
         </p>
       )}
 

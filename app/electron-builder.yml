@@ -1,4 +1,4 @@
-# Linux packages for StreamVault: npm run linux:build (CI: .github/workflows/app-release.yml)
+# Desktop packages for StreamVault: npm run linux:build / windows:build (CI: .github/workflows/app-release.yml)
 appId: site.streamvault.app
 productName: StreamVault
 copyright: Copyright © 2026 StreamVault
@@ -21,6 +21,7 @@ extraResources:
     to: ffmpeg
     filter:
       - ffmpeg
+      - ffmpeg.exe
       - ffmpeg.LICENSE
       - ffmpeg.README
 linux:
@@ -41,4 +42,23 @@ linux:
       Comment: Movies, TV shows, anime and documentaries
       StartupWMClass: StreamVault
       Keywords: movies;tv;anime;streaming;
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.png
+  artifactName: StreamVault-Setup-${version}.${ext}
+  # Not code-signed: SmartScreen warns once ("Windows protected your PC" →
+  # More info → Run anyway) — the README says so.
+nsis:
+  # One click, for this user only (no admin prompt) — which is also what lets
+  # the app run the next installer silently to update itself (main.cjs)
+  oneClick: true
+  perMachine: false
+  runAfterFinish: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: StreamVault
+  # Uninstalling keeps sign-in, My List and downloads' records
+  deleteAppDataOnUninstall: false
 publish: null

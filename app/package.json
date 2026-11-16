@@ -3,7 +3,7 @@
   "productName": "StreamVault",
   "private": true,
   "version": "1.0.0",
-  "description": "StreamVault for Android and Linux",
+  "description": "StreamVault for Android, Linux and Windows",
   "author": {
     "name": "Burhanuddin Rajkotwala",
     "email": "BurhanRajkot@users.noreply.github.com"
@@ -19,7 +19,8 @@
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
     "android:open": "cap open android",
     "linux:dev": "npm run build && electron .",
-    "linux:build": "npm run build && electron-builder --linux --publish never"
+    "linux:build": "npm run build && electron-builder --linux --publish never",
+    "windows:build": "npm run build && electron-builder --win --publish never"
   },
   "dependencies": {
     "@capacitor/android": "8.6.0",

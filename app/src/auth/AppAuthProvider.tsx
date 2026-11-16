@@ -11,7 +11,7 @@ import { isAndroid, SITE_URL } from '@app/native/platform'
  * already lists as the site's callback and web origin, so the app signs in
  * against the same Auth0 application as the website with no extra setup.
  *
- * - Linux: exactly like the website — the window goes to Auth0's login page
+ * - Linux, Windows: exactly like the website — the window goes to Auth0's login page
  *   and comes back to https://stream-vault.site, which the shell serves from
  *   the app's own files.
  * - Android: Google refuses sign-ins inside an app's web view, so the login
@@ -34,7 +34,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
       cacheLocation="localstorage"
       useRefreshTokens
       // The hidden-iframe fallback needs Auth0's session cookie in the same
-      // browser — true on Linux (same window), never in Android's web view.
+      // browser — true on the desktop (same window), never in Android's web view.
       useRefreshTokensFallback={!isAndroid}
       onRedirectCallback={(appState) => navigate(appState?.returnTo || '/me', { replace: true })}
     >

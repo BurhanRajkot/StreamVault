@@ -1,5 +1,5 @@
 /**
- * StreamVault for Linux — the Electron shell.
+ * StreamVault for Linux and Windows — the Electron shell.
  *
  * The app is served to its window as https://stream-vault.site, from the
  * files packaged with it: Chromium's resolver maps that one host to a small
@@ -17,6 +17,7 @@
  */
 
 const { app, BrowserWindow, ipcMain, shell, net, Menu } = require('electron')
+const { spawn } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
 const fsp = require('node:fs/promises')
@@ -32,8 +33,15 @@ const SITE_ORIGIN = `https://${SITE_HOST}`
 const PORT = Number(process.env.SV_PORT) || 47321
 /** Hosts the window itself may navigate to: the app, and the sign-in pages. */
 const AUTH_HOSTS = [/\.auth0\.com$/, /^accounts\.google\.com$/, /^appleid\.apple\.com$/, /^accounts\.youtube\.com$/, /^(www\.)?google\.[a-z.]+$/]
+const IS_WINDOWS = process.platform === 'win32'
 /** Google turns sign-in away from browsers that say "Electron"; present as the Chrome underneath. */
-const CHROME_UA = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
+const CHROME_UA = `Mozilla/5.0 (${IS_WINDOWS ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
+/**
+ * How this copy updates itself: the AppImage swaps its own file; on Windows
+ * the new installer runs over the installed app. Anything else (.deb,
+ * .pacman, a development copy) sends people to the releases page.
+ */
+const SELF_UPDATE = process.env.APPIMAGE ? 'appimage' : IS_WINDOWS && app.isPackaged ? 'installer' : null
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -44,6 +52,8 @@ app.commandLine.appendSwitch('host-resolver-rules', `MAP ${SITE_HOST} 127.0.0.1:
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 app.userAgentFallback = CHROME_UA
 app.setName('StreamVault')
+// The installer's shortcuts carry the appId; the window must too, or Windows shows it as a separate taskbar item
+if (IS_WINDOWS) app.setAppUserModelId('site.streamvault.app')
 
 const distDir = path.join(__dirname, '..', 'dist')
 
@@ -52,10 +62,11 @@ const distDir = path.join(__dirname, '..', 'dist')
  * the copy packaged with the app (ffmpeg-static, see electron-builder.yml),
  * else the system's.
  */
+const FFMPEG_FILE = IS_WINDOWS ? 'ffmpeg.exe' : 'ffmpeg'
 const rdStreams = createRdStreams({
   ffmpegCandidates: [
     process.env.SV_FFMPEG,
-    app.isPackaged ? path.join(process.resourcesPath, 'ffmpeg', 'ffmpeg') : path.join(__dirname, '..', 'node_modules', 'ffmpeg-static', 'ffmpeg'),
+    app.isPackaged ? path.join(process.resourcesPath, 'ffmpeg', FFMPEG_FILE) : path.join(__dirname, '..', 'node_modules', 'ffmpeg-static', FFMPEG_FILE),
     'ffmpeg',
   ],
   log: (message) => console.warn(message),
@@ -289,7 +300,7 @@ function createWindow() {
       sandbox: true,
       nodeIntegration: false,
       spellcheck: false,
-      additionalArguments: [`--sv-version=${app.getVersion()}`, ...(process.env.APPIMAGE ? ['--sv-appimage'] : [])],
+      additionalArguments: [`--sv-version=${app.getVersion()}`, `--sv-platform=${process.platform}`, ...(SELF_UPDATE ? ['--sv-self-update'] : [])],
     },
   })
   Menu.setApplicationMenu(null)
@@ -426,11 +437,12 @@ function registerIpc() {
     return { bytes: s.bavail * s.bsize }
   })
 
-  // AppImage self-update: fetch the new AppImage (from the Supabase mirror in
-  // parts, or GitHub in one piece) beside the running one, check it, swap, restart.
+  // Self-update: fetch the new AppImage / Windows installer (from the Supabase
+  // mirror in parts, or GitHub in one piece), check it, then either swap the
+  // AppImage and restart, or run the installer — silently, over this install,
+  // keeping the app's data (--updated), and starting the new version after (--force-run).
   ipcMain.handle('sv:install-update', async (_e, { urls, sha256 }) => {
-    const current = process.env.APPIMAGE
-    if (!current) return { ok: false, reason: 'Only the AppImage updates itself — install the new package from the releases page.' }
+    if (!SELF_UPDATE) return { ok: false, reason: "This copy doesn't update itself — install the new version from the releases page." }
     const allowed = [
       'https://github.com/BurhanRajkot/StreamVault/releases/download/',
       'https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/',
@@ -438,7 +450,8 @@ function registerIpc() {
     if (!Array.isArray(urls) || urls.length === 0 || !urls.every((u) => typeof u === 'string' && allowed.some((a) => u.startsWith(a)))) {
       return { ok: false, reason: 'Unexpected update address.' }
     }
-    const tmp = current + '.update'
+    const current = process.env.APPIMAGE
+    const tmp = SELF_UPDATE === 'appimage' ? current + '.update' : path.join(app.getPath('temp'), `StreamVault-Setup-${crypto.randomUUID()}.exe`)
     try {
       const out = fs.createWriteStream(tmp, { mode: 0o755 })
       const hash = crypto.createHash('sha256')
@@ -452,6 +465,17 @@ function registerIpc() {
       }
       await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())))
       if (sha256 && hash.digest('hex') !== sha256) throw new Error('The download was corrupted — try again.')
+      if (SELF_UPDATE === 'installer') {
+        // The installer waits for this app to close, then installs over it
+        const installer = spawn(tmp, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore' })
+        await new Promise((resolve, reject) => {
+          installer.once('spawn', resolve)
+          installer.once('error', reject)
+        })
+        installer.unref()
+        setTimeout(() => app.quit(), 400)
+        return { ok: true }
+      }
       await fsp.chmod(tmp, 0o755)
       await fsp.rename(tmp, current)
       setTimeout(() => {

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { APP_VERSION, desktop, isAndroid } from './platform'
+import { APP_VERSION, desktop, isAndroid, isWindows } from './platform'
 
 /** Where releases are published (the workflow in .github/workflows/app-release.yml). */
 export const GITHUB_REPO = 'BurhanRajkot/StreamVault'
@@ -19,10 +19,10 @@ export interface AppRelease {
   notes: string
   publishedAt: string
   pageUrl: string
-  /** The download for this device — the APK on Android, the AppImage on Linux. */
+  /** The download for this device — the APK on Android, the AppImage on Linux, the installer on Windows. */
   assetUrl: string | null
   assetSize: number | null
-  /** The AppImage on the mirror comes in parts, joined in order (Linux only). */
+  /** The AppImage and the Windows installer come from the mirror in parts, joined in order. */
   assetParts?: string[]
   /** SHA-256 of the whole file, when the mirror published one. */
   assetSha256?: string
@@ -33,7 +33,15 @@ interface MirrorManifest {
   publishedAt: string
   page: string
   android?: { url: string; size: number; sha256: string }
-  linux?: { appimage?: { parts: string[]; size: number; sha256: string } }
+  linux?: { appimage?: MirrorFile }
+  windows?: { installer?: MirrorFile }
+}
+
+/** A file the mirror keeps in parts (its storage refuses files over 50 MiB). */
+interface MirrorFile {
+  parts: string[]
+  size: number
+  sha256: string
 }
 
 interface GithubRelease {
@@ -60,6 +68,7 @@ export function compareVersions(a: string, b: string): number {
 
 function pickAsset(assets: GithubRelease['assets']): GithubRelease['assets'][number] | undefined {
   if (isAndroid) return assets.find((a) => a.name.endsWith('.apk'))
+  if (isWindows) return assets.find((a) => a.name.endsWith('.exe'))
   if (desktop) return assets.find((a) => a.name.endsWith('.AppImage'))
   return undefined
 }
@@ -70,10 +79,10 @@ async function fetchFromMirror(): Promise<AppRelease | null> {
   const res = await fetch(`${MIRROR_BASE}/latest.json?h=${Math.floor(Date.now() / 3_600_000)}`)
   if (!res.ok) throw new Error(`mirror answered ${res.status}`)
   const m = (await res.json()) as MirrorManifest
-  const appimage = m.linux?.appimage
+  const parted = isWindows ? m.windows?.installer : desktop ? m.linux?.appimage : undefined
   const base = { version: m.version, notes: '', publishedAt: m.publishedAt, pageUrl: m.page }
   if (isAndroid && m.android) return { ...base, assetUrl: m.android.url, assetSize: m.android.size, assetSha256: m.android.sha256 }
-  if (desktop && appimage) return { ...base, assetUrl: appimage.parts[0], assetParts: appimage.parts, assetSize: appimage.size, assetSha256: appimage.sha256 }
+  if (parted) return { ...base, assetUrl: parted.parts[0], assetParts: parted.parts, assetSize: parted.size, assetSha256: parted.sha256 }
   return { ...base, assetUrl: null, assetSize: null }
 }
 
