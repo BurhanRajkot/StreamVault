@@ -1,31 +1,25 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { Check, Download, Film, Info, Loader2, MonitorPlay, Subtitles, Zap } from 'lucide-react'
+import { Check, Clock, Download, Film, Heart, Info, Loader2, MonitorPlay, Send, Star, Subtitles, Zap } from 'lucide-react'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
+import { fetchMyAccessRequest, sendAccessRequest, type AccessRequest } from '@/lib/api'
 import { useAppAuth } from '@app/auth/AppAuthProvider'
 import { isAndroid, openExternal } from '@app/native/platform'
-import { Button, IconTile, ListRow, ListSection, NavBar, type TileColor } from '@app/components/kit'
+import { Button, IconTile, ListRow, ListSection, NavBar, TextField, type TileColor } from '@app/components/kit'
+import { Sheet } from '@app/components/Sheet'
+import { EASE_OUT } from '@app/lib/motion'
 
 const API_BASE = import.meta.env.VITE_API_URL
+const MY_REQUEST_KEY = 'my-access-request'
 
-interface Plan {
-  id: string
-  name: string
-  price: number
-  currency: string
-  durationDays: number
-  firstTimeOnly?: boolean
-  features: string[]
+interface Donation {
   qrCode: string
   upiId: string
-}
-
-interface PlansPayload {
-  plans: Plan[]
-  upiConfig: { payeeName: string; upiId: string }
+  payeeName: string
 }
 
 const PERKS: { icon: typeof Film; color: TileColor; title: string; body: string }[] = [
@@ -41,32 +35,20 @@ const NOTICE: Record<string, string> = {
   suspended: 'This account is suspended.',
 }
 
+/**
+ * Premium isn't sold. A signed-in viewer may star the GitHub repo or donate —
+ * both optional — and asks for access; the admin approves it from the
+ * dashboard. Premium given this way plays in the app only.
+ */
 export function PremiumScreen() {
   const navigate = useNavigate()
   const access = usePremiumAccess()
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['subscription-plans'],
-    queryFn: async (): Promise<PlansPayload> => {
-      const res = await fetch(`${API_BASE}/subscriptions/plans`)
-      if (!res.ok) throw new Error('plans')
-      return res.json()
-    },
-    staleTime: 60 * 60 * 1000,
-    enabled: !access.premium,
-  })
-  const [selected, setSelected] = useState<string | null>(null)
-  const plan = data?.plans.find((p) => p.id === selected) ?? data?.plans[0]
+  const blocked = !!NOTICE[access.reason]
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-tabbar pt-page lg:px-8">
+    <div className="mx-auto max-w-[760px] px-4 pb-tabbar pt-page lg:px-8">
       <NavBar title="Premium" back backTo="/me" />
-      <header className="mb-8 flex flex-col items-center text-center">
-        <span className="mb-4 flex h-[72px] w-[72px] items-center justify-center rounded-[18px] bg-ios-yellow text-black">
-          <Zap className="h-9 w-9 fill-current" />
-        </span>
-        <h1 className="t-title1 lg:text-[34px] lg:leading-[41px]">StreamVault Premium</h1>
-        <p className="t-subhead mt-1.5 max-w-sm text-label-2">The best way to watch — straight from the source, in our own player.</p>
-      </header>
+      <Hero />
 
       {access.premium ? (
         <ListSection>
@@ -86,7 +68,7 @@ export function PremiumScreen() {
           </div>
         </ListSection>
       ) : (
-        NOTICE[access.reason] && (
+        blocked && (
           <ListSection>
             <ListRow
               icon={
@@ -116,127 +98,242 @@ export function PremiumScreen() {
         ))}
       </ListSection>
 
-      {!access.premium && (
-        <>
-          {isLoading ? (
-            <div className="skeleton mb-7 h-[150px] rounded-[12px]" />
-          ) : isError || !data?.plans.length ? (
-            <ListSection>
-              <ListRow label="Plans couldn’t load" detail="Check your connection and try again." />
-            </ListSection>
-          ) : (
-            <>
-              <ListSection header="Choose a plan">
-                {data.plans.map((p) => (
-                  <ListRow
-                    key={p.id}
-                    onClick={() => setSelected(p.id)}
-                    label={p.name}
-                    detail={`${p.durationDays} days${p.firstTimeOnly ? ' · one-time offer for new members' : ''}`}
-                    trailing={<span className="t-headline">₹{p.price}</span>}
-                    accessory={plan?.id === p.id ? 'check' : 'none'}
-                  />
-                ))}
-              </ListSection>
-              {plan && <Checkout plan={plan} payee={data.upiConfig.payeeName} />}
-            </>
-          )}
-        </>
-      )}
+      {!access.premium && !blocked && !access.loading && <RequestFlow />}
     </div>
   )
 }
 
-/** Pay by UPI, then send the transaction id — the admin confirms it and turns Premium on. */
-function Checkout({ plan, payee }: { plan: Plan; payee: string }) {
+/** The bolt, lit from behind by a slow, soft glow. */
+function Hero() {
+  return (
+    <header className="relative mb-8 flex flex-col items-center pt-2 text-center">
+      <div className="relative mb-5">
+        <motion.span
+          aria-hidden="true"
+          className="absolute -inset-8 rounded-full bg-[radial-gradient(closest-side,rgb(255_214_10/0.45),rgb(255_159_10/0.18)_55%,transparent)] blur-xl"
+          animate={{ opacity: [0.55, 0.9, 0.55], scale: [0.94, 1.04, 0.94] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.span
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+          className="relative flex h-[76px] w-[76px] items-center justify-center rounded-[22px] bg-gradient-to-b from-[#ffe14d] to-[#ff9f0a] text-black shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_12px_32px_-8px_rgb(255_159_10/0.6)]"
+        >
+          <Zap className="h-9 w-9 fill-current" />
+        </motion.span>
+      </div>
+      <h1 className="t-title1 lg:text-[34px] lg:leading-[41px]">StreamVault Premium</h1>
+      <p className="t-subhead mt-1.5 max-w-sm text-label-2">
+        Free — just ask. A GitHub star or a donation is welcome, never required.
+      </p>
+    </header>
+  )
+}
+
+function RequestFlow() {
   const { isAuthenticated, signIn } = useAppAuth()
   const { getAccessTokenSilently, user } = useAuth0()
-  const [txId, setTxId] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
-  const upiUrl = `upi://pay?pa=${encodeURIComponent(plan.upiId)}&pn=${encodeURIComponent(payee)}&am=${plan.price}&cu=INR&tn=${encodeURIComponent(plan.name)}`
+  const queryClient = useQueryClient()
+  const [donateOpen, setDonateOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [github, setGithub] = useState('')
+  const [reference, setReference] = useState('')
+  const [note, setNote] = useState('')
+
+  const mine = useQuery({
+    queryKey: [MY_REQUEST_KEY, user?.sub],
+    queryFn: async () => fetchMyAccessRequest(await getAccessTokenSilently()),
+    enabled: isAuthenticated,
+    staleTime: 30_000,
+  })
+  const repo = mine.data?.repo ?? 'BurhanRajkot/StreamVault'
+  const request = mine.data?.request ?? null
+
+  const send = useMutation({
+    mutationFn: async () =>
+      sendAccessRequest(await getAccessTokenSilently(), {
+        github: github.trim() || undefined,
+        reference: reference.trim() || undefined,
+        note: note.trim() || undefined,
+        email: user?.email ?? null,
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData([MY_REQUEST_KEY, user?.sub], data)
+      setEditing(false)
+      toast.success('Request sent')
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'The request failed'),
+  })
 
   if (!isAuthenticated) {
     return (
-      <ListSection footer="Premium is attached to your account, so the admin knows whose payment it is.">
-        <ListRow onClick={() => void signIn({ returnTo: '/premium' })} label="Sign in to continue" tint />
+      <ListSection header="Get access" footer="Premium is given to an account, so the admin knows who’s asking.">
+        <ListRow onClick={() => void signIn({ returnTo: '/premium' })} label="Sign In to Request Access" tint />
       </ListSection>
     )
   }
 
-  if (sent) {
-    return (
-      <ListSection footer="Premium turns on as soon as the admin confirms your payment — usually within a few hours.">
-        <ListRow
-          icon={
-            <IconTile color="green">
-              <Check strokeWidth={3} />
-            </IconTile>
-          }
-          label="Payment details sent"
-        />
-      </ListSection>
-    )
-  }
+  if (mine.isLoading) return <div className="skeleton mb-7 h-[180px] rounded-[14px]" />
 
-  const submit = async () => {
-    const clean = txId.replace(/[^a-zA-Z0-9-_]/g, '')
-    if (clean.length < 4) {
-      toast.error('Enter the UPI transaction ID (UTR) from your payment app')
-      return
-    }
-    setSending(true)
-    try {
-      const res = await fetch(`${API_BASE}/subscriptions/manual-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getAccessTokenSilently()}` },
-        body: JSON.stringify({ planId: plan.id, transactionId: clean, email: user?.email }),
-      })
-      const body = (await res.json().catch(() => ({}))) as { error?: string }
-      if (!res.ok) throw new Error(body.error || 'The request failed')
-      setSent(true)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'The request failed')
-    } finally {
-      setSending(false)
-    }
+  const startEditing = () => {
+    setGithub(request?.github ?? '')
+    setReference(request?.reference ?? '')
+    setNote(request?.note ?? '')
+    setEditing(true)
   }
+  const showForm = !request || request.status !== 'pending' || editing
 
   return (
     <>
-      <ListSection header={`Step 1 · Pay ₹${plan.price}`} footer={isAndroid ? <>Or pay to <span className="font-mono text-white/80">{plan.upiId}</span> from any UPI app.</> : undefined}>
-        {isAndroid ? (
-          <div className="p-4">
-            <Button variant="tinted" className="w-full" onClick={() => void openExternal(upiUrl)}>
-              Pay with a UPI App
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-4 p-4">
-            <img src={plan.qrCode} alt="UPI QR code" className="h-36 w-36 rounded-[10px] bg-white p-1.5" />
-            <p className="t-subhead text-label-2">
-              Scan with any UPI app (GPay, PhonePe, Paytm…)
-              <span className="mt-1 block font-mono text-white/85">{plan.upiId}</span>
-            </p>
-          </div>
+      <AnimatePresence initial={false}>
+        {request?.status === 'pending' && !editing && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: EASE_OUT }}>
+            <PendingRequest request={request} onEdit={startEditing} />
+          </motion.div>
         )}
+      </AnimatePresence>
+
+      <ListSection header="Support the project · optional" footer="Neither is needed — you can ask for access without doing anything.">
+        <ListRow
+          onClick={() => void openExternal(`https://github.com/${repo}`)}
+          icon={
+            <IconTile color="yellow">
+              <Star className="fill-current" />
+            </IconTile>
+          }
+          label="Star on GitHub"
+          detail="Free, and it helps people find StreamVault. Then add your username below."
+        />
+        <ListRow
+          onClick={() => setDonateOpen(true)}
+          icon={
+            <IconTile color="pink">
+              <Heart className="fill-current" />
+            </IconTile>
+          }
+          label="Donate"
+          detail="Any amount, by UPI — it keeps the servers running."
+        />
       </ListSection>
 
-      <ListSection header="Step 2 · Send the transaction ID" footer="The 12-digit UTR from your payment app's receipt.">
-        <div className="p-4">
-          <input
-            value={txId}
-            onChange={(e) => setTxId(e.target.value)}
-            placeholder="UPI transaction ID / UTR"
-            inputMode="text"
-            autoCapitalize="characters"
-            className="t-body h-11 w-full rounded-[10px] bg-fill px-3.5 caret-tint outline-none placeholder:text-label-2"
+      {showForm && (
+        <ListSection
+          header={request?.status === 'pending' ? 'Change your request' : 'Request access'}
+          footer="The admin sees your email, whether you starred (checked with GitHub) and your note, then approves it. Everything here is optional."
+        >
+          <TextField
+            label="GitHub"
+            value={github}
+            onChange={setGithub}
+            placeholder="Username, if you starred"
+            autoCapitalize="none"
+            spellCheck={false}
           />
-          <Button variant="tinted" onClick={() => void submit()} disabled={sending} className="mt-3 w-full">
-            {sending && <Loader2 className="animate-spin" />} Submit for Approval
-          </Button>
-        </div>
-      </ListSection>
+          <TextField
+            label="UPI ref."
+            value={reference}
+            onChange={setReference}
+            placeholder="12-digit UPI UTR"
+            inputMode="numeric"
+            spellCheck={false}
+          />
+          <TextField label="Note" value={note} onChange={setNote} placeholder="Anything for the admin" maxLength={300} />
+          <div className="flex gap-2 px-4 pb-4 pt-3">
+            {editing && (
+              <Button variant="gray" className="flex-1" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            )}
+            <Button variant="tinted" className="flex-[2]" onClick={() => send.mutate()} disabled={send.isPending}>
+              {send.isPending ? <Loader2 className="animate-spin" /> : <Send />}
+              {request?.status === 'pending' ? 'Update Request' : 'Request Access'}
+            </Button>
+          </div>
+        </ListSection>
+      )}
+
+      <DonateSheet open={donateOpen} onOpenChange={setDonateOpen} />
     </>
+  )
+}
+
+function PendingRequest({ request, onEdit }: { request: AccessRequest; onEdit: () => void }) {
+  const star =
+    request.github == null
+      ? null
+      : request.starred
+        ? { text: `Star from @${request.github} confirmed`, ok: true }
+        : request.starred === false
+          ? { text: `No star from @${request.github} yet — star, then update`, ok: false }
+          : { text: `GitHub couldn’t be checked just now`, ok: false }
+  return (
+    <ListSection header="Your request">
+      <ListRow
+        icon={
+          <IconTile color="orange">
+            <Clock />
+          </IconTile>
+        }
+        label="Waiting for the admin"
+        detail={`Sent ${new Date(request.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}. Premium turns on here as soon as it’s approved.`}
+      />
+      {star && (
+        <ListRow
+          icon={
+            <IconTile color={star.ok ? 'yellow' : 'graphite'}>
+              <Star className={star.ok ? 'fill-current' : undefined} />
+            </IconTile>
+          }
+          label={star.text}
+        />
+      )}
+      <ListRow onClick={onEdit} label="Change Request" tint accessory="none" />
+    </ListSection>
+  )
+}
+
+function DonateSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['donation'],
+    queryFn: async (): Promise<Donation | null> => {
+      const res = await fetch(`${API_BASE}/subscriptions/plans`)
+      if (!res.ok) throw new Error('plans')
+      return ((await res.json()) as { donation?: Donation | null }).donation ?? null
+    },
+    staleTime: 60 * 60 * 1000,
+    enabled: open,
+  })
+  const upiUrl = data
+    ? `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.payeeName)}&cu=INR&tn=${encodeURIComponent('Support StreamVault')}`
+    : ''
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Donate" description="Any amount, by UPI">
+      {isLoading ? (
+        <div className="flex justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-label-2" />
+        </div>
+      ) : !data ? (
+        <p className="t-subhead py-6 text-center text-label-2">Donations aren’t set up right now — thanks for thinking of it.</p>
+      ) : (
+        <div className="flex flex-col items-center gap-4 pb-2 pt-1 text-center">
+          {isAndroid ? (
+            <Button variant="tinted" size="lg" className="w-full" onClick={() => void openExternal(upiUrl)}>
+              <Heart className="fill-current" /> Pay with a UPI App
+            </Button>
+          ) : (
+            <img src={data.qrCode} alt="UPI QR code" className="h-48 w-48 rounded-[16px] bg-white p-2 shadow-[0_12px_40px_-12px_rgb(0_0_0/0.8)]" />
+          )}
+          <p className="t-subhead text-label-2">
+            {isAndroid ? 'Or pay to' : 'Scan with any UPI app (GPay, PhonePe, Paytm…) or pay to'}
+            <span className="mt-1 block select-text font-mono text-white/90">{data.upiId}</span>
+          </p>
+          <p className="t-footnote rounded-[12px] bg-fill-2 px-3 py-2.5 text-label-2">
+            Then put the 12-digit UTR from your payment receipt in your request, so the admin can see it.
+          </p>
+        </div>
+      )}
+    </Sheet>
   )
 }

@@ -311,7 +311,7 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
 
       <DownloadOptionsSheet target={download} onClose={() => setDownload(null)} />
       <Sheet open={seasonsOpen} onOpenChange={setSeasonsOpen} title="Seasons">
-        <div className="overflow-hidden rounded-[12px] bg-grouped">
+        <div className="glass-card overflow-hidden rounded-[16px]">
           {seasons.map((s) => (
             <ListRow
               key={s.season_number}

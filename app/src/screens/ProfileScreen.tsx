@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Download, Gauge, Heart, Info, Loader2, LogOut, RefreshCw, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID, defaultServer } from '@/lib/config'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
+import { useAccessRequests } from '@/hooks/useAccessRequests'
 import { clearAdminToken } from '@/lib/api'
 import { initialsOf } from '@/lib/utils'
 import { useAppAuth } from '@app/auth/AppAuthProvider'
@@ -23,11 +24,13 @@ const PREMIUM_LABEL: Record<string, string> = {
   paused: 'Paused by the admin',
   'paused-for-all': 'Paused for everyone right now',
   suspended: 'Account suspended',
+  'app-only': 'Active',
 }
 
 export function ProfileScreen() {
   const { isAuthenticated, user, signIn, signOut, isLoading } = useAppAuth()
   const access = usePremiumAccess()
+  const { pending: pendingRequests } = useAccessRequests(access.admin)
   const settings = useSettings()
   const [serverOpen, setServerOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
@@ -35,7 +38,7 @@ export function ProfileScreen() {
   const premiumStatus = access.loading ? 'Checking…' : access.admin ? 'Active · admin' : PREMIUM_LABEL[access.reason] ?? 'Not active'
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-tabbar pt-page lg:px-8">
+    <div className="mx-auto max-w-[760px] px-4 pb-tabbar pt-page lg:px-8">
       <PageHeader title="My Space" />
 
       {/* Account */}
@@ -156,7 +159,13 @@ export function ProfileScreen() {
             </IconTile>
           }
           label={access.admin ? 'Admin dashboard' : 'Admin sign-in'}
-          value={access.admin ? 'Signed in' : undefined}
+          detail={access.admin ? undefined : 'For the site’s admin — opens the dashboard'}
+          value={access.admin && !pendingRequests ? 'Signed in' : undefined}
+          trailing={
+            pendingRequests > 0 ? (
+              <span className="rounded-full bg-ios-red px-2 text-[13px] font-semibold leading-[20px]">{pendingRequests}</span>
+            ) : undefined
+          }
         />
         {access.admin && (
           <ListRow

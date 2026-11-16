@@ -120,7 +120,7 @@ export function ListSection({ header, footer, children, className }: { header?: 
   return (
     <section className={cn('mb-7', className)}>
       {header && <h2 className="t-footnote mb-1.5 px-4 uppercase tracking-[0.02em] text-label-2">{header}</h2>}
-      <div className="overflow-hidden rounded-[12px] bg-grouped">{children}</div>
+      <div className="glass-card overflow-hidden rounded-[16px]">{children}</div>
       {footer && <p className="t-footnote mt-1.5 px-4 text-label-2">{footer}</p>}
     </section>
   )
@@ -219,6 +219,31 @@ export function ListRow({
     <div className={cls} style={style}>
       {inner}
     </div>
+  )
+}
+
+/** A text field as a grouped-list cell: its label on the left, the input filling the rest. */
+export function TextField({
+  label,
+  value,
+  onChange,
+  className,
+  ...input
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> & {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className={cn('cell-sep-inset relative flex min-h-[50px] items-center gap-3 px-4', className)} style={{ '--sep-inset': '16px' } as React.CSSProperties}>
+      <span className="t-body w-[112px] shrink-0 truncate">{label}</span>
+      <input
+        {...input}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="t-body h-[50px] min-w-0 flex-1 bg-transparent caret-tint outline-none placeholder:text-label-3"
+      />
+    </label>
   )
 }
 

@@ -3,9 +3,10 @@
  * pauses or takes back an account's access and suspends accounts, and a
  * site-wide switch pauses Premium for everyone but the admin. Per account,
  * the admin can also pause Premium's downloads: the film still streams, the
- * player just stops offering its file (magnet links stay). A signed-in
- * account then plays Premium, or sees why it can't. Deterministic: no agent
- * steps.
+ * player just stops offering its file (magnet links stay). Accounts ask for
+ * Premium from the app, and the dashboard approves or deletes the request. A
+ * signed-in account then plays Premium — in the app; the website points it
+ * there — or sees why it can't. Deterministic: no agent steps.
  */
 
 import { expect, type Screen } from 'e2e'
@@ -81,8 +82,9 @@ signedInTest('an account without Premium sees it locked, and never reaches the P
   expect(mockApi.calls('GET', '/debrid/media-search')).toHaveLength(0)
 })
 
-signedInTest('an account the admin approved plays Premium', async ({ app, screen, mockApi }) => {
+signedInTest('an account the admin approved plays Premium in the app', async ({ app, screen, mockApi }) => {
   account(mockApi, SIGNED_IN.sub).premiumAccess = 'granted'
+  mockApi.state.asApp = true
 
   await app.open(watchPath(MOVIE))
   await screen.getByRole('combobox', 'Server').tap()
@@ -96,6 +98,19 @@ signedInTest('an account the admin approved plays Premium', async ({ app, screen
   expect(play.authenticated && !play.admin, "the play request carries the account's own token").toBe(true)
 })
 
+signedInTest('on the website, an approved account is sent to the app instead', async ({ app, screen, mockApi }) => {
+  account(mockApi, SIGNED_IN.sub).premiumAccess = 'granted'
+
+  await app.open(watchPath(MOVIE))
+  await screen.getByRole('combobox', 'Server').tap()
+  await screen.getByRole('option', /^Premium/).tap()
+  await screen.getByRole('button', /^Play( Now)?$/).first().tap()
+
+  await expect(screen.getByText('Your Premium is in the app')).toBeVisible()
+  await expect(screen.getByRole('link', 'Get the app')).toBeVisible()
+  expect(mockApi.calls('POST', '/debrid/play')).toHaveLength(0)
+})
+
 signedInTest('an approved account sees why while Premium is paused for everyone', async ({ app, screen, mockApi }) => {
   account(mockApi, SIGNED_IN.sub).premiumAccess = 'granted'
   mockApi.state.premiumPausedForAll = true
@@ -107,6 +122,31 @@ signedInTest('an approved account sees why while Premium is paused for everyone'
 
   await expect(screen.getByText('Premium is paused right now')).toBeVisible()
   expect(mockApi.calls('POST', '/debrid/play')).toHaveLength(0)
+})
+
+adminTest('the admin approves one Premium request and deletes another', async ({ app, screen, mockApi }) => {
+  const request = { name: null, reference: null, note: null, reviewedAt: null, status: 'pending' as const }
+  mockApi.state.accessRequests = [
+    { ...request, userId: SIGNED_IN.sub, email: SIGNED_IN.email, github: 'octocat', starred: true, createdAt: '2026-11-17T09:00:00.000Z' },
+    { ...request, userId: 'google-oauth2|e2e-other', email: OTHER, github: null, starred: null, note: 'Please!', createdAt: '2026-11-17T08:00:00.000Z' },
+  ]
+
+  await app.open('/admin/dashboard')
+  const panel = screen.getByRole('region', 'Premium access requests')
+  await expect(panel.getByText('2 pending')).toBeVisible()
+  await expect(panel.getByText('Starred')).toBeVisible()
+
+  await panel.getByRole('button', 'Approve').first().tap()
+  await expect(panel.getByText('1 pending')).toBeVisible()
+  expect(account(mockApi, SIGNED_IN.sub).premiumAccess).toBe('granted')
+
+  // Deleting asks once more before it goes.
+  const other = panel.getByRole('listitem', `Request from ${OTHER}`)
+  await other.getByRole('button', 'Delete').tap()
+  await other.getByRole('button', 'Confirm').tap()
+  await expect(panel.getByText(OTHER)).toBeHidden()
+  expect(mockApi.state.accessRequests.map((r) => r.userId)).toEqual([SIGNED_IN.sub])
+  expect(account(mockApi, 'google-oauth2|e2e-other').premiumAccess, 'deleting a request gives nothing').toBe('none')
 })
 
 adminTest('the admin pauses an account’s Premium downloads, and allows them again', async ({ app, screen, mockApi }) => {
@@ -152,6 +192,7 @@ async function openPlayerSettings(screen: Screen, browser: Browser) {
 
 signedInTest('an approved account is offered the Premium file', async ({ app, screen, browser, mockApi }) => {
   account(mockApi, SIGNED_IN.sub).premiumAccess = 'granted'
+  mockApi.state.asApp = true
   await playPremium(app, screen)
 
   const settings = await openPlayerSettings(screen, browser)
@@ -163,6 +204,7 @@ signedInTest('an account whose downloads are paused still streams Premium, but i
   const user = account(mockApi, SIGNED_IN.sub)
   user.premiumAccess = 'granted'
   user.debridDownloads = false
+  mockApi.state.asApp = true
   await playPremium(app, screen)
 
   // Not in the player's settings, nor under the player (desktop).

@@ -246,6 +246,17 @@ isn't paused site-wide (`AppSetting` 'premium'). The rule is
 `decidePremium` in `backend/src/lib/userAccess.ts`. `/debrid/status` and
 torrent deletion stay `requireAdminAuth`. Suspension (`User.suspendedAt`)
 also refuses favorites, dislikes, continue watching and recommendations.
+An approved account's Premium plays **in the app only**: the app marks
+every backend call with `X-StreamVault-Client: app/<version>`
+(`app/src/native/clientHeader.ts`, checked by `backend/src/lib/clientKind.ts`),
+and `decidePremium` answers `app-only` to the website (the admin plays
+anywhere). It's a soft line — a header — not a lock. Accounts ask for access
+from the app's Premium screen (`/me/access-request`; starring the repo and
+donating are optional, the star is checked with GitHub by
+`lib/githubStars.ts`); the admin approves or deletes requests in the
+dashboard (`/admin/access-requests`, kept as `AppSetting`
+'access-request:<user id>' rows, no migration). The app has its own admin
+dashboard at `/admin` (My Space → Admin).
 In the UI, Premium is always the last server; `usePremiumAccess()` asks
 `GET /me/access` and `PremiumPane` shows the player or a notice saying why
 not. The Users panel can also pause an account's Premium *downloads*
@@ -257,7 +268,9 @@ gate — the stream itself is the same link. The Download sheet's magnet links
 come from the public `GET /releases`, which never touches the Real-Debrid
 account (and isn't affected by that switch). In E2E, `adminTest` (e2e
 framework) or `test.use({ admin: true })` (Playwright) holds an admin
-session; set `mockApi.state.users` / `premiumPausedForAll` to test accounts.
+session; set `mockApi.state.users` / `premiumPausedForAll` / `accessRequests` to test
+accounts, and `mockApi.state.asApp = true` to play an approved account's Premium
+(as the app would).
 
 ### Protected Routes
 Admin pages guard themselves rather than being wrapped in a route element —

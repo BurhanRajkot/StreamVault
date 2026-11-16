@@ -905,7 +905,8 @@ export async function logRecommendationInteraction(
 ====================================================== */
 
 /** Why Premium is or isn't available to this account (mirrors backend lib/userAccess). */
-export type PremiumReason = 'granted' | 'sign-in-required' | 'not-approved' | 'paused' | 'paused-for-all' | 'suspended'
+/** 'app-only': the account is approved, but its Premium plays in the StreamVault app, not on the website. */
+export type PremiumReason = 'granted' | 'sign-in-required' | 'not-approved' | 'paused' | 'paused-for-all' | 'suspended' | 'app-only'
 
 export interface MyAccess {
   premium: boolean
@@ -1003,4 +1004,66 @@ export function fetchAdminSettings(): Promise<{ premiumPausedForAll: boolean }> 
 
 export function setPremiumPausedForAll(pausedForAll: boolean): Promise<{ premiumPausedForAll: boolean }> {
   return adminRequest('/admin/settings/premium', { method: 'PUT', body: JSON.stringify({ pausedForAll }) })
+}
+
+/* ======================================================
+   PREMIUM ACCESS REQUESTS
+   Asked from the app (star / donate, both optional), approved or deleted by
+   the admin. See backend/src/routes/accessRequests.ts.
+====================================================== */
+
+export interface AccessRequest {
+  userId: string
+  email: string | null
+  name: string | null
+  github: string | null
+  /** The GitHub account has starred the repo; null = no username given, or GitHub couldn't be asked. */
+  starred: boolean | null
+  /** UPI reference (UTR) of a donation. */
+  reference: string | null
+  note: string | null
+  status: 'pending' | 'approved'
+  createdAt: string
+  reviewedAt: string | null
+}
+
+export interface AdminAccessRequest extends AccessRequest {
+  premiumAccess: PremiumAccessLevel
+}
+
+export interface AccessRequestInput {
+  github?: string
+  reference?: string
+  note?: string
+  email?: string | null
+}
+
+async function userRequest<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}` },
+  })
+  const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null
+  if (!res.ok) throw new Error(body?.error ?? `Request failed (${res.status})`)
+  return body as T
+}
+
+export function fetchMyAccessRequest(token: string): Promise<{ request: AccessRequest | null; repo: string }> {
+  return userRequest(token, '/me/access-request')
+}
+
+export function sendAccessRequest(token: string, input: AccessRequestInput): Promise<{ request: AccessRequest; repo: string }> {
+  return userRequest(token, '/me/access-request', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function fetchAccessRequests(): Promise<{ requests: AdminAccessRequest[]; repo: string }> {
+  return adminRequest('/admin/access-requests')
+}
+
+export function approveAccessRequest(userId: string): Promise<{ request: AccessRequest }> {
+  return adminRequest(`/admin/access-requests/${encodeURIComponent(userId)}/approve`, { method: 'POST' })
+}
+
+export function deleteAccessRequest(userId: string): Promise<{ ok: true }> {
+  return adminRequest(`/admin/access-requests/${encodeURIComponent(userId)}`, { method: 'DELETE' })
 }

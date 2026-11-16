@@ -141,6 +141,15 @@ export class MockApi {
     premiumPausedForAll: false,
     /** The dashboard's Subscription Requests (none by default). */
     subscriptionRequests: [] as MockSubscriptionRequest[],
+    /** Premium access requests sent from the app (none by default). */
+    accessRequests: [] as MockAccessRequest[],
+    /**
+     * Treat every call as the app's (as if it carried `X-StreamVault-Client:
+     * app/…`). An approved account's Premium plays in the app only; the app
+     * runs the website's player, so tests of that player as an approved
+     * account set this.
+     */
+    asApp: false,
   }
 
   constructor() {
@@ -384,7 +393,9 @@ export class MockApi {
       if (user.suspendedAt) return 'suspended'
       if (user.premiumAccess === 'none') return 'not-approved'
       if (user.premiumAccess === 'paused') return 'paused'
-      return this.state.premiumPausedForAll ? 'paused-for-all' : 'granted'
+      if (this.state.premiumPausedForAll) return 'paused-for-all'
+      const fromApp = this.state.asApp || /^app(\/|$)/.test(req.headers['x-streamvault-client'] ?? '')
+      return fromApp ? 'granted' : 'app-only'
     }
     this.on('GET', '/me/access', (req) => {
       if (!req.authenticated || req.admin) return { status: 401, json: { error: 'Unauthorized' } }
@@ -426,6 +437,41 @@ export class MockApi {
       })
     )
     this.on('GET', '/admin/settings', adminOnly(() => ok({ premiumPausedForAll: this.state.premiumPausedForAll })))
+
+    // — Admin: Premium access requests (backend/src/routes/accessRequests.ts) —
+    this.on(
+      'GET',
+      '/admin/access-requests',
+      adminOnly(() =>
+        ok({
+          repo: 'BurhanRajkot/StreamVault',
+          requests: [...this.state.accessRequests]
+            .sort((a, b) => (a.status !== b.status ? (a.status === 'pending' ? -1 : 1) : b.createdAt.localeCompare(a.createdAt)))
+            .map((r) => ({ ...r, premiumAccess: this.state.users.find((u) => u.id === r.userId)?.premiumAccess ?? 'none' })),
+        })
+      )
+    )
+    this.on(
+      'POST',
+      '/admin/access-requests/:userId/approve',
+      adminOnly(({ params }) => {
+        const request = this.state.accessRequests.find((r) => r.userId === params.userId)
+        if (!request) return { status: 404, json: { error: 'Request not found' } }
+        const user = this.state.users.find((u) => u.id === params.userId)
+        if (user) user.premiumAccess = 'granted'
+        request.status = 'approved'
+        request.reviewedAt = new Date().toISOString()
+        return ok({ request })
+      })
+    )
+    this.on(
+      'DELETE',
+      '/admin/access-requests/:userId',
+      adminOnly(({ params }) => {
+        this.state.accessRequests = this.state.accessRequests.filter((r) => r.userId !== params.userId)
+        return ok({ ok: true })
+      })
+    )
     this.on(
       'PUT',
       '/admin/settings/premium',
@@ -454,6 +500,19 @@ export class MockApi {
     this.on('GET', '/debrid/subtitles', premiumOnly(() => ok({ languages: [] })))
     this.on('GET', '/debrid/subtitles/file/:id', premiumOnly(() => ({ status: 404, json: { error: 'Subtitle not found' } })))
   }
+}
+
+export interface MockAccessRequest {
+  userId: string
+  email: string | null
+  name: string | null
+  github: string | null
+  starred: boolean | null
+  reference: string | null
+  note: string | null
+  status: 'pending' | 'approved'
+  createdAt: string
+  reviewedAt: string | null
 }
 
 export interface MockUser {
