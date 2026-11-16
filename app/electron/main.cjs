@@ -26,15 +26,16 @@ const crypto = require('node:crypto')
 const { Readable } = require('node:stream')
 const { pipeline } = require('node:stream/promises')
 const { createRdStreams, isRealDebridDownload } = require('./rdStream.cjs')
+const { createBrowserSignIn, isAuthorizeUrl } = require('./browserSignIn.cjs')
 
 const SITE_HOST = 'stream-vault.site'
 const SITE_ORIGIN = `https://${SITE_HOST}`
 /** SV_PORT runs a development copy beside an installed one (each needs its own --user-data-dir). */
 const PORT = Number(process.env.SV_PORT) || 47321
-/** Hosts the window itself may navigate to: the app, and the sign-in pages. */
+/** Hosts the window itself may navigate to: the app, and Auth0's pages (signing out; signing in on older copies of the app). */
 const AUTH_HOSTS = [/\.auth0\.com$/, /^accounts\.google\.com$/, /^appleid\.apple\.com$/, /^accounts\.youtube\.com$/, /^(www\.)?google\.[a-z.]+$/]
 const IS_WINDOWS = process.platform === 'win32'
-/** Google turns sign-in away from browsers that say "Electron"; present as the Chrome underneath. */
+/** Some sites turn away browsers that say "Electron"; present as the Chrome underneath. (Google sign-in refuses embedded browsers regardless — see browserSignIn.cjs.) */
 const CHROME_UA = `Mozilla/5.0 (${IS_WINDOWS ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
 /**
  * How this copy updates itself: the AppImage swaps its own file; on Windows
@@ -353,6 +354,27 @@ app.on('certificate-error', (event, _webContents, url, _error, certificate, call
   callback(false)
 })
 
+// ── Signing in through the system browser ──────────────────────────────────
+//
+// Google refuses sign-ins inside an embedded browser ("This browser or app
+// may not be secure"), whatever the window says it is. So the Auth0 login
+// opens in the viewer's own browser, by way of the site
+// (src/lib/appSignIn.ts on the website), which hands Auth0's answer back here:
+// http://127.0.0.1:<port>/callback?code=…&state=…, on a port opened for this
+// one sign-in. The window then exchanges the code with the PKCE verifier only
+// it holds (app/src/auth/AppAuthProvider.tsx).
+
+const browserSignIn = createBrowserSignIn({
+  siteOrigin: SITE_ORIGIN,
+  openExternal: (url) => shell.openExternal(url),
+  onReturn: () => {
+    if (!win || win.isDestroyed()) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  },
+})
+
 // ── IPC: what the app asks of the shell (app/src/native/platform.ts) ───────
 
 function registerIpc() {
@@ -417,6 +439,11 @@ function registerIpc() {
   ipcMain.handle('sv:show-in-folder', (_e, filePath) => {
     if (filePath.startsWith(downloadsDir())) shell.showItemInFolder(filePath)
   })
+  ipcMain.handle('sv:sign-in', (_e, authorizeUrl) => {
+    if (!isAuthorizeUrl(String(authorizeUrl))) throw new Error('Not an Auth0 sign-in address.')
+    return browserSignIn.start(String(authorizeUrl))
+  })
+  ipcMain.handle('sv:sign-in-cancel', () => browserSignIn.cancel())
   ipcMain.handle('sv:open-external', async (_e, url) => {
     if (/^(https?|magnet|upi):/i.test(url)) await shell.openExternal(url)
   })

@@ -2,7 +2,7 @@ import { useEffect, useCallback, type ReactNode } from 'react'
 import { Auth0Provider, useAuth0 } from '@auth0/auth0-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { isAndroid, SITE_URL } from '@app/native/platform'
+import { desktop, isAndroid, SITE_URL } from '@app/native/platform'
 
 /**
  * Auth0 for the app.
@@ -11,10 +11,14 @@ import { isAndroid, SITE_URL } from '@app/native/platform'
  * already lists as the site's callback and web origin, so the app signs in
  * against the same Auth0 application as the website with no extra setup.
  *
- * - Linux, Windows: exactly like the website — the window goes to Auth0's login page
- *   and comes back to https://stream-vault.site, which the shell serves from
- *   the app's own files.
- * - Android: Google refuses sign-ins inside an app's web view, so the login
+ * Google refuses sign-ins inside an app's embedded browser ("This browser or
+ * app may not be secure"), so neither shell shows the login page itself:
+ *
+ * - Linux, Windows: the login opens in the system browser by way of the site,
+ *   which hands Auth0's answer back to the shell on a loopback port
+ *   (app/electron/main.cjs 'sv:sign-in', src/lib/appSignIn.ts on the website),
+ *   and the code is exchanged here.
+ * - Android: the login
  *   page opens in a Chrome Custom Tab. Auth0 then sends the browser to
  *   https://stream-vault.site/?code=…, which Android hands back to the app
  *   (a verified App Link — public/.well-known/assetlinks.json on the site),
@@ -33,9 +37,9 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
       }}
       cacheLocation="localstorage"
       useRefreshTokens
-      // The hidden-iframe fallback needs Auth0's session cookie in the same
-      // browser — true on the desktop (same window), never in Android's web view.
-      useRefreshTokensFallback={!isAndroid}
+      // The hidden-iframe fallback needs Auth0's session cookie in this
+      // window, and the login happens in another browser on every shell.
+      useRefreshTokensFallback={false}
       onRedirectCallback={(appState) => navigate(appState?.returnTo || '/me', { replace: true })}
     >
       {isAndroid && <AndroidRedirectHandler />}
@@ -94,11 +98,12 @@ function AndroidRedirectHandler() {
 
 /** Sign in / out, the right way for each shell. */
 export function useAppAuth() {
-  const { loginWithRedirect, logout, isAuthenticated, user, isLoading } = useAuth0()
+  const { loginWithRedirect, handleRedirectCallback, logout, isAuthenticated, user, isLoading } = useAuth0()
+  const navigate = useNavigate()
 
   const signIn = useCallback(
     async (opts: { signup?: boolean; returnTo?: string } = {}) => {
-      const authorizationParams = opts.signup ? { screen_hint: 'signup' as const } : undefined
+      const authorizationParams: { screen_hint?: 'signup'; prompt?: 'login' } = opts.signup ? { screen_hint: 'signup' } : {}
       if (isAndroid) {
         const { Browser } = await import('@capacitor/browser')
         await loginWithRedirect({
@@ -108,9 +113,43 @@ export function useAppAuth() {
         })
         return
       }
+      const browserSignIn = desktop?.signIn
+      if (browserSignIn) {
+        // The browser keeps its Auth0 session; after signing out, ask again
+        // rather than signing straight back in to the same account.
+        if (readSignedOut()) authorizationParams.prompt = 'login'
+        const returned: { url: string | null } = { url: null }
+        const toastId = toast.loading('Continue signing in in your browser…', {
+          duration: Infinity,
+          action: { label: 'Cancel', onClick: () => void desktop?.cancelSignIn?.() },
+        })
+        try {
+          await loginWithRedirect({
+            appState: { returnTo: opts.returnTo },
+            authorizationParams,
+            openUrl: async (url) => {
+              returned.url = await browserSignIn(url)
+            },
+          })
+          if (!returned.url) {
+            toast.dismiss(toastId)
+            return
+          }
+          const params = new URL(returned.url).searchParams
+          if (params.has('error')) throw new Error(params.get('error_description') || 'Sign-in was cancelled')
+          const result = await handleRedirectCallback(returned.url)
+          writeSignedOut(false)
+          const returnTo = (result?.appState as { returnTo?: string } | undefined)?.returnTo
+          navigate(returnTo || '/me', { replace: true })
+          toast.success('Signed in', { id: toastId, duration: 3000, action: undefined })
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Sign-in failed', { id: toastId, duration: 6000, action: undefined })
+        }
+        return
+      }
       await loginWithRedirect({ appState: { returnTo: opts.returnTo }, authorizationParams })
     },
-    [loginWithRedirect]
+    [loginWithRedirect, handleRedirectCallback, navigate]
   )
 
   const signOut = useCallback(async () => {
@@ -122,8 +161,28 @@ export function useAppAuth() {
       })
       return
     }
+    writeSignedOut(true)
     await logout({ logoutParams: { returnTo: SITE_URL } })
   }, [logout])
 
   return { signIn, signOut, isAuthenticated, user, isLoading }
+}
+
+const SIGNED_OUT_KEY = 'sv-signed-out'
+
+function readSignedOut(): boolean {
+  try {
+    return localStorage.getItem(SIGNED_OUT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeSignedOut(value: boolean): void {
+  try {
+    if (value) localStorage.setItem(SIGNED_OUT_KEY, '1')
+    else localStorage.removeItem(SIGNED_OUT_KEY)
+  } catch {
+    // Not fatal: the next sign-in just may not ask which account
+  }
 }

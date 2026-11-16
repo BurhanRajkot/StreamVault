@@ -11,6 +11,7 @@ import App from './App'
 import './index.css'
 import { Toaster } from '@/components/ui/sonner'
 import { watchForUpdates } from '@/lib/swUpdate'
+import { runAppSignInStep } from '@/lib/appSignIn'
 
 
 // Suppress Chrome extension errors that are unrelated to our app
@@ -25,7 +26,10 @@ console.error = (...args) => {
   originalError.apply(console, args)
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+// The desktop app's sign-in passes through here on its way to and from Auth0
+const leaving = runAppSignInStep()
+
+if (!leaving) ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('svDesktop', {
   openWith: (path) => ipcRenderer.invoke('sv:open-with', path),
   showInFolder: (path) => ipcRenderer.invoke('sv:show-in-folder', path),
   openExternal: (url) => ipcRenderer.invoke('sv:open-external', url),
+  signIn: (authorizeUrl) => ipcRenderer.invoke('sv:sign-in', authorizeUrl),
+  cancelSignIn: () => ipcRenderer.invoke('sv:sign-in-cancel'),
   setFullscreen: (enabled) => ipcRenderer.invoke('sv:fullscreen', enabled),
   installUpdate: (source) => ipcRenderer.invoke('sv:install-update', source),
   freeSpace: () => ipcRenderer.invoke('sv:free-space'),

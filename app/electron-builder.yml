@@ -8,6 +8,7 @@ directories:
 files:
   - dist/**
   - electron/**
+  - "!electron/**/*.test.cjs"
   - package.json
   # The Android bridge has no place on the desktop
   - "!node_modules/@capacitor/**"
