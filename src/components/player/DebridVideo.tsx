@@ -63,6 +63,7 @@ type ChromeProps = Pick<
   | 'overlay'
   | 'episodes'
   | 'subtitles'
+  | 'topActions'
 >
 
 /**

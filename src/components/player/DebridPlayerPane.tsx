@@ -86,6 +86,8 @@ export interface DebridPlayerPaneProps {
   onReleaseControls?: (controls: ReleaseControls | null) => void
   /** The season's episodes, for the player's Episodes panel. */
   episodes?: ReactNode
+  /** Extra buttons at the right of the player's top bar. */
+  topActions?: ReactNode
   /**
    * How long the film (or episode) runs, in minutes, when known — with the
    * connection's speed it says which releases play without stalling.
@@ -237,6 +239,7 @@ export function DebridPlayerPane({
   nextLabel,
   onReleaseControls,
   episodes,
+  topActions,
   runtimeMinutes,
 }: DebridPlayerPaneProps) {
   const getToken = useDebridToken()
@@ -992,6 +995,7 @@ export function DebridPlayerPane({
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}
         episodes={episodes}
+        topActions={topActions}
         subtitles={subtitles}
         onStarted={() => setVideoStarted(true)}
         edge={edge}

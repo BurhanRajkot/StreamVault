@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { ChevronRight, Download, Heart, Info, Loader2, LogOut, RefreshCw, Server, ShieldCheck, Wifi, Zap } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID, defaultServer } from '@/lib/config'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
@@ -14,6 +15,8 @@ import { ServerSheet } from '@app/components/ServerSheet'
 import { Sheet } from '@app/components/Sheet'
 import { Logo } from '@app/components/Logo'
 import type { QualityPreference } from '@app/downloads/premiumFile'
+import { PageHeader } from '@app/components/PageHeader'
+import { item, spring, stagger } from '@app/lib/motion'
 
 const PREMIUM_LABEL: Record<string, string> = {
   granted: 'Active',
@@ -33,46 +36,48 @@ export function ProfileScreen() {
   const serverName = settings.defaultServer === DEBRID_SERVER_ID ? 'Premium' : CONFIG.PROVIDER_NAMES[settings.defaultServer || defaultServer('movie')]
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-tabbar pt-safe lg:px-8 lg:pb-10">
-      <h1 className="pb-4 pt-4 text-[22px] font-extrabold tracking-tight lg:pt-8">My Space</h1>
+    <div className="mx-auto max-w-3xl px-4 pb-tabbar pt-page lg:px-12">
+      <PageHeader title="My Space" />
+      <motion.div variants={stagger(0.06)} initial="hidden" animate="show">
 
       {/* Account */}
-      <section className="mb-4 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/[0.06]">
+      <motion.section variants={item} className="surface relative mb-4 overflow-hidden rounded-[24px] p-5">
         {isAuthenticated && user ? (
           <div className="flex items-center gap-3.5">
             {user.picture ? (
-              <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-14 w-14 rounded-xl object-cover" />
+              <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-full object-cover ring-1 ring-white/15" />
             ) : (
-              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-lg font-bold">{initialsOf(user.name)}</span>
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-bold">{initialsOf(user.name)}</span>
             )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[16px] font-bold">{user.name || user.nickname}</p>
+            <div className="relative min-w-0 flex-1">
+              <p className="font-display truncate text-[19px] font-extrabold">{user.name || user.nickname}</p>
               <p className="truncate text-[12.5px] text-white/50">{user.email}</p>
             </div>
           </div>
         ) : (
-          <div>
-            <p className="text-[15px] font-bold">Sign in to StreamVault</p>
+          <div className="relative">
+            <p className="font-display text-[19px] font-extrabold">Sign in to StreamVault</p>
             <p className="mt-1 text-[12.5px] leading-relaxed text-white/55">Your list, continue watching and recommendations — the same as on the website.</p>
             <div className="mt-3.5 flex gap-2">
-              <button disabled={isLoading} onClick={() => void signIn()} className="press flex-1 rounded-md bg-white py-2.5 text-[13.5px] font-semibold text-black">
+              <button disabled={isLoading} onClick={() => void signIn()} className="press flex-1 rounded-full bg-white py-3 text-[14px] font-bold text-black">
                 Sign in
               </button>
-              <button disabled={isLoading} onClick={() => void signIn({ signup: true })} className="press flex-1 rounded-md bg-white/10 py-2.5 text-[13.5px] font-semibold">
+              <button disabled={isLoading} onClick={() => void signIn({ signup: true })} className="press flex-1 rounded-full bg-white/10 py-3 text-[14px] font-bold ring-1 ring-white/10">
                 Create account
               </button>
             </div>
           </div>
         )}
-      </section>
+      </motion.section>
 
       {/* Premium */}
+      <motion.div variants={item}>
       <Link
         to="/premium"
-        className="press mb-6 flex items-center gap-3.5 rounded-2xl bg-gradient-to-r from-amber-500/[0.14] via-amber-500/[0.05] to-transparent p-4 ring-1 ring-amber-400/25"
+        className="group press mb-6 flex items-center gap-3.5 rounded-[24px] bg-gradient-to-r from-amber-500/[0.16] via-amber-500/[0.05] to-transparent p-4 ring-1 ring-amber-400/25 transition-colors hover:from-amber-500/25"
       >
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/15">
-          <Zap className="h-5 w-5 text-amber-300" />
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-400 text-black transition-transform group-hover:rotate-12 group-hover:scale-110">
+          <Zap className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[14.5px] font-bold">Premium</span>
@@ -83,6 +88,7 @@ export function ProfileScreen() {
         <span className="text-[12px] font-semibold text-amber-300">{access.premium ? 'Details' : 'Get it'}</span>
         <ChevronRight className="h-4 w-4 text-white/40" />
       </Link>
+      </motion.div>
 
       <Group title="Library">
         <Row to="/my-list" icon={<Heart className="h-[18px] w-[18px]" />} label="My List" />
@@ -94,13 +100,14 @@ export function ProfileScreen() {
         <div className="flex items-center gap-3 px-4 py-3">
           <Download className="h-[18px] w-[18px] text-white/60" />
           <span className="flex-1 text-[14px]">Download quality</span>
-          <div className="flex rounded-lg bg-white/[0.06] p-0.5">
+          <div className="relative z-0 flex rounded-full bg-white/[0.06] p-0.5">
             {(['720p', '1080p', '4K'] as QualityPreference[]).map((q) => (
               <button
                 key={q}
                 onClick={() => updateSettings({ downloadQuality: q })}
-                className={cn('rounded-md px-2.5 py-1 text-[12px] font-semibold', settings.downloadQuality === q ? 'bg-white text-black' : 'text-white/60')}
+                className={cn('relative rounded-full px-3 py-1 text-[12px] font-bold transition-colors', settings.downloadQuality === q ? 'text-black' : 'text-white/60')}
               >
+                {settings.downloadQuality === q && <motion.span layoutId="quality-pill" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}
                 {q}
               </button>
             ))}
@@ -131,10 +138,11 @@ export function ProfileScreen() {
       </Group>
 
       {isAuthenticated && (
-        <button onClick={() => void signOut()} className="press mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/[0.04] py-3 text-[14px] font-semibold text-red-300">
+        <motion.button variants={item} onClick={() => void signOut()} className="press mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500/[0.08] py-3.5 text-[14px] font-bold text-red-300 ring-1 ring-red-400/15 transition-colors hover:bg-red-500/15">
           <LogOut className="h-4 w-4" /> Sign out
-        </button>
+        </motion.button>
       )}
+      </motion.div>
 
       <ServerSheet
         open={serverOpen}
@@ -185,10 +193,10 @@ function UpdateRow() {
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="mb-5">
-      <h2 className="mb-1.5 px-1 text-[11.5px] font-semibold uppercase tracking-wider text-white/40">{title}</h2>
-      <div className="divide-y divide-white/[0.05] overflow-hidden rounded-2xl bg-white/[0.04] ring-1 ring-white/[0.06]">{children}</div>
-    </section>
+    <motion.section variants={item} className="mb-5">
+      <h2 className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white/40">{title}</h2>
+      <div className="surface divide-y divide-white/[0.05] overflow-hidden rounded-[20px]">{children}</div>
+    </motion.section>
   )
 }
 
@@ -201,7 +209,7 @@ function Row({ to, onClick, icon, label, value }: { to?: string; onClick?: () =>
       <ChevronRight className="h-4 w-4 text-white/30" />
     </>
   )
-  const cls = 'flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-white/[0.03]'
+  const cls = 'flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.06]'
   return to ? (
     <Link to={to} className={cls}>
       {inner}
@@ -219,9 +227,9 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (value: boo
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={cn('relative h-6 w-10 rounded-full transition-colors', checked ? 'bg-primary' : 'bg-white/20')}
+      className={cn('relative flex h-7 w-12 items-center rounded-full p-0.5 transition-colors', checked ? 'justify-end bg-primary' : 'justify-start bg-white/20')}
     >
-      <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform', checked ? 'translate-x-[18px]' : 'translate-x-0.5')} />
+      <motion.span layout transition={spring} className="h-6 w-6 rounded-full bg-white shadow" />
     </button>
   )
 }

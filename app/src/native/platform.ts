@@ -38,6 +38,18 @@ export interface DesktopBridge {
   installUpdate(source: { urls: string[]; sha256?: string }): Promise<{ ok: boolean; reason?: string }>
   canSelfUpdate: boolean
   freeSpace(): Promise<{ bytes: number }>
+  /** The window has no system frame — the app draws the title bar and its buttons. */
+  frameless?: boolean
+  /** Minimize, maximize/restore or close the window; answers its state after. Missing on shells older than the redesign. */
+  windowControl?(action: 'minimize' | 'maximize' | 'close'): Promise<WindowState | null>
+  onWindowState?(callback: (state: WindowState) => void): () => void
+  /** Keys the shell sees even while an embedded player's frame has focus (Escape). */
+  onKey?(callback: (key: string) => void): () => void
+}
+
+export interface WindowState {
+  maximized: boolean
+  fullscreen: boolean
 }
 
 declare global {

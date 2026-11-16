@@ -2,21 +2,32 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ListVideo, Server, SkipForward } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowLeft, ChevronDown, ListVideo, Maximize, Minimize, Server, SkipForward, X, Zap } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, defaultServer, serverOptions, type Media } from '@/lib/config'
 import { buildEmbedUrl, logRecommendationInteraction, saveGuestProgress, updateContinueWatching } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { nextEpisode } from '@/lib/episodeNavigation'
-import { genreIdsOf } from '@/lib/utils'
+import { cn, genreIdsOf } from '@/lib/utils'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { PremiumPane } from '@/components/player/PremiumPane'
-import { setPlaybackMode } from '@app/native/platform'
+import { desktop, setPlaybackMode } from '@app/native/platform'
+import { getSettings } from '@app/lib/settings'
+import { useWindowState } from '@app/lib/hooks'
+import { spring } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
-import { ServerSheet } from '@app/components/ServerSheet'
+import { ServerList, serverName, useServerOptions } from '@app/components/ServerSheet'
 import { Sheet } from '@app/components/Sheet'
 import { CONTINUE_WATCHING_KEY } from '@app/components/ContinueWatchingRow'
 import { tmdbImg } from '@app/components/media'
+
+/** The overlay over an embed fades after this long without a touch. */
+const CHROME_HIDE_MS = 4500
+/** No word from a reporting embed by now: it most likely isn't going to start. */
+const STALL_MS = 10_000
+/** The full-screen frame may not grab fullscreen itself — the window already is, and our controls must stay on top. */
+const IFRAME_ALLOW = CONFIG.PLAYER_IFRAME_ALLOW.split('; ').filter((p) => !p.startsWith('fullscreen')).join('; ')
 
 export function PlayerScreen() {
   const params = useParams()
@@ -32,10 +43,18 @@ export function PlayerScreen() {
 
   return (
     <div className="app-player fixed inset-0 z-[300] bg-black">
-      {media && kind ? <Player media={media} kind={kind} /> : <div className="flex h-full items-center justify-center"><span className="player-spinner" /></div>}
+      {media && kind ? (
+        <Player media={media} kind={kind} />
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <span className="player-spinner" />
+        </div>
+      )}
     </div>
   )
 }
+
+type Panel = 'servers' | 'episodes'
 
 function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   const navigate = useNavigate()
@@ -45,14 +64,16 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   const { premium, loading: accessLoading } = usePremiumAccess()
   const display = useMemo(() => deriveMediaDisplay(media, kind), [media, kind])
   const { data: seasons = [] } = useSeasons(kind, media.id)
+  const options = useServerOptions(kind)
 
   const season = Number(search.get('s') ?? 1) || 1
   const episode = Number(search.get('e') ?? 1) || 1
-  const requested = search.get('server') ?? ''
+  const requested = search.get('server') || getSettings().defaultServer
   const server = useMemo(() => {
     if (requested === DEBRID_SERVER_ID || requested === LEGACY_TORBOX_SERVER_ID) return premium || accessLoading ? DEBRID_SERVER_ID : defaultServer(kind)
     return serverOptions(kind).some((o) => o.id === requested) ? requested : defaultServer(kind)
   }, [requested, premium, accessLoading, kind])
+  const isPremium = server === DEBRID_SERVER_ID
 
   const setParams = (patch: Record<string, string>) => {
     const next = new URLSearchParams(search)
@@ -60,16 +81,30 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
     setSearch(next, { replace: true })
   }
 
-  const [serversOpen, setServersOpen] = useState(false)
-  const [episodesOpen, setEpisodesOpen] = useState(false)
+  const [panel, setPanel] = useState<Panel | null>(null)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [stalled, setStalled] = useState(false)
+  const [stallDismissed, setStallDismissed] = useState(false)
   const [chromeVisible, setChromeVisible] = useState(true)
+  /** Servers that didn't start for this title this time — the list says so, "try next" skips them. */
+  const [failed, setFailed] = useState<ReadonlySet<string>>(new Set())
   const startedRef = useRef(false)
+  const windowState = useWindowState()
 
   const episodeCount = seasons.find((s) => s.season_number === season)?.episode_count ?? 99
   const next = kind === 'tv' ? nextEpisode({ season, episode }, seasons, episodeCount) : null
   const goTo = (s: number, e: number) => setParams({ s: String(s), e: String(e) })
+
+  const switchServer = (id: string, markFailed = false) => {
+    if (markFailed) setFailed((prev) => new Set(prev).add(server))
+    setParams({ server: id })
+    setPanel(null)
+    setChromeVisible(true)
+  }
+  const usable = options.filter((o) => !o.locked)
+  const position = usable.findIndex((o) => o.id === server)
+  const nextServer =
+    usable.find((o, i) => i > position && !failed.has(o.id)) ?? usable.find((o) => o.id !== server && !failed.has(o.id)) ?? null
 
   // ── Progress, as the website keeps it ──────────────────────────────────────
   const saveProgress = useCallback(
@@ -88,13 +123,13 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   const startedAt = useRef(Date.now())
   const premiumProgress = useRef<number | null>(null)
   const lastPremiumSave = useRef(0)
-  const position = useRef({ season, episode })
+  const positionRef = useRef({ season, episode })
 
   // A new episode: the previous one counts as finished, this one starts its clock
   useEffect(() => {
-    const prev = position.current
+    const prev = positionRef.current
     if (prev.season !== season || prev.episode !== episode) void saveProgress(prev.season, prev.episode, 0.99)
-    position.current = { season, episode }
+    positionRef.current = { season, episode }
     startedAt.current = Date.now()
     premiumProgress.current = null
     lastPremiumSave.current = 0
@@ -106,8 +141,8 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
 
   const saveOnExit = useRef<() => void>(() => {})
   saveOnExit.current = () => {
-    const { season: s, episode: e } = position.current
-    if (server === DEBRID_SERVER_ID && premiumProgress.current !== null) void saveProgress(s, e, premiumProgress.current)
+    const { season: s, episode: e } = positionRef.current
+    if (isPremium && premiumProgress.current !== null) void saveProgress(s, e, premiumProgress.current)
     else if (Date.now() - startedAt.current >= 30_000) void saveProgress(s, e, 0.5)
     void queryClient.invalidateQueries({ queryKey: [CONTINUE_WATCHING_KEY] })
   }
@@ -119,7 +154,7 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
       premiumProgress.current = Math.min(pos / duration, 0.99)
       if (Date.now() - lastPremiumSave.current < 60_000) return
       lastPremiumSave.current = Date.now()
-      void saveProgress(position.current.season, position.current.episode, premiumProgress.current)
+      void saveProgress(positionRef.current.season, positionRef.current.episode, premiumProgress.current)
     },
     [saveProgress]
   )
@@ -141,13 +176,14 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   }, [isAuthenticated, getAccessTokenSilently, media, kind, server, queryClient])
 
   // ── Embed servers: a stall watchdog, as on the website ─────────────────────
-  const embedUrl = server === DEBRID_SERVER_ID ? '' : buildEmbedUrl(kind, server, media.id, { season, episode, media })
+  const embedUrl = isPremium ? '' : buildEmbedUrl(kind, server, media.id, { season, episode, media })
   useEffect(() => {
     if (!embedUrl) return
     setIframeLoaded(false)
     setStalled(false)
+    setStallDismissed(false)
     startedRef.current = false
-    const timer = setTimeout(() => setStalled(true), 9_000)
+    const timer = setTimeout(() => setStalled(true), STALL_MS)
     const onMessage = (event: MessageEvent) => {
       if (!CONFIG.PLAYER_MESSAGE_ORIGINS.includes(event.origin)) return
       let data: unknown = event.data
@@ -172,23 +208,75 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
     }
   }, [embedUrl])
 
-  // The overlay fades after a few seconds; a tap on its strip brings it back
+  // A server that doesn't report playback gets a gentle hint that goes away on its own
+  const reports = CONFIG.PROVIDERS_REPORTING_PLAYBACK.includes(server)
   useEffect(() => {
-    if (!chromeVisible) return
-    const timer = setTimeout(() => setChromeVisible(false), 4_000)
+    if (!stalled || reports) return
+    const timer = setTimeout(() => setStallDismissed(true), 12_000)
     return () => clearTimeout(timer)
-  }, [chromeVisible, season, episode, server])
+  }, [stalled, reports])
+  const showStall = !isPremium && stalled && !stallDismissed && !panel
+
+  // The overlay fades after a few seconds of nothing; the handle at the top always brings it back
+  useEffect(() => {
+    if (!chromeVisible || panel || showStall) return
+    const timer = setTimeout(() => setChromeVisible(false), CHROME_HIDE_MS)
+    return () => clearTimeout(timer)
+  }, [chromeVisible, panel, showStall, season, episode, server])
+
+  // Escape (a key, or the Linux shell forwarding it out of the embed's frame): close the panel, else show the controls
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || panel) return
+      setChromeVisible(true)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [panel])
 
   const close = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate(`/title/${kind}/${media.id}`, { replace: true }))
   const subtitle = kind === 'tv' ? `S${season} · E${episode}` : display.year
+  const openPanel = (p: Panel) => {
+    setPanel(p)
+    setChromeVisible(true)
+  }
 
-  const episodesList = kind === 'tv' ? <EpisodePicker media={media} seasons={seasons} season={season} episode={episode} onPick={(s, e) => { goTo(s, e); setEpisodesOpen(false) }} /> : undefined
+  const episodesList =
+    kind === 'tv' ? (
+      <EpisodePicker
+        media={media}
+        seasons={seasons}
+        season={season}
+        episode={episode}
+        onPick={(s, e) => {
+          goTo(s, e)
+          setPanel(null)
+        }}
+      />
+    ) : undefined
+
+  const serverButton = (
+    <motion.button
+      whileTap={{ scale: 0.94 }}
+      onClick={() => openPanel('servers')}
+      className={cn(
+        'flex h-10 items-center gap-2 rounded-full pl-2 pr-3 text-[13px] font-bold text-white shadow-lg backdrop-blur-xl transition-colors',
+        isPremium ? 'bg-amber-400/20 ring-1 ring-amber-300/40 hover:bg-amber-400/30' : 'bg-white/15 ring-1 ring-white/20 hover:bg-white/25'
+      )}
+    >
+      <span className={cn('flex h-6 w-6 items-center justify-center rounded-full', isPremium ? 'bg-amber-400 text-black' : 'bg-primary')}>
+        {isPremium ? <Zap className="h-3.5 w-3.5" /> : <Server className="h-3.5 w-3.5" />}
+      </span>
+      <span className="hidden sm:inline">Server:</span> {serverName(server)}
+      <ChevronDown className="h-4 w-4 opacity-70" />
+    </motion.button>
+  )
 
   return (
     <>
-      <div data-own-controls={server === DEBRID_SERVER_ID || undefined} className="player-shell relative overflow-hidden bg-black">
+      <div data-own-controls={isPremium || undefined} className="player-shell relative overflow-hidden bg-black">
         <div className="player-frame">
-          {server === DEBRID_SERVER_ID ? (
+          {isPremium ? (
             <PremiumPane
               key={`${season}:${episode}`}
               title={display.title}
@@ -197,13 +285,14 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
               mediaType={kind}
               season={kind === 'tv' ? season : undefined}
               episode={kind === 'tv' ? episode : undefined}
-              onSwitchServer={() => setServersOpen(true)}
+              onSwitchServer={() => openPanel('servers')}
               onBack={close}
               backdropUrl={tmdbImg(media.backdrop_path, 'w1280')}
               onProgress={onPremiumProgress}
               onNext={next ? () => goTo(next.season, next.episode) : undefined}
               nextLabel={next ? `S${next.season} · E${next.episode}` : undefined}
               episodes={episodesList}
+              topActions={serverButton}
             />
           ) : (
             <>
@@ -213,68 +302,162 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                 title={`${display.title} — ${CONFIG.PROVIDER_NAMES[server] ?? 'player'}`}
                 className="absolute inset-0 h-full w-full border-0"
                 referrerPolicy={CONFIG.PLAYER_IFRAME_REFERRER_POLICY}
-                allow={CONFIG.PLAYER_IFRAME_ALLOW}
-                allowFullScreen
+                allow={IFRAME_ALLOW}
                 onLoad={() => setIframeLoaded(true)}
               />
-              {!iframeLoaded && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black">
-                  <span className="player-spinner" aria-hidden="true" />
-                </div>
-              )}
-              {stalled && (
-                <div className="absolute bottom-6 left-1/2 z-20 flex w-max max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-full bg-black/85 px-4 py-2 text-[12.5px] text-white/85 ring-1 ring-white/10">
-                  <span>Taking a while?</span>
-                  <button onClick={() => setServersOpen(true)} className="font-semibold text-white">
-                    Try another server
-                  </button>
-                </div>
-              )}
+              <AnimatePresence>
+                {!iframeLoaded && (
+                  <motion.div
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-5 bg-black"
+                  >
+                    <img src={tmdbImg(media.backdrop_path, 'w1280')} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25 blur-sm" />
+                    <span className="player-spinner relative" aria-hidden="true" />
+                    <p className="relative text-[13px] font-semibold text-white/70">Connecting to {serverName(server)}…</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </>
           )}
         </div>
       </div>
 
-      {/* Our overlay — embeds only; the Premium player draws its own */}
-      {server !== DEBRID_SERVER_ID && (
-        <div
-          className={`absolute inset-x-0 top-0 z-[310] flex items-center gap-1 bg-gradient-to-b from-black/80 to-transparent pb-6 pl-[max(var(--sal),8px)] pr-[max(var(--sar),8px)] pt-[max(var(--sat),6px)] transition-opacity duration-300 ${chromeVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-          onPointerDown={() => setChromeVisible(true)}
-        >
-          <button onClick={close} aria-label="Back" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white active:bg-white/10">
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div className="min-w-0 flex-1 px-1">
-            <p className="truncate text-[14px] font-semibold text-white">{display.title}</p>
-            {subtitle && <p className="truncate text-[11.5px] text-white/60">{subtitle}</p>}
-          </div>
-          {kind === 'tv' && (
-            <button onClick={() => setEpisodesOpen(true)} aria-label="Episodes" className="flex h-10 w-10 items-center justify-center rounded-full text-white active:bg-white/10">
-              <ListVideo className="h-5 w-5" />
-            </button>
+      {/* Our overlay — embeds only; the Premium player draws its own and carries our server button */}
+      {!isPremium && (
+        <>
+          <AnimatePresence>
+            {chromeVisible && (
+              <motion.div
+                key="bar"
+                initial={{ opacity: 0, y: -24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -24 }}
+                transition={spring}
+                className="pointer-events-none absolute inset-x-0 top-0 z-[310] flex items-center gap-2 bg-gradient-to-b from-black/90 via-black/55 to-transparent pb-12 pl-[max(var(--sal),12px)] pr-[max(var(--sar),12px)] pt-[max(var(--sat),10px)] [&_button]:pointer-events-auto"
+                onPointerDown={() => setChromeVisible(true)}
+                onMouseMove={() => setChromeVisible(true)}
+              >
+                {/* Everything on the left: embeds keep their own quality/subtitle buttons in the top-right corner */}
+                <button onClick={close} aria-label="Back" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15 active:bg-white/20">
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                {/* No title here — the embeds print their own just below, and two overlapped */}
+                <div className="flex shrink-0 items-center gap-1">
+                  {serverButton}
+                  {kind === 'tv' && (
+                    <BarButton onClick={() => openPanel('episodes')} label={subtitle ?? 'Episodes'}>
+                      <ListVideo className="h-[18px] w-[18px]" />
+                    </BarButton>
+                  )}
+                  {next && (
+                    <BarButton onClick={() => goTo(next.season, next.episode)} label="Next">
+                      <SkipForward className="h-[18px] w-[18px]" />
+                    </BarButton>
+                  )}
+                  {desktop && (
+                    <BarButton onClick={() => void desktop!.setFullscreen(!windowState.fullscreen)} label={windowState.fullscreen ? 'Exit full screen' : 'Full screen'} iconOnly>
+                      {windowState.fullscreen ? <Minimize className="h-[18px] w-[18px]" /> : <Maximize className="h-[18px] w-[18px]" />}
+                    </BarButton>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* While the bar is away: a handle at the top that always brings it back (a mouse only has to touch the strip) */}
+          {!chromeVisible && (
+            <div className="absolute left-1/2 top-0 z-[311] flex h-11 w-[min(36%,420px)] -translate-x-1/2 justify-center" onMouseEnter={() => setChromeVisible(true)} onClick={() => setChromeVisible(true)}>
+              <motion.button
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={spring}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openPanel('servers')
+                }}
+                aria-label={`Server: ${serverName(server)} — change`}
+                className="mt-[max(var(--sat),6px)] flex h-7 items-center gap-1.5 rounded-full bg-black/45 px-3 text-[11px] font-bold text-white/70 ring-1 ring-white/15 backdrop-blur-md transition-all hover:bg-black/70 hover:text-white"
+              >
+                <Server className="h-3 w-3" />
+                {serverName(server)}
+                <ChevronDown className="h-3 w-3" />
+              </motion.button>
+            </div>
           )}
-          {next && (
-            <button onClick={() => goTo(next.season, next.episode)} className="flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3 text-[12px] font-semibold text-white">
-              Next <SkipForward className="h-4 w-4" />
-            </button>
-          )}
-          <button onClick={() => setServersOpen(true)} className="ml-1 flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3 text-[12px] font-semibold text-white">
-            <Server className="h-4 w-4" /> {CONFIG.PROVIDER_NAMES[server] ?? 'Server'}
-          </button>
-        </div>
-      )}
-      {/* While the overlay is hidden, a thin strip at the top brings it back without reaching the player's own controls */}
-      {server !== DEBRID_SERVER_ID && !chromeVisible && (
-        <button aria-label="Show controls" onClick={() => setChromeVisible(true)} className="absolute left-0 top-0 z-[311] h-12 w-1/4" />
+
+          {/* Not starting? One tap to the next server */}
+          <AnimatePresence>
+            {showStall && (
+              <motion.div
+                initial={{ opacity: 0, y: -16, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -16, scale: 0.95 }}
+                transition={spring}
+                className="absolute inset-x-0 top-[calc(max(var(--sat),10px)+64px)] z-[312] mx-auto w-[min(460px,calc(100%-2rem))]"
+              >
+                <div className="glass-strong flex items-center gap-3 rounded-2xl p-3 pl-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px] font-bold text-white">{reports ? `${serverName(server)} isn’t starting` : 'Not playing?'}</p>
+                    <p className="text-[11.5px] text-white/55">Servers come and go — another usually works.</p>
+                  </div>
+                  {nextServer && (
+                    <motion.button
+                      whileTap={{ scale: 0.94 }}
+                      onClick={() => switchServer(nextServer.id, true)}
+                      className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[12.5px] font-bold text-black"
+                    >
+                      Try {nextServer.name} <SkipForward className="h-3.5 w-3.5" />
+                    </motion.button>
+                  )}
+                  <button onClick={() => openPanel('servers')} className="shrink-0 rounded-full px-2.5 py-2 text-[12px] font-semibold text-white/70 hover:text-white">
+                    All
+                  </button>
+                  <button onClick={() => setStallDismissed(true)} aria-label="Dismiss" className="-ml-1 shrink-0 rounded-full p-1.5 text-white/45 hover:text-white">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
       )}
 
-      <ServerSheet open={serversOpen} onOpenChange={setServersOpen} kind={kind} server={server} onPick={(id) => setParams({ server: id })} />
-      {kind === 'tv' && (
-        <Sheet open={episodesOpen} onOpenChange={setEpisodesOpen} title={display.title} description="Episodes">
-          {episodesList}
-        </Sheet>
-      )}
+      <Sheet
+        side="right"
+        open={!!panel}
+        onOpenChange={(open) => !open && setPanel(null)}
+        title={panel === 'episodes' ? 'Episodes' : 'Servers'}
+        description={panel === 'episodes' ? display.title : 'If one doesn’t play, try the next.'}
+      >
+        {kind === 'tv' && (
+          <div className="mb-4 flex rounded-full bg-white/[0.06] p-1">
+            {(['servers', 'episodes'] as const).map((p) => (
+              <button key={p} onClick={() => setPanel(p)} className={cn('relative flex-1 rounded-full py-1.5 text-[12.5px] font-bold capitalize transition-colors', panel === p ? 'text-black' : 'text-white/60')}>
+                {panel === p && <motion.span layoutId="player-panel-tab" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+        {panel === 'episodes' ? episodesList : <ServerList kind={kind} server={server} failed={failed} onPick={(id) => switchServer(id)} onLocked={() => setPanel(null)} />}
+      </Sheet>
     </>
+  )
+}
+
+function BarButton({ onClick, label, children, iconOnly }: { onClick: () => void; label: string; children: React.ReactNode; iconOnly?: boolean }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.92 }}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn('flex h-10 shrink-0 items-center gap-1.5 rounded-full text-[13px] font-bold text-white transition-colors hover:bg-white/15', iconOnly ? 'w-10 justify-center' : 'px-3')}
+    >
+      {children}
+      {!iconOnly && <span className="hidden md:inline">{label}</span>}
+    </motion.button>
   )
 }
 
@@ -301,7 +484,7 @@ function EpisodePicker({
             <button
               key={s.season_number}
               onClick={() => setShownSeason(s.season_number)}
-              className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold ${s.season_number === shownSeason ? 'bg-white text-black' : 'bg-white/10 text-white/75'}`}
+              className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-bold transition-colors ${s.season_number === shownSeason ? 'bg-white text-black' : 'bg-white/10 text-white/75 hover:bg-white/15'}`}
             >
               S{s.season_number}
             </button>
@@ -315,9 +498,9 @@ function EpisodePicker({
             <li key={ep.episode_number}>
               <button
                 onClick={() => onPick(shownSeason, ep.episode_number)}
-                className={`flex w-full items-center gap-3 rounded-lg p-2 text-left ${current ? 'bg-primary/15 ring-1 ring-primary/40' : 'active:bg-white/5'}`}
+                className={`flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors ${current ? 'bg-primary/15 ring-1 ring-primary/40' : 'hover:bg-white/5 active:bg-white/5'}`}
               >
-                <img src={tmdbImg(ep.still_path || media.backdrop_path, 'w300')} alt="" loading="lazy" className="aspect-video w-24 shrink-0 rounded object-cover" />
+                <img src={tmdbImg(ep.still_path || media.backdrop_path, 'w300')} alt="" loading="lazy" className="aspect-video w-24 shrink-0 rounded-lg object-cover" />
                 <span className="min-w-0 flex-1">
                   <span className="line-clamp-2 text-[12.5px] font-semibold text-white">
                     {ep.episode_number}. {ep.name}

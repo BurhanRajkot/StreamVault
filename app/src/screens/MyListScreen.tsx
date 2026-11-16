@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Heart } from 'lucide-react'
+import { Heart } from 'lucide-react'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useAppAuth } from '@app/auth/AppAuthProvider'
 import { useMyList } from '@app/components/MyListRow'
 import { PosterGrid, PosterGridSkeleton } from '@app/components/media'
+import { EmptyState, PageHeader } from '@app/components/PageHeader'
 
 export function MyListScreen() {
   const navigate = useNavigate()
@@ -11,35 +12,29 @@ export function MyListScreen() {
   const { favorites } = useFavorites()
   const { data, isLoading } = useMyList()
 
+  const button = (label: string, onClick: () => void) => (
+    <button onClick={onClick} className="press rounded-full bg-white px-6 py-2.5 text-[14px] font-bold text-black">
+      {label}
+    </button>
+  )
+
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-tabbar pt-safe lg:px-8 lg:pb-10">
-      <header className="flex items-center gap-2 pb-4 pt-3 lg:pt-8">
-        <button onClick={() => navigate(-1)} aria-label="Back" className="-ml-2 flex h-9 w-9 items-center justify-center rounded-full lg:hidden">
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <h1 className="text-[22px] font-extrabold tracking-tight">My List</h1>
-      </header>
+    <div className="px-4 pb-tabbar pt-page lg:px-12">
+      <PageHeader back title="My List" subtitle={favorites.length > 0 ? `${favorites.length} title${favorites.length === 1 ? '' : 's'} saved to watch` : undefined} />
       {!isAuthenticated ? (
-        <Empty text="Sign in to keep a list of what you want to watch, on every device." action="Sign in" onAction={() => void signIn({ returnTo: '/my-list' })} />
+        <EmptyState
+          icon={<Heart className="h-10 w-10 text-white" />}
+          title="Your list, everywhere"
+          text="Sign in to keep a list of what you want to watch — on your phone, your computer and the website."
+          action={button('Sign in', () => void signIn({ returnTo: '/my-list' }))}
+        />
       ) : favorites.length === 0 ? (
-        <Empty text="Tap + My List on any title to save it here." action="Browse" onAction={() => navigate('/')} />
+        <EmptyState icon={<Heart className="h-10 w-10 text-white" />} title="Nothing saved yet" text="Tap + My List on any title and it lands here." action={button('Browse', () => navigate('/'))} />
       ) : isLoading && !data ? (
         <PosterGridSkeleton count={favorites.length} />
       ) : (
         <PosterGrid items={data ?? []} />
       )}
-    </div>
-  )
-}
-
-function Empty({ text, action, onAction }: { text: string; action: string; onAction: () => void }) {
-  return (
-    <div className="flex flex-col items-center pt-20 text-center">
-      <Heart className="mb-4 h-10 w-10 text-white/40" />
-      <p className="max-w-xs text-[13.5px] text-white/60">{text}</p>
-      <button onClick={onAction} className="press mt-5 rounded-md bg-white px-5 py-2 text-[13.5px] font-semibold text-black">
-        {action}
-      </button>
     </div>
   )
 }
