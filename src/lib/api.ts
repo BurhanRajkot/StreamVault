@@ -252,13 +252,24 @@ export function isSearchResultWorthShowing(media: Media): boolean {
   return !!media.poster_path || (media.vote_count ?? 0) >= 20
 }
 
+/** The person, studio, franchise or topic a search named — its titles lead the results. */
+export interface SearchEntity {
+  kind: 'person' | 'company' | 'collection' | 'keyword'
+  id: number
+  name: string
+  /** TMDB image path: a person's photo, a studio's logo, a franchise's poster. */
+  imagePath: string | null
+  /** "Director", "Actor", "Studio", "Franchise", "Topic"… */
+  role: string
+}
+
 export async function searchMedia(
   mode: MediaMode,
   query: string,
   page = 1,
   /** Optional AbortSignal — pass one from an AbortController to cancel stale requests */
   signal?: AbortSignal
-): Promise<{ results: Media[]; hasMore: boolean }> {
+): Promise<{ results: Media[]; hasMore: boolean; entity?: SearchEntity | null }> {
   const params = new URLSearchParams()
   params.append('query', query)
   params.append('page', page.toString())
@@ -299,6 +310,7 @@ export async function searchMedia(
     return {
       results,
       hasMore: typeof data.has_more === 'boolean' ? data.has_more : raw.length > 0,
+      entity: (data.entity as SearchEntity | null | undefined) ?? null,
     }
   } catch (err: unknown) {
     // AbortError is expected when the caller cancels a stale request — not a real error

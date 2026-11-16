@@ -215,7 +215,7 @@ export function TopTenRow({ title, items, kind }: { title: string; items: Media[
   return (
     <Row title={title}>
       {shown.map((m, i) => (
-        <Link key={m.id} to={titlePath(m, kind)} className={cn('group/card press block shrink-0', POSTER_W)} aria-label={`${i + 1}. ${titleOf(m)}`}>
+        <Link key={`${kindOf(m, kind)}-${m.id}`} to={titlePath(m, kind)} className={cn('group/card press block shrink-0', POSTER_W)} aria-label={`${i + 1}. ${titleOf(m)}`}>
           <span className={cn(ART, HOVER, 'block aspect-[2/3] w-full')}>
             <FadeImg src={tmdbImg(m.poster_path, 'w342')} loading="lazy" className="h-full w-full object-cover" />
           </span>

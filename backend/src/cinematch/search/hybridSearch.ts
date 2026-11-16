@@ -80,6 +80,11 @@ async function fetchDiscover(
 
       cleanFilters[k] = v
     }
+    // Talk shows, news and soaps lead TV popularity forever; nobody searching
+    // "crime shows" means them
+    if (mediaType === 'tv' && !cleanFilters.without_genres) {
+      cleanFilters.without_genres = '10767,10763,10766'
+    }
     // Sort by popularity for general discover queries
     if (!cleanFilters.sort_by) {
       cleanFilters.sort_by = 'popularity.desc'
@@ -131,7 +136,7 @@ function toDocuments(results: TMDBMultiResult[]): TMDBBm25Doc[] {
 }
 // ── Ranking ───────────────────────────────────────────────
 /** Lowercased letters and digits, single-spaced: "Spider-Man: No Way Home" → "spider man no way home". */
-function normalizeTitle(s: string): string {
+export function normalizeTitle(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFKD')

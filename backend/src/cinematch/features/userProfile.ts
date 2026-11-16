@@ -13,14 +13,101 @@ import { getCategoriesForGenres } from '../categories'
 // L1 for user profiles (5min TTL)
 const userProfileCache = new NodeCache({ stdTTL: 300, checkperiod: 60 })
 
-const MAX_RECENT_ITEMS = 10  // Seed candidate sources from last N watched
-// Feature batch: only enrich top-N interactions with TMDB keyword/cast data.
+const MAX_RECENT_ITEMS = 10  // Seed candidate sources from the N titles the user is most into
+// Feature batch: only enrich the top-N titles with TMDB keyword/cast data.
 // getMovieFeatures uses append_to_response=keywords,credits (heaviest TMDB endpoint).
-// 12 keeps strong personalization while reducing cold-request TMDB burst.
-const FEATURE_BATCH_SIZE = 12
+const FEATURE_BATCH_SIZE = 18
+/** Disliked titles whose features count against their genres, cast and keywords. */
+const DISLIKE_FEATURE_BATCH = 4
 const PROFILE_FEATURE_TIMEOUT_MS = Number(process.env.CINEMATCH_PROFILE_FEATURE_TIMEOUT_MS || 2500)
-const MAX_INTERACTIONS_FETCH = 200
+// Every play, resume and progress tick is a row, so a few hundred rows can be
+// a single binge. A thousand reaches back months for an active viewer.
+const MAX_INTERACTIONS_FETCH = 1000
 const DECAY_HALF_LIFE_DAYS = 30  // All vectors halve every 30 days
+/** How fast a title stops counting as "what you're into now". */
+const ENGAGEMENT_HALF_LIFE_DAYS = 45
+/** An old favourite keeps this much of its weight however long ago it was. */
+const ENGAGEMENT_FLOOR = 0.3
+
+interface InteractionRow {
+  tmdbId: number
+  mediaType: string
+  eventType: string
+  weight: number | string
+  createdAt: string
+  progress?: number | string | null
+  rating?: number | null
+}
+
+/** How much one user cares about one title, from all their events on it. */
+export interface TitleEngagement {
+  tmdbId: number
+  mediaType: MediaType
+  /** Watch events — every play and progress tick, so it tracks time spent. */
+  watchEvents: number
+  favorited: boolean
+  disliked: boolean
+  /** Their star rating, if they gave one (1–5). */
+  rating?: number
+  lastAt: string
+  /** The blended score seeds are picked by (higher = more into it). */
+  score: number
+}
+
+function recency(createdAt: string, now: number): number {
+  const ageDays = Math.max(0, (now - new Date(createdAt).getTime()) / 86_400_000)
+  return ENGAGEMENT_FLOOR + (1 - ENGAGEMENT_FLOOR) * Math.exp(-ageDays * Math.LN2 / ENGAGEMENT_HALF_LIFE_DAYS)
+}
+
+/**
+ * Collapse a user's events into one engagement score per title.
+ *
+ * Seeds used to be the last dozen events: whatever was opened most recently,
+ * a two-minute look at a documentary counting as much as forty sessions of
+ * Game of Thrones. Here a title's weight grows with how often it was played
+ * (log-scaled — the 500th episode adds little), favourites and good ratings
+ * add to it, and it fades with time without ever quite vanishing.
+ */
+export function aggregateEngagement(rows: InteractionRow[], now = Date.now()): TitleEngagement[] {
+  const byTitle = new Map<string, TitleEngagement>()
+  for (const row of rows) {
+    const key = `${row.mediaType}:${row.tmdbId}`
+    let e = byTitle.get(key)
+    if (!e) {
+      e = {
+        tmdbId: row.tmdbId,
+        mediaType: row.mediaType === 'tv' ? 'tv' : 'movie',
+        watchEvents: 0,
+        favorited: false,
+        disliked: false,
+        lastAt: row.createdAt,
+        score: 0,
+      }
+      byTitle.set(key, e)
+    }
+    if (row.createdAt > e.lastAt) e.lastAt = row.createdAt
+    if (row.eventType === 'watch') {
+      // A brief open (logged at weight 0.1) counts for a fraction of a real session
+      e.watchEvents += Number(row.weight) >= 0.4 ? 1 : 0.25
+    } else if (row.eventType === 'favorite') {
+      e.favorited = true
+    } else if (row.eventType === 'dislike') {
+      e.disliked = true
+    } else if (row.eventType === 'rate' && row.rating != null && e.rating === undefined) {
+      // Rows arrive newest first: the first rating seen is the current one
+      e.rating = Number(row.rating)
+    }
+  }
+
+  for (const e of byTitle.values()) {
+    let base = Math.log1p(e.watchEvents)
+    if (e.favorited) base += 1.2
+    if (e.rating !== undefined) base += e.rating >= 4 ? 1 : e.rating <= 2 ? -2 : 0
+    e.score = e.disliked ? 0 : Math.max(0, base) * recency(e.lastAt, now)
+  }
+
+  return [...byTitle.values()].sort((a, b) => b.score - a.score)
+}
 
 // ── Time-decay factor ──────────────────────────────────────
 function timeDecay(createdAt: string): number {
@@ -135,7 +222,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   // than completed watches. See [[feedback-cinematch-signal-noise]].
   const { data: interactions, error } = await supabaseAdmin
     .from('UserInteractions')
-    .select('tmdbId, mediaType, eventType, weight, createdAt, progress')
+    .select('tmdbId, mediaType, eventType, weight, createdAt, progress, rating')
     .eq('userId', userId)
     .in('eventType', ['watch', 'favorite', 'rate', 'dislike'])
     .order('createdAt', { ascending: false })
@@ -182,114 +269,93 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
   const favoritedIds = new Set<number>()
   const dislikedIds = new Set<number>()
   const categoryDislikeCounts: Record<string, number> = {}
-  const recentWatchMap = new Map<number, RecentItem>()
 
   // For cold-start: seed from persisted genre profile first.
   // Always seed — even with ≥5 interactions the persisted map gives fast warmup.
   await seedFromPersistedProfile(userId, genreVector, keywordVector, castVector, directorVector, decadeVector)
 
+  for (const interaction of interactions) {
+    if (interaction.eventType === 'dislike') dislikedIds.add(interaction.tmdbId)
+    else if (interaction.eventType === 'watch') watchedIds.add(interaction.tmdbId)
+    else if (interaction.eventType === 'favorite') favoritedIds.add(interaction.tmdbId)
+  }
 
-  // Batch-fetch features for top N recent interactions in parallel.
-  // Capped at FEATURE_BATCH_SIZE and wrapped with a 4s timeout so a slow
-  // TMDB response never blocks the recommendation pipeline.
-  const topInteractions = interactions.slice(0, FEATURE_BATCH_SIZE)
+  // What the user is actually into, strongest first — this, not the last few
+  // events, decides the taste vectors and the "Because you watched" seeds
+  const engagement = aggregateEngagement(interactions as InteractionRow[])
+  const liked = engagement.filter((e) => e.score > 0).slice(0, FEATURE_BATCH_SIZE)
+  const disliked = engagement
+    .filter((e) => e.disliked)
+    .sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+    .slice(0, DISLIKE_FEATURE_BATCH)
+  const topScore = liked[0]?.score || 1
+
+  // Batch-fetch features in parallel, under a deadline so a slow TMDB
+  // response never blocks the recommendation pipeline.
+  const toEnrich = [...liked, ...disliked]
   const featureBatch = await withTimeout(
-    Promise.allSettled(
-      topInteractions.map(i => getMovieFeatures(i.tmdbId, i.mediaType as MediaType))
-    ),
+    Promise.allSettled(toEnrich.map((e) => getMovieFeatures(e.tmdbId, e.mediaType))),
     PROFILE_FEATURE_TIMEOUT_MS,
-    topInteractions.map(() => ({ status: 'rejected' as const, reason: 'timeout' }))
+    toEnrich.map(() => ({ status: 'rejected' as const, reason: 'timeout' }))
   )
 
-  for (let idx = 0; idx < interactions.length; idx++) {
-    const interaction = interactions[idx]
-    const decay = timeDecay(interaction.createdAt)
+  const seeds: RecentItem[] = []
+  const languageWeight: Record<string, number> = {}
+  for (let idx = 0; idx < toEnrich.length; idx++) {
+    const title = toEnrich[idx]
+    const result = featureBatch[idx]
+    if (!result || result.status !== 'fulfilled' || !result.value) continue
+    const features = result.value
+    const isDislike = idx >= liked.length
 
-    const isDislike = interaction.eventType === 'dislike'
+    // Liked titles weigh in proportion to engagement (the top title = 1);
+    // dislikes push their traits down by a fixed amount
+    const adjustedWeight = isDislike ? -0.9 * timeDecay(title.lastAt) : title.score / topScore
 
     if (isDislike) {
-      // Always record the disliked item so it's filtered out entirely
-      dislikedIds.add(interaction.tmdbId)
-    } else if (interaction.eventType === 'watch') {
-      watchedIds.add(interaction.tmdbId)
-    } else if (interaction.eventType === 'favorite') {
-      favoritedIds.add(interaction.tmdbId)
+      // Track per-category dislike count for category-level suppression
+      for (const cat of getCategoriesForGenres(features.genreIds)) {
+        categoryDislikeCounts[cat] = (categoryDislikeCounts[cat] || 0) + 1
+      }
     }
 
-    // Dislikes get a 1.5× negative penalty so a few dislikes of the same genre
-    // are enough to measurably shift the affinity vectors.
-    const adjustedWeight = isDislike
-      ? -0.6 * decay * 1.5
-      : interaction.weight * decay
+    let decade = 0
+    if (features.releaseDate) {
+      const year = parseInt(features.releaseDate.split('-')[0] || '0', 10)
+      if (year > 1900) decade = Math.floor(year / 10) * 10
+    }
 
-    // Accumulate genre + keyword + cast vectors for top-N interactions
-    // (includes dislikes so their genres get subtracted)
-    if (idx < FEATURE_BATCH_SIZE) {
-      const result = featureBatch[idx]
-      if (result && result.status === 'fulfilled' && result.value) {
-        const features = result.value
+    for (const genreId of features.genreIds) {
+      genreVector[genreId] = (genreVector[genreId] || 0) + adjustedWeight
+    }
+    for (const kwId of features.keywords) {
+      keywordVector[kwId] = (keywordVector[kwId] || 0) + adjustedWeight
+    }
+    for (const castId of features.castIds) {
+      castVector[castId] = (castVector[castId] || 0) + adjustedWeight
+    }
+    // Director gets 2x weight as it's a strong trait
+    if (features.directorId) {
+      directorVector[features.directorId] = (directorVector[features.directorId] || 0) + adjustedWeight * 2
+    }
+    if (decade > 0) {
+      decadeVector[decade] = (decadeVector[decade] || 0) + adjustedWeight
+    }
 
-        // Track per-category dislike count for category-level suppression
-        if (isDislike) {
-          const cats = getCategoriesForGenres(features.genreIds)
-          for (const cat of cats) {
-            categoryDislikeCounts[cat] = (categoryDislikeCounts[cat] || 0) + 1
-          }
-        }
+    if (!isDislike && features.originalLanguage) {
+      languageWeight[features.originalLanguage] = (languageWeight[features.originalLanguage] || 0) + adjustedWeight
+    }
 
-        // Extract decade
-        let decade = 0
-        if (features.releaseDate) {
-          const year = parseInt(features.releaseDate.split('-')[0] || '0', 10)
-          if (year > 1900) {
-            decade = Math.floor(year / 10) * 10
-          }
-        }
-
-        // Genre vector — positive for liked/watched, negative for disliked
-        for (const genreId of features.genreIds) {
-          genreVector[genreId] = (genreVector[genreId] || 0) + adjustedWeight
-        }
-
-        // Apply keyword, cast, director, and decade vectors symmetrically
-        // both positive tracking and negative penalties
-
-        // Keyword affinity vector
-        for (const kwId of features.keywords) {
-          keywordVector[kwId] = (keywordVector[kwId] || 0) + adjustedWeight
-        }
-
-        // Cast affinity vector
-        for (const castId of features.castIds) {
-          castVector[castId] = (castVector[castId] || 0) + adjustedWeight
-        }
-
-        // Director vector (gets 2x weight as it's a strong trait)
-        if (features.directorId) {
-          directorVector[features.directorId] = (directorVector[features.directorId] || 0) + (adjustedWeight * 2)
-        }
-
-        // Decade vector
-        if (decade > 0) {
-          decadeVector[decade] = (decadeVector[decade] || 0) + adjustedWeight
-        }
-
-        if (!isDislike) {
-          // Track recently watched for candidate seeding.
-          // Include both 'watch' AND 'favorite' events so onboarding selections
-          // immediately seed the tmdbSimilar + tmdbRecommendations sources.
-          const isWatchOrFavorite =
-            interaction.eventType === 'watch' || interaction.eventType === 'favorite'
-          if (isWatchOrFavorite && !recentWatchMap.has(interaction.tmdbId)) {
-            recentWatchMap.set(interaction.tmdbId, {
-              tmdbId: interaction.tmdbId,
-              mediaType: interaction.mediaType as MediaType,
-              title: features.title,
-              weight: adjustedWeight,
-            })
-          }
-        }
-      }
+    if (!isDislike) {
+      seeds.push({
+        tmdbId: title.tmdbId,
+        mediaType: title.mediaType,
+        title: features.title,
+        weight: title.score,
+        genreIds: features.genreIds,
+        castIds: features.castIds.slice(0, 5),
+        keywords: features.keywords,
+      })
     }
   }
 
@@ -307,15 +373,50 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     favoritedIds,
     dislikedIds,
     categoryDislikeCounts,
-    recentlyWatched: Array.from(recentWatchMap.values())
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, MAX_RECENT_ITEMS),
+    recentlyWatched: onePerFranchise(seeds.sort((a, b) => b.weight - a.weight)).slice(0, MAX_RECENT_ITEMS),
+    languageVector: shares(languageWeight),
     // User is new only if they have zero interactions — onboarding seeds ≥5
     isNewUser: interactions.length === 0,
   }
 
   userProfileCache.set(userId, profile)
   return profile
+}
+
+/**
+ * "Kung Fu Panda", "Kung Fu Panda 2" and "Kung Fu Panda 4" are one taste,
+ * not three: same-franchise titles otherwise take three of the "Because you
+ * watched" rows with near-identical picks. Keyed on the title before any
+ * subtitle, sequel number or "Part".
+ */
+export function franchiseKey(title: string): string {
+  return title
+    .toLowerCase()
+    .split(/[:–—-]/)[0]
+    .replace(/\b(part|chapter|vol(ume)?|season)\b.*$/, '')
+    .replace(/\b([0-9]+|i{1,3}|iv|v|vi{0,3})\s*$/, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function onePerFranchise<T extends { title: string }>(items: T[]): T[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const key = franchiseKey(item.title)
+    if (!key) return true
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** Weights → shares of the total (sums to 1); empty when there's nothing to share. */
+function shares(weights: Record<string, number>): Record<string, number> {
+  const total = Object.values(weights).reduce((a, b) => a + Math.max(0, b), 0)
+  if (total <= 0) return {}
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(weights)) if (v > 0) out[k] = v / total
+  return out
 }
 
 // ── Invalidate user profile cache ──────────────────────────

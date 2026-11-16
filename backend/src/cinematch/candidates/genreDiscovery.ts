@@ -11,6 +11,9 @@ import { TMDB_GENRES } from '../types'
 //
 // This is the mechanism that gives GOT-watchers a "More Fantasy"
 // section filled with Vikings, HoD, Merlin, Witcher etc.
+// Ranked by how many people rated it highly (vote_count among titles
+// rated 7.4+), not by raw average — sorting by average put 8.8-rated
+// romance dramas with a few hundred devoted voters at the top.
 // ──────────────────────────────────────────────────────────────
 
 export async function genreDiscoverySource(profile: UserProfile): Promise<Candidate[]> {
@@ -30,7 +33,7 @@ export async function genreDiscoverySource(profile: UserProfile): Promise<Candid
     topGenres.flatMap((genre) => [
       // Movies in this genre
       fetchTMDB(
-        `/discover/movie?sort_by=vote_average.desc&with_genres=${genre.id}&vote_count.gte=200&page=1`
+        `/discover/movie?sort_by=vote_count.desc&with_genres=${genre.id}&vote_average.gte=7.4&page=1`
       ).then((data) =>
         toPagedResults(data).map((r) => {
           const c = mapTMDBItem(r, 'movie', 'genre_discovery')
@@ -40,7 +43,7 @@ export async function genreDiscoverySource(profile: UserProfile): Promise<Candid
       ),
       // TV in this genre
       fetchTMDB(
-        `/discover/tv?sort_by=vote_average.desc&with_genres=${genre.id}&vote_count.gte=100&page=1`
+        `/discover/tv?sort_by=vote_count.desc&with_genres=${genre.id}&vote_average.gte=7.6&without_genres=10767,10763,10764,10766&page=1`
       ).then((data) =>
         toPagedResults(data).map((r) => {
           const c = mapTMDBItem(r, 'tv', 'genre_discovery')

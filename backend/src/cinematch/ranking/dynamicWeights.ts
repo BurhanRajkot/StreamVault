@@ -15,9 +15,11 @@ const DEFAULT_BASE_WEIGHTS: RankingWeights = {
   genreAffinity: 0.34,
   keywordAffinity: 0.10,
   castAffinity: 0.08,
-  popularity: 0.18,
-  freshness: 0.16,
-  quality: 0.14,
+  // Quality over novelty: freshness used to outweigh quality, so last week's
+  // unrated releases outranked well-loved titles the user hadn't seen
+  popularity: 0.16,
+  freshness: 0.08,
+  quality: 0.24,
 }
 
 // Live base weights. Starts at the default and is replaced by the IPS/LambdaRank

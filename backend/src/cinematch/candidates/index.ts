@@ -53,10 +53,12 @@ export async function fetchAllSources(profile: UserProfile, useVectorML = false)
     ])
   }
 
-  // Standard heuristic pipeline — all 9 sources in parallel
-  const [similar, recommendations, trending, fallback, collaborative, genreDisc, keywordDisc, castDisc, graphTraversal] =
+  // Standard heuristic pipeline — all sources in parallel. TMDB's /similar
+  // isn't one of them: it matches on genre and keyword overlap alone and was
+  // where "Because you watched F1" got Fishing with John and Eli Roth's History
+  // of Horror. /recommendations (what people who watched X watched) covers it.
+  const [recommendations, trending, fallback, collaborative, genreDisc, keywordDisc, castDisc, graphTraversal] =
     await Promise.all([
-      withSourceTimeout(() => tmdbSimilarSource(profile)),
       withSourceTimeout(() => tmdbRecommendationsSource(profile)),
       withSourceTimeout(() => trendingSource(primaryType)),
       withSourceTimeout(() => popularFallbackSource(profile)),
@@ -69,7 +71,6 @@ export async function fetchAllSources(profile: UserProfile, useVectorML = false)
 
   // RRF fusion — each source is in its own ranked ordering
   return rrfFuse([
-    { source: 'tmdb_similar',         candidates: similar },
     { source: 'tmdb_recommendations', candidates: recommendations },
     { source: 'trending',             candidates: trending },
     { source: 'popular_fallback',     candidates: fallback },

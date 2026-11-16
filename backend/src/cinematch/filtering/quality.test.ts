@@ -1,5 +1,5 @@
 import { describe, it, expect, setSystemTime, beforeEach, afterEach } from 'bun:test'
-import { lowQualityFilter, releasedFilter } from './quality'
+import { confidenceFilter, formatFilter, lowQualityFilter, releasedFilter } from './quality'
 import { Candidate } from '../types'
 
 describe('Quality Filters', () => {
@@ -133,5 +133,29 @@ describe('Quality Filters', () => {
       expect(result[1].releaseDate).toBe('2024-01-15')
       expect(result[2].releaseDate).toBe('')
     })
+  })
+})
+
+describe('formatFilter and confidenceFilter', () => {
+  const base = {
+    tmdbId: 1, mediaType: 'tv' as const, title: 'T', posterPath: '/p.jpg', backdropPath: null, overview: '',
+    releaseDate: '2024-01-01', voteAverage: 7, voteCount: 500, popularity: 10, genreIds: [18], source: 'tmdb_recommendations' as const,
+  }
+  const profile = (genreVector: Record<number, number>) => ({
+    userId: 'u', genreVector, keywordVector: {}, castVector: {}, directorVector: {}, decadeVector: {},
+    watchedIds: new Set<number>(), favoritedIds: new Set<number>(), dislikedIds: new Set<number>(),
+    categoryDislikeCounts: {}, recentlyWatched: [], isNewUser: false,
+  })
+
+  it('drops talk shows and reality TV unless the user watches them', () => {
+    const talk = { ...base, tmdbId: 2, genreIds: [10767] }
+    expect(formatFilter([base, talk], profile({})).map((c) => c.tmdbId)).toEqual([1])
+    expect(formatFilter([base, talk], profile({ 10767: 0.6 })).map((c) => c.tmdbId)).toEqual([1, 2])
+  })
+
+  it('needs an audience for personal picks but lets brand-new trending titles through', () => {
+    const obscure = { ...base, tmdbId: 2, voteCount: 12 }
+    const fresh = { ...base, tmdbId: 3, voteCount: 0, source: 'trending' as const, sources: ['trending' as const] }
+    expect(confidenceFilter([base, obscure, fresh]).map((c) => c.tmdbId)).toEqual([1, 3])
   })
 })

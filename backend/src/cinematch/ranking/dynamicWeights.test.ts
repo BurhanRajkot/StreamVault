@@ -65,8 +65,8 @@ describe('Dynamic Weights', () => {
     // castBoost = 0.02
     expect(weights.castAffinity).toBeCloseTo(0.10)
     // popularity and freshness reduced by 0.01
-    expect(weights.popularity).toBeCloseTo(0.17)
-    expect(weights.freshness).toBeCloseTo(0.15)
+    expect(weights.popularity).toBeCloseTo(0.15)
+    expect(weights.freshness).toBeCloseTo(0.07)
   })
 
   it('should significantly boost cast and keyword affinity for heavy users', () => {
@@ -78,8 +78,8 @@ describe('Dynamic Weights', () => {
     expect(weights.castAffinity).toBeCloseTo(0.13)
     expect(weights.keywordAffinity).toBeCloseTo(0.15)
 
-    // popularity and freshness reduced by 0.05
-    expect(weights.popularity).toBeCloseTo(0.13)
-    expect(weights.freshness).toBeCloseTo(0.11)
+    // popularity and freshness reduced by 0.05 (freshness stops at its 0.05 floor)
+    expect(weights.popularity).toBeCloseTo(0.11)
+    expect(weights.freshness).toBeCloseTo(0.05)
   })
 })

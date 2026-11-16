@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express'
 import * as cache from '../services/cache'
 import { logger } from '../lib/logger'
-import { hybridSearch } from '../cinematch/search/hybridSearch'
+import { hybridSearch, normalizeTitle } from '../cinematch/search/hybridSearch'
+import { resolveSearchEntity, type ResolvedEntity } from '../cinematch/search/entitySearch'
+import { getNetflixTop10 } from '../lib/netflixTop10'
 import { globalTrie } from '../cinematch/search/trieAutocomplete'
 import { withTmdbRateLimit } from '../services/tmdbLimiter'
 import { TMDB_BASE_URL } from '../lib/tmdbBase'
@@ -36,6 +38,37 @@ const ALLOWED_SORT_BY = new Set([
   'vote_average.asc', 'vote_average.desc',
   'vote_count.asc', 'vote_count.desc',
 ])
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/
+/** Comma (AND) or pipe (OR) separated numeric ids: genres, companies, keywords, types. */
+const ID_LIST = /^\d{1,9}([,|]\d{1,9}){0,19}$/
+const COUNTRY = /^[A-Z]{2}$/
+const LANGUAGE = /^[a-z]{2}$/
+const NUMBER = /^\d{1,6}(\.\d{1,2})?$/
+
+/** The TMDB discover filters the client may pass through, with the shape each must have. */
+const DISCOVER_FILTERS: Array<[string, RegExp]> = [
+  ['vote_count.gte', NUMBER],
+  ['vote_average.gte', NUMBER],
+  ['primary_release_date.lte', DATE],
+  ['primary_release_date.gte', DATE],
+  ['first_air_date.lte', DATE],
+  ['first_air_date.gte', DATE],
+  // TV: shows with an episode airing in this window — "still on the air"
+  ['air_date.lte', DATE],
+  ['air_date.gte', DATE],
+  ['with_watch_monetization_types', /^(flatrate|free|ads|rent|buy)([|,](flatrate|free|ads|rent|buy)){0,4}$/],
+  ['with_genres', ID_LIST],
+  ['without_genres', ID_LIST],
+  ['with_companies', ID_LIST],
+  ['with_keywords', ID_LIST],
+  ['with_networks', ID_LIST],
+  // TV: 0 documentary, 1 news, 2 miniseries, 3 reality, 4 scripted, 5 talk show, 6 video
+  ['with_type', /^[0-6]([|,][0-6]){0,6}$/],
+  // The Anime tab: Japanese-language animation (with_genres=16 + ja)
+  ['with_original_language', LANGUAGE],
+  ['with_origin_country', COUNTRY],
+]
 
 /**
  * Express parses `?a=1&a=2` into an array and `?a[b]=1` into an object.
@@ -181,22 +214,20 @@ router.get('/discover/:mediaType', async (req: Request, res: Response) => {
       params.set('watch_region', firstString(req.query.watch_region) || 'IN')
     }
 
-    // Forward additional filters
-    const validParams = [
-        'vote_count.gte',
-        'primary_release_date.lte',
-        'primary_release_date.gte',
-        'first_air_date.lte',
-        'first_air_date.gte',
-        'with_watch_monetization_types',
-        'with_genres',
-        // The Anime tab: Japanese-language animation (with_genres=16 + ja)
-        'with_original_language'
-    ]
-
-    for (const param of validParams) {
+    // Forward additional filters — each checked against the shape TMDB
+    // expects, so a caller can't mint unbounded distinct cache keys.
+    for (const [param, shape] of DISCOVER_FILTERS) {
       const value = firstString(req.query[param])
-      if (value) params.set(param, value)
+      if (!value) continue
+      if (!shape.test(value)) {
+        return res.status(400).json({ error: `Invalid ${param}` })
+      }
+      params.set(param, value)
+    }
+    // Monetization ("flatrate") needs a region even without a provider list
+    if (params.has('with_watch_monetization_types') && !params.has('watch_region')) {
+      const region = firstString(req.query.watch_region)
+      if (region && COUNTRY.test(region)) params.set('watch_region', region)
     }
 
     const data = await fetchTMDB(`/discover/${mediaType}?${params.toString()}`)
@@ -257,6 +288,17 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'mediaType must be movie or tv' })
   }
 
+  // A person, studio, franchise or topic ("Christopher Nolan", "Pixar",
+  // "Star Wars", "true crime") answers with its own titles first. Not on the
+  // Anime tab, whose search finds anime only.
+  const entityPromise: Promise<ResolvedEntity | null> =
+    page === 1 && !anime
+      ? resolveSearchEntity(query).catch((error: unknown) => {
+          logger.warn('Search entity lookup failed', { error: error instanceof Error ? error.message : String(error), query })
+          return null
+        })
+      : Promise.resolve(null)
+
   // 1. Instant prefix check via the in-memory trie (O(m) in the query length).
   // It only holds a bounded set of top titles, so it answers alone only when
   // it has a full page; otherwise its hits lead and the TMDB search fills in
@@ -281,7 +323,9 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
         _source: 'trie_autocomplete', // Debug flag
       }))
 
-    if (trieHits.length >= TRIE_FULL_PAGE) {
+    // Short prefixes ("na") are answered from memory alone; anything long
+    // enough to name a person or studio waits for that lookup first.
+    if (trieHits.length >= TRIE_FULL_PAGE && normalizeTitle(query).length < ENTITY_MIN_LENGTH) {
       // Sub-10ms autocomplete. The trie is bounded, so there's nothing to page to.
       res.setHeader('Cache-Control', 'public, max-age=60')
       res.setHeader('X-Search-Engine', 'memory-trie')
@@ -290,9 +334,11 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
   }
 
   try {
-    const searched = await hybridSearch({ query: query.trim(), page, mediaOnly, mediaType, anime })
-    const seen = new Set(trieHits.map((t) => `${t.media_type}:${t.id}`))
-    const results = [...trieHits, ...searched.filter((r) => !seen.has(`${r.media_type}:${r.id}`))]
+    const [searched, resolved] = await Promise.all([
+      hybridSearch({ query: query.trim(), page, mediaOnly, mediaType, anime }),
+      entityPromise,
+    ])
+    const results = mergeSearchResults(query, trieHits, searched, resolved, mediaType)
     res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=900')
     // `has_more` rather than a page count: hybridSearch re-ranks a single
     // upstream page, so it has no idea how many pages exist in total. Reporting
@@ -304,10 +350,63 @@ router.get('/search/hybrid', async (req: Request, res: Response) => {
       has_more: searched.length > 0 && page < MAX_PAGE,
       page,
       query,
+      entity: resolved?.entity ?? null,
     })
   } catch (error: unknown) {
     logger.error('Hybrid search error', { error: error instanceof Error ? error.message : String(error), query })
     res.status(500).json({ error: 'Hybrid search failed' })
+  }
+})
+
+/** Below this many letters a query is a prefix being typed, not a name. */
+const ENTITY_MIN_LENGTH = 4
+
+type SearchRow = { id: number; media_type: string; title?: string; name?: string; vote_count?: number }
+
+/**
+ * The order a search page is shown in: a title called exactly what was typed
+ * (that people actually watch) first — "Heist" is still the film — then the
+ * named person's / studio's / franchise's titles, then everything else.
+ */
+export function mergeSearchResults(
+  query: string,
+  trieHits: SearchRow[],
+  searched: SearchRow[],
+  resolved: { results: SearchRow[] } | null,
+  mediaType?: 'movie' | 'tv',
+): SearchRow[] {
+  const rest: SearchRow[] = [...trieHits, ...searched]
+  const lead = (resolved?.results ?? []).filter((r) => !mediaType || r.media_type === mediaType)
+  const q = normalizeTitle(query)
+  const exact = rest.filter((r) => normalizeTitle(r.title || r.name || '') === q && (r.vote_count ?? 0) >= 200)
+  const seen = new Set<string>()
+  const out: SearchRow[] = []
+  for (const r of [...exact, ...lead, ...rest]) {
+    const key = `${r.media_type}:${r.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(r)
+  }
+  return out
+}
+
+/**
+ * GET /tmdb/top10/:country/:category
+ * This week's Netflix Top 10 for a country, matched to TMDB titles.
+ */
+router.get('/top10/:country/:category', async (req: Request, res: Response) => {
+  const country = String(req.params.country).toUpperCase()
+  const category = req.params.category
+  if (!COUNTRY.test(country)) return res.status(400).json({ error: 'country must be a two-letter code' })
+  if (category !== 'tv' && category !== 'movie') return res.status(400).json({ error: 'category must be tv or movie' })
+  try {
+    const top = await getNetflixTop10(country, category, (endpoint) => fetchTMDB(endpoint))
+    if (!top) return res.status(404).json({ error: 'No Top 10 for that country' })
+    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=43200')
+    res.json(top)
+  } catch (error: unknown) {
+    logger.error('Top 10 fetch failed', { error: error instanceof Error ? error.message : String(error), country, category })
+    res.status(502).json({ error: 'Top 10 unavailable' })
   }
 })
 
