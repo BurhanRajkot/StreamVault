@@ -69,6 +69,12 @@ export default defineConfig(({ mode }) => ({
         globIgnores: ['**/hls-*.js', '**/DebridPlayerPane-*.js', '**/Dashboard-*.js'],
         // Skip caching oversized chunks (they shouldn't need offline)
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
+        // Sign-in pages always come from the network, never the installed
+        // build: the desktop app's sign-in (/app-signin, then Auth0's return
+        // to /?code=…&state=…) needs the relay in src/lib/appSignIn.ts, and a
+        // build cached before a change to it would show the 404 page instead.
+        // Matched against path + query.
+        navigateFallbackDenylist: [/^\/app-signin(?:[/?#]|$)/, /^\/\?(?:.*&)?state=/],
 
         runtimeCaching: [
           // ── TMDB Images (posters, backdrops, thumbnails): cache-first ────
