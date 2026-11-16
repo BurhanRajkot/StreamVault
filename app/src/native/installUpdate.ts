@@ -17,7 +17,7 @@ let downloadedApk: { version: string; path: string } | null = null
  * Android: download the APK with the system downloader, then hand it to the
  * package installer (Android asks the user to confirm, and the first time to
  * allow installs from StreamVault). Linux AppImage: swap the file and
- * restart. Anywhere else: the release page.
+ * restart. Windows: run the new installer over this one (the shell does it). Anywhere else: the release page.
  */
 export function useInstallUpdate(): { state: InstallState; install: (release: AppRelease) => Promise<void> } {
   const [state, setState] = useState<InstallState>({ phase: 'idle' })

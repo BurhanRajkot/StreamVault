@@ -36,9 +36,11 @@ export interface OpenedStream {
   convertUrl: string | null
 }
 
-/** The desktop side: app/electron/preload.cjs. */
+/** The desktop side (Linux, Windows): app/electron/preload.cjs. */
 export interface DesktopBridge {
   version: string
+  /** Node's process.platform: 'linux' or 'win32'. Missing on shells from before the Windows app (all Linux). */
+  platform?: string
   download(options: { url: string; fileName: string; title: string }): Promise<{ id: string; path: string }>
   status(ids: string[]): Promise<NativeTransfer[]>
   remove(options: { id?: string; path?: string }): Promise<void>
@@ -47,7 +49,7 @@ export interface DesktopBridge {
   showInFolder(path: string): Promise<void>
   openExternal(url: string): Promise<void>
   setFullscreen(enabled: boolean): Promise<void>
-  /** Replace the running AppImage with a newer one (its parts joined in order, checked against sha256), then restart. */
+  /** Fetch the newer AppImage / Windows installer (its parts joined in order, checked against sha256), install it, restart. */
   installUpdate(source: { urls: string[]; sha256?: string }): Promise<{ ok: boolean; reason?: string }>
   canSelfUpdate: boolean
   freeSpace(): Promise<{ bytes: number }>
@@ -79,8 +81,9 @@ declare global {
 export const isAndroid = Capacitor.getPlatform() === 'android'
 export const desktop: DesktopBridge | undefined = typeof window !== 'undefined' ? window.svDesktop : undefined
 export const isDesktop = !!desktop
+export const isWindows = desktop?.platform === 'win32'
 export const isNativeApp = isAndroid || isDesktop
-export const platformLabel = isAndroid ? 'Android' : isDesktop ? 'Linux' : 'Web'
+export const platformLabel = isAndroid ? 'Android' : isWindows ? 'Windows' : isDesktop ? 'Linux' : 'Web'
 
 export const SvNative = registerPlugin<SvNativePlugin>('SvNative')
 

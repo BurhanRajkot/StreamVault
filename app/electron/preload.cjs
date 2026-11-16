@@ -1,11 +1,13 @@
-/** What the app may ask of the Linux shell — see DesktopBridge in app/src/native/platform.ts. */
+/** What the app may ask of the desktop shell (Linux, Windows) — see DesktopBridge in app/src/native/platform.ts. */
 const { contextBridge, ipcRenderer } = require('electron')
 
-const version = (process.argv.find((a) => a.startsWith('--sv-version=')) || '').split('=')[1] || ''
+const arg = (name) => (process.argv.find((a) => a.startsWith(`--${name}=`)) || '').split('=')[1] || ''
+const version = arg('sv-version')
 
 contextBridge.exposeInMainWorld('svDesktop', {
   version,
-  canSelfUpdate: process.argv.includes('--sv-appimage'),
+  platform: arg('sv-platform'),
+  canSelfUpdate: process.argv.includes('--sv-self-update'),
   download: (options) => ipcRenderer.invoke('sv:download', options),
   status: (ids) => ipcRenderer.invoke('sv:status', ids),
   remove: (options) => ipcRenderer.invoke('sv:remove', options),

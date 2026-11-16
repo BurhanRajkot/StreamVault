@@ -1,8 +1,9 @@
-name: "App Release (Android + Linux)"
+name: "App Release (Android, Linux, Windows)"
 
-# Builds the StreamVault app (app/) for Android (signed APK) and Linux
-# (AppImage, .deb, pacman) and publishes them as a GitHub Release tagged
-# app-v<version>. The installed apps check these releases and offer the update.
+# Builds the StreamVault app (app/) for Android (signed APK), Linux
+# (AppImage, .deb, pacman) and Windows (installer .exe) and publishes them as a
+# GitHub Release tagged app-v<version>. The installed apps check these releases
+# and offer the update.
 #
 # Runs on every push to main that changes the app or the site code it's built
 # from, so the app never falls behind the website. Version: major.minor from
@@ -165,10 +166,49 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  windows:
+    name: "Windows installer"
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      APP_VERSION: ${{ needs.version.outputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            app/package-lock.json
+      - name: Install
+        # The app's install scripts run: ffmpeg-static fetches ffmpeg.exe for Premium's audio conversion
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix app --no-audit --no-fund
+      - name: Build and package
+        working-directory: app
+        run: |
+          npm run build
+          npx electron-builder --win nsis --x64 --publish never -c.extraMetadata.version="$APP_VERSION"
+          mkdir -p ../out
+          cp release/*.exe ../out/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows
+          path: out/*.exe
+          if-no-files-found: error
+
   release:
     name: "Publish release"
     if: github.event_name != 'pull_request'
-    needs: [version, android, linux]
+    needs: [version, android, linux, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -189,15 +229,19 @@ jobs:
         run: |
           cd dist-release
           cp "StreamVault-${APP_VERSION}.apk" StreamVault.apk
-          cp StreamVault-*.AppImage StreamVault.AppImage
+          cp "StreamVault-${APP_VERSION}.AppImage" StreamVault.AppImage
+          cp "StreamVault-${APP_VERSION}.deb" StreamVault.deb
+          cp "StreamVault-${APP_VERSION}.pacman" StreamVault.pacman
+          cp "StreamVault-Setup-${APP_VERSION}.exe" StreamVault-Setup.exe
           ls -la
       - name: Create the release
         run: |
           {
-            echo "StreamVault ${APP_VERSION} for Android and Linux."
+            echo "StreamVault ${APP_VERSION} for Linux, Android and Windows."
             echo
-            echo "**Android:** download \`StreamVault-${APP_VERSION}.apk\` and open it. The app offers future updates itself."
             echo "**Linux:** \`.AppImage\` (any distro, updates itself), \`.pacman\` (Arch/EndeavourOS: \`sudo pacman -U\`), \`.deb\` (Debian/Ubuntu)."
+            echo "**Android:** download \`StreamVault-${APP_VERSION}.apk\` and open it. The app offers future updates itself."
+            echo "**Windows:** download \`StreamVault-Setup-${APP_VERSION}.exe\` and run it (SmartScreen: More info → Run anyway). It updates itself."
             echo
             echo "### Changes"
             git log --no-merges --pretty='- %s' -n 15 -- app src
