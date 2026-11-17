@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
@@ -18,7 +18,7 @@ import { EASE_OUT, item, spring, stagger } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
 import { useDownloadAction, type DownloadTarget } from '@app/downloads/useDownloadAction'
 import { useContinueWatching } from '@app/components/ContinueWatchingRow'
-import { FadeImg, PosterGrid, tmdbImg } from '@app/components/media'
+import { FadeImg, PosterGrid, PosterGridSkeleton, tmdbImg } from '@app/components/media'
 import { ServerChips } from '@app/components/ServerSheet'
 import { DownloadOptionsSheet } from '@app/components/DownloadOptionsSheet'
 import { Sheet } from '@app/components/Sheet'
@@ -28,14 +28,18 @@ export function TitleScreen() {
   const params = useParams()
   const kind = parseKind(params.type)
   const id = Number(params.id)
-  const { data: media, isLoading, isError, refetch } = useTitleDetails(kind, id)
+  // The card that opened this page (TitleLink) — shown at once, while the details load
+  const preview = (useLocation().state as { preview?: Media } | null)?.preview
+  const { data, isLoading, isError, isPlaceholderData, refetch } = useTitleDetails(kind, id, preview)
+  // Should the details fail, the card's own facts still make a page you can play from
+  const media = data ?? (preview?.id === id ? preview : undefined)
 
   if (!kind || !id) return null
 
   return (
     <div className="pb-tabbar">
       {media ? (
-        <TitleBody key={`${kind}-${id}`} media={media} kind={kind} />
+        <TitleBody key={`${kind}-${id}`} media={media} kind={kind} partial={isPlaceholderData} />
       ) : isLoading ? (
         <TitleSkeleton />
       ) : (
@@ -68,7 +72,8 @@ function TitleSkeleton() {
 
 type Tab = 'episodes' | 'similar' | 'details'
 
-function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
+/** `partial`: only the clicked card's facts so far — the details are still on their way. */
+function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; partial: boolean }) {
   const navigate = useNavigate()
   const wide = useIsWide()
   const settings = useSettings()
@@ -211,13 +216,20 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
           {meta.join(' · ')}
         </p>
 
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className={cn('t-subhead mb-5 max-w-[40rem] text-left text-white/80 lg:text-[16px] lg:leading-[1.5]', !expanded && 'line-clamp-3')}
-        >
-          {display.description}
-        </button>
+        {partial && !media.overview ? (
+          <div className="mb-5 w-full max-w-[40rem] space-y-2" aria-hidden="true">
+            <div className="skeleton h-4 w-full rounded" />
+            <div className="skeleton h-4 w-4/5 rounded" />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className={cn('t-subhead mb-5 max-w-[40rem] text-left text-white/80 lg:text-[16px] lg:leading-[1.5]', !expanded && 'line-clamp-3')}
+          >
+            {display.description}
+          </button>
+        )}
 
         {/* Play, then the smaller actions */}
         <div className="flex w-full flex-col items-center gap-4 lg:w-auto lg:flex-row lg:items-center lg:gap-6">
@@ -270,27 +282,34 @@ function TitleBody({ media, kind }: { media: Media; kind: TitleKind }) {
       {/* Below the fold */}
       <div className="relative z-10 bg-gradient-to-b from-transparent via-black/95 to-black pt-6 lg:via-black/90 lg:pt-10">
         <div className="px-4 lg:px-12">
-          {tabs.length > 1 && <SegmentedControl options={tabs} value={shownTab} onChange={setTab} layoutId="title-tab" className="mb-6 w-full lg:max-w-md" />}
+          {/* A film's tabs all come with its details; a show's episodes load on their own */}
+          {partial && kind === 'movie' ? (
+            <PosterGridSkeleton count={12} />
+          ) : (
+            <>
+              {tabs.length > 1 && <SegmentedControl options={tabs} value={shownTab} onChange={setTab} layoutId="title-tab" className="mb-6 w-full lg:max-w-md" />}
 
-          <AnimatePresence mode="wait">
-            <motion.div key={shownTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-              {shownTab === 'episodes' && (
-                <Episodes
-                  media={media}
-                  seasons={seasons}
-                  season={activeSeason}
-                  onSeason={setSeason}
-                  onOpenSeasons={() => setSeasonsOpen(true)}
-                  progress={progress}
-                  onPlay={(e) => play(activeSeason, e)}
-                  onDownload={(e, name) => setDownload(downloadTarget(activeSeason, e, name))}
-                  downloads={downloads}
-                />
-              )}
-              {shownTab === 'similar' && <PosterGrid items={similar} kind={kind} />}
-              {shownTab === 'details' && <Details media={media} kind={kind} display={display} />}
-            </motion.div>
-          </AnimatePresence>
+              <AnimatePresence mode="wait">
+                <motion.div key={shownTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+                  {shownTab === 'episodes' && (
+                    <Episodes
+                      media={media}
+                      seasons={seasons}
+                      season={activeSeason}
+                      onSeason={setSeason}
+                      onOpenSeasons={() => setSeasonsOpen(true)}
+                      progress={progress}
+                      onPlay={(e) => play(activeSeason, e)}
+                      onDownload={(e, name) => setDownload(downloadTarget(activeSeason, e, name))}
+                      downloads={downloads}
+                    />
+                  )}
+                  {shownTab === 'similar' && <PosterGrid items={similar} kind={kind} />}
+                  {shownTab === 'details' && <Details media={media} kind={kind} display={display} />}
+                </motion.div>
+              </AnimatePresence>
+            </>
+          )}
 
           {!premium && (
             <ListSection className="mb-0 mt-10 lg:max-w-xl">

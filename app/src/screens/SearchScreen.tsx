@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, Loader2, Search, X } from 'lucide-react'
 import { fetchTrending, searchMedia, type SearchEntity } from '@/lib/api'
-import type { Media } from '@/lib/config'
 import { cn } from '@/lib/utils'
-import { FadeImg, PosterGrid, PosterGridSkeleton, kindOf, titleOf, titlePath, tmdbImg, yearOf } from '@app/components/media'
+import { FadeImg, PosterGrid, PosterGridSkeleton, TitleLink, kindOf, titleOf, tmdbImg, yearOf } from '@app/components/media'
 import { EmptyState, NavBar, SegmentedControl } from '@app/components/kit'
 
 /** Each one is answered by what it names: a director's films, a studio's, a topic's. */
@@ -35,20 +34,28 @@ export function SearchScreen() {
   }, [query, setParams])
 
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
-  const { data: answer, isFetching } = useQuery({
-    queryKey: ['app-search', debounced],
-    queryFn: async ({ signal }): Promise<{ results: Media[]; entity: SearchEntity | null }> => {
-      // Two pages at most — a search is answered, not scrolled forever
-      const first = await searchMedia('home', debounced, 1, signal)
-      const entity = first.entity ?? null
-      if (!first.hasMore || first.results.length >= 30) return { results: first.results, entity }
-      const second = await searchMedia('home', debounced, 2, signal)
-      const seen = new Set(first.results.map((m) => `${m.media_type}:${m.id}`))
-      return { results: [...first.results, ...second.results.filter((m) => !seen.has(`${m.media_type}:${m.id}`))], entity }
-    },
+  // Two pages at most — a search is answered, not scrolled forever. The first
+  // shows the moment it arrives; the second fills in under it, so a search
+  // never waits on two round trips before showing anything.
+  const { data: first, isFetching } = useQuery({
+    queryKey: ['app-search', debounced, 1],
+    queryFn: ({ signal }) => searchMedia('home', debounced, 1, signal),
     enabled: debounced.length >= 2,
     staleTime: 5 * 60 * 1000,
   })
+  const { data: second } = useQuery({
+    queryKey: ['app-search', debounced, 2],
+    queryFn: ({ signal }) => searchMedia('home', debounced, 2, signal),
+    // A person's or studio's search is answered by its own titles on the first page
+    enabled: !!first?.hasMore && !first.entity && first.results.length < 30,
+    staleTime: 5 * 60 * 1000,
+  })
+  const answer = useMemo(() => {
+    if (!first) return undefined
+    if (!second?.results.length) return { results: first.results, entity: first.entity ?? null }
+    const seen = new Set(first.results.map((m) => `${m.media_type}:${m.id}`))
+    return { results: [...first.results, ...second.results.filter((m) => !seen.has(`${m.media_type}:${m.id}`))], entity: first.entity ?? null }
+  }, [first, second])
   const results = answer?.results
   // A new search starts on "All"
   useEffect(() => setKindFilter('all'), [debounced])
@@ -151,7 +158,7 @@ export function SearchScreen() {
                 .slice(0, 12)
                 .map((m) => (
                   <li key={`${m.media_type}-${m.id}`}>
-                    <Link to={titlePath(m)} className="group press flex items-center gap-3 border-b-[length:var(--hairline)] border-separator py-2.5">
+                    <TitleLink item={m} className="group press flex items-center gap-3 border-b-[length:var(--hairline)] border-separator py-2.5">
                       <span className="skeleton relative w-[112px] shrink-0 overflow-hidden rounded-[6px]">
                         <FadeImg src={tmdbImg(m.backdrop_path, 'w300')} loading="lazy" className="aspect-video w-full object-cover" />
                       </span>
@@ -163,7 +170,7 @@ export function SearchScreen() {
                         </span>
                       </span>
                       <ChevronRight className="h-[18px] w-[18px] shrink-0 text-label-3" strokeWidth={2.4} />
-                    </Link>
+                    </TitleLink>
                   </li>
                 ))}
             </ul>

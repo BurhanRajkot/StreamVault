@@ -1,10 +1,12 @@
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, type LinkProps } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Media } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { item, stagger } from '@app/lib/motion'
+import { prefetchTitleDetails } from '@app/lib/useTitle'
 
 export type MediaKind = 'movie' | 'tv'
 
@@ -32,6 +34,48 @@ export function titlePath(media: Media, fallback: MediaKind = 'movie'): string {
 
 export function yearOf(media: Media): string {
   return (media.release_date || media.first_air_date || '').slice(0, 4)
+}
+
+/** How long a pointer rests on a card before its details start loading — skims across a row load nothing. */
+const HOVER_INTENT_MS = 250
+
+/**
+ * A link to a title's page. The page opens at once on what this card already
+ * knows (see useTitleDetails), and the details start loading as soon as a
+ * pointer rests on the card or presses it — before the click lands.
+ */
+export function TitleLink({ item: media, kind, ...props }: Omit<LinkProps, 'to' | 'state'> & { item: Media; kind?: MediaKind }) {
+  const queryClient = useQueryClient()
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const resolved = kindOf(media, kind)
+  const prefetch = () => {
+    clearTimeout(timer.current)
+    prefetchTitleDetails(queryClient, resolved, media.id)
+  }
+  useEffect(() => () => clearTimeout(timer.current), [])
+  return (
+    <Link
+      {...props}
+      to={titlePath(media, kind)}
+      state={{ preview: { ...media, media_type: resolved } }}
+      onPointerEnter={(e) => {
+        props.onPointerEnter?.(e)
+        if (e.pointerType === 'mouse') timer.current = setTimeout(prefetch, HOVER_INTENT_MS)
+      }}
+      onPointerLeave={(e) => {
+        props.onPointerLeave?.(e)
+        clearTimeout(timer.current)
+      }}
+      onPointerDown={(e) => {
+        props.onPointerDown?.(e)
+        prefetch()
+      }}
+      onFocus={(e) => {
+        props.onFocus?.(e)
+        prefetch()
+      }}
+    />
+  )
 }
 
 /** An image that fades in once it has arrived, over a shimmer. */
@@ -70,7 +114,7 @@ export const PosterCard = memo(function PosterCard({
   badge?: ReactNode
 }) {
   return (
-    <Link to={titlePath(media, kind)} aria-label={titleOf(media)} className={cn('group/card press relative block shrink-0 rounded-[10px] outline-none', className)}>
+    <TitleLink item={media} kind={kind} aria-label={titleOf(media)} className={cn('group/card press relative block shrink-0 rounded-[10px] outline-none', className)}>
       <div className={cn(ART, HOVER, 'aspect-[2/3] w-full group-focus-visible/card:ring-2 group-focus-visible/card:ring-tint')}>
         {media.poster_path ? (
           <FadeImg src={tmdbImg(media.poster_path, 'w342')} loading="lazy" className="h-full w-full object-cover" />
@@ -81,7 +125,7 @@ export const PosterCard = memo(function PosterCard({
         )}
       </div>
       {badge}
-    </Link>
+    </TitleLink>
   )
 })
 
@@ -89,13 +133,13 @@ export const PosterCard = memo(function PosterCard({
 export const WideCard = memo(function WideCard({ media, kind, className }: { media: Media; kind?: MediaKind; className?: string }) {
   const year = yearOf(media)
   return (
-    <Link to={titlePath(media, kind)} aria-label={titleOf(media)} className={cn('group/card press block shrink-0 outline-none', className)}>
+    <TitleLink item={media} kind={kind} aria-label={titleOf(media)} className={cn('group/card press block shrink-0 outline-none', className)}>
       <div className={cn(ART, HOVER, 'aspect-video w-full')}>
         <FadeImg src={tmdbImg(media.backdrop_path || media.poster_path, 'w780')} loading="lazy" className="h-full w-full object-cover" />
       </div>
       <p className="t-subhead mt-2 truncate font-semibold text-white">{titleOf(media)}</p>
       <p className="t-footnote truncate text-label-2">{[kindOf(media, kind) === 'tv' ? 'Series' : 'Film', year].filter(Boolean).join(' · ')}</p>
-    </Link>
+    </TitleLink>
   )
 })
 
@@ -215,7 +259,7 @@ export function TopTenRow({ title, items, kind }: { title: string; items: Media[
   return (
     <Row title={title}>
       {shown.map((m, i) => (
-        <Link key={`${kindOf(m, kind)}-${m.id}`} to={titlePath(m, kind)} className={cn('group/card press block shrink-0', POSTER_W)} aria-label={`${i + 1}. ${titleOf(m)}`}>
+        <TitleLink key={`${kindOf(m, kind)}-${m.id}`} item={m} kind={kind} className={cn('group/card press block shrink-0', POSTER_W)} aria-label={`${i + 1}. ${titleOf(m)}`}>
           <span className={cn(ART, HOVER, 'block aspect-[2/3] w-full')}>
             <FadeImg src={tmdbImg(m.poster_path, 'w342')} loading="lazy" className="h-full w-full object-cover" />
           </span>
@@ -228,7 +272,7 @@ export function TopTenRow({ title, items, kind }: { title: string; items: Media[
               <span className="t-caption block text-label-2">{[kindOf(m, kind) === 'tv' ? 'Series' : 'Film', yearOf(m)].filter(Boolean).join(' · ')}</span>
             </span>
           </span>
-        </Link>
+        </TitleLink>
       ))}
     </Row>
   )

@@ -24,5 +24,7 @@
     },
     "types": []
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"],
+  // Unit tests run under Bun (bun test app/src), with its own types
+  "exclude": ["src/**/*.test.ts"]
 }
