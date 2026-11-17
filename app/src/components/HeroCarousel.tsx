@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, type PanInfo } from 'framer-motion'
 import { Check, Info, Play, Plus } from 'lucide-react'
 import type { Media } from '@/lib/config'
@@ -11,7 +11,7 @@ import { useTitleDetails } from '@app/lib/useTitle'
 import { useIsWide } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { Button } from './kit'
-import { kindOf, titleOf, tmdbImg, yearOf, type MediaKind } from './media'
+import { TitleLink, kindOf, titleOf, tmdbImg, yearOf, type MediaKind } from './media'
 
 const ADVANCE_MS = 8000
 
@@ -125,13 +125,13 @@ function HeroCopy({ media, kind, logo }: { media: Media; kind: MediaKind; logo: 
       transition={{ duration: 0.5, delay: 0.15 }}
       className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center px-5 pb-[calc(max(1rem,var(--sab))+2rem)] text-center lg:bottom-[12%] lg:max-w-[min(44rem,50%)] lg:items-start lg:px-12 lg:pb-0 lg:text-left"
     >
-      <Link to={`/title/${kind}/${media.id}`} className="pointer-events-auto mb-2.5 block lg:mb-4">
+      <TitleLink item={media} kind={kind} className="pointer-events-auto mb-2.5 block lg:mb-4">
         {logo ? (
           <img src={logo} alt={titleOf(media)} className="max-h-[88px] max-w-[72vw] object-contain drop-shadow-[0_2px_16px_rgb(0_0_0/0.5)] lg:max-h-36 lg:max-w-[min(28rem,100%)] lg:object-left" />
         ) : (
           <h1 className="t-large text-white lg:text-[clamp(2.75rem,4.2vw,4.25rem)] lg:leading-[1.05]">{titleOf(media)}</h1>
         )}
-      </Link>
+      </TitleLink>
       <p className="t-footnote mb-4 font-medium text-white/70 lg:text-[15px]">{meta}</p>
       <p className="mb-6 hidden max-w-[36rem] text-[15px] leading-relaxed text-white/75 lg:line-clamp-3">{media.overview}</p>
       <div className="pointer-events-auto flex w-full max-w-[22rem] items-center gap-3 lg:w-auto lg:max-w-none">
@@ -151,12 +151,13 @@ function HeroCopy({ media, kind, logo }: { media: Media; kind: MediaKind; logo: 
           </AnimatePresence>
           <span className="hidden lg:inline">My List</span>
         </motion.button>
-        <Link
-          to={`/title/${kind}/${media.id}`}
+        <TitleLink
+          item={media}
+          kind={kind}
           className="glass-button press hidden h-[50px] items-center gap-2 rounded-full px-6 text-[17px] font-semibold text-white lg:flex"
         >
           <Info className="h-5 w-5" /> More Info
-        </Link>
+        </TitleLink>
       </div>
     </motion.div>
   )

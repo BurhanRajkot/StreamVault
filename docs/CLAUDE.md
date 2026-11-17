@@ -247,7 +247,8 @@ isn't paused site-wide (`AppSetting` 'premium'). The rule is
 torrent deletion stay `requireAdminAuth`. Suspension (`User.suspendedAt`)
 also refuses favorites, dislikes, continue watching and recommendations.
 An approved account's Premium plays **in the app only**: the app marks
-every backend call with `X-StreamVault-Client: app/<version>`
+every signed-in backend call with `X-StreamVault-Client: app/<version>`
+(only those: on anonymous calls the custom header would cost a CORS preflight each)
 (`app/src/native/clientHeader.ts`, checked by `backend/src/lib/clientKind.ts`),
 and `decidePremium` answers `app-only` to the website (the admin plays
 anywhere). It's a soft line — a header — not a lock. Accounts ask for access
