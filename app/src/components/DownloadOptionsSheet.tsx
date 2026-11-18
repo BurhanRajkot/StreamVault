@@ -33,7 +33,7 @@ export function DownloadOptionsSheet({
     <>
       <Sheet open={!!target && !torrentOpen} onOpenChange={(open) => !open && onClose()} title={`Download ${target?.title ?? ''}`} description={label}>
         <div className="flex flex-col gap-6">
-          {action.available && (
+          {action.available && action.downloadsAllowed && (
             <ListSection className="mb-0" footer={`Watch offline in the app. Picks ${downloadQuality} when there's a choice.`}>
               <ListRow
                 icon={

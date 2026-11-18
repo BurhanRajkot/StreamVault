@@ -19,7 +19,7 @@ export interface DownloadTarget extends DownloadMeta {
 export function useDownloadAction() {
   useDownloads() // re-render as progress arrives
   const getToken = useDebridToken()
-  const { premium } = usePremiumAccess()
+  const { premium, downloads: downloadsAllowed } = usePremiumAccess()
   const [resolving, setResolving] = useState<string | null>(null)
 
   const keyOf = (t: { tmdbId: number; season?: number; episode?: number }) => `${t.tmdbId}:${t.season ?? ''}:${t.episode ?? ''}`
@@ -55,6 +55,8 @@ export function useDownloadAction() {
   return {
     available: canDownloadOffline,
     premium,
+    /** The admin allows this account to save Premium's file. Always true for the admin. */
+    downloadsAllowed,
     start,
     isResolving: (t: { tmdbId: number; season?: number; episode?: number }) => resolving === keyOf(t),
     recordFor: (t: { tmdbId: number; mediaType: 'movie' | 'tv'; season?: number; episode?: number }) => findDownload(t),
