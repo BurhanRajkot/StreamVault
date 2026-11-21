@@ -11,8 +11,10 @@ export interface PremiumAccessState {
   /** The admin suspended this account. */
   suspended: boolean
   /**
-   * The Premium player may offer its file to save or open in VLC — the admin
-   * can switch that off per account. Magnet-link downloads aren't affected.
+   * The Premium file may be saved (offline download, Download, open in VLC):
+   * the admin always; an account only when it may play Premium and the admin
+   * allowed its downloads in the dashboard. Off by default — approved
+   * accounts stream only. Magnet-link downloads aren't affected.
    */
   downloads: boolean
   /** Still asking the backend. */
@@ -49,7 +51,7 @@ export function usePremiumAccess(): PremiumAccessState {
     reason: data.premiumReason,
     admin: false,
     suspended: data.suspended,
-    downloads: data.debridDownloads !== false,
+    downloads: data.premium && data.debridDownloads === true,
     loading: false,
   }
 }

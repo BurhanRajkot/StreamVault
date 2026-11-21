@@ -5,8 +5,8 @@ const LEVELS = ['allowed', 'paused'] as const
 type Level = (typeof LEVELS)[number]
 
 const LABELS: Record<'short' | 'long', Record<Level, string>> = {
-  short: { allowed: 'Allowed', paused: 'Paused' },
-  long: { allowed: 'Downloads allowed', paused: 'Downloads paused' },
+  short: { allowed: 'Allowed', paused: 'Off' },
+  long: { allowed: 'Downloads allowed', paused: 'Downloads off' },
 }
 
 interface DownloadsSelectProps {
@@ -22,9 +22,10 @@ interface DownloadsSelectProps {
 }
 
 /**
- * Allow or pause one account's ⚡ Premium downloads. Paused, the account
- * still streams; the player just stops offering the file. Magnet links
- * aren't affected.
+ * Allow one account's ⚡ Premium downloads, or switch them off (the default:
+ * an approved account only streams until the admin allows downloads). Off,
+ * the app offers no Real-Debrid file anywhere — no Download, no offline
+ * save, no "open in another player". Magnet links aren't affected.
  */
 export function DownloadsSelect({ allowed, onChange, who, disabled, long = false, className }: DownloadsSelectProps) {
   const labels = LABELS[long ? 'long' : 'short']

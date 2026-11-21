@@ -404,7 +404,7 @@ export class MockApi {
         premium: reason === 'granted',
         premiumReason: reason,
         suspended: Boolean(me()?.suspendedAt),
-        debridDownloads: me()?.debridDownloads !== false,
+        debridDownloads: me()?.debridDownloads === true,
       })
     })
     this.on('POST', '/me/profile', requireAuth(() => ({ status: 204 })))
@@ -552,7 +552,8 @@ function mockUser(id: string, email: string, name: string): MockUser {
     premiumAccess: 'none',
     suspendedAt: null,
     subscriptionStatus: 'free',
-    debridDownloads: true,
+    // Off unless the admin allows it (backend lib/userAccess)
+    debridDownloads: false,
   }
 }
 

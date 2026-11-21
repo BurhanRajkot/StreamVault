@@ -263,12 +263,16 @@ dashboard (`/admin/access-requests`, kept as `AppSetting`
 dashboard at `/admin` (My Space → Admin).
 In the UI, Premium is always the last server; `usePremiumAccess()` asks
 `GET /me/access` and `PremiumPane` shows the player or a notice saying why
-not. The Users panel can also pause an account's Premium *downloads*
-(`debridDownloads` on `/me/access` and `PATCH /admin/users/:id`, stored as
-`AppSetting` 'debrid-downloads' → `{ pausedFor: [ids] }`, no migration): it
-keeps streaming, but the player stops offering the Real-Debrid file (Download,
-Open in another player, the Download button under the player). That's a UI
-gate — the stream itself is the same link. The Download sheet's magnet links
+not. Premium *downloads* (saving the Real-Debrid file: offline download,
+Download, Open in another player) are **off for every account** — approved
+accounts stream only — until the admin allows them per account in the Users
+panel (`debridDownloads` on `/me/access` and `PATCH /admin/users/:id`, stored
+as `AppSetting` 'debrid-downloads-allowed' → `{ allowedFor: [ids] }`, no
+migration; an unreadable setting means off). The admin always may. The
+backend refuses `POST /debrid/play` with `purpose: 'download'` for anyone
+else; the rest is UI (the stream is the same link), so released desktop
+builds have no devtools, refuse remote-debugging switches and ship Electron
+fuses (no run-as-node / inspector). The Download sheet's magnet links
 come from the public `GET /releases`, which never touches the Real-Debrid
 account (and isn't affected by that switch). In E2E, `adminTest` (e2e
 framework) or `test.use({ admin: true })` (Playwright) holds an admin

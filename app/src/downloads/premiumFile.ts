@@ -52,6 +52,7 @@ export async function resolvePremiumFile(
         season: target.mediaType === 'tv' ? target.season : undefined,
         episode: target.mediaType === 'tv' ? target.episode : undefined,
         instantOnly: true,
+        purpose: 'download',
       })
       if (result.status === 'ready') {
         return {

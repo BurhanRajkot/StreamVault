@@ -31,6 +31,8 @@ import { logger } from '../lib/logger'
 import * as debrid from '../lib/debrid'
 import * as subtitles from '../lib/subtitles'
 import { parseReleaseSearchQuery } from './releases'
+import { debridDownloadsAllowed } from '../lib/userAccess'
+import { getUserId } from '../utils/auth'
 
 const router = Router()
 
@@ -173,10 +175,20 @@ router.post('/play', downloadRateLimiter, async (req: Request, res: Response) =>
     season?: unknown
     episode?: unknown
     instantOnly?: unknown
+    purpose?: unknown
   }
 
   if (typeof body.hash !== 'string' || !HASH_RE.test(body.hash)) {
     return res.status(400).json({ error: 'A valid 40-char hex info-hash is required' })
+  }
+
+  // An offline download asks for the file as such: only the admin, and
+  // accounts the admin allowed to download, get it (streaming is unaffected).
+  if (body.purpose === 'download' && !req.admin) {
+    const userId = getUserId(req)
+    if (!userId || !(await debridDownloadsAllowed(userId))) {
+      return res.status(403).json({ error: "Downloads aren't enabled for your account.", code: 'premium_downloads_off' })
+    }
   }
 
   try {

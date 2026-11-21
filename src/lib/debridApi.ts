@@ -177,6 +177,8 @@ export interface PlayReleaseOptions {
   episode?: number
   /** Give up (and remove the torrent again) when Real-Debrid doesn't have it cached. */
   instantOnly?: boolean
+  /** The file is wanted to save (offline download), not to stream: refused unless the admin allows this account's downloads. */
+  purpose?: 'download'
 }
 
 /**
@@ -201,6 +203,7 @@ export async function playDebridRelease(
       season: opts.season,
       episode: opts.episode,
       instantOnly: opts.instantOnly,
+      purpose: opts.purpose,
     }),
   })
   return handleResponse(res)

@@ -25,6 +25,11 @@ export function useDownloadAction() {
   const keyOf = (t: { tmdbId: number; season?: number; episode?: number }) => `${t.tmdbId}:${t.season ?? ''}:${t.episode ?? ''}`
 
   const start = async (target: DownloadTarget): Promise<DownloadRecord | null> => {
+    // The sheet doesn't offer it then; and the backend refuses it anyway.
+    if (!downloadsAllowed) {
+      toast.error("Downloads aren't enabled for your account")
+      return null
+    }
     const key = keyOf(target)
     setResolving(key)
     try {

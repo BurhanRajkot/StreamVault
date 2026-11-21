@@ -83,7 +83,7 @@ export function UsersPanel({ onUserChanged }: UsersPanelProps = {}) {
       const who = user.email ?? user.name ?? 'Account'
       if (change.suspended !== undefined) toast.success(change.suspended ? `${who} suspended` : `${who} restored`)
       else if (change.debridDownloads !== undefined) {
-        toast.success(`${who}: Premium downloads ${user.debridDownloads ? 'allowed' : 'paused'}`)
+        toast.success(`${who}: Premium downloads ${user.debridDownloads ? 'allowed' : 'off'}`)
       } else toast.success(`${who}: Premium ${PREMIUM_LABELS[user.premiumAccess].toLowerCase()}`)
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update the account'),
@@ -225,7 +225,7 @@ function UserRow({ user, busy, onChange }: UserRowProps) {
       </TableCell>
       <TableCell>
         <DownloadsSelect
-          allowed={user.debridDownloads !== false}
+          allowed={user.debridDownloads === true}
           onChange={(allowed) => onChange({ debridDownloads: allowed })}
           who={label}
           disabled={busy}

@@ -56,7 +56,7 @@ export default function AdminDashboard() {
     setRequests((prev) => prev.map((r) => (r.user_id === user.id ? { ...r, debrid_downloads: user.debridDownloads } : r)))
   }, [])
 
-  /** Allow or pause a buyer's Premium downloads, from their request row. */
+  /** Allow a buyer's Premium downloads (or switch them off), from their request row. */
   const setDownloads = async (request: SubscriptionRequest, allowed: boolean) => {
     if (!request.user_id) return
     setDownloadsBusyFor(request.user_id)
@@ -65,7 +65,7 @@ export default function AdminDashboard() {
       syncDownloads(user)
       // The Users panel lists the same accounts.
       void queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-      toast.success(`${user.email ?? request.email}: Premium downloads ${user.debridDownloads ? 'allowed' : 'paused'}`)
+      toast.success(`${user.email ?? request.email}: Premium downloads ${user.debridDownloads ? 'allowed' : 'off'}`)
     } catch (err: unknown) {
       if (err instanceof AdminApiError && err.status === 401) {
         setIsAdmin(false)
@@ -319,7 +319,7 @@ export default function AdminDashboard() {
                                 </Button>
                               </div>
                             )}
-                            {/* A buyer with an account: their Premium downloads can be paused here too */}
+                            {/* A buyer with an account: their Premium downloads can be allowed here too */}
                             {request.status === 'approved' && request.user_id && typeof request.debrid_downloads === 'boolean' && (
                               <div className="flex justify-end">
                                 <DownloadsSelect
