@@ -49,6 +49,19 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0)
 }
 
+// A released copy can't be opened for inspection (Premium's Real-Debrid links
+// are only for accounts the admin allows to download): no remote debugging
+// port, no Node inspector. Development copies keep them.
+if (
+  app.isPackaged &&
+  (app.commandLine.hasSwitch('remote-debugging-port') ||
+    app.commandLine.hasSwitch('remote-debugging-pipe') ||
+    process.argv.some((arg) => /^--(inspect|inspect-brk|remote-debugging-port|remote-debugging-pipe)(=|$)/.test(arg)))
+) {
+  app.quit()
+  process.exit(0)
+}
+
 app.commandLine.appendSwitch('host-resolver-rules', `MAP ${SITE_HOST} 127.0.0.1:${PORT}`)
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 app.userAgentFallback = CHROME_UA
@@ -301,6 +314,8 @@ function createWindow() {
       sandbox: true,
       nodeIntegration: false,
       spellcheck: false,
+      // No developer tools in a released copy (see the inspection check above).
+      devTools: !app.isPackaged,
       additionalArguments: [`--sv-version=${app.getVersion()}`, `--sv-platform=${process.platform}`, ...(SELF_UPDATE ? ['--sv-self-update'] : [])],
     },
   })

@@ -149,22 +149,22 @@ adminTest('the admin approves one Premium request and deletes another', async ({
   expect(account(mockApi, 'google-oauth2|e2e-other').premiumAccess, 'deleting a request gives nothing').toBe('none')
 })
 
-adminTest('the admin pauses an account’s Premium downloads, and allows them again', async ({ app, screen, mockApi }) => {
+adminTest('Premium downloads are off for an account until the admin allows them, and can be switched off again', async ({ app, screen, mockApi }) => {
   await app.open('/admin/dashboard')
   const users = screen.getByRole('region', 'Users')
   const downloads = users.getByRole('combobox', `Premium downloads for ${SIGNED_IN.email}`)
-  await expect(downloads).toContainText('Allowed')
-
-  await downloads.tap()
-  await screen.getByRole('option', 'Paused').tap()
-  await expect(downloads).toContainText('Paused')
-  expect(account(mockApi, SIGNED_IN.sub).debridDownloads).toBe(false)
-  expect(account(mockApi, SIGNED_IN.sub).premiumAccess, 'Premium itself is untouched').toBe('none')
+  await expect(downloads).toContainText('Off')
 
   await downloads.tap()
   await screen.getByRole('option', 'Allowed').tap()
   await expect(downloads).toContainText('Allowed')
-  expect(mockApi.calls('PATCH', '/admin/users/:id').map((c) => c.body)).toEqual([{ debridDownloads: false }, { debridDownloads: true }])
+  expect(account(mockApi, SIGNED_IN.sub).debridDownloads).toBe(true)
+  expect(account(mockApi, SIGNED_IN.sub).premiumAccess, 'Premium itself is untouched').toBe('none')
+
+  await downloads.tap()
+  await screen.getByRole('option', 'Off').tap()
+  await expect(downloads).toContainText('Off')
+  expect(mockApi.calls('PATCH', '/admin/users/:id').map((c) => c.body)).toEqual([{ debridDownloads: true }, { debridDownloads: false }])
 })
 
 /** Start Premium for the signed-in account and wait for the film. */
@@ -190,8 +190,10 @@ async function openPlayerSettings(screen: Screen, browser: Browser) {
   return settings
 }
 
-signedInTest('an approved account is offered the Premium file', async ({ app, screen, browser, mockApi }) => {
-  account(mockApi, SIGNED_IN.sub).premiumAccess = 'granted'
+signedInTest('an approved account the admin allowed downloads is offered the Premium file', async ({ app, screen, browser, mockApi }) => {
+  const user = account(mockApi, SIGNED_IN.sub)
+  user.premiumAccess = 'granted'
+  user.debridDownloads = true
   mockApi.state.asApp = true
   await playPremium(app, screen)
 
@@ -200,10 +202,8 @@ signedInTest('an approved account is offered the Premium file', async ({ app, sc
   await expect(settings.getByText('Open in another player')).toBeVisible()
 })
 
-signedInTest('an account whose downloads are paused still streams Premium, but isn’t offered the file', async ({ app, screen, browser, mockApi }) => {
-  const user = account(mockApi, SIGNED_IN.sub)
-  user.premiumAccess = 'granted'
-  user.debridDownloads = false
+signedInTest('an approved account streams Premium but isn’t offered the file until the admin allows it', async ({ app, screen, browser, mockApi }) => {
+  account(mockApi, SIGNED_IN.sub).premiumAccess = 'granted'
   mockApi.state.asApp = true
   await playPremium(app, screen)
 
@@ -219,7 +219,7 @@ signedInTest('an account whose downloads are paused still streams Premium, but i
   await expect(screen.getByRole('dialog', 'Download').getByRole('link', 'Open 1080p in torrent app')).toBeVisible()
 })
 
-adminTest('a buyer’s Premium downloads can be paused from their subscription request too', async ({ app, screen, mockApi }) => {
+adminTest('a buyer’s Premium downloads can be allowed from their subscription request too', async ({ app, screen, mockApi }) => {
   const at = new Date(Date.UTC(2026, 10, 14, 16, 5)).toISOString()
   const plan = { plan_id: 'intro', amount: 150, currency: 'INR', created_at: at }
   mockApi.state.subscriptionRequests = [
@@ -231,17 +231,17 @@ adminTest('a buyer’s Premium downloads can be paused from their subscription r
   await app.open('/admin/dashboard')
   const requests = screen.getByRole('region', 'Subscription requests')
   const downloads = requests.getByRole('combobox', `Premium downloads for ${SIGNED_IN.email}`)
-  await expect(downloads).toContainText('Downloads allowed')
+  await expect(downloads).toContainText('Downloads off')
   // Only an approved request with an account behind it has one.
   await expect(requests.getByRole('combobox')).toHaveCount(1)
 
   await downloads.tap()
-  await screen.getByRole('option', 'Downloads paused').tap()
-  await expect(downloads).toContainText('Downloads paused')
-  expect(account(mockApi, SIGNED_IN.sub).debridDownloads).toBe(false)
-  expect(mockApi.calls('PATCH', '/admin/users/:id').map((c) => c.body)).toEqual([{ debridDownloads: false }])
+  await screen.getByRole('option', 'Downloads allowed').tap()
+  await expect(downloads).toContainText('Downloads allowed')
+  expect(account(mockApi, SIGNED_IN.sub).debridDownloads).toBe(true)
+  expect(mockApi.calls('PATCH', '/admin/users/:id').map((c) => c.body)).toEqual([{ debridDownloads: true }])
 
   // The Users panel shows the same account the same way.
   const users = screen.getByRole('region', 'Users')
-  await expect(users.getByRole('combobox', `Premium downloads for ${SIGNED_IN.email}`)).toContainText('Paused')
+  await expect(users.getByRole('combobox', `Premium downloads for ${SIGNED_IN.email}`)).toContainText('Allowed')
 })

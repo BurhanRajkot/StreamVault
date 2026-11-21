@@ -13,6 +13,13 @@ files:
   # The Android bridge has no place on the desktop
   - "!node_modules/@capacitor/**"
 asar: true
+# A released copy can't be run as plain Node or opened with an inspector,
+# which would expose Premium's Real-Debrid links (main.cjs also refuses
+# remote-debugging switches and has no devtools when packaged).
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
 # ffmpeg for Premium's audio conversion (electron/rdStream.cjs): a separate
 # program, GPL-3.0 — its licence and readme go with it. Fetched by
 # ffmpeg-static's install script (npm ci in CI); missing locally, the app

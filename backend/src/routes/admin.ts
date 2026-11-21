@@ -3,7 +3,7 @@ import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
 import { requireAdminAuth } from '../admin/middleware'
 import { SUBSCRIPTION_PLANS } from '../lib/upi'
-import { forgetUserAccess, getDownloadsPausedFor } from '../lib/userAccess'
+import { forgetUserAccess, getDownloadsAllowedFor } from '../lib/userAccess'
 
 const router = express.Router()
 
@@ -22,16 +22,16 @@ function parseRequestId(value: unknown): string | null {
 // request, which has no account to change.
 router.get('/requests', async (req, res) => {
   try {
-    const [{ data, error }, downloadsPaused] = await Promise.all([
+    const [{ data, error }, downloadsAllowed] = await Promise.all([
       supabaseAdmin.from('subscription_requests').select('*').order('created_at', { ascending: false }),
-      getDownloadsPausedFor(),
+      getDownloadsAllowedFor(),
     ])
 
     if (error) throw error
 
     const requests = ((data ?? []) as { user_id?: string | null }[]).map((request) => ({
       ...request,
-      debrid_downloads: request.user_id ? !downloadsPaused.has(request.user_id) : null,
+      debrid_downloads: request.user_id ? downloadsAllowed.has(request.user_id) : null,
     }))
     res.json(requests)
   } catch (error: unknown) {

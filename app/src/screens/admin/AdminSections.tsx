@@ -135,7 +135,7 @@ export function AccountsSection() {
   return (
     <ListSection
       header={`Accounts${data ? ` · ${data.total}` : ''}`}
-      footer="Tap an account to give or pause Premium, pause its Premium downloads, or suspend it."
+      footer="Tap an account to give or pause Premium, allow its Premium downloads (off unless you allow them), or suspend it."
     >
       <label className="flex items-center gap-2 px-4 py-2.5">
         <span className="flex h-9 flex-1 items-center gap-2 rounded-[10px] bg-fill px-2.5">
@@ -231,9 +231,9 @@ function AccountCell({ user, open, onToggle }: { user: AdminUser; open: boolean;
               <div className="flex items-center justify-between gap-3">
                 <span>
                   <span className="t-subhead block">Premium downloads</span>
-                  <span className="t-footnote block text-label-2">Save or open the file in another player</span>
+                  <span className="t-footnote block text-label-2">Off: streams only. On: may save the file or open it in another player</span>
                 </span>
-                <Switch label={`Premium downloads for ${user.email ?? user.id}`} checked={user.debridDownloads} onChange={(debridDownloads) => change.mutate({ debridDownloads })} />
+                <Switch label={`Premium downloads for ${user.email ?? user.id}`} checked={user.debridDownloads === true} onChange={(debridDownloads) => change.mutate({ debridDownloads })} />
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>

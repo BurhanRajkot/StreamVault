@@ -128,8 +128,9 @@ interface DebridVideoProps extends ChromeProps {
    */
   edge?: EdgeChoice
   /**
-   * Offer the file itself — to save, or open in VLC. Off for an account the
-   * admin paused downloads for; the stream plays either way.
+   * Offer the file itself — to save, or open in VLC. Off unless the viewer
+   * is the admin or an account the admin allowed downloads; the stream plays
+   * either way.
    */
   allowDownload?: boolean
   className?: string
@@ -271,7 +272,7 @@ export function DebridVideo({
   loadingScreen,
   onStarted,
   edge,
-  allowDownload = true,
+  allowDownload = false,
   className,
   ...chrome
 }: DebridVideoProps) {
@@ -1257,6 +1258,10 @@ export function DebridVideo({
         poster={starting && !loadingScreen ? (poster ?? undefined) : undefined}
         className="absolute inset-0 h-full w-full bg-black object-contain"
         onError={handleError}
+        // No browser "Save video as… / Copy video address" for the file —
+        // saving it is for the admin and accounts allowed to download.
+        controlsList={allowDownload ? undefined : 'nodownload'}
+        onContextMenu={allowDownload ? undefined : (e) => e.preventDefault()}
       />
       <PlayerControls
         video={videoEl}

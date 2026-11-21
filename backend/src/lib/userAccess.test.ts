@@ -7,22 +7,22 @@ mock.module('./supabase', () => ({ supabaseAdmin: {} }))
 
 let decidePremium: typeof import('./userAccess').decidePremium
 let isMissingSchema: typeof import('./userAccess').isMissingSchema
-let updatedPausedList: typeof import('./userAccess').updatedPausedList
+let updatedAllowedList: typeof import('./userAccess').updatedAllowedList
 
 beforeAll(async () => {
-  ;({ decidePremium, isMissingSchema, updatedPausedList } = await import('./userAccess'))
+  ;({ decidePremium, isMissingSchema, updatedAllowedList } = await import('./userAccess'))
 })
 
-describe('updatedPausedList (Premium downloads paused per account)', () => {
-  it('adds an account when its downloads are paused, once', () => {
-    expect(updatedPausedList([], 'auth0|b', false)).toEqual(['auth0|b'])
-    expect(updatedPausedList(['auth0|b'], 'auth0|b', false)).toEqual(['auth0|b'])
-    expect(updatedPausedList(['auth0|c'], 'auth0|a', false)).toEqual(['auth0|a', 'auth0|c'])
+describe('updatedAllowedList (Premium downloads only for accounts the admin allows)', () => {
+  it('adds an account when the admin allows its downloads, once', () => {
+    expect(updatedAllowedList([], 'auth0|b', true)).toEqual(['auth0|b'])
+    expect(updatedAllowedList(['auth0|b'], 'auth0|b', true)).toEqual(['auth0|b'])
+    expect(updatedAllowedList(['auth0|c'], 'auth0|a', true)).toEqual(['auth0|a', 'auth0|c'])
   })
 
-  it('takes it off again when they are allowed, leaving the rest', () => {
-    expect(updatedPausedList(['auth0|a', 'auth0|b'], 'auth0|a', true)).toEqual(['auth0|b'])
-    expect(updatedPausedList(['auth0|b'], 'auth0|a', true)).toEqual(['auth0|b'])
+  it('takes it off again when they are switched off, leaving the rest', () => {
+    expect(updatedAllowedList(['auth0|a', 'auth0|b'], 'auth0|a', false)).toEqual(['auth0|b'])
+    expect(updatedAllowedList(['auth0|b'], 'auth0|a', false)).toEqual(['auth0|b'])
   })
 })
 

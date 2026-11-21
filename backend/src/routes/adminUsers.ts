@@ -17,7 +17,7 @@ import { logger } from '../lib/logger'
 import {
   PREMIUM_ACCESS_VALUES,
   forgetUserAccess,
-  getDownloadsPausedFor,
+  getDownloadsAllowedFor,
   isMissingSchema,
   isPremiumPausedForAll,
   setDebridDownloads,
@@ -63,13 +63,13 @@ router.get('/users', requireAdminAuth, async (req: Request, res: Response) => {
     .range(offset, offset + limit - 1)
   if (term) query = query.or(`email.ilike.*${term}*,name.ilike.*${term}*,id.ilike.*${term}*`)
 
-  const [{ data, error, count }, downloadsPaused] = await Promise.all([query, getDownloadsPausedFor()])
+  const [{ data, error, count }, downloadsAllowed] = await Promise.all([query, getDownloadsAllowedFor()])
   if (error) {
     if (isMissingSchema(error)) return migrationRequired(res)
     logger.error('Admin user list failed', { error: error.message })
     return res.status(500).json({ error: 'Could not load users' })
   }
-  const users = (data ?? []).map((user) => ({ ...user, debridDownloads: !downloadsPaused.has(user.id) }))
+  const users = (data ?? []).map((user) => ({ ...user, debridDownloads: downloadsAllowed.has(user.id) }))
   return res.json({ users, total: count ?? 0 })
 })
 
@@ -127,8 +127,8 @@ router.patch('/users/:id', requireAdminAuth, async (req: Request, res: Response)
     suspended: update.suspendedAt === undefined ? undefined : update.suspendedAt !== null,
     debridDownloads,
   })
-  const downloadsPaused = await getDownloadsPausedFor()
-  return res.json({ user: { ...data, debridDownloads: !downloadsPaused.has(id) } })
+  const downloadsAllowed = await getDownloadsAllowedFor()
+  return res.json({ user: { ...data, debridDownloads: downloadsAllowed.has(id) } })
 })
 
 router.get('/settings', requireAdminAuth, async (_req: Request, res: Response) => {
