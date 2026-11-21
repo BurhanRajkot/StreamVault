@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { approveAccessRequest, deleteAccessRequest, fetchAccessRequests } from '@/lib/api'
+import { approveAccessRequest, deleteAccessRequest, fetchAccessRequests, premiumEmailNote } from '@/lib/api'
 
 export const ACCESS_REQUESTS_QUERY_KEY = ['admin-access-requests'] as const
 
@@ -25,8 +25,8 @@ export function useAccessRequests(enabled = true) {
 
   const approve = useMutation({
     mutationFn: approveAccessRequest,
-    onSuccess: () => {
-      toast.success('Approved — Premium is on for that account, in the app')
+    onSuccess: ({ premiumEmail }) => {
+      toast.success(`Approved — Premium is on for that account, in the app${premiumEmailNote(premiumEmail)}`)
       settle()
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not approve'),

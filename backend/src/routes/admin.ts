@@ -4,6 +4,7 @@ import { logger } from '../lib/logger'
 import { requireAdminAuth } from '../admin/middleware'
 import { SUBSCRIPTION_PLANS } from '../lib/upi'
 import { forgetUserAccess, getDownloadsAllowedFor } from '../lib/userAccess'
+import { notifyPremiumGranted, type PremiumEmailResult } from '../lib/premiumEmail'
 
 const router = express.Router()
 
@@ -51,7 +52,7 @@ router.post('/approve', async (req, res) => {
     // The plan's length lives in code, so look the plan up first.
     const { data: request, error: fetchError } = await supabaseAdmin
       .from('subscription_requests')
-      .select('plan_id')
+      .select('plan_id, email')
       .eq('id', requestId)
       .single()
 
@@ -88,6 +89,7 @@ router.post('/approve', async (req, res) => {
       return res.status(400).json({ error: 'Request already approved' })
     }
 
+    let premiumEmail: PremiumEmailResult | undefined
     if (!approval.approved_user_id) {
       // Guest submissions carry no user_id, so there is no account to upgrade.
       logger.warn('Approved a request with no linked user account', { requestId })
@@ -95,11 +97,17 @@ router.post('/approve', async (req, res) => {
       // A paid plan is what Premium playback checks for: switch it on for an
       // account that doesn't have it yet. One the admin paused on purpose
       // stays paused — that's changed from the Users panel.
-      const { error: grantError } = await supabaseAdmin
+      const { data: switchedOn, error: grantError } = await supabaseAdmin
         .from('User')
         .update({ premiumAccess: 'granted' })
         .eq('id', approval.approved_user_id)
         .eq('premiumAccess', 'none')
+        .select('email, name')
+      if (!grantError && Array.isArray(switchedOn) && switchedOn.length > 0) {
+        // Premium was just switched on: tell them.
+        const row = switchedOn[0] as { email?: string | null; name?: string | null }
+        premiumEmail = await notifyPremiumGranted(approval.approved_user_id, { email: row.email ?? request.email, name: row.name })
+      }
       if (grantError) {
         logger.warn('Approved, but could not switch Premium on for the account', {
           requestId,
@@ -114,7 +122,7 @@ router.post('/approve', async (req, res) => {
       userId: approval.approved_user_id,
       expiresAt: approval.expires_at,
     })
-    res.json({ success: true })
+    res.json({ success: true, ...(premiumEmail ? { premiumEmail } : {}) })
   } catch (error: unknown) {
     logger.error('Failed to approve request', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Failed to approve request' })

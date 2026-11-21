@@ -10,6 +10,7 @@ import {
   getAdminToken,
   setPremiumPausedForAll,
   updateAdminUser,
+  premiumEmailNote,
   type AdminUser,
   type AdminUserChange,
   type PremiumAccessLevel,
@@ -179,7 +180,8 @@ function AccountCell({ user, open, onToggle }: { user: AdminUser; open: boolean;
   const queryClient = useQueryClient()
   const change = useMutation({
     mutationFn: (c: AdminUserChange) => updateAdminUser(user.id, c),
-    onSuccess: () => {
+    onSuccess: ({ premiumEmail }) => {
+      if (premiumEmail) toast.success(`Premium on for ${user.email ?? 'the account'}${premiumEmailNote(premiumEmail)}`)
       void queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       void queryClient.invalidateQueries({ queryKey: ['admin-access-requests'] })
     },

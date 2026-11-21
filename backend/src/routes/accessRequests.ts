@@ -29,6 +29,7 @@ import { isAppRequest } from '../lib/clientKind'
 import { GITHUB_USERNAME_RE, STAR_REPO, hasStarred } from '../lib/githubStars'
 import { forgetUserAccess, getUserAccess, isMissingSchema } from '../lib/userAccess'
 import { USER_ID_RE } from './adminUsers'
+import { notifyPremiumGranted } from '../lib/premiumEmail'
 
 export const KEY_PREFIX = 'access-request:'
 
@@ -231,6 +232,8 @@ adminAccessRequestRouter.post('/access-requests/:userId/approve', requireAdminAu
 
   try {
     await ensureUser(userId)
+    const { data: before } = await supabaseAdmin.from('User').select('premiumAccess').eq('id', userId).maybeSingle()
+    const previous = (before as { premiumAccess?: string } | null)?.premiumAccess ?? 'none'
     const { error: grantError } = await supabaseAdmin.from('User').update({ premiumAccess: 'granted' }).eq('id', userId)
     if (grantError) return unavailable(res, grantError, 'approve')
     forgetUserAccess(userId)
@@ -238,7 +241,12 @@ adminAccessRequestRouter.post('/access-requests/:userId/approve', requireAdminAu
     const { error: writeError } = await writeRequest(approved)
     if (writeError) logger.warn('Premium granted, but the request could not be marked approved', { userId, error: writeError.message })
     logger.info('Premium access request approved', { userId })
-    return res.json({ request: approved })
+    // Tell them — unless they already had Premium (nothing changed for them).
+    const premiumEmail =
+      previous === 'granted'
+        ? undefined
+        : await notifyPremiumGranted(userId, { email: request.email, name: request.name, resumed: previous === 'paused' })
+    return res.json({ request: approved, ...(premiumEmail ? { premiumEmail } : {}) })
   } catch (err: unknown) {
     logger.error('Access request approval failed', { error: err instanceof Error ? err.message : String(err) })
     return res.status(500).json({ error: 'Could not approve the request' })

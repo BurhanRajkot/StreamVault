@@ -994,7 +994,30 @@ export function fetchAdminUsers(params: { q?: string; offset?: number; limit?: n
   return adminRequest(`/admin/users?${search}`)
 }
 
-export function updateAdminUser(id: string, change: AdminUserChange): Promise<{ user: AdminUser }> {
+/**
+ * What became of the "you have Premium" email sent when the admin gives an
+ * account Premium (backend lib/premiumEmail): `not-configured` when the
+ * backend has no RESEND_API_KEY, `no-email` when the account has no address.
+ */
+export type PremiumEmailResult = 'sent' | 'not-configured' | 'failed' | 'no-email'
+
+/** A few words for the admin's toast about that email ('' when none was due). */
+export function premiumEmailNote(result: PremiumEmailResult | undefined): string {
+  switch (result) {
+    case 'sent':
+      return ' · email sent'
+    case 'no-email':
+      return ' · no email address on file to notify'
+    case 'not-configured':
+      return ' · no email sent (RESEND_API_KEY not set on the backend)'
+    case 'failed':
+      return ' · the email couldn’t be sent'
+    default:
+      return ''
+  }
+}
+
+export function updateAdminUser(id: string, change: AdminUserChange): Promise<{ user: AdminUser; premiumEmail?: PremiumEmailResult }> {
   return adminRequest(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(change) })
 }
 
@@ -1060,7 +1083,7 @@ export function fetchAccessRequests(): Promise<{ requests: AdminAccessRequest[];
   return adminRequest('/admin/access-requests')
 }
 
-export function approveAccessRequest(userId: string): Promise<{ request: AccessRequest }> {
+export function approveAccessRequest(userId: string): Promise<{ request: AccessRequest; premiumEmail?: PremiumEmailResult }> {
   return adminRequest(`/admin/access-requests/${encodeURIComponent(userId)}/approve`, { method: 'POST' })
 }
 
