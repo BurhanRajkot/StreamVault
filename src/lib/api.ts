@@ -906,7 +906,7 @@ export async function logRecommendationInteraction(
 
 /** Why Premium is or isn't available to this account (mirrors backend lib/userAccess). */
 /** 'app-only': the account is approved, but its Premium plays in the StreamVault app, not on the website. */
-export type PremiumReason = 'granted' | 'sign-in-required' | 'not-approved' | 'paused' | 'paused-for-all' | 'suspended' | 'app-only'
+export type PremiumReason = 'granted' | 'sign-in-required' | 'not-approved' | 'paused' | 'paused-for-all' | 'suspended' | 'app-only' | 'update-required'
 
 export interface MyAccess {
   premium: boolean

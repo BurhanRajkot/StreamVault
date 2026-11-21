@@ -25,6 +25,7 @@ const PREMIUM_LABEL: Record<string, string> = {
   'paused-for-all': 'Paused for everyone right now',
   suspended: 'Account suspended',
   'app-only': 'Active',
+  'update-required': 'Update the app to use it',
 }
 
 export function ProfileScreen() {

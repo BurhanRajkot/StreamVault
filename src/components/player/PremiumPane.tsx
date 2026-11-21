@@ -44,6 +44,10 @@ const NOTICES: Record<Exclude<PremiumReason, 'granted'>, { heading: string; body
     heading: 'This account is suspended',
     body: 'The admin has suspended this account. You can still watch on every other server.',
   },
+  'update-required': {
+    heading: 'Update the app to keep using Premium',
+    body: 'This version of StreamVault is too old for Premium. Update it from My Space → About (or download the latest release); every other server still works.',
+  },
   'app-only': {
     heading: 'Your Premium is in the app',
     body: 'Premium on your account plays in the StreamVault app for Android, Linux and Windows. Every other server works here.',

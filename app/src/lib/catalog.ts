@@ -153,11 +153,13 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
       ]
     case 'documentary':
       return [
-        { key: 'popular', title: 'Popular Documentaries', load: async () => (await fetchPopular('documentary', 1)).results },
+        { key: 'top', title: 'Top 10 Documentaries This Week', style: 'top10', load: trendingDocumentaries },
+        { key: 'series', title: 'Docuseries Everyone’s Watching', kind: 'tv', style: 'wide', load: currentDocuseries },
+        { key: 'films', title: 'Popular Documentary Films', kind: 'movie', load: recentDocumentaryFilms },
         { key: 'new', title: 'New Releases', load: () => fetchRecentlyAdded('documentary') },
-        { key: 'picks', title: "Editor's Picks", load: picks(AUTHORS_CHOICE_DOCUMENTARIES) },
-        { key: 'series', title: 'Docuseries', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_genres: '99', 'vote_count.gte': '50', without_genres: NOT_SERIES }) },
         { key: 'truecrime', title: 'True Crime', load: trueCrime },
+        { key: 'sport', title: 'Sports Stories', load: sportsDocumentaries },
+        { key: 'picks', title: "Editor's Picks", load: picks(AUTHORS_CHOICE_DOCUMENTARIES) },
         { key: 'acclaimed', title: 'Acclaimed Films', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '99', sort_by: 'vote_average.desc', 'vote_count.gte': '400' }) },
       ]
     default:
@@ -172,7 +174,7 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
         { key: 'anime', title: 'Anime', kind: 'tv', load: () => fetchAnimeRow('series') },
         { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '40', 'primary_release_date.gte': yearsAgo(1.5), 'primary_release_date.lte': today() }) },
         { key: 'kdrama', title: 'K-Dramas', kind: 'tv', style: 'wide', load: () => fetchDiscover('tv', { with_original_language: 'ko', with_genres: '18', 'first_air_date.gte': yearsAgo(5), 'vote_count.gte': '40', without_genres: NOT_SERIES }) },
-        { key: 'docs', title: 'Documentaries', load: async () => (await fetchPopular('documentary', 1)).results },
+        { key: 'docs', title: 'Documentaries', load: trendingDocumentaries },
       ]
   }
 }
@@ -191,11 +193,78 @@ async function southIndian(): Promise<Media[]> {
     .slice(0, 20)
 }
 
-/** True-crime documentaries and docuseries (TMDB keyword 33722). */
+// ---------------------------------------------------------------------------
+// Documentaries
+//
+// TMDB's popularity for documentaries is all-time traffic, like TV's: sorted
+// by it, the rows were NOVA (1974), Mayday, Ancient Aliens and MythBusters.
+// What people are watching now is this week's trending list (read in the
+// documentary genre, see GET /tmdb/trending/:type?genre=), then titles that
+// came out or aired recently, by popularity.
+// ---------------------------------------------------------------------------
+
+const DOCUMENTARY = '99'
+
+/** Docuseries with an episode out in the last year, started within the last few. */
+const currentDocuseries = () =>
+  fetchDiscover('tv', { with_genres: DOCUMENTARY, 'air_date.gte': monthsAgo(12), 'air_date.lte': today(), 'first_air_date.gte': yearsAgo(4), 'vote_count.gte': '5', without_genres: NOT_SERIES })
+
+/** Documentary films released in the last year and a half. */
+const recentDocumentaryFilms = () =>
+  fetchDiscover('movie', { with_genres: DOCUMENTARY, 'primary_release_date.gte': monthsAgo(18), 'primary_release_date.lte': today(), 'vote_count.gte': '10' })
+
+async function trendingInGenre(type: 'movie' | 'tv', genre: string): Promise<Media[]> {
+  const res = await fetch(`${API_BASE}/tmdb/trending/${type}?genre=${genre}`)
+  if (!res.ok) return []
+  const data = (await res.json()) as { results?: Media[] }
+  // Filtered here too: a backend from before `?genre=` returns the whole list
+  return (data.results ?? [])
+    .map((m) => ({ ...m, media_type: type }))
+    .filter((m) => m.poster_path && (m.genre_ids ?? []).includes(Number(genre)))
+}
+
+/** Interleave lists, dropping repeats — so films and series share a row. */
+function interleave(lists: Media[][], limit = 20): Media[] {
+  const seen = new Set<string>()
+  const out: Media[] = []
+  for (let i = 0; out.length < limit && lists.some((l) => i < l.length); i++) {
+    for (const list of lists) {
+      const m = list[i]
+      if (!m) continue
+      const key = `${m.media_type}:${m.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(m)
+    }
+  }
+  return out.slice(0, limit)
+}
+
+/** This week's trending documentaries, topped up with this year's most popular ones. */
+async function trendingDocumentaries(): Promise<Media[]> {
+  const [films, series, recentSeries, recentFilms] = await Promise.all([
+    trendingInGenre('movie', DOCUMENTARY),
+    trendingInGenre('tv', DOCUMENTARY),
+    currentDocuseries(),
+    recentDocumentaryFilms(),
+  ])
+  return interleave([interleave([series, films]), interleave([recentSeries, recentFilms])])
+}
+
+/** Sports documentaries and docuseries of the last few years (TMDB keyword 6075, "sport"). */
+async function sportsDocumentaries(): Promise<Media[]> {
+  const [films, series] = await Promise.all([
+    fetchDiscover('movie', { with_keywords: '6075', with_genres: DOCUMENTARY, 'primary_release_date.gte': yearsAgo(4), 'vote_count.gte': '10' }),
+    fetchDiscover('tv', { with_keywords: '6075', with_genres: DOCUMENTARY, 'first_air_date.gte': yearsAgo(5), 'vote_count.gte': '5' }),
+  ])
+  return interleave([series, films])
+}
+
+/** True-crime documentaries and docuseries (TMDB keyword 33722) of the last few years, most popular first. */
 async function trueCrime(): Promise<Media[]> {
   const [films, series] = await Promise.all([
-    fetchDiscover('movie', { with_keywords: '33722', with_genres: '99', 'vote_count.gte': '50' }),
-    fetchDiscover('tv', { with_keywords: '33722', with_genres: '99', 'vote_count.gte': '20' }),
+    fetchDiscover('movie', { with_keywords: '33722', with_genres: DOCUMENTARY, 'primary_release_date.gte': yearsAgo(5), 'vote_count.gte': '20' }),
+    fetchDiscover('tv', { with_keywords: '33722', with_genres: DOCUMENTARY, 'first_air_date.gte': yearsAgo(5), 'vote_count.gte': '10' }),
   ])
   return [...series, ...films].sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)).slice(0, 20)
 }

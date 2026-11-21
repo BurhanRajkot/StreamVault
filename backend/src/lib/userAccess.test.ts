@@ -54,6 +54,13 @@ describe('decidePremium', () => {
     expect(decidePremium({ admin: false, signedIn: true, access: access('none'), pausedForAll: false, fromApp: false })).toBe('not-approved')
   })
 
+  it('asks an approved account on an old app build to update; the admin is never held to it', () => {
+    expect(decidePremium({ admin: false, signedIn: true, access: access('granted'), pausedForAll: false, fromApp: true, outdatedApp: true })).toBe('update-required')
+    expect(decidePremium({ admin: true, signedIn: false, pausedForAll: false, fromApp: true, outdatedApp: true })).toBe('granted')
+    // An unapproved account is told that first, not to update
+    expect(decidePremium({ admin: false, signedIn: true, access: access('none'), pausedForAll: false, fromApp: true, outdatedApp: true })).toBe('not-approved')
+  })
+
   it('refuses a suspended account even when it was granted', () => {
     expect(decidePremium({ admin: false, signedIn: true, access: access('granted', true), pausedForAll: false, fromApp: true })).toBe('suspended')
   })

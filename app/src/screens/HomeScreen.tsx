@@ -13,6 +13,7 @@ import { PosterRow, TopTenRow, WideRow } from '@app/components/media'
 import { HeroCarousel } from '@app/components/HeroCarousel'
 import { ContinueWatchingRow } from '@app/components/ContinueWatchingRow'
 import { MyListRow } from '@app/components/MyListRow'
+import { TasteSetup } from '@app/components/TasteSetup'
 import { Logo } from '@app/components/Logo'
 
 const CATEGORIES: { mode: MediaMode; label: string; to: string }[] = [
@@ -43,6 +44,7 @@ export function HomeScreen({ mode }: { mode: MediaMode }) {
       {/* The rows ride up over the hero's fade */}
       <div className="relative z-10 mt-2 lg:-mt-[6vw]">
         {(mode === 'home' || mode === 'movie' || mode === 'tv') && <ContinueWatchingRow />}
+        {mode === 'home' && <TasteSetup />}
         {mode === 'home' && <Recommendations />}
         {rows.map((row) => (
           <CatalogRow key={`${mode}-${row.key}`} mode={mode} spec={row} />

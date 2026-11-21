@@ -293,6 +293,7 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
               nextLabel={next ? `S${next.season} · E${next.episode}` : undefined}
               episodes={episodesList}
               topActions={serverButton}
+              runtimeMinutes={kind === 'tv' ? media.episode_run_time?.[0] : media.runtime}
             />
           ) : (
             <>

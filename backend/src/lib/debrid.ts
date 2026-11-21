@@ -307,6 +307,67 @@ export async function getTorrentInfo(torrentId: string): Promise<DebridTorrentIn
   return debridFetch<DebridTorrentInfo>(`/torrents/info/${encodeURIComponent(torrentId)}`)
 }
 
+// ---------------------------------------------------------------------------
+// Short-lived memory of what Real-Debrid already answered
+//
+// Starting a film is four calls in a row to Real-Debrid (torrent info →
+// unrestrict → media info + transcode links), ~3.5-4 s from the backend, and
+// media info alone is ~2.3-2.6 s every time, even for a file Real-Debrid has
+// seen (measured 2026-11-21). The same file is asked for again and again: a
+// resume, a retry after an error, the Quality menu going back to a release,
+// an automatic switch, the next episode of a season pack. None of those
+// answers change for a finished torrent, so they're kept for a while.
+// ---------------------------------------------------------------------------
+
+/** A finished torrent's info (its files and links don't change once downloaded). */
+const DOWNLOADED_INFO_TTL_MS = 30 * 60_000
+/** A link's unrestricted answer (the download link handed to the player). */
+const UNRESTRICT_TTL_MS = 20 * 60_000
+/** A file's media info and transcode links. */
+const STREAMS_TTL_MS = 60 * 60_000
+const ANSWER_CACHE_MAX = 1000
+
+class TtlCache<V> {
+  private readonly map = new Map<string, { at: number; value: V }>()
+  constructor(private readonly ttlMs: number) {}
+  get(key: string): V | undefined {
+    const hit = this.map.get(key)
+    if (!hit) return undefined
+    if (Date.now() - hit.at > this.ttlMs) {
+      this.map.delete(key)
+      return undefined
+    }
+    return hit.value
+  }
+  set(key: string, value: V): void {
+    this.map.delete(key)
+    this.map.set(key, { at: Date.now(), value })
+    if (this.map.size > ANSWER_CACHE_MAX) {
+      const oldest = this.map.keys().next().value
+      if (oldest !== undefined) this.map.delete(oldest)
+    }
+  }
+  delete(key: string): void {
+    this.map.delete(key)
+  }
+  clear(): void {
+    this.map.clear()
+  }
+}
+
+const downloadedInfo = new TtlCache<DebridTorrentInfo>(DOWNLOADED_INFO_TTL_MS)
+const unrestrictedLinks = new TtlCache<DebridUnrestricted>(UNRESTRICT_TTL_MS)
+const mediaAnswers = new TtlCache<{ infos: DebridMediaInfos | null; links: DebridTranscodeLinks | null }>(STREAMS_TTL_MS)
+
+/** Torrent info, from memory when the torrent had already finished downloading. */
+async function torrentInfoForPlayback(torrentId: string): Promise<DebridTorrentInfo> {
+  const known = downloadedInfo.get(torrentId)
+  if (known) return known
+  const info = await getTorrentInfo(torrentId)
+  if (info.status === 'downloaded') downloadedInfo.set(torrentId, info)
+  return info
+}
+
 export async function deleteTorrent(torrentId: string): Promise<void> {
   await debridFetch<null>(`/torrents/delete/${encodeURIComponent(torrentId)}`, { method: 'DELETE' })
   forgetTorrent(torrentId)
@@ -354,6 +415,7 @@ function rememberTorrent(hash: string, torrentId: string): void {
 }
 
 function forgetTorrent(torrentId: string): void {
+  downloadedInfo.delete(torrentId)
   for (const [hash, id] of knownTorrents) {
     if (id === torrentId) knownTorrents.delete(hash)
   }
@@ -414,6 +476,9 @@ export async function findTorrentId(hash: string): Promise<string | null> {
 export function resetTorrentLookupForTests(): void {
   knownTorrents.clear()
   torrentLookup = null
+  downloadedInfo.clear()
+  unrestrictedLinks.clear()
+  mediaAnswers.clear()
 }
 
 // ---------------------------------------------------------------------------
@@ -645,22 +710,20 @@ function transcodeUrl(modelUrl: string, audio: string, quality: string): string 
 const TRANSCODE_QUALITY = 'full'
 
 /**
- * Resolve the streams for one ready file. Media info and the transcode links
- * are best-effort: when they fail the direct link still plays wherever the
- * browser can decode the file.
+ * How long a start waits for media info (codecs, audio tracks, running time —
+ * it decides direct play vs conversion). It usually takes ~2.5 s; past this
+ * the file starts without it (the player tries it as it is, then converts),
+ * and the answer, when it comes, is kept for the next start of the file.
  */
-async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult, { status: 'ready' }>, 'status' | 'torrentId' | 'fileId'>> {
-  const unrestricted = await debridFetch<DebridUnrestricted>('/unrestrict/link', { form: { link } })
-  // /unrestrict returns the download id with a 3-digit host suffix
-  // ("5GTUPMTIYFBQU128"); the /streaming endpoints only accept the bare
-  // 13-character id and answer "{id} is invalid" otherwise.
-  const streamingId = unrestricted.id.length > 13 ? unrestricted.id.slice(0, 13) : unrestricted.id
+const MEDIA_INFO_BUDGET_MS = Number(process.env.DEBRID_MEDIA_INFO_BUDGET_MS || 4000)
 
-  let media: DebridMediaSummary | null = null
-  let hls: string | null = null
-
-  if (unrestricted.streamable === 1) {
-    const [infos, links] = await Promise.all([
+/** Media info and transcode links for a file, from memory or Real-Debrid. Never rejects. */
+function fetchMediaAnswers(streamingId: string): Promise<{ infos: DebridMediaInfos | null; links: DebridTranscodeLinks | null }> {
+  const known = mediaAnswers.get(streamingId)
+  if (known) return Promise.resolve(known)
+  let pending = mediaInFlight.get(streamingId)
+  if (!pending) {
+    pending = Promise.all([
       debridFetch<DebridMediaInfos>(`/streaming/mediaInfos/${streamingId}`).catch((err: unknown) => {
         logger.warn('Real-Debrid mediaInfos failed', { error: err instanceof Error ? err.message : String(err) })
         return null
@@ -670,6 +733,60 @@ async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult
         return null
       }),
     ])
+      .then(([infos, links]) => {
+        const answer = { infos, links }
+        // A failed lookup isn't remembered: the next start asks again.
+        if (infos) mediaAnswers.set(streamingId, answer)
+        return answer
+      })
+      .finally(() => mediaInFlight.delete(streamingId))
+    mediaInFlight.set(streamingId, pending)
+  }
+  return pending
+}
+const mediaInFlight = new Map<string, Promise<{ infos: DebridMediaInfos | null; links: DebridTranscodeLinks | null }>>()
+
+/** `promise`'s value if it settles within `ms`, else undefined (it carries on in the background). */
+function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(undefined)
+      }
+    )
+  })
+}
+
+/**
+ * Resolve the streams for one ready file. Media info and the transcode links
+ * are best-effort: when they fail, or are slow (MEDIA_INFO_BUDGET_MS), the
+ * direct link still plays wherever the browser can decode the file.
+ */
+async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult, { status: 'ready' }>, 'status' | 'torrentId' | 'fileId'>> {
+  let unrestricted = unrestrictedLinks.get(link)
+  if (!unrestricted) {
+    unrestricted = await debridFetch<DebridUnrestricted>('/unrestrict/link', { form: { link } })
+    unrestrictedLinks.set(link, unrestricted)
+  }
+  // /unrestrict returns the download id with a 3-digit host suffix
+  // ("5GTUPMTIYFBQU128"); the /streaming endpoints only accept the bare
+  // 13-character id and answer "{id} is invalid" otherwise.
+  const streamingId = unrestricted.id.length > 13 ? unrestricted.id.slice(0, 13) : unrestricted.id
+
+  let media: DebridMediaSummary | null = null
+  let hls: string | null = null
+
+  if (unrestricted.streamable === 1) {
+    const answer = await settleWithin(fetchMediaAnswers(streamingId), MEDIA_INFO_BUDGET_MS)
+    if (!answer) logger.info('Real-Debrid media info is slow — starting without it', { streamingId })
+    const infos = answer?.infos ?? null
+    const links = answer?.links ?? null
 
     if (infos) media = summarizeMedia(infos)
 
@@ -728,7 +845,7 @@ export async function preparePlayback(params: {
 
   let info: DebridTorrentInfo | null = null
   try {
-    info = await getTorrentInfo(torrentId)
+    info = await torrentInfoForPlayback(torrentId)
   } catch (err: unknown) {
     // A remembered torrent deleted since (from the library, or on
     // Real-Debrid's site): add the release afresh.
@@ -784,7 +901,13 @@ export async function preparePlayback(params: {
     return { status: 'failed', torrentId, debridStatus: info.status, reason: 'No playable video file in this release' }
   }
 
-  const streams = await resolveStreams(link)
+  const streams = await resolveStreams(link).catch((err: unknown) => {
+    // Gone from the account since it was remembered (deleted on Real-Debrid's
+    // site): ask afresh next time rather than repeat a dead answer.
+    downloadedInfo.delete(torrentId as string)
+    unrestrictedLinks.delete(link)
+    throw err
+  })
   return { status: 'ready', torrentId, fileId: file.id, ...streams }
 }
 

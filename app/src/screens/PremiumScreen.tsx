@@ -33,6 +33,7 @@ const NOTICE: Record<string, string> = {
   paused: 'The admin has paused Premium on your account for now.',
   'paused-for-all': 'Premium is paused for everyone at the moment.',
   suspended: 'This account is suspended.',
+  'update-required': 'This version of the app is too old for Premium — update it from My Space → About.',
 }
 
 /**

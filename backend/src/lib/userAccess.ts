@@ -40,6 +40,8 @@ export type PremiumDecision =
   | 'suspended'
   /** Approved, but asking from the website: an account's Premium plays in the StreamVault app only. */
   | 'app-only'
+  /** Approved, asking from the app, but from a build too old for Premium (see lib/clientKind isOutdatedApp). */
+  | 'update-required'
 
 /**
  * The rule, on its own so it can be tested without a database. The admin
@@ -51,6 +53,8 @@ export function decidePremium(who: {
   access?: UserAccess
   pausedForAll: boolean
   fromApp: boolean
+  /** The app build asking is older than Premium allows. */
+  outdatedApp?: boolean
 }): PremiumDecision {
   if (who.admin) return 'granted'
   if (!who.signedIn || !who.access) return 'sign-in-required'
@@ -59,6 +63,7 @@ export function decidePremium(who: {
   if (who.access.premiumAccess === 'paused') return 'paused'
   if (who.pausedForAll) return 'paused-for-all'
   if (!who.fromApp) return 'app-only'
+  if (who.outdatedApp) return 'update-required'
   return 'granted'
 }
 

@@ -212,9 +212,11 @@ const DOWNLOAD_POLL_INTERVAL_MS = 5000
 /**
  * How much longer than the search the connection's measurement is waited
  * for. It starts with the search and is usually done before it; past this,
- * the pick goes ahead with what's already known.
+ * the pick goes ahead with what's already known. Short: on a fast line the
+ * measurement is long over by then, and on a slow one it runs its full few
+ * seconds anyway — the start shouldn't wait on it either way.
  */
-const CONNECTION_WAIT_MS = 1500
+const CONNECTION_WAIT_MS = 600
 
 /**
  * Automatic moves to a smoother release per title or episode. Past that —
