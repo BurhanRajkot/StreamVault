@@ -19,7 +19,7 @@ The same library, account, servers and My List as [stream-vault.site](https://st
 | 🤖 **Android** | [`StreamVault.apk`](https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/StreamVault.apk) | Updates itself |
 | 🪟 **Windows** | [`StreamVault-Setup.exe`](https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault-Setup.exe) | Updates itself |
 
-Every version is on the [releases page](https://github.com/dragon-manner/StreamVault/releases).
+Every version is on the [releases page](https://github.com/dragon-manner/StreamVault/releases). If GitHub downloads crawl for you, the Linux commands below fetch from the fast mirror instead.
 
 ### 🐧 Linux
 
@@ -32,13 +32,13 @@ mkdir -p ~/Applications && cd ~/Applications && curl -fL "https://xpickztkltapge
 **Arch / EndeavourOS / Manjaro:**
 
 ```bash
-curl -fLO https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault.pacman && sudo pacman -U StreamVault.pacman
+curl -fL "https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/linux/StreamVault.pacman.part[1-4]" > StreamVault.pacman && sudo pacman -U StreamVault.pacman
 ```
 
 **Debian / Ubuntu / Mint:**
 
 ```bash
-curl -fLO https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault.deb && sudo apt install ./StreamVault.deb
+curl -fL "https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/linux/StreamVault.deb.part[1-4]" > StreamVault.deb && sudo apt install ./StreamVault.deb
 ```
 
 The AppImage installs its own updates. With the `.deb` or `.pacman`, the app tells you when a new version is out and opens the releases page.
