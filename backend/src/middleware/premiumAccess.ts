@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import { verifyAdminToken } from '../admin/auth'
 import { checkJwt } from './auth'
 import { getUserId } from '../utils/auth'
-import { isAppRequest } from '../lib/clientKind'
+import { isAppRequest, isOutdatedApp } from '../lib/clientKind'
 import { decidePremium, getUserAccess, isPremiumPausedForAll, touchUser, type PremiumDecision } from '../lib/userAccess'
 
 /** What a refused viewer is told, by reason — the player shows the `code`'s own screen. */
@@ -14,6 +14,7 @@ const REFUSALS: Record<Exclude<PremiumDecision, 'granted'>, { status: number; er
   'paused-for-all': { status: 403, error: 'Premium is paused right now.' },
   suspended: { status: 403, error: 'This account has been suspended.' },
   'app-only': { status: 403, error: 'Your Premium plays in the StreamVault app — open it there.' },
+  'update-required': { status: 403, error: 'Update the StreamVault app to keep using Premium.' },
 }
 
 function refuse(res: Response, decision: Exclude<PremiumDecision, 'granted'>) {
@@ -50,7 +51,7 @@ export const requirePremiumAccess: RequestHandler = (req: Request, res: Response
     if (!userId) return refuse(res, 'sign-in-required')
     touchUser(userId)
     Promise.all([getUserAccess(userId), isPremiumPausedForAll()]).then(([access, pausedForAll]) => {
-      const decision = decidePremium({ admin: false, signedIn: true, access, pausedForAll, fromApp: isAppRequest(req) })
+      const decision = decidePremium({ admin: false, signedIn: true, access, pausedForAll, fromApp: isAppRequest(req), outdatedApp: isOutdatedApp(req) })
       if (decision === 'granted') return next()
       return refuse(res, decision)
     }, next)

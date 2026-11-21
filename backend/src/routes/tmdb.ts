@@ -27,6 +27,9 @@ const TMDB_TIMEOUT_MS = Number(process.env.TMDB_TIMEOUT_MS || 8000)
 
 const DEFAULT_SORT_BY = 'popularity.desc'
 
+/** Pages of the weekly trending list read for a one-genre trending row. */
+const TRENDING_GENRE_PAGES = 5
+
 /** Allowlist of TMDB discover sort keys the client may request. */
 const ALLOWED_SORT_BY = new Set([
   'popularity.asc', 'popularity.desc',
@@ -250,6 +253,29 @@ router.get('/trending/:mediaType', async (req: Request, res: Response) => {
 
   if (mediaType !== 'movie' && mediaType !== 'tv') {
     return res.status(400).json({ error: 'Invalid media type' })
+  }
+
+  // `?genre=99`: this week's trending titles in one genre. A genre like
+  // documentaries has one or two titles on a page of 20, so the first
+  // TRENDING_GENRE_PAGES pages are read (each cached like any other).
+  const genreParam = firstString(req.query.genre)
+  if (genreParam !== undefined) {
+    if (!/^\d{1,5}$/.test(genreParam)) return res.status(400).json({ error: 'Invalid genre' })
+    const genre = Number(genreParam)
+    try {
+      const pages = await Promise.allSettled(
+        Array.from({ length: TRENDING_GENRE_PAGES }, (_, i) => fetchTMDB(`/trending/${mediaType}/week?page=${i + 1}`))
+      )
+      const seen = new Set<number>()
+      const results = pages
+        .flatMap((p) => (p.status === 'fulfilled' ? ((p.value as { results?: Array<{ id: number; genre_ids?: number[] }> }).results ?? []) : []))
+        .filter((r) => r.genre_ids?.includes(genre) && !seen.has(r.id) && seen.add(r.id))
+      res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=43200')
+      res.setHeader('Vary', 'Accept-Encoding')
+      return res.json({ page: 1, results, total_pages: 1, total_results: results.length })
+    } catch (_error) {
+      return res.status(500).json({ error: 'Failed to fetch trending media' })
+    }
   }
 
   try {

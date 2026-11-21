@@ -251,7 +251,10 @@ every signed-in backend call with `X-StreamVault-Client: app/<version>`
 (only those: on anonymous calls the custom header would cost a CORS preflight each)
 (`app/src/native/clientHeader.ts`, checked by `backend/src/lib/clientKind.ts`),
 and `decidePremium` answers `app-only` to the website (the admin plays
-anywhere). It's a soft line — a header — not a lock. Accounts ask for access
+anywhere). It's a soft line — a header — not a lock. App builds older than
+`PREMIUM_MIN_APP_VERSION` (default 1.0.21, `isOutdatedApp` in `lib/clientKind.ts`)
+get `update-required` instead, so an old release can't skip newer gates; raise it
+when a release adds a gate that matters. Accounts ask for access
 from the app's Premium screen (`/me/access-request`; starring the repo and
 donating are optional, the star is checked with GitHub by
 `lib/githubStars.ts`); the admin approves or deletes requests in the

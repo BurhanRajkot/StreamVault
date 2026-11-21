@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { toast } from 'sonner'
@@ -72,6 +72,35 @@ function TitleSkeleton() {
 
 type Tab = 'episodes' | 'similar' | 'details'
 
+/** Titles whose opening was already told to recommendations this session. */
+const loggedOpens = new Set<string>()
+let lastOpenLoggedAt = 0
+/**
+ * Opens are a weak signal and the interaction endpoint allows 20 events a
+ * minute per account: browsing quickly mustn't use up the room a "watch"
+ * needs.
+ */
+const OPEN_LOG_GAP_MS = 8000
+
+/**
+ * Tell recommendations this title was opened (a 'click': weak, but it's what
+ * fills a new account's taste before it has watched anything).
+ */
+function useLogOpen(media: Media, kind: TitleKind, partial: boolean) {
+  const { isAuthenticated, getAccessTokenSilently } = useAuth0()
+  useEffect(() => {
+    if (!isAuthenticated || partial) return
+    const key = `${kind}:${media.id}`
+    const now = Date.now()
+    if (loggedOpens.has(key) || now - lastOpenLoggedAt < OPEN_LOG_GAP_MS) return
+    loggedOpens.add(key)
+    lastOpenLoggedAt = now
+    void getAccessTokenSilently()
+      .then((token) => logRecommendationInteraction(token, { tmdbId: media.id, mediaType: kind, eventType: 'click', genreIds: genreIdsOf(media) }))
+      .catch(() => {})
+  }, [isAuthenticated, partial, kind, media, getAccessTokenSilently])
+}
+
 /** `partial`: only the clicked card's facts so far — the details are still on their way. */
 function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; partial: boolean }) {
   const navigate = useNavigate()
@@ -81,6 +110,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
   const { premium } = usePremiumAccess()
   const { isFavorited, toggleFavorite } = useFavorites()
   const display = useMemo(() => deriveMediaDisplay(media, kind), [media, kind])
+  useLogOpen(media, kind, partial)
   const { data: seasons = [] } = useSeasons(kind, media.id)
   const { data: continueEntries } = useContinueWatching()
   const progress = continueEntries?.find((e) => e.item.tmdbId === media.id && e.item.mediaType === kind)?.item
