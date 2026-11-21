@@ -6,6 +6,7 @@ import {
   AdminApiError,
   fetchAdminUsers,
   updateAdminUser,
+  premiumEmailNote,
   type AdminUser,
   type AdminUserChange,
   type PremiumAccessLevel,
@@ -75,7 +76,7 @@ export function UsersPanel({ onUserChanged }: UsersPanelProps = {}) {
 
   const mutation = useMutation({
     mutationFn: ({ id, change }: { id: string; change: AdminUserChange }) => updateAdminUser(id, change),
-    onSuccess: ({ user }, { change }) => {
+    onSuccess: ({ user, premiumEmail }, { change }) => {
       queryClient.setQueryData(queryKey, (old: typeof data) =>
         old ? { ...old, users: old.users.map((u) => (u.id === user.id ? user : u)) } : old
       )
@@ -84,7 +85,7 @@ export function UsersPanel({ onUserChanged }: UsersPanelProps = {}) {
       if (change.suspended !== undefined) toast.success(change.suspended ? `${who} suspended` : `${who} restored`)
       else if (change.debridDownloads !== undefined) {
         toast.success(`${who}: Premium downloads ${user.debridDownloads ? 'allowed' : 'off'}`)
-      } else toast.success(`${who}: Premium ${PREMIUM_LABELS[user.premiumAccess].toLowerCase()}`)
+      } else toast.success(`${who}: Premium ${PREMIUM_LABELS[user.premiumAccess].toLowerCase()}${premiumEmailNote(premiumEmail)}`)
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not update the account'),
   })

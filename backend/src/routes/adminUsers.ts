@@ -11,6 +11,7 @@
  */
 
 import { Router, Request, Response } from 'express'
+import { notifyPremiumGranted, type PremiumEmailResult } from '../lib/premiumEmail'
 import { requireAdminAuth } from '../admin/middleware'
 import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
@@ -100,6 +101,14 @@ router.patch('/users/:id', requireAdminAuth, async (req: Request, res: Response)
     return res.status(400).json({ error: 'Nothing to change' })
   }
 
+  // Giving Premium emails the account (lib/premiumEmail): note what it had before.
+  let grantedFrom: PremiumAccess | null = null
+  if (update.premiumAccess === 'granted') {
+    const { data: before } = await supabaseAdmin.from('User').select('premiumAccess').eq('id', id).maybeSingle()
+    const previous = (before as { premiumAccess?: PremiumAccess } | null)?.premiumAccess ?? 'none'
+    if (previous !== 'granted') grantedFrom = previous
+  }
+
   // The row is updated when its own columns change, else only read (to answer with it).
   const { data, error } = changesRow
     ? await supabaseAdmin.from('User').update(update).eq('id', id).select(USER_COLUMNS).maybeSingle()
@@ -127,8 +136,13 @@ router.patch('/users/:id', requireAdminAuth, async (req: Request, res: Response)
     suspended: update.suspendedAt === undefined ? undefined : update.suspendedAt !== null,
     debridDownloads,
   })
+  let premiumEmail: PremiumEmailResult | undefined
+  if (grantedFrom !== null) {
+    const row = data as { email?: string | null; name?: string | null }
+    premiumEmail = await notifyPremiumGranted(id, { email: row.email, name: row.name, resumed: grantedFrom === 'paused' })
+  }
   const downloadsAllowed = await getDownloadsAllowedFor()
-  return res.json({ user: { ...data, debridDownloads: downloadsAllowed.has(id) } })
+  return res.json({ user: { ...data, debridDownloads: downloadsAllowed.has(id) }, ...(premiumEmail ? { premiumEmail } : {}) })
 })
 
 router.get('/settings', requireAdminAuth, async (_req: Request, res: Response) => {

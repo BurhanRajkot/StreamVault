@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useQueryClient } from '@tanstack/react-query'
-import { AdminApiError, clearAdminToken, getAdminToken, isAdminAuthenticated, updateAdminUser, type AdminUser } from '@/lib/api'
+import { AdminApiError, clearAdminToken, getAdminToken, isAdminAuthenticated, premiumEmailNote, updateAdminUser, type AdminUser, type PremiumEmailResult } from '@/lib/api'
 import AdminLoginModal from '@/components/admin/AdminLoginModal'
 import { AdminModeBadge } from '@/components/admin/AdminModeBadge'
 import { DownloadsSelect } from '@/components/admin/DownloadsSelect'
@@ -148,7 +148,8 @@ export default function AdminDashboard() {
         throw new Error(`Failed to ${action} request`)
       }
 
-      toast.success(`Request ${action === 'approve' ? 'Approved' : 'Rejected'}`)
+      const result = (await res.json().catch(() => ({}))) as { premiumEmail?: PremiumEmailResult }
+      toast.success(`Request ${action === 'approve' ? 'Approved' : 'Rejected'}${premiumEmailNote(result.premiumEmail)}`)
 
       // Refresh list
       fetchRequests()

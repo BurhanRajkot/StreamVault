@@ -198,6 +198,9 @@ SUPABASE_ANON_KEY=          # Supabase anon key
 TMDB_API_KEY=               # TMDB API key
 AUTH0_DOMAIN=               # Auth0 domain
 AUTH0_AUDIENCE=             # Auth0 audience
+RESEND_API_KEY=             # Resend key: "you have Premium" emails (lib/premiumEmail); unset = none sent
+MAIL_FROM=                  # optional, default "StreamVault <premium@stream-vault.site>" (domain verified in Resend)
+MAIL_REPLY_TO=              # optional
 ```
 
 ### MCP Servers (.env.local - optional)
