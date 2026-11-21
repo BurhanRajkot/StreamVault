@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 
 // premiumEmail reads the account from Supabase, which throws on load without keys (as in CI).
 let userRow: { email: string | null; name: string | null } | null = null
@@ -8,8 +8,15 @@ mock.module('./supabase', () => ({
   },
 }))
 
-const { buildPremiumGrantedEmail, notifyPremiumGranted } = await import('./premiumEmail')
-const { sendEmail } = await import('./mailer')
+// Imported once the stub is in place (a static import would hoist past it).
+let buildPremiumGrantedEmail: typeof import('./premiumEmail').buildPremiumGrantedEmail
+let notifyPremiumGranted: typeof import('./premiumEmail').notifyPremiumGranted
+let sendEmail: typeof import('./mailer').sendEmail
+
+beforeAll(async () => {
+  ;({ buildPremiumGrantedEmail, notifyPremiumGranted } = await import('./premiumEmail'))
+  ;({ sendEmail } = await import('./mailer'))
+})
 
 const realFetch = globalThis.fetch
 const savedKey = process.env.RESEND_API_KEY
