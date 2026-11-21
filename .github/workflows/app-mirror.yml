@@ -1,0 +1,47 @@
+name: "App mirror (Supabase Storage)"
+
+# Copies the latest app release from GitHub to the Supabase Storage mirror
+# (bucket "app-releases") with app/scripts/mirror-release.sh: the same thing
+# App Release's last step does. Run it by hand when that step failed or the
+# mirror gained a file type, so it doesn't take a new release to fix it.
+# Only the latest release: the mirror's latest.json is what the apps' update
+# check reads, so mirroring an older one would offer people a downgrade.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-mirror
+
+jobs:
+  mirror:
+    name: "Mirror the latest release"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Download the latest release and mirror it
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set."
+            exit 1
+          fi
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          case "$tag" in
+            app-v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::The latest release is \"$tag\", not an app-v<version> release."; exit 1 ;;
+          esac
+          version=${tag#app-v}
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir dist-release \
+            --pattern "StreamVault-${version}.*" --pattern "StreamVault-Setup-${version}.exe"
+          ls -la dist-release
+          bash app/scripts/mirror-release.sh dist-release "$version"

@@ -12,6 +12,8 @@
 #                                   the newest AppImage in 4 equal parts — the
 #                                   free plan refuses files over 50 MiB; curl
 #                                   joins them: curl -L "<base>/linux/StreamVault.AppImage.part[1-4]" > StreamVault.AppImage
+#   linux/StreamVault.deb.part1..4, linux/StreamVault.pacman.part1..4
+#                                   the newest .deb / .pacman, the same way
 #   windows/StreamVault-Setup.exe.part1..n
 #                                   the newest Windows installer, in parts under
 #                                   45 MiB (the app joins them to update itself)
@@ -36,6 +38,10 @@ put_parts() { # <file> <object path, ".part<i>" is added> <number of parts>; pri
   work=$(mktemp -d)
   split -n "$3" --numeric-suffixes=1 --suffix-length=1 "$1" "$work/part"
   for i in $(seq 1 "$3"); do
+    if [ "$(stat -c%s "$work/part$i")" -gt $((50 * 1048576)) ]; then
+      echo "::error::$2.part$i is over 50 MiB, which Supabase's free plan refuses — use more parts" >&2
+      exit 1
+    fi
     put "$work/part$i" "$2.part$i" application/octet-stream 300 >&2
     # The version in the query keeps a CDN from mixing parts of two releases
     urls+=("\"$public/$2.part$i?v=$version\"")
@@ -46,13 +52,17 @@ put_parts() { # <file> <object path, ".part<i>" is added> <number of parts>; pri
 
 apk="$dir/StreamVault-$version.apk"
 appimage="$dir/StreamVault-$version.AppImage"
+deb="$dir/StreamVault-$version.deb"
+pacman="$dir/StreamVault-$version.pacman"
 installer="$dir/StreamVault-Setup-$version.exe"
 
 put "$apk" "android/StreamVault-$version.apk" application/vnd.android.package-archive 31536000
 put "$apk" "StreamVault.apk" application/vnd.android.package-archive 300
 
-# Always 4: the README's one-line Linux install asks for part[1-4]
+# Always 4: the README's one-line Linux installs ask for part[1-4]
 appimage_parts=$(put_parts "$appimage" linux/StreamVault.AppImage 4)
+deb_parts=$(put_parts "$deb" linux/StreamVault.deb 4)
+pacman_parts=$(put_parts "$pacman" linux/StreamVault.pacman 4)
 installer_parts=$(put_parts "$installer" windows/StreamVault-Setup.exe $(( ($(stat -c%s "$installer") + 45 * 1048576 - 1) / (45 * 1048576) )))
 cat > "$dir/latest.json" <<JSON
 {
@@ -69,6 +79,16 @@ cat > "$dir/latest.json" <<JSON
       "parts": $appimage_parts,
       "size": $(stat -c%s "$appimage"),
       "sha256": "$(sha256sum "$appimage" | cut -d' ' -f1)"
+    },
+    "deb": {
+      "parts": $deb_parts,
+      "size": $(stat -c%s "$deb"),
+      "sha256": "$(sha256sum "$deb" | cut -d' ' -f1)"
+    },
+    "pacman": {
+      "parts": $pacman_parts,
+      "size": $(stat -c%s "$pacman"),
+      "sha256": "$(sha256sum "$pacman" | cut -d' ' -f1)"
     }
   },
   "windows": {
