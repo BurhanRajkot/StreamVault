@@ -9,7 +9,7 @@
  * approved accounts, in the app.
  */
 
-import type { QueryClient } from '@tanstack/react-query'
+import { queryOptions, type QueryClient } from '@tanstack/react-query'
 import type { PremiumReason } from './api'
 import type { DebridRelease } from './debridApi'
 import type { PremiumReleaseSource } from './premiumSearch'
@@ -65,8 +65,8 @@ export interface F1Release extends DebridRelease {
 // API
 // ---------------------------------------------------------------------------
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`)
+async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error || `Request failed: ${res.status}`)
@@ -79,8 +79,11 @@ export function fetchF1Season(year: number): Promise<F1Season> {
 }
 
 export function fetchF1Releases(year: number, round: number): Promise<F1Release[]> {
-  return getJson(`/f1/seasons/${year}/races/${round}/releases`)
+  // Revalidated each time: a list cached before uploads turned up must not stay
+  return getJson(`/f1/seasons/${year}/races/${round}/releases`, { cache: 'no-cache' })
 }
+
+
 
 /** For useQuery: a season's calendar. */
 export function f1SeasonQuery(year: number) {
@@ -92,15 +95,19 @@ export function f1SeasonQuery(year: number) {
   }
 }
 
-/** For useQuery: one race weekend's releases. */
+/**
+ * For useQuery: one race weekend's releases. An empty list is as likely "not
+ * uploaded yet" or an index hiccup as final, so it's never kept: asked again
+ * on every visit.
+ */
 export function f1ReleasesQuery(year: number, round: number) {
-  return {
+  return queryOptions({
     queryKey: ['f1-releases', year, round] as const,
     queryFn: () => fetchF1Releases(year, round),
-    staleTime: 10 * 60_000,
+    staleTime: (query) => ((query.state.data?.length ?? 0) > 0 ? 10 * 60_000 : 0),
     gcTime: 60 * 60_000,
     retry: 1,
-  }
+  })
 }
 
 // ---------------------------------------------------------------------------
