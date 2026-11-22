@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { motion } from 'framer-motion'
-import { CircleUserRound, Download, House, Search, type LucideIcon } from 'lucide-react'
+import { CircleUserRound, Download, Flag, House, Search, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDownloads } from '@app/downloads/store'
 import { useHideOnScroll } from '@app/lib/hooks'
@@ -17,7 +17,8 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { to: '/', label: 'Home', icon: House, match: (p) => HOME_PATHS.includes(p) || p.startsWith('/title') || p === '/f1' || p.startsWith('/f1/') },
+  { to: '/', label: 'Home', icon: House, match: (p) => HOME_PATHS.includes(p) || p.startsWith('/title') },
+  { to: '/f1', label: 'F1', icon: Flag, match: (p) => p === '/f1' || p.startsWith('/f1/') },
   { to: '/downloads', label: 'Downloads', icon: Download, match: (p) => p === '/downloads' },
   { to: '/me', label: 'My Space', icon: CircleUserRound, match: (p) => ['/me', '/my-list', '/premium', '/admin'].includes(p) },
 ]

@@ -1,22 +1,33 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { CalendarDays, Eye, EyeOff, Flag, Trophy } from 'lucide-react'
+import { CalendarDays, ChevronRight, Eye, EyeOff, Flag, Play, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useF1ShowResults } from '@/hooks/useF1ShowResults'
-import { FIRST_F1_SEASON, defaultSeasonYear, f1SeasonQuery, formatF1Date, isUpcoming, seasonYears, type F1Race } from '@/lib/f1'
+import {
+  FIRST_F1_SEASON,
+  countryCode,
+  defaultSeasonYear,
+  f1SeasonQuery,
+  formatF1Date,
+  isUpcoming,
+  latestRace,
+  nextRace,
+  seasonYears,
+  type F1Race,
+} from '@/lib/f1'
 import { spring } from '@app/lib/motion'
-import { CategoryHeader } from '@app/components/CategoryHeader'
-import { Button, EmptyState } from '@app/components/kit'
+import { Button, CircleButton, EmptyState, LargeTitle, NavBar } from '@app/components/kit'
 import { Sheet } from '@app/components/Sheet'
 
 /** Seasons offered as chips; the rest are a tap on "Earlier" away. */
 const RECENT_SEASONS = 6
 
 /**
- * The F1 archive: one season's race weekends. A race opens its sessions —
- * practice, qualifying, sprints, the race — to watch on Premium or download.
+ * The F1 archive: one season — its latest race up top, ready to play, then
+ * every race weekend as a list. A race opens its sessions.
  */
 export function F1Screen() {
   const [params, setParams] = useSearchParams()
@@ -42,28 +53,27 @@ export function F1Screen() {
   const all = seasonYears()
   const recent = all.slice(0, RECENT_SEASONS)
   const races = season?.races ?? []
+  const latest = season ? latestRace(season) : null
+  const next = season ? nextRace(season) : null
+  // The two halves of the season side by side on a wide screen
+  const half = Math.ceil(races.length / 2)
+
+  const resultsButton = (
+    <CircleButton label={showResults ? 'Hide results' : 'Show results'} onClick={() => setShowResults(!showResults)}>
+      {showResults ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+    </CircleButton>
+  )
 
   return (
-    <div className="px-4 pb-tabbar pt-[calc(var(--sat)+100px)] lg:px-12 lg:pt-[calc(var(--topbar-h)+32px)]">
-      <CategoryHeader active="f1" overHero={false} />
+    <div className="px-4 pb-tabbar pt-page lg:px-12">
+      <NavBar title={`F1 ${year}`} actions={resultsButton} />
+      <LargeTitle
+        title="Formula 1"
+        subtitle={`${year} season${races.length ? ` · ${races.length} races` : ''}`}
+        actions={<span className="hidden lg:block">{resultsButton}</span>}
+      />
 
-      <header className="mb-5 flex flex-wrap items-end gap-3 lg:mb-7">
-        <div className="min-w-0 flex-1">
-          <p className="t-footnote flex items-center gap-1.5 font-semibold uppercase tracking-[0.14em] text-ios-red">
-            <Flag className="h-3.5 w-3.5" /> Formula 1
-          </p>
-          <h1 className="t-large mt-0.5 lg:text-[40px] lg:leading-[48px]">{year} Season</h1>
-          <p className="t-subhead mt-1 text-label-2">
-            {races.length > 0 ? `${races.length} race weekends · ` : ''}practice, qualifying, sprints and races
-          </p>
-        </div>
-        <Button variant="glass" size="sm" onClick={() => setShowResults(!showResults)} aria-pressed={showResults}>
-          {showResults ? <Eye /> : <EyeOff />}
-          {showResults ? 'Results shown' : 'Results hidden'}
-        </Button>
-      </header>
-
-      <nav aria-label="Seasons" className="no-scrollbar -mx-4 mb-6 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+      <nav aria-label="Seasons" className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0">
         {recent.map((y) => (
           <SeasonChip key={y} year={y} active={y === year} onPick={setYear} />
         ))}
@@ -85,21 +95,21 @@ export function F1Screen() {
           }
         />
       ) : isLoading ? (
-        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="glass-card h-[92px] animate-pulse rounded-[16px]" />
-          ))}
+        <div aria-busy="true">
+          <div className="mb-6 h-[220px] animate-pulse rounded-[22px] bg-fill lg:h-[260px]" />
+          <div className="glass-card h-[420px] animate-pulse rounded-[16px]" />
         </div>
       ) : races.length === 0 ? (
         <EmptyState icon={<CalendarDays />} title="Not out yet" text={`The ${year} calendar hasn't been published yet.`} />
       ) : (
-        <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {races.map((race) => (
-            <li key={race.round}>
-              <RaceCard year={year} race={race} showResults={showResults} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {latest && <LatestRace year={year} race={latest} next={next} showResults={showResults} />}
+
+          <div className="grid gap-x-6 lg:grid-cols-2">
+            <RaceList year={year} races={races.slice(0, half)} showResults={showResults} header="Races" />
+            <RaceList year={year} races={races.slice(half)} showResults={showResults} header={<span className="lg:invisible">More races</span>} />
+          </div>
+        </>
       )}
 
       <Sheet open={picking} onOpenChange={setPicking} title="Season" description={`Every season since ${FIRST_F1_SEASON}`}>
@@ -135,30 +145,113 @@ function SeasonChip({ year, active, onPick }: { year: number; active: boolean; o
   )
 }
 
-function RaceCard({ year, race, showResults }: { year: number; race: F1Race; showResults: boolean }) {
+/** The latest race, big, with its race and qualifying a tap away. */
+function LatestRace({ year, race, next, showResults }: { year: number; race: F1Race; next: F1Race | null; showResults: boolean }) {
+  const navigate = useNavigate()
+  const { premium, loading } = usePremiumAccess()
+  const racePath = `/f1/${year}/${race.round}`
+  const watch = (session: string) => navigate(premium || loading ? `/watch/f1/${year}/${race.round}/${session}` : racePath)
+  const hasQualifying = race.sessions.some((s) => s.key === 'qualifying')
+
+  return (
+    <section aria-label="Latest race" className="relative mb-7 overflow-hidden rounded-[22px] bg-[#15151a]">
+      {/* Racing red, fading into the card */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_100%_0%,rgba(225,6,0,0.55)_0%,rgba(225,6,0,0.12)_45%,transparent_70%)]" />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-2 -top-6 select-none text-[150px] font-black leading-none tracking-tighter text-white/[0.06] lg:text-[200px]"
+      >
+        {countryCode(race.country)}
+      </span>
+
+      <div className="relative p-5 lg:p-8">
+        <p className="t-caption font-semibold uppercase tracking-[0.14em] text-white/70">
+          {next ? 'Latest race' : 'Season finale'} · Round {race.round}
+        </p>
+        <h2 className="mt-1.5 text-[28px] font-bold leading-[1.1] tracking-tight text-white lg:text-[40px]">{race.name}</h2>
+        <p className="t-subhead mt-1.5 text-white/70">
+          {formatF1Date(race.date)} · {[race.locality, race.country].filter(Boolean).join(', ')}
+        </p>
+        {showResults && race.winner && (
+          <p className="t-subhead mt-2 flex items-center gap-1.5 text-white/90">
+            <Trophy className="h-4 w-4 text-ios-yellow" /> {race.winner.driver}
+            {race.winner.team && <span className="text-white/55">· {race.winner.team}</span>}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-2.5">
+          <Button onClick={() => watch('race')}>
+            <Play className="fill-current" /> Race
+          </Button>
+          {hasQualifying && (
+            <Button variant="glass" onClick={() => watch('qualifying')}>
+              <Play className="fill-current" /> Qualifying
+            </Button>
+          )}
+          <Button variant="glass" onClick={() => navigate(racePath)}>
+            All sessions <ChevronRight />
+          </Button>
+        </div>
+
+        {next && (
+          <p className="t-footnote mt-5 text-white/55">
+            Next: <span className="text-white/85">{next.name}</span> · {formatF1Date(next.date, { year: false })}
+          </p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** Race weekends as a grouped list: country code, name, date and place. */
+function RaceList({ year, races, showResults, header }: { year: number; races: F1Race[]; showResults: boolean; header: React.ReactNode }) {
+  if (races.length === 0) return null
+  return (
+    <section className="mb-7">
+      <h2 className="t-footnote mb-1.5 px-4 uppercase tracking-[0.02em] text-label-2">{header}</h2>
+      <ul className="glass-card overflow-hidden rounded-[16px]">
+        {races.map((race) => (
+          <li key={race.round}>
+            <RaceRow year={year} race={race} showResults={showResults} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function RaceRow({ year, race, showResults }: { year: number; race: F1Race; showResults: boolean }) {
   const upcoming = isUpcoming({ date: race.date, time: race.time })
   const sprint = race.sessions.some((s) => s.key === 'sprint')
   return (
-    <Link to={`/f1/${year}/${race.round}`} className="glass-card tap flex h-full items-start gap-3.5 rounded-[16px] p-4">
-      <span className="w-9 shrink-0 text-right text-[26px] font-bold leading-[30px] tracking-tight text-white/90 tabular-nums">{race.round}</span>
-      <span className="min-w-0 flex-1">
-        <span className="t-headline block truncate">{race.name}</span>
-        <span className="t-footnote mt-0.5 block truncate text-label-2">
-          {formatF1Date(race.date)} · {[race.locality, race.country].filter(Boolean).join(', ')}
-        </span>
-        {(upcoming || sprint || (showResults && race.winner && !upcoming)) && (
-          <span className="mt-2 flex flex-wrap items-center gap-1.5">
-            {upcoming && <span className="rounded-full bg-tint/20 px-2 py-0.5 text-[11px] font-semibold text-tint">Upcoming</span>}
-            {sprint && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold text-white/85">Sprint</span>}
-            {showResults && race.winner && !upcoming && (
-              <span className="t-caption flex min-w-0 items-center gap-1 text-label-2">
-                <Trophy className="h-3 w-3 shrink-0 text-ios-yellow" />
-                <span className="truncate text-white/90">{race.winner.driver}</span>
-              </span>
-            )}
-          </span>
-        )}
+    <Link
+      to={`/f1/${year}/${race.round}`}
+      className={cn('cell-sep-inset tap relative flex min-h-[62px] items-center gap-3 px-4 py-2.5', upcoming && 'opacity-55')}
+      style={{ '--sep-inset': '68px' } as React.CSSProperties}
+    >
+      <span className="flex h-[38px] w-[40px] shrink-0 flex-col items-center justify-center rounded-[10px] bg-fill">
+        <span className="text-[12px] font-extrabold leading-none tracking-wide text-white">{countryCode(race.country)}</span>
+        <span className="mt-[3px] text-[9px] font-semibold leading-none text-white/50">R{race.round}</span>
       </span>
+      <span className="min-w-0 flex-1">
+        <span className="t-body block truncate">{race.name.replace(/ Grand Prix\b/, ' GP')}</span>
+        <span className="t-footnote mt-0.5 block truncate text-label-2">
+          {showResults && race.winner && !upcoming ? (
+            <>
+              <Trophy className="-mt-0.5 mr-1 inline h-3 w-3 text-ios-yellow" />
+              {race.winner.driver}
+            </>
+          ) : (
+            `${formatF1Date(race.date, { year: false })} · ${race.locality || race.country}`
+          )}
+        </span>
+      </span>
+      {upcoming ? (
+        <span className="shrink-0 rounded-full bg-tint/20 px-2 py-0.5 text-[11px] font-semibold text-tint">Upcoming</span>
+      ) : (
+        sprint && <span className="shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold text-white/80">Sprint</span>
+      )}
+      <ChevronRight className="-mr-1 h-[18px] w-[18px] shrink-0 text-label-3" strokeWidth={2.4} />
     </Link>
   )
 }

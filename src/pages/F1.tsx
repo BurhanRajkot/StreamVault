@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Flag } from 'lucide-react'
 import { PageMeta } from '@/seo/PageMeta'
 import { Button } from '@/components/ui/button'
-import { F1Chrome, RaceCard, ResultsToggle, SeasonSelect, f1Gutter } from '@/components/f1/F1Parts'
-import { FIRST_F1_SEASON, defaultSeasonYear, f1SeasonQuery } from '@/lib/f1'
+import { F1Chrome, LatestRaceHero, RaceRow, ResultsToggle, SeasonSelect, f1Gutter } from '@/components/f1/F1Parts'
+import { FIRST_F1_SEASON, defaultSeasonYear, f1SeasonQuery, latestRace, nextRace } from '@/lib/f1'
+import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useF1ShowResults } from '@/hooks/useF1ShowResults'
 
 /**
@@ -30,6 +31,10 @@ const F1 = () => {
     )
 
   const races = season?.races ?? []
+  const latest = season ? latestRace(season) : null
+  const next = season ? nextRace(season) : null
+  const half = Math.ceil(races.length / 2)
+  const access = usePremiumAccess()
 
   return (
     <>
@@ -68,21 +73,30 @@ const F1 = () => {
               </Button>
             </div>
           ) : isLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" aria-busy="true">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="h-[104px] animate-pulse rounded-2xl bg-muted" />
-              ))}
+            <div aria-busy="true">
+              <div className="mb-8 h-[260px] animate-pulse rounded-3xl bg-muted" />
+              <div className="h-[480px] animate-pulse rounded-2xl bg-muted" />
             </div>
           ) : races.length === 0 ? (
             <p className="py-20 text-center text-sm text-muted-foreground">The {year} calendar isn't out yet.</p>
           ) : (
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-              {races.map((race) => (
-                <li key={race.round}>
-                  <RaceCard year={year} race={race} showResults={showResults} />
-                </li>
-              ))}
-            </ul>
+            <>
+              {latest && <LatestRaceHero year={year} race={latest} next={next} showResults={showResults} canWatch={access.premium} />}
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">Races</h2>
+              <div className="grid gap-x-6 gap-y-3 lg:grid-cols-2">
+                {[races.slice(0, half), races.slice(half)].map((part, i) =>
+                  part.length ? (
+                    <ul key={i} className="divide-y divide-border/50 self-start overflow-hidden rounded-2xl border border-border/60 bg-secondary/20">
+                      {part.map((race) => (
+                        <li key={race.round}>
+                          <RaceRow year={year} race={race} showResults={showResults} />
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null
+                )}
+              </div>
+            </>
           )}
         </main>
       </F1Chrome>
