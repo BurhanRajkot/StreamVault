@@ -29,7 +29,10 @@ export function isF1Session(value: unknown): value is F1Session {
 
 /**
  * Lowercase words, for matching: accents dropped ("São" → "sao"), joined
- * words split ("AbuDhabiGP" → "abu dhabi gp"), punctuation turned to spaces.
+ * words split ("AbuDhabiGP" → "abu dhabi gp"), punctuation turned to spaces,
+ * and a season numbered like a TV series split from its number
+ * ("Formula.1.2026x19.Mexico" → "formula 1 2026 x19 mexico" — the most-shared
+ * Sky F1 uploads are named so, and "2026x19" isn't the word "2026").
  */
 export function normalizeName(name: string): string {
   return name
@@ -39,6 +42,7 @@ export function normalizeName(name: string): string {
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b((?:19|20)\d{2})x(\d{1,3})\b/g, '$1 x$2')
     .trim()
 }
 

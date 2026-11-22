@@ -5,10 +5,14 @@
  * - Calendars come from Jolpica (api.jolpi.ca), the Ergast API's successor:
  *   free, keyless, every season since 1950, with session times since 2005-ish
  *   and race winners.
- * - Releases come from apibay, searched by the Grand Prix's names and its
- *   round number, then read by lib/f1Names: which race each one is, which
- *   sessions it holds. Torrentio can't help — it finds releases by IMDb id,
- *   and races have none.
+ * - Releases come from Knaben (an index of public trackers, The Pirate Bay's
+ *   among them) and apibay, searched by the Grand Prix's names and its round
+ *   number, then read by lib/f1Names: which race each one is, which sessions
+ *   it holds. Torrentio can't help — it finds releases by IMDb id, and races
+ *   have none. Knaben is what finds the most-shared uploads, which are named
+ *   like a TV series ("Formula.1.2026x19.Mexico.Race.SkyF1HD.1080p"): apibay's
+ *   whole-word search never matches "2026" in "2026x19", and the session
+ *   uploads that do say "2026" on their own are the ones taken down first.
  *
  * Nothing here touches Real-Debrid: like GET /releases, it only reads public
  * indexes. The Premium player plays a release through /debrid/play, passing
@@ -215,7 +219,7 @@ export async function getSeason(year: number): Promise<F1Season> {
 }
 
 // ---------------------------------------------------------------------------
-// Releases (apibay)
+// Releases (Knaben, apibay)
 // ---------------------------------------------------------------------------
 
 /**
@@ -224,8 +228,62 @@ export async function getSeason(year: number): Promise<F1Season> {
  */
 const MIN_RELEASE_BYTES = 300 * 1024 ** 2
 
-/** apibay queries asked at once for one race: it answers each in ~1s, and doesn't need hammering. */
+/** Queries asked at once of each index for one race: apibay answers each in ~1s, Knaben in ~0.2s; neither needs hammering. */
 const QUERY_CONCURRENCY = 3
+
+const KNABEN_URL = process.env.KNABEN_URL || 'https://api.knaben.org/v1'
+
+/** One Knaben search result (the fields used). */
+interface KnabenHit {
+  id?: string
+  title?: string
+  /** Info-hash, uppercase hex. */
+  hash?: string | null
+  bytes?: number
+  seeders?: number
+  peers?: number
+  /** e.g. [2000000, 2001000] — 2xxxxxx is TV, 3xxxxxx film. */
+  categoryId?: number[]
+  tracker?: string
+  date?: string
+}
+
+/** A Knaben hit as an apibay row, so both indexes' results go through one sorting. Null when it has no info-hash. */
+export function knabenRow(hit: KnabenHit): ApibayResult | null {
+  const hash = hit.hash?.toUpperCase()
+  if (!hash || !/^[0-9A-F]{40}$/.test(hash) || !hit.title) return null
+  const ids = hit.categoryId ?? []
+  // apibay's video categories are 2xx: TV as 208, film as 207, anything else as not video
+  const category = ids.some((c) => String(c).startsWith('2')) ? '208' : ids.some((c) => String(c).startsWith('3')) ? '207' : '0'
+  const added = hit.date ? Math.floor(Date.parse(hit.date) / 1000) : 0
+  return {
+    id: `knaben:${hit.id ?? hash}`,
+    name: hit.title,
+    info_hash: hash,
+    leechers: String(Math.max(0, (hit.peers ?? 0) - (hit.seeders ?? 0))),
+    seeders: String(hit.seeders ?? 0),
+    num_files: '0',
+    size: String(hit.bytes ?? 0),
+    username: hit.tracker ?? 'knaben',
+    added: String(Number.isFinite(added) ? added : 0),
+    status: '',
+    category,
+    imdb: '',
+  }
+}
+
+/** One Knaben search, as apibay-shaped rows. */
+async function searchKnaben(query: string): Promise<ApibayResult[]> {
+  const res = await fetch(KNABEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': 'StreamVault/1.0' },
+    body: JSON.stringify({ query, size: 100, hide_unsafe: true, hide_xxx: true }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!res.ok) throw new Error(`Knaben answered ${res.status}`)
+  const body = (await res.json()) as { hits?: KnabenHit[] }
+  return (body.hits ?? []).map(knabenRow).filter((r): r is ApibayResult => r !== null)
+}
 
 const RELEASES_TTL_S = 60 * 60
 const NO_RELEASES_TTL_S = 15 * 60
@@ -246,6 +304,21 @@ export function raceQueries(year: number, race: Pick<F1Race, 'round' | 'name' | 
   queries.add(`formula 1 ${year} round ${round}`)
   queries.add(`formula1 ${year} round ${round}`)
   queries.add(`f1 ${year} r${round}`)
+  // "Formula.1.2026x19.Mexico…" — the season-by-round word, as apibay has it
+  queries.add(`formula 1 ${year}x${round}`)
+  return [...queries]
+}
+
+/**
+ * What to ask Knaben. Its search matches within words ("2026" finds
+ * "2026x19"), so each of the race's names with each spelling of "Formula 1"
+ * is enough.
+ */
+export function knabenQueries(year: number, race: Pick<F1Race, 'round' | 'name' | 'country' | 'locality'>): string[] {
+  const queries = new Set<string>()
+  for (const name of searchNames(race).slice(0, 3)) {
+    for (const prefix of ['formula 1', 'formula1']) queries.add(`${prefix} ${year} ${name}`)
+  }
   return [...queries]
 }
 
@@ -274,11 +347,16 @@ async function pooled<T>(tasks: Array<() => Promise<T>>, limit: number, fallback
  */
 export function sortIntoRace(rows: readonly ApibayResult[], year: number, race: F1Race, season: readonly F1Race[]): F1Release[] {
   const listed = race.sessionsListed ? new Set(race.sessions.map((s) => s.key)) : null
-  const seen = new Set<string>()
-  const releases: F1Release[] = []
+  // The same torrent from both indexes: the one that counts more people sharing it
+  const byHash = new Map<string, ApibayResult>()
   for (const row of rows) {
     const hash = row.info_hash?.toUpperCase()
-    if (!hash || !/^[0-9A-F]{40}$/.test(hash) || seen.has(hash)) continue
+    if (!hash || !/^[0-9A-F]{40}$/.test(hash)) continue
+    const held = byHash.get(hash)
+    if (!held || (Number(row.seeders) || 0) > (Number(held.seeders) || 0)) byHash.set(hash, row)
+  }
+  const releases: F1Release[] = []
+  for (const [hash, row] of byHash) {
     // Video categories only (2xx): not games, music or e-books that share the words
     if (!String(row.category).startsWith('2')) continue
     const size = Number(row.size)
@@ -288,7 +366,6 @@ export function sortIntoRace(rows: readonly ApibayResult[], year: number, race: 
     if (matchRace(row.name, season)?.round !== race.round) continue
     const sessions = listed ? read.sessions.filter((s) => listed.has(s)) : read.sessions
     if (sessions.length === 0) continue
-    seen.add(hash)
     releases.push({
       id: row.id,
       name: row.name,
@@ -321,7 +398,8 @@ export async function findRaceReleases(year: number, round: number): Promise<F1R
   const race = season.races.find((r) => r.round === round)
   if (!race) return null
 
-  const key = `releases:${year}:${round}`
+  // v2: Knaben joined apibay — lists cached before that miss most of the shared uploads
+  const key = `releases:v2:${year}:${round}`
   const hit = await cache.f1.get<F1Release[]>(key)
   if (hit) return hit
 
@@ -329,20 +407,30 @@ export async function findRaceReleases(year: number, round: number): Promise<F1R
   if (inflight) return inflight
 
   const load = (async () => {
-    const queries = raceQueries(year, race)
+    const searches = [
+      ...knabenQueries(year, race).map((query) => ({ index: 'knaben', query, run: () => searchKnaben(query) })),
+      ...raceQueries(year, race).map((query) => ({ index: 'apibay', query, run: () => searchApibay(query) })),
+    ]
     let failures = 0
-    const pages = await pooled(
-      queries.map((q) => () => searchApibay(q)),
-      QUERY_CONCURRENCY,
-      (err, i) => {
-        failures++
-        logger.warn('F1 release search failed', { query: queries[i], error: err instanceof Error ? err.message : String(err) })
-        return []
-      }
+    const onFailure = (err: unknown, query: string, index: string): ApibayResult[] => {
+      failures++
+      logger.warn('F1 release search failed', { index, query, error: err instanceof Error ? err.message : String(err) })
+      return []
+    }
+    // Each index in its own pool, side by side
+    const pages = await Promise.all(
+      ['knaben', 'apibay'].map((index) => {
+        const mine = searches.filter((s) => s.index === index)
+        return pooled(
+          mine.map((s) => s.run),
+          QUERY_CONCURRENCY,
+          (err, i) => onFailure(err, mine[i].query, index)
+        )
+      })
     )
-    // Every query failed: apibay is down — say so rather than cache "nothing shared"
-    if (failures === queries.length) throw new Error('Release index unavailable')
-    const releases = sortIntoRace(pages.flat(), year, race, season.races)
+    // Every query failed: both indexes are down — say so rather than cache "nothing shared"
+    if (failures === searches.length) throw new Error('Release indexes unavailable')
+    const releases = sortIntoRace(pages.flat(2), year, race, season.races)
     await cache.f1.set(key, releases, releases.length > 0 ? RELEASES_TTL_S : NO_RELEASES_TTL_S)
     return releases
   })().finally(() => inflightReleases.delete(key))

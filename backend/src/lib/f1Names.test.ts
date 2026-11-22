@@ -9,6 +9,11 @@ describe('normalizeName', () => {
     expect(normalizeName('São Paulo Grand Prix')).toBe('sao paulo grand prix')
     expect(normalizeName('Formula.1.2022.Round.22.AbuDhabiGP.Race')).toBe('formula 1 2022 round 22 abu dhabi gp race')
   })
+
+  it('splits a season numbered like a TV series from its number', () => {
+    expect(normalizeName('Formula.1.2026x19.Mexico.Race.SkyF1HD.1080p')).toBe('formula 1 2026 x19 mexico race sky f1hd 1080p')
+    expect(normalizeName('Formula.1.2025x65.Round.12.BritishGP')).toBe('formula 1 2025 x65 round 12 british gp')
+  })
 })
 
 describe('readSessions', () => {
@@ -111,6 +116,11 @@ describe('matchRace', () => {
     expect(matchRace('F1.Spanish.GP.2009.Race.DaRmEtH.mkv', SEASON_2009)?.round).toBe(5)
   })
 
+  it("doesn't take a series-style number for the round", () => {
+    const season2025 = [race(22, 'Las Vegas Grand Prix', 'USA', 'Las Vegas'), race(24, 'Abu Dhabi Grand Prix', 'UAE', 'Abu Dhabi')]
+    expect(matchRace('Formula.1.2025x22.Abu.Dhabi.Race.SkyF1HD.1080p', season2025)?.round).toBe(24)
+  })
+
   it('goes by the round number when the name gives nothing else', () => {
     expect(matchRace('F1.2020.R04.SkyF1HD.1080P', SEASON_2020)?.round).toBe(4)
   })
@@ -128,6 +138,14 @@ describe('searchNames', () => {
 })
 
 describe('readF1Release', () => {
+  it('reads an upload named like a TV series', () => {
+    expect(readF1Release('Formula.1.2026x19.Mexico.Qualifying.SkyF1HD.1080p', 2026, 14 * GB)).toEqual({
+      sessions: ['qualifying'],
+      pack: false,
+      round: null,
+    })
+  })
+
   it('reads a broadcast of the season', () => {
     expect(readF1Release('Formula1 2021 Bahrain Grand Prix Race 1080p50 HDTV DD2.0 x264-wAm', 2021, 5 * GB)).toEqual({
       sessions: ['race'],

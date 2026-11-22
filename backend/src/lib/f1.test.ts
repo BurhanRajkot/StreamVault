@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { isSeasonYear, raceQueries, sessionSlots, sortIntoRace, type F1Race } from './f1'
+import { isSeasonYear, knabenQueries, knabenRow, raceQueries, sessionSlots, sortIntoRace, type F1Race } from './f1'
 import type { ApibayResult } from './debrid'
 
 const GB = 1024 ** 3
@@ -77,7 +77,50 @@ describe('raceQueries', () => {
       'formula 1 2016 round 20',
       'formula1 2016 round 20',
       'f1 2016 r20',
+      'formula 1 2016x20',
     ])
+  })
+})
+
+describe('knabenQueries', () => {
+  it('asks Knaben by each name, with each way of writing Formula 1', () => {
+    expect(knabenQueries(2026, { round: 19, name: 'Mexico City Grand Prix', country: 'Mexico', locality: 'Mexico City' })).toEqual([
+      'formula 1 2026 mexico city',
+      'formula1 2026 mexico city',
+      'formula 1 2026 mexico',
+      'formula1 2026 mexico',
+    ])
+  })
+})
+
+describe('knabenRow', () => {
+  it('reads a Knaben hit as an apibay row', () => {
+    expect(
+      knabenRow({
+        id: 'abc',
+        title: 'Formula.1.2026x19.Mexico.Race.SkyF1HD.1080p',
+        hash: 'CE73C9666E96D4366661175A7A1F2B30A4F48A27',
+        bytes: 24_800_000_000,
+        seeders: 215,
+        peers: 240,
+        categoryId: [2000000, 2001000],
+        tracker: 'The Pirate Bay',
+        date: '2026-11-01T00:42:00+00:00',
+      })
+    ).toMatchObject({
+      name: 'Formula.1.2026x19.Mexico.Race.SkyF1HD.1080p',
+      info_hash: 'CE73C9666E96D4366661175A7A1F2B30A4F48A27',
+      seeders: '215',
+      leechers: '25',
+      size: '24800000000',
+      category: '208',
+      username: 'The Pirate Bay',
+    })
+  })
+
+  it("passes over a hit with no info-hash, and marks what isn't video", () => {
+    expect(knabenRow({ title: 'x', hash: null })).toBeNull()
+    expect(knabenRow({ title: 'F1 2024 game', hash: 'A'.repeat(40), categoryId: [4000000] })?.category).toBe('0')
   })
 })
 
@@ -109,6 +152,36 @@ describe('sortIntoRace', () => {
     const [pack] = sortIntoRace([row('F1.2025.R24.Abu.Dhabi.Grand.Prix.SkyUHD.2160P', { size: String(75 * GB) })], 2025, abuDhabi, season)
     expect(pack.pack).toBe(true)
     expect(pack.sessions).toEqual(['fp1', 'fp2', 'fp3', 'qualifying', 'race'])
+  })
+
+  it("reads the most-shared uploads, named like a TV series", () => {
+    const mexico = f1Race(19, 'Mexico City Grand Prix', 'Mexico', 'Mexico City', [slot('fp1'), slot('qualifying'), slot('race')])
+    const releases = sortIntoRace(
+      [
+        row('Formula.1.2026x19.Mexico.Race.SkyF1HD.1080p', { seeders: '215', size: String(24 * GB) }),
+        row('Formula.1.2026x103.Mexico.Qualifying.MULTi.1080p.SS', { seeders: '65', size: String(5 * GB) }),
+        row('Formula.1.2026.Mexico.Pre.Race.Show.1080p.SS', { seeders: '9', size: String(3 * GB) }),
+      ],
+      2026,
+      mexico,
+      [mexico]
+    )
+    expect(releases.map((r) => [r.name, r.sessions])).toEqual([
+      ['Formula.1.2026x19.Mexico.Race.SkyF1HD.1080p', ['race']],
+      ['Formula.1.2026x103.Mexico.Qualifying.MULTi.1080p.SS', ['qualifying']],
+    ])
+  })
+
+  it('keeps the count of whichever index has more people sharing a torrent', () => {
+    const name = 'formula1 2025 abu dhabi grand prix 720p WEB H264-JFF'
+    const hash = 'C'.repeat(40)
+    const [release] = sortIntoRace(
+      [row(name, { info_hash: hash, seeders: '1' }), row(name, { info_hash: hash, seeders: '6' })],
+      2025,
+      abuDhabi,
+      season
+    )
+    expect(release.seeders).toBe('6')
   })
 
   it('passes over clips, other categories and the same torrent twice', () => {
