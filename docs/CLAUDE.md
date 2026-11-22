@@ -290,8 +290,11 @@ accounts, and `mockApi.state.asApp = true` to play an approved account's Premium
 (Practice 1–3, Sprint Qualifying, Sprint, Qualifying, Race) → watch or
 download. The public backend `GET /f1/seasons/:year` takes calendars, session
 times and winners from Jolpica (Ergast's successor, keyless);
-`GET /f1/seasons/:year/races/:round/releases` asks apibay by the Grand Prix's
-names and round, and `lib/f1Names.ts` reads each release name: which race,
+`GET /f1/seasons/:year/races/:round/releases` asks Knaben (`api.knaben.org`,
+an index of public trackers) and apibay by the Grand Prix's names and round —
+Knaben finds the most-shared uploads, named like a TV series
+(`Formula.1.2026x19.Mexico.Race.SkyF1HD.1080p`), which apibay's whole-word
+search misses — and `lib/f1Names.ts` reads each release name: which race,
 which sessions (a "Qualifying + Race" torrent or a ~77 GB SkyUHD weekend pack
 holds several — `pack`), dropping shows, highlights, games and
 foreign-commentary broadcasts. Torrentio can't help (races have no IMDb id).
