@@ -49,7 +49,8 @@ router.get('/seasons/:year/races/:round/releases', async (req: Request, res: Res
     const releases = await findRaceReleases(year, round)
     if (!releases) return res.status(404).json({ error: `No round ${round} in ${year}` })
     // The indexes are asked at most hourly server-side; browsers and the CDN can hold it a while too
-    res.set('Cache-Control', 'public, max-age=600')
+    // An empty list can change any minute (uploads turn up after a session): don't let it be held
+    res.set('Cache-Control', releases.length > 0 ? 'public, max-age=600' : 'no-store')
     return res.json({ data: releases })
   } catch (err: unknown) {
     logger.error('F1 release search failed', { year, round, error: errorMessage(err) })

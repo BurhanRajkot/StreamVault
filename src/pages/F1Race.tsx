@@ -260,7 +260,8 @@ function SessionRow({
   const shared = releases === undefined || releases.some((r) => Number(r.seeders) > 0)
   const status = upcoming ? 'Not run yet' : searching ? 'Looking for copies…' : releases ? (none ? 'Nobody is sharing it yet' : releaseSummary(releases)) : ''
   const when = sessionWhen(slot)
-  const watchable = !upcoming && !none && canWatch
+  // An empty list may just be out of date: the player searches again itself
+  const watchable = !upcoming && canWatch
 
   return (
     <li
