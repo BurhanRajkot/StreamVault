@@ -20,6 +20,9 @@
 import type { BrowserContext, Request, Route } from '@playwright/test'
 import {
   CATALOGUE,
+  F1_RACES,
+  F1_YEAR,
+  f1Releases,
   MOVIE,
   SHOW,
   SHOW_SEASONS,
@@ -383,6 +386,16 @@ export class MockApi {
       })
     }
     this.on('GET', '/releases', ({ query }) => releasesFor(query))
+
+    // — The F1 archive: public calendars and release lists (backend/src/routes/f1.ts) —
+    this.on('GET', '/f1/seasons/:year(\\d{4})', ({ params }) =>
+      ok({ data: { year: Number(params.year), races: Number(params.year) === F1_YEAR ? F1_RACES : [] } })
+    )
+    this.on('GET', '/f1/seasons/:year(\\d{4})/races/:round(\\d+)/releases', ({ params }) =>
+      Number(params.year) === F1_YEAR && F1_RACES.some((r) => r.round === Number(params.round))
+        ? ok({ data: f1Releases(Number(params.round)) })
+        : { status: 404, json: { error: 'No such round' } }
+    )
 
     // — Account access, decided like backend/src/lib/userAccess.ts decidePremium —
     const me = () => this.state.users.find((u) => u.id === SIGNED_IN.sub)

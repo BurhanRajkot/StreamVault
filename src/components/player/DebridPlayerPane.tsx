@@ -59,7 +59,7 @@ import {
 import { appConvertsAudio } from '@/lib/localStream'
 import { estimateConnection, knownThroughput } from '@/lib/connection'
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
-import { findPremiumReleases } from '@/lib/premiumSearch'
+import { findPremiumReleases, type PremiumReleaseSource } from '@/lib/premiumSearch'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
@@ -101,6 +101,15 @@ export interface DebridPlayerPaneProps {
    * connection's speed it says which releases play without stalling.
    */
   runtimeMinutes?: number | null
+  /**
+   * Where the releases come from, when not the title search — the F1
+   * archive's (lib/f1). Its key also keys the resume point.
+   */
+  releaseSource?: PremiumReleaseSource
+  /** The line under the title when it isn't an episode's — "2025 · Round 24 · Race". */
+  subtitle?: string
+  /** What the way out is called — "Switch server" unless the page has no other servers. */
+  exitLabel?: string
 }
 
 /** What the page shows under the player: the releases to switch between, and the playing file to save. */
@@ -273,6 +282,9 @@ export function DebridPlayerPane({
   episodes,
   topActions,
   runtimeMinutes,
+  releaseSource,
+  subtitle,
+  exitLabel = 'Switch server',
 }: DebridPlayerPaneProps) {
   const getToken = useDebridToken()
   /** The file itself may be offered (save, VLC) — the admin can pause that per account. */
@@ -345,7 +357,16 @@ export function DebridPlayerPane({
   const knownDurationRef = useRef<number | undefined>(undefined)
   knownDurationRef.current = runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes * 60 : undefined
 
-  const episodeOpts = useMemo(() => (mediaType === 'tv' ? { season, episode } : {}), [mediaType, season, episode])
+  /** Read by the search without being one of its inputs: only its key says it changed. */
+  const releaseSourceRef = useRef(releaseSource)
+  releaseSourceRef.current = releaseSource
+  const releaseSourceKey = releaseSource?.key
+  const releaseSession = releaseSource?.session
+
+  const episodeOpts = useMemo(
+    () => (mediaType === 'tv' ? { season, episode } : releaseSession ? { session: releaseSession } : {}),
+    [mediaType, season, episode, releaseSession]
+  )
 
   // Searched once a file is ready to play: the versions are ranked for it.
   const subtitles = useSubtitles(
@@ -373,8 +394,13 @@ export function DebridPlayerPane({
 
   /** Resume-point key for this title, or this episode. */
   const storageKey = useMemo(
-    () => resumeKey(imdbId || `${title}:${year ?? ''}`, mediaType === 'tv' ? season : undefined, mediaType === 'tv' ? episode : undefined),
-    [imdbId, title, year, mediaType, season, episode]
+    () =>
+      resumeKey(
+        releaseSourceKey || imdbId || `${title}:${year ?? ''}`,
+        mediaType === 'tv' ? season : undefined,
+        mediaType === 'tv' ? episode : undefined
+      ),
+    [releaseSourceKey, imdbId, title, year, mediaType, season, episode]
   )
   const storageKeyRef = useRef(storageKey)
   storageKeyRef.current = storageKey
@@ -826,7 +852,10 @@ export function DebridPlayerPane({
     const token = await getToken()
 
     try {
-      const releases = await findPremiumReleases({ title, year, imdbId, mediaType, season, episode }, token, { fresh })
+      const source = releaseSourceRef.current
+      const releases = source
+        ? await source.find({ fresh })
+        : await findPremiumReleases({ title, year, imdbId, mediaType, season, episode }, token, { fresh })
       if (generationRef.current !== generation) return
 
       const support = detectBrowserVideoSupport()
@@ -839,8 +868,10 @@ export function DebridPlayerPane({
       const cached = ranked.filter((r) => r.cached)
       // An uncached release needs live seeders, or it just sits in
       // Real-Debrid's download queue forever.
-      const uncached = fit(ranked.filter((r) => !r.cached && parseInt(r.seeders, 10) > 0))
-      uncachedFallbackRef.current = uncached[0] ?? null
+      const seeded = (r: DebridRelease) => parseInt(r.seeders, 10) > 0
+      const uncached = fit(ranked.filter((r) => !r.cached && seeded(r)))
+      // A pack would be downloaded whole for the one thing in it that's wanted: never the fallback
+      uncachedFallbackRef.current = uncached.find((r) => !r.pack) ?? null
 
       if (cached.length > 0) {
         // The Quality menu keeps the best first; only the automatic pick follows the connection.
@@ -854,18 +885,21 @@ export function DebridPlayerPane({
         return
       }
 
-      if (uncached.length > 0) {
-        // Nothing says what's cached, but popular releases usually are: ask
-        // Real-Debrid about the best few before downloading anything.
+      // Nothing says what's cached, but popular releases usually are: ask
+      // Real-Debrid about the best few before downloading anything — and,
+      // for an archive, about the ones nobody shares any more as well.
+      const probe = source?.probeUnseeded ? [...uncached, ...ranked.filter((r) => !r.cached && !seeded(r))] : uncached
+      if (probe.length > 0) {
         probingRef.current = true
-        releaseQueueRef.current = uncached.slice(0, MAX_AUTO_RELEASE_ATTEMPTS)
-        await streamRelease(uncached[0], token, { preferDirect: true })
+        releaseQueueRef.current = probe.slice(0, MAX_AUTO_RELEASE_ATTEMPTS)
+        await streamRelease(probe[0], token, { preferDirect: true })
         return
       }
 
       setStatus('not-found')
       setStatusMessage(
-        `Premium has no copy of ${mediaType === 'tv' ? 'this episode' : title} yet. Another server may have it.`
+        source?.notFoundMessage ??
+          `Premium has no copy of ${mediaType === 'tv' ? 'this episode' : title} yet. Another server may have it.`
       )
     } catch (err: unknown) {
       if (generationRef.current !== generation) return
@@ -874,6 +908,7 @@ export function DebridPlayerPane({
       setFailedOffline(isNetworkFailure(err))
       setStatusMessage(isNetworkFailure(err) ? NETWORK_ERROR_MESSAGE : err instanceof Error ? err.message : 'Search failed')
     }
+    // A new release source searches again through storageKey, which is keyed by it
   }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease])
 
   // Back online: pick up whatever the connection interrupted — the film
@@ -953,7 +988,7 @@ export function DebridPlayerPane({
   useEffect(() => () => onReleaseControls?.(null), [onReleaseControls])
 
   const episodeLine =
-    mediaType === 'tv' && season !== undefined && episode !== undefined ? `Season ${season} · Episode ${episode}` : undefined
+    mediaType === 'tv' && season !== undefined && episode !== undefined ? `Season ${season} · Episode ${episode}` : subtitle
 
   // --- Finding a release / resolving it / waiting on a download ---
   if (status === 'searching' || status === 'loading-stream' || status === 'downloading') {
@@ -964,6 +999,7 @@ export function DebridPlayerPane({
         backdropUrl={backdropUrl}
         testId="debrid-loading"
         onSwitchServer={onSwitchServer}
+        switchLabel={exitLabel}
         title={title}
         episodeLine={episodeLine}
         step={status === 'searching' ? 'find' : 'prepare'}
@@ -986,7 +1022,7 @@ export function DebridPlayerPane({
         <StatusMessage heading="Premium isn't available to you right now" body="Your access may have changed. Every other server still works." />
         <ActionRow>
           <button onClick={onSwitchServer} className={primaryAction}>
-            Switch server
+            {exitLabel}
           </button>
         </ActionRow>
       </PaneBackdrop>
@@ -1003,7 +1039,7 @@ export function DebridPlayerPane({
         />
         <ActionRow>
           <button onClick={onSwitchServer} className={primaryAction}>
-            Switch server
+            {exitLabel}
           </button>
           <button onClick={() => void searchAndPlay({ fresh: true })} className={secondaryAction}>
             <RefreshCw className="h-4 w-4" />
@@ -1032,7 +1068,7 @@ export function DebridPlayerPane({
             {lostAt > 0 ? 'Resume' : 'Try again'}
           </button>
           <button onClick={onSwitchServer} className={secondaryAction}>
-            Switch server
+            {exitLabel}
           </button>
         </ActionRow>
       </PaneBackdrop>
@@ -1065,7 +1101,7 @@ export function DebridPlayerPane({
             </a>
           )}
           <button onClick={onSwitchServer} className={secondaryAction}>
-            Switch server
+            {exitLabel}
           </button>
         </ActionRow>
       </PaneBackdrop>
@@ -1092,7 +1128,7 @@ export function DebridPlayerPane({
         nextLabel={nextLabel}
         onBack={onBack}
         title={title}
-        subtitle={mediaType === 'tv' && season !== undefined && episode !== undefined ? `S${season} · E${episode}` : undefined}
+        subtitle={mediaType === 'tv' && season !== undefined && episode !== undefined ? `S${season} · E${episode}` : subtitle}
         sources={sources}
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}
@@ -1107,6 +1143,7 @@ export function DebridPlayerPane({
             backdropUrl={backdropUrl}
             testId="debrid-starting"
             onSwitchServer={onSwitchServer}
+            switchLabel={exitLabel}
             title={title}
             episodeLine={episodeLine}
             step="start"

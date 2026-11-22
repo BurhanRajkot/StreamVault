@@ -23,40 +23,56 @@ const DebridPlayerPane = lazy(() =>
   import('./DebridPlayerPane').then((module) => ({ default: module.DebridPlayerPane }))
 )
 
-const NOTICES: Record<Exclude<PremiumReason, 'granted'>, { heading: string; body: string }> = {
+/** Why Premium won't play, and — `elsewhere` — what still does. */
+const NOTICES: Record<Exclude<PremiumReason, 'granted'>, { heading: string; body: string; elsewhere: string }> = {
   'sign-in-required': {
     heading: 'Premium is invite-only',
-    body: "It plays for the site's admin and for accounts the admin approves. Every other server is free and open to everyone.",
+    body: "It plays for the site's admin and for accounts the admin approves.",
+    elsewhere: 'Every other server is free and open to everyone.',
   },
   'not-approved': {
     heading: 'Premium is invite-only',
-    body: "Your account doesn't have Premium access. Every other server is free and open to everyone.",
+    body: "Your account doesn't have Premium access.",
+    elsewhere: 'Every other server is free and open to everyone.',
   },
   paused: {
     heading: 'Your Premium access is paused',
-    body: 'The admin has paused Premium for your account for now. Every other server still works.',
+    body: 'The admin has paused Premium for your account for now.',
+    elsewhere: 'Every other server still works.',
   },
   'paused-for-all': {
     heading: 'Premium is paused right now',
-    body: 'Premium is switched off for the moment. Every other server still works.',
+    body: 'Premium is switched off for the moment.',
+    elsewhere: 'Every other server still works.',
   },
   suspended: {
     heading: 'This account is suspended',
-    body: 'The admin has suspended this account. You can still watch on every other server.',
+    body: 'The admin has suspended this account.',
+    elsewhere: 'You can still watch on every other server.',
   },
   'update-required': {
     heading: 'Update the app to keep using Premium',
-    body: 'This version of StreamVault is too old for Premium. Update it from My Space → About (or download the latest release); every other server still works.',
+    body: 'This version of StreamVault is too old for Premium. Update it from My Space → About (or download the latest release).',
+    elsewhere: 'Every other server still works.',
   },
   'app-only': {
     heading: 'Your Premium is in the app',
-    body: 'Premium on your account plays in the StreamVault app for Android, Linux and Windows. Every other server works here.',
+    body: 'Premium on your account plays in the StreamVault app for Android, Linux and Windows.',
+    elsewhere: 'Every other server works here.',
   },
 }
 
 const APP_DOWNLOAD_URL = 'https://github.com/BurhanRajkot/StreamVault/releases/latest'
 
-export function PremiumPane(props: DebridPlayerPaneProps) {
+interface PremiumPaneProps extends DebridPlayerPaneProps {
+  /**
+   * What still plays when Premium doesn't, said under the reason — "every
+   * other server" unless the page has none (the F1 archive).
+   */
+  elsewhere?: string
+}
+
+export function PremiumPane({ elsewhere, ...props }: PremiumPaneProps) {
   const access = usePremiumAccess()
   // The admin token lands a moment before the sign-in animation ends; stay on
   // the notice until the modal says it's done, so the animation isn't cut off.
@@ -67,6 +83,7 @@ export function PremiumPane(props: DebridPlayerPaneProps) {
       <PremiumLoading
         backdropUrl={props.backdropUrl}
         onSwitchServer={props.onSwitchServer}
+        switchLabel={props.exitLabel}
         title={props.title}
         step="find"
         percent={null}
@@ -82,10 +99,10 @@ export function PremiumPane(props: DebridPlayerPaneProps) {
         <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10" aria-hidden="true">
           <Lock className="h-5 w-5 text-white/80" />
         </span>
-        <StatusMessage heading={notice.heading} body={notice.body} />
+        <StatusMessage heading={notice.heading} body={`${notice.body} ${elsewhere ?? notice.elsewhere}`} />
         <ActionRow>
           <button onClick={props.onSwitchServer} className={primaryAction}>
-            Switch server
+            {props.exitLabel ?? 'Switch server'}
           </button>
           {access.reason === 'app-only' && (
             <a href={APP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer" className={secondaryAction}>
@@ -112,6 +129,7 @@ export function PremiumPane(props: DebridPlayerPaneProps) {
         <PremiumLoading
           backdropUrl={props.backdropUrl}
           onSwitchServer={props.onSwitchServer}
+          switchLabel={props.exitLabel}
           title={props.title}
           step="find"
           percent={null}

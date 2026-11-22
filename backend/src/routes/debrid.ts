@@ -32,6 +32,7 @@ import * as debrid from '../lib/debrid'
 import * as subtitles from '../lib/subtitles'
 import { parseReleaseSearchQuery } from './releases'
 import { debridDownloadsAllowed } from '../lib/userAccess'
+import { isF1Session } from '../lib/f1Names'
 import { getUserId } from '../utils/auth'
 
 const router = Router()
@@ -156,7 +157,10 @@ router.get('/media-search', async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /debrid/play — rate-limited
 // Body: { hash: string, name?: string, fileName?: string, fileIdx?: number,
-//         season?: number, episode?: number, instantOnly?: boolean }
+//         season?: number, episode?: number, session?: F1Session, instantOnly?: boolean }
+//
+// `session` (an F1 archive play) picks that session's file out of a torrent
+// holding the whole race weekend.
 //
 // Reuses the torrent if it's already in the account, otherwise adds it, then
 // selects its video files. Answers with one of:
@@ -174,6 +178,7 @@ router.post('/play', downloadRateLimiter, async (req: Request, res: Response) =>
     fileIdx?: unknown
     season?: unknown
     episode?: unknown
+    session?: unknown
     instantOnly?: unknown
     purpose?: unknown
   }
@@ -199,6 +204,7 @@ router.post('/play', downloadRateLimiter, async (req: Request, res: Response) =>
       fileIdx: optionalInt(body.fileIdx),
       season: optionalInt(body.season),
       episode: optionalInt(body.episode),
+      session: isF1Session(body.session) ? body.session : undefined,
       instantOnly: body.instantOnly === true,
     })
     if (result.status !== 'ready') {
@@ -216,7 +222,7 @@ router.post('/play', downloadRateLimiter, async (req: Request, res: Response) =>
 })
 
 // ---------------------------------------------------------------------------
-// GET /debrid/play/:torrentId[?fileName=&fileIdx=&season=&episode=]
+// GET /debrid/play/:torrentId[?fileName=&fileIdx=&season=&episode=&session=]
 //
 // The polling half of POST /play. Not behind downloadRateLimiter: the player
 // polls every few seconds while a release downloads.
@@ -235,6 +241,7 @@ router.get('/play/:torrentId', async (req: Request, res: Response) => {
       fileIdx: optionalInt(req.query.fileIdx),
       season: optionalInt(req.query.season),
       episode: optionalInt(req.query.episode),
+      session: isF1Session(req.query.session) ? req.query.session : undefined,
     })
     return res.json(result)
   } catch (err: unknown) {

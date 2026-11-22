@@ -23,6 +23,7 @@
  */
 
 import { searchTorrentio, torrentioTorrentCandidates, type TorrentioTorrentCandidate } from './torrentio'
+import { findSessionFile, type F1Session } from './f1Names'
 import * as cache from '../services/cache'
 import { logger } from './logger'
 
@@ -508,11 +509,15 @@ export function filesToSelect(files: DebridTorrentFile[]): number[] {
 /**
  * The file to play out of a torrent's selected files: the one Torrentio
  * matched (by name, then index), else the right episode for TV, else the
- * largest video.
+ * F1 session asked for, else the largest video.
+ *
+ * An F1 torrent can hold a whole race weekend: with `session`, the file
+ * named for it — or, when no file names one, the largest for the race and
+ * nothing for any other session (null: this torrent doesn't hold it).
  */
 export function pickPlaybackFile(
   files: DebridTorrentFile[],
-  opts: { fileName?: string; fileIdx?: number; season?: number; episode?: number } = {}
+  opts: { fileName?: string; fileIdx?: number; season?: number; episode?: number; session?: F1Session } = {}
 ): DebridTorrentFile | null {
   const videos = files.filter((f) => VIDEO_EXT_RE.test(f.path) && !isSampleFile(f.path))
   const pool = videos.length ? videos : files
@@ -525,7 +530,11 @@ export function pickPlaybackFile(
     if (byName) return byName
   }
 
-  if (opts.season != null && opts.episode != null) {
+  if (opts.session) {
+    const sessionFile = findSessionFile(pool, opts.session)
+    if (sessionFile) return sessionFile
+    if (opts.session !== 'race') return null
+  } else if (opts.season != null && opts.episode != null) {
     const episodeFile = findEpisodeFile(pool, opts.season, opts.episode)
     if (episodeFile) return episodeFile
   } else if (opts.fileIdx != null) {
@@ -826,6 +835,8 @@ export async function preparePlayback(params: {
   fileIdx?: number
   season?: number
   episode?: number
+  /** An F1 session: the file to play out of a torrent holding the whole weekend (see pickPlaybackFile). */
+  session?: F1Session
   instantOnly?: boolean
 }): Promise<PlaybackResult> {
   let torrentId = params.torrentId
@@ -898,7 +909,8 @@ export async function preparePlayback(params: {
     linkIndex >= 0 && selected.length === info.links.length ? info.links[linkIndex] : info.links.length === 1 ? info.links[0] : null
 
   if (!file || !link) {
-    return { status: 'failed', torrentId, debridStatus: info.status, reason: 'No playable video file in this release' }
+    const reason = !file && params.session ? "This release doesn't hold that session" : 'No playable video file in this release'
+    return { status: 'failed', torrentId, debridStatus: info.status, reason }
   }
 
   const streams = await resolveStreams(link).catch((err: unknown) => {
@@ -942,7 +954,7 @@ export interface DebridRelease {
 const APIBAY_BASE = 'https://apibay.org'
 
 /** apibay.org raw result shape */
-interface ApibayResult {
+export interface ApibayResult {
   id: string
   name: string
   info_hash: string
@@ -983,6 +995,15 @@ async function fetchApibayResults(query: string, poolSize: number, cat: number):
     : []
 
   return results.slice(0, poolSize)
+}
+
+/**
+ * One apibay search across every category, as apibay answers it (at most
+ * 100 rows, no caching here) — for callers that sort the rows themselves,
+ * like the F1 archive (lib/f1.ts).
+ */
+export function searchApibay(query: string): Promise<ApibayResult[]> {
+  return fetchApibayResults(query, APIBAY_MAX_RESULTS, 0)
 }
 
 /**

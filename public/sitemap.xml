@@ -41,6 +41,14 @@
     <priority>0.9</priority>
   </url>
 
+  <!-- F1 archive -->
+  <url>
+    <loc>https://stream-vault.site/f1</loc>
+    <lastmod>2026-11-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
   <!-- Pricing Page -->
   <url>
     <loc>https://stream-vault.site/pricing</loc>

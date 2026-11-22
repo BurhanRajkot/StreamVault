@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Clapperboard, Github, Heart, Search, X } from 'lucide-react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { GITHUB_REPO_URL, MediaMode, MODE_PATHS } from '@/lib/config'
@@ -36,6 +36,9 @@ const NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
   { label: 'Docs', value: 'documentary' },
 ]
 
+/** The F1 archive — a section of its own beside the browse tabs, not one of them. */
+const F1_PATH = '/f1'
+
 /** Category pills shown on mobile. */
 const MOBILE_NAV_ITEMS: Array<{ label: string; value: MediaMode }> = [
   { label: 'Home', value: 'home' },
@@ -59,6 +62,8 @@ export function Header({
   const searchRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const inF1 = pathname === F1_PATH || pathname.startsWith(`${F1_PATH}/`)
   const { isAuthenticated } = useAuth0()
 
   // Mobile search state is controlled when the page passes it down.
@@ -277,6 +282,17 @@ export function Header({
                 </Link>
               )
             })}
+            <Link
+              to={F1_PATH}
+              aria-current={inF1 ? 'page' : undefined}
+              className={cn(
+                'relative whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-medium lg:px-4 lg:text-sm',
+                inF1 ? 'text-foreground' : mutedInteractiveClass
+              )}
+            >
+              {inF1 && <div className="absolute inset-0 rounded-full bg-primary/15" />}
+              <span className="relative z-10">F1</span>
+            </Link>
           </nav>
 
           {/* Right side: icons for the quiet things, one button for the one ask */}
@@ -482,6 +498,18 @@ export function Header({
                     </button>
                   )
                 })}
+                <button
+                  role="tab"
+                  aria-selected={inF1}
+                  data-active={inF1}
+                  onClick={() => navigate(F1_PATH)}
+                  className={cn(
+                    'h-9 shrink-0 rounded-full border px-4 text-[13px] font-semibold whitespace-nowrap tap-scale',
+                    inF1 ? 'border-transparent bg-foreground text-background' : 'border-border/60 bg-secondary/40 text-muted-foreground'
+                  )}
+                >
+                  F1
+                </button>
               </div>
             </>
           )}

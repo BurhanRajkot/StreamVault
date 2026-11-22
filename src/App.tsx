@@ -39,6 +39,9 @@ const NotFound = lazyImport(() => import('./pages/NotFound'))
 import ServerError from './pages/ServerError'
 const AccessDenied = lazyImport(() => import('./pages/AccessDenied'))
 const AdminDashboard = lazyImport(() => import('./pages/admin/Dashboard'))
+const F1 = lazyImport(() => import('./pages/F1'))
+const F1Race = lazyImport(() => import('./pages/F1Race'))
+const F1Watch = lazyImport(() => import('./pages/F1Watch'))
 
 // Minimal loading fallback — matches dark background so there's no flash
 const PageFallback = () => (
@@ -75,6 +78,11 @@ const AppContent = () => {
           <Route key={path} path={path} element={<Navigate to="/" replace />} />
         ))}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+        {/* The F1 archive: seasons → race weekend → a session on Premium */}
+        <Route path="/f1" element={<F1 />} />
+        <Route path="/f1/:year/:round" element={<F1Race />} />
+        <Route path="/f1/:year/:round/:session" element={<F1Watch />} />
 
         {/* Fallback pattern for direct links to Watch page */}
         <Route path="/watch/:mediaType/:idAndSlug" element={<Watch />} />

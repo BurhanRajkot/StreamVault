@@ -159,6 +159,31 @@ describe('pickPlaybackFile', () => {
   it('falls back to the largest video', () => {
     expect(pickPlaybackFile(pack)?.id).toBe(3)
   })
+
+  describe('an F1 weekend pack', () => {
+    const weekend = [
+      file(1, '/F1.2026.R18.United.States.Grand.Prix.SkyUHD.2160P/01.Teds.Notebook.mkv', 4000),
+      file(2, '/F1.2026.R18.United.States.Grand.Prix.SkyUHD.2160P/02.Practice.One.mkv', 9000),
+      file(3, '/F1.2026.R18.United.States.Grand.Prix.SkyUHD.2160P/05.Qualifying.mkv', 10000),
+      file(4, '/F1.2026.R18.United.States.Grand.Prix.SkyUHD.2160P/07.Pre-Race.Show.mkv', 12000),
+      file(5, '/F1.2026.R18.United.States.Grand.Prix.SkyUHD.2160P/08.Race.mkv', 20000),
+    ]
+
+    it('plays the session asked for, never the show around it', () => {
+      expect(pickPlaybackFile(weekend, { session: 'qualifying' })?.id).toBe(3)
+      expect(pickPlaybackFile(weekend, { session: 'race' })?.id).toBe(5)
+      expect(pickPlaybackFile(weekend, { session: 'fp1' })?.id).toBe(2)
+    })
+
+    it("has nothing for a session it doesn't hold", () => {
+      expect(pickPlaybackFile(weekend, { session: 'sprint' })).toBeNull()
+    })
+
+    it('takes the biggest file for the race when none is named', () => {
+      const parts = [file(1, '/Formula1.2021.Race/part1.mkv', 500), file(2, '/Formula1.2021.Race/part2.mkv', 700)]
+      expect(pickPlaybackFile(parts, { session: 'race' })?.id).toBe(2)
+    })
+  })
 })
 
 describe('findEpisodeFile', () => {

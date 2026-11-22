@@ -12,6 +12,26 @@
 
 import { searchDebridMedia, type DebridRelease } from './debridApi'
 
+/**
+ * Releases from somewhere other than the title search (Torrentio and apibay
+ * by IMDb id and title) — the F1 archive's, which has no IMDb ids to go by.
+ */
+export interface PremiumReleaseSource {
+  /** Names what's being searched: a new key searches again, and keys the resume point. */
+  key: string
+  find: (opts: { fresh: boolean }) => Promise<DebridRelease[]>
+  /** Sent when a release is started: picks that F1 session's file out of a torrent holding the whole race weekend. */
+  session?: string
+  /** What the player says when nothing turns up. */
+  notFoundMessage?: string
+  /**
+   * Ask Real-Debrid about releases nobody shares any more too, before
+   * downloading anything: an old broadcast is often still in its cache long
+   * after the last person stopped sharing it.
+   */
+  probeUnseeded?: boolean
+}
+
 export interface PremiumSearchTarget {
   title: string
   year?: string | number

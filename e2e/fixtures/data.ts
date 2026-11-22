@@ -283,3 +283,80 @@ export const SUBTITLE_LINES: Record<string, string> = {
 export function subtitleFile(line: string): string {
   return `1\r\n00:00:00,000 --> 00:10:00,000\r\n${line}\r\n`
 }
+
+// — The F1 archive (backend/src/routes/f1.ts) —
+
+export const F1_YEAR = 2025
+
+const slot = (key: string, date: string, time: string) => ({ key, date, time })
+
+/** Two race weekends of the 2025 season, as GET /f1/seasons/:year answers (backend lib/f1.ts F1Race). */
+export const F1_RACES = [
+  {
+    round: 23,
+    name: 'Qatar Grand Prix',
+    circuit: 'Lusail International Circuit',
+    locality: 'Lusail',
+    country: 'Qatar',
+    date: '2025-11-30',
+    time: '16:00:00Z',
+    sessions: [
+      slot('fp1', '2025-11-28', '13:30:00Z'),
+      slot('sprint-qualifying', '2025-11-28', '17:30:00Z'),
+      slot('sprint', '2025-11-29', '14:00:00Z'),
+      slot('qualifying', '2025-11-29', '18:00:00Z'),
+      slot('race', '2025-11-30', '16:00:00Z'),
+    ],
+    sessionsListed: true,
+    winner: { driver: 'Max Verstappen', team: 'Red Bull' },
+  },
+  {
+    round: 24,
+    name: 'Abu Dhabi Grand Prix',
+    circuit: 'Yas Marina Circuit',
+    locality: 'Abu Dhabi',
+    country: 'UAE',
+    date: '2025-12-07',
+    time: '13:00:00Z',
+    sessions: [
+      slot('fp1', '2025-12-05', '09:30:00Z'),
+      slot('fp2', '2025-12-05', '13:00:00Z'),
+      slot('fp3', '2025-12-06', '10:30:00Z'),
+      slot('qualifying', '2025-12-06', '14:00:00Z'),
+      slot('race', '2025-12-07', '13:00:00Z'),
+    ],
+    sessionsListed: true,
+    winner: { driver: 'Lando Norris', team: 'McLaren' },
+  },
+]
+
+/**
+ * The Abu Dhabi weekend's releases (GET /f1/seasons/:year/races/:round/releases):
+ * the race and qualifying on their own, and a 4K pack of the whole weekend.
+ */
+export function f1Releases(round: number) {
+  if (round !== 24) return []
+  return [
+    {
+      ...release({ name: 'F1.2025.R24.Abu.Dhabi.Grand.Prix.SkyUHD.2160P', seeders: '30', size: String(79_000_000_000), cached: false, category: '208' }),
+      file_name: undefined,
+      file_idx: undefined,
+      sessions: ['fp1', 'fp2', 'fp3', 'qualifying', 'race'],
+      pack: true,
+    },
+    {
+      ...release({ name: 'formula1 2025 abu dhabi grand prix 1080p WEB H264-GROUP', seeders: '12', size: String(5_200_000_000), cached: false, category: '208' }),
+      file_name: undefined,
+      file_idx: undefined,
+      sessions: ['race'],
+      pack: false,
+    },
+    {
+      ...release({ name: 'formula1 2025 abu dhabi grand prix qualifying 1080p WEB H264-GROUP', seeders: '4', size: String(3_100_000_000), cached: false, category: '208' }),
+      file_name: undefined,
+      file_idx: undefined,
+      sessions: ['qualifying'],
+      pack: false,
+    },
+  ]
+}

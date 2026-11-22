@@ -16,8 +16,14 @@ const LINKS = [
   { to: '/tv', label: 'TV Shows' },
   { to: '/anime', label: 'Anime' },
   { to: '/documentaries', label: 'Documentaries' },
+  { to: '/f1', label: 'F1' },
   { to: '/my-list', label: 'My List' },
 ]
+
+/** A link's section is on screen: the F1 link stays lit on a race and its sessions. */
+function isCurrent(to: string, pathname: string): boolean {
+  return to === '/f1' ? pathname === '/f1' || pathname.startsWith('/f1/') : pathname === to
+}
 
 /**
  * The wide layout's top bar — and, in the Linux app, the window's title bar:
@@ -74,7 +80,7 @@ export function TitleBar() {
 
       <nav aria-label="Main" className="flex items-center gap-1">
         {LINKS.map((link) => {
-          const isActive = pathname === link.to
+          const isActive = isCurrent(link.to, pathname)
           return (
             <NavLink
               key={link.to}

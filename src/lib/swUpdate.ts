@@ -14,7 +14,12 @@
 
 /** Where a reload would interrupt playback (or a title the viewer is reading). */
 function isBusy(pathname: string): boolean {
-  return pathname.startsWith('/watch/') || Array.from(document.querySelectorAll('video')).some((v) => !v.paused)
+  return (
+    pathname.startsWith('/watch/') ||
+    // An F1 session's player: /f1/<year>/<round>/<session>
+    /^\/f1\/\d+\/\d+\/[a-z-]+\/?$/.test(pathname) ||
+    Array.from(document.querySelectorAll('video')).some((v) => !v.paused)
+  )
 }
 
 let updateReady = false

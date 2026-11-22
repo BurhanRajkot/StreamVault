@@ -17,7 +17,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { to: '/', label: 'Home', icon: House, match: (p) => HOME_PATHS.includes(p) || p.startsWith('/title') },
+  { to: '/', label: 'Home', icon: House, match: (p) => HOME_PATHS.includes(p) || p.startsWith('/title') || p === '/f1' || p.startsWith('/f1/') },
   { to: '/downloads', label: 'Downloads', icon: Download, match: (p) => p === '/downloads' },
   { to: '/me', label: 'My Space', icon: CircleUserRound, match: (p) => ['/me', '/my-list', '/premium', '/admin'].includes(p) },
 ]

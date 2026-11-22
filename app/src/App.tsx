@@ -23,6 +23,9 @@ const ProfileScreen = lazy(() => import('@app/screens/ProfileScreen').then((m) =
 const MyListScreen = lazy(() => import('@app/screens/MyListScreen').then((m) => ({ default: m.MyListScreen })))
 const PremiumScreen = lazy(() => import('@app/screens/PremiumScreen').then((m) => ({ default: m.PremiumScreen })))
 const AdminScreen = lazy(() => import('@app/screens/AdminScreen').then((m) => ({ default: m.AdminScreen })))
+const F1Screen = lazy(() => import('@app/screens/F1Screen').then((m) => ({ default: m.F1Screen })))
+const F1RaceScreen = lazy(() => import('@app/screens/F1RaceScreen').then((m) => ({ default: m.F1RaceScreen })))
+const F1PlayerScreen = lazy(() => import('@app/screens/F1PlayerScreen').then((m) => ({ default: m.F1PlayerScreen })))
 
 /** Screens that own the whole display — no bars. */
 const FULLSCREEN = /^\/(watch|offline)\//
@@ -73,6 +76,9 @@ export function App() {
                   <Route path="/admin" element={<AdminScreen />} />
                   <Route path="/title/:type/:id" element={<TitleScreen />} />
                   <Route path="/watch/:type/:id" element={<PlayerScreen />} />
+                  <Route path="/f1" element={<F1Screen />} />
+                  <Route path="/f1/:year/:round" element={<F1RaceScreen />} />
+                  <Route path="/watch/f1/:year/:round/:session" element={<F1PlayerScreen />} />
                   <Route path="/offline/:id" element={<OfflinePlayerScreen />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

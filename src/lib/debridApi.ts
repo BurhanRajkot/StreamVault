@@ -100,6 +100,11 @@ export interface DebridRelease {
   /** File Torrentio matched inside the torrent */
   file_name?: string
   file_idx?: number
+  /**
+   * The torrent holds several of what's wanted (an F1 race weekend): the file
+   * is picked out of it, and its size isn't the size of what plays.
+   */
+  pack?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +180,8 @@ export async function fetchDebridStatus(token?: string): Promise<DebridAccountSt
 export interface PlayReleaseOptions {
   season?: number
   episode?: number
+  /** An F1 session: the file to play out of a torrent holding the whole race weekend. */
+  session?: string
   /** Give up (and remove the torrent again) when Real-Debrid doesn't have it cached. */
   instantOnly?: boolean
   /** The file is wanted to save (offline download), not to stream: refused unless the admin allows this account's downloads. */
@@ -202,6 +209,7 @@ export async function playDebridRelease(
       fileIdx: release.file_idx,
       season: opts.season,
       episode: opts.episode,
+      session: opts.session,
       instantOnly: opts.instantOnly,
       purpose: opts.purpose,
     }),
@@ -214,13 +222,14 @@ export async function pollDebridPlayback(
   torrentId: string,
   release: Pick<DebridRelease, 'file_name' | 'file_idx'>,
   token?: string,
-  opts: { season?: number; episode?: number } = {}
+  opts: { season?: number; episode?: number; session?: string } = {}
 ): Promise<DebridPlayback> {
   const params = new URLSearchParams()
   if (release.file_name) params.set('fileName', release.file_name)
   if (release.file_idx != null) params.set('fileIdx', String(release.file_idx))
   if (opts.season != null) params.set('season', String(opts.season))
   if (opts.episode != null) params.set('episode', String(opts.episode))
+  if (opts.session) params.set('session', opts.session)
   const res = await fetchWithRetry(`${API_BASE}/debrid/play/${encodeURIComponent(torrentId)}?${params}`, {
     headers: authHeaders(token),
   })
@@ -351,11 +360,15 @@ export function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
 }
 
-/** Extract quality tag from torrent name */
+/**
+ * Extract quality tag from torrent name. Broadcast captures (F1) add the
+ * frame rate or scan to the resolution ("1080p50", "1080i") and write UHD
+ * into the channel name ("SkyUHD").
+ */
 export function parseTorrentQuality(name: string): string {
-  if (/\b(2160p|4K|UHD)\b/i.test(name)) return '4K'
-  if (/\b1080p\b/i.test(name)) return '1080p'
-  if (/\b720p\b/i.test(name)) return '720p'
+  if (/\b(2160p|4K|UHD)\b|\b2160[pi]\d{2}\b|(?:Sky|F1)UHD\b/i.test(name)) return '4K'
+  if (/\b1080[pi](?:\d{2})?\b/i.test(name)) return '1080p'
+  if (/\b720p(?:\d{2})?\b/i.test(name)) return '720p'
   if (/\b480p\b/i.test(name)) return '480p'
   return 'SD'
 }
