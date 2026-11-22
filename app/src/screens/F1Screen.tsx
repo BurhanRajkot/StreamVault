@@ -105,7 +105,7 @@ export function F1Screen() {
         <>
           {latest && <LatestRace year={year} race={latest} next={next} showResults={showResults} />}
 
-          <div className="grid gap-x-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-6 lg:grid-cols-2">
             <RaceList year={year} races={races.slice(0, half)} showResults={showResults} header="Races" />
             <RaceList year={year} races={races.slice(half)} showResults={showResults} header={<span className="lg:invisible">More races</span>} />
           </div>
