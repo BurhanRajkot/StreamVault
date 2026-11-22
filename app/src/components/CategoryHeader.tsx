@@ -6,8 +6,8 @@ import { useScrolled } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { Logo } from './Logo'
 
-/** The phone's browse categories — the home page's modes, and the F1 archive. */
-export type Category = 'home' | 'movie' | 'tv' | 'anime' | 'documentary' | 'f1'
+/** The phone's browse categories — the home page's modes. (F1 has its own tab.) */
+export type Category = 'home' | 'movie' | 'tv' | 'anime' | 'documentary'
 
 const CATEGORIES: { id: Category; label: string; to: string }[] = [
   { id: 'home', label: 'For You', to: '/' },
@@ -15,7 +15,6 @@ const CATEGORIES: { id: Category; label: string; to: string }[] = [
   { id: 'tv', label: 'Shows', to: '/tv' },
   { id: 'anime', label: 'Anime', to: '/anime' },
   { id: 'documentary', label: 'Docs', to: '/documentaries' },
-  { id: 'f1', label: 'F1', to: '/f1' },
 ]
 
 /**
@@ -26,7 +25,7 @@ export function CategoryHeader({ active, overHero = true }: { active: Category; 
   const scrolled = useScrolled(40)
   const nav = useRef<HTMLElement>(null)
 
-  // The row is wider than a phone: bring the current category into view (F1 sits last)
+  // The row can be wider than a phone: bring the current category into view
   useLayoutEffect(() => {
     const row = nav.current
     const pill = row?.querySelector<HTMLElement>('[aria-current="page"]')

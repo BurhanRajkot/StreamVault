@@ -35,7 +35,9 @@ test('a season lists its race weekends, with the winners hidden until asked for'
   await expect(screen.getByText('Lando Norris')).toBeHidden()
 
   await screen.getByRole('button', 'Results hidden').tap()
-  await expect(screen.getByText('Lando Norris')).toBeVisible()
+  // On the latest race's card and on its row
+  await expect(screen.getByText('Lando Norris').first()).toBeVisible()
+  await expect(screen.getByRole('region', 'Latest race')).toContainText('Abu Dhabi Grand Prix')
 
   await abuDhabi.tap()
   await expect(screen.getByRole('heading', 'Abu Dhabi Grand Prix', { level: 1 })).toBeVisible()

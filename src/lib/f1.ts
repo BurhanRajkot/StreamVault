@@ -216,6 +216,31 @@ export function releasesFor(releases: readonly F1Release[] | undefined, session:
   return (releases ?? []).filter((r) => r.sessions.includes(session))
 }
 
+/** The last race in `season` already run — what most people open F1 for. Null before the season starts. */
+export function latestRace(season: F1Season, now = Date.now()): F1Race | null {
+  const run = season.races.filter((r) => !isUpcoming({ date: r.date, time: r.time }, now))
+  return run[run.length - 1] ?? null
+}
+
+/** The next race in `season` still to run, or null once the season is over. */
+export function nextRace(season: F1Season, now = Date.now()): F1Race | null {
+  return season.races.find((r) => isUpcoming({ date: r.date, time: r.time }, now)) ?? null
+}
+
+/** The three-letter code F1's own graphics give a country ("UAE", "GBR", "MEX"). */
+const COUNTRY_CODES: Record<string, string> = {
+  argentina: 'ARG', australia: 'AUS', austria: 'AUT', azerbaijan: 'AZE', bahrain: 'BHR', belgium: 'BEL',
+  brazil: 'BRA', canada: 'CAN', china: 'CHN', france: 'FRA', germany: 'GER', hungary: 'HUN', india: 'IND',
+  italy: 'ITA', japan: 'JPN', korea: 'KOR', malaysia: 'MAS', mexico: 'MEX', monaco: 'MON', morocco: 'MAR',
+  netherlands: 'NED', portugal: 'POR', qatar: 'QAT', russia: 'RUS', 'saudi arabia': 'KSA', singapore: 'SGP',
+  'south africa': 'RSA', spain: 'ESP', sweden: 'SWE', switzerland: 'SUI', turkey: 'TUR', uae: 'UAE',
+  uk: 'GBR', usa: 'USA', 'united states': 'USA', vietnam: 'VIE',
+}
+
+export function countryCode(country: string): string {
+  return COUNTRY_CODES[country.trim().toLowerCase()] ?? country.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
+}
+
 /** The race in `season` that's on next, or the last one run when the season is over. */
 export function focusRace(season: F1Season, now = Date.now()): F1Race | null {
   const upcoming = season.races.find((r) => isUpcoming({ date: r.date, time: r.time }, now))
