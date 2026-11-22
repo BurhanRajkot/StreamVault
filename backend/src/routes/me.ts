@@ -17,6 +17,7 @@ import { supabaseAdmin } from '../lib/supabase'
 import { logger } from '../lib/logger'
 import { debridDownloadsAllowed, decidePremium, getUserAccess, isMissingSchema, isPremiumPausedForAll } from '../lib/userAccess'
 import { strictRateLimiter } from '../cybersecurity/rateLimiter'
+import { bearerToken, fillMissingProfile } from '../lib/accountProfile'
 import { isAppRequest, isOutdatedApp } from '../lib/clientKind'
 
 const router = Router()
@@ -29,6 +30,8 @@ router.get('/access', requireUserAllowSuspended, async (req: Request, res: Respo
     debridDownloadsAllowed(userId),
   ])
   const premium = decidePremium({ admin: false, signedIn: true, access, pausedForAll, fromApp: isAppRequest(req), outdatedApp: isOutdatedApp(req) })
+  // Asked at every app/site start: the moment to fill in who an account is, if we don't know (not waited for)
+  void fillMissingProfile(userId, bearerToken(req.headers.authorization))
   res.set('Cache-Control', 'private, no-store')
   return res.json({
     premium: premium === 'granted',
@@ -58,11 +61,13 @@ router.post('/profile', strictRateLimiter, requireUserAllowSuspended, async (req
 
   try {
     await ensureUser(userId)
-    const { error } = await supabaseAdmin
-      .from('User')
-      .update({ email: email?.toLowerCase() ?? null, name, lastSeenAt: new Date().toISOString() })
-      .eq('id', userId)
+    // Only what was sent: a device that doesn't know the email mustn't wipe the one we have
+    const update: Record<string, string> = { lastSeenAt: new Date().toISOString() }
+    if (email) update.email = email.toLowerCase()
+    if (name) update.name = name
+    const { error } = await supabaseAdmin.from('User').update(update).eq('id', userId)
     if (error && !isMissingSchema(error)) throw new Error(error.message)
+    if (!email) await fillMissingProfile(userId, bearerToken(req.headers.authorization))
     return res.status(204).end()
   } catch (err: unknown) {
     logger.warn('Profile update failed', { error: err instanceof Error ? err.message : String(err) })
