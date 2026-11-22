@@ -925,11 +925,13 @@ export async function fetchMyAccess(token: string): Promise<MyAccess> {
 
 /** Tell the backend who this account is, so the admin's Users panel can show it. */
 export async function sendMyProfile(token: string, profile: { email?: string | null; name?: string | null }): Promise<void> {
-  await fetch(`${API_BASE}/me/profile`, {
+  const res = await fetch(`${API_BASE}/me/profile`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: profile.email ?? null, name: profile.name ?? null }),
   })
+  // Not saved: say so, so it's sent again rather than marked done
+  if (!res.ok) throw new Error(`Profile not saved (${res.status})`)
 }
 
 /* ======================================================
