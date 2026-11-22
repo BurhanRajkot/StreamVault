@@ -14,6 +14,7 @@ export function PaneBackdrop({
   backdropUrl,
   testId,
   onSwitchServer,
+  switchLabel = 'Switch server',
   className,
   children,
 }: {
@@ -21,6 +22,8 @@ export function PaneBackdrop({
   testId?: string
   /** A quiet way out while the viewer waits. */
   onSwitchServer?: () => void
+  /** What that way out is called, where there are no other servers to switch to. */
+  switchLabel?: string
   className?: string
   children: ReactNode
 }) {
@@ -45,7 +48,7 @@ export function PaneBackdrop({
           onClick={onSwitchServer}
           className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] right-[max(0.75rem,env(safe-area-inset-right,0px))] z-10 rounded-md px-3 py-2 text-xs font-medium text-white/55 transition-colors hover:bg-white/10 hover:text-white sm:bottom-4 sm:right-4"
         >
-          Switch server
+          {switchLabel}
         </button>
       )}
     </div>
@@ -100,6 +103,7 @@ interface PremiumLoadingProps {
   /** A line under the message (download speed, ...). */
   detail?: ReactNode
   onSwitchServer?: () => void
+  switchLabel?: string
   testId?: string
   className?: string
 }
@@ -113,12 +117,13 @@ export function PremiumLoading({
   percent = null,
   detail,
   onSwitchServer,
+  switchLabel,
   testId,
   className,
 }: PremiumLoadingProps) {
   const current = STEPS.findIndex((s) => s.id === step)
   return (
-    <PaneBackdrop backdropUrl={backdropUrl} testId={testId} onSwitchServer={onSwitchServer} className={className}>
+    <PaneBackdrop backdropUrl={backdropUrl} testId={testId} onSwitchServer={onSwitchServer} switchLabel={switchLabel} className={className}>
       <TitleLines title={title} episodeLine={episodeLine} />
       {percent !== null ? (
         <div

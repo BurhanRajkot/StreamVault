@@ -41,6 +41,13 @@ export interface DownloadTarget {
   episode?: number
   /** Shown under the heading — "S1 · E3 · Lord Snow". */
   label?: string
+  /**
+   * Where the releases come from instead of the title search — the F1
+   * archive's, for one session. There are no subtitles to offer then.
+   */
+  releases?: () => Promise<DebridRelease[]>
+  /** Tells one target from another when `releases` is given (the title search's own fields don't). */
+  id?: string
 }
 
 interface DownloadSheetProps {
@@ -68,6 +75,8 @@ interface Offer {
   seeders: number
   /** A show's release holding the whole season: the torrent app lets the viewer pick the episode. */
   seasonPack: boolean
+  /** An F1 release holding several sessions: the torrent app lets the viewer pick the one they want. */
+  sessionPack: boolean
   magnet: string
 }
 
@@ -81,15 +90,20 @@ function toOffer(release: DebridRelease, mediaType: 'movie' | 'tv'): Offer | nul
   if (!magnet) return null
   const bytes = parseInt(release.size, 10)
   const seasonPack = mediaType === 'tv' && isSeasonPack(release.name)
+  const sessionPack = release.pack === true
   return {
     release,
     label: parseTorrentQuality(release.name),
-    tags: [parseTorrentHDR(release.name), isImaxRelease(release.name) ? 'IMAX' : null, seasonPack ? 'Whole season' : null].filter(
-      (t): t is string => !!t
-    ),
+    tags: [
+      parseTorrentHDR(release.name),
+      isImaxRelease(release.name) ? 'IMAX' : null,
+      seasonPack ? 'Whole season' : null,
+      sessionPack ? 'Several sessions' : null,
+    ].filter((t): t is string => !!t),
     size: Number.isFinite(bytes) && bytes > 0 ? formatBytes(bytes) : null,
     seeders: parseInt(release.seeders, 10) || 0,
     seasonPack,
+    sessionPack,
     magnet,
   }
 }
@@ -102,8 +116,8 @@ function rankOffers(releases: DebridRelease[], mediaType: 'movie' | 'tv'): Offer
     .sort(
       (a, b) =>
         (QUALITY_RANK[a.label] ?? 9) - (QUALITY_RANK[b.label] ?? 9) ||
-        // A single-episode file before a whole season
-        Number(a.seasonPack) - Number(b.seasonPack) ||
+        // A single-episode (or single-session) file before a whole season (or weekend)
+        Number(a.seasonPack || a.sessionPack) - Number(b.seasonPack || b.sessionPack) ||
         b.seeders - a.seeders
     )
   const perQuality = new Map<string, number>()
@@ -142,7 +156,7 @@ export function DownloadSheet({ target, onOpenChange }: DownloadSheetProps) {
             'md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:w-[min(34rem,calc(100vw-2rem))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl'
           )}
         >
-          {target && <SheetBody key={`${target.mediaType}:${target.imdbId}:${target.season}:${target.episode}`} target={target} />}
+          {target && <SheetBody key={target.id ?? `${target.mediaType}:${target.imdbId}:${target.season}:${target.episode}`} target={target} />}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -155,18 +169,21 @@ function SheetBody({ target }: { target: DownloadTarget }) {
   const [listing, setListing] = useState<Listing>({ state: 'searching' })
   const [tab, setTab] = useState<Tab>('video')
 
-  const { title, year, imdbId, mediaType, season, episode } = target
+  const { title, year, imdbId, mediaType, season, episode, releases: loadReleases } = target
+  const hasSubtitles = !loadReleases
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
         const cleanTitle = title.replace(/[^a-zA-Z0-9\s]/g, ' ').trim()
-        const releases = await searchReleases(year ? `${cleanTitle} ${year}` : cleanTitle, imdbId ?? undefined, mediaType, {
-          season,
-          episode,
-          limit: 25,
-        })
+        const releases = loadReleases
+          ? await loadReleases()
+          : await searchReleases(year ? `${cleanTitle} ${year}` : cleanTitle, imdbId ?? undefined, mediaType, {
+              season,
+              episode,
+              limit: 25,
+            })
         if (cancelled) return
         const offers = rankOffers(releases, mediaType)
         setListing(offers.length > 0 ? { state: 'ready', offers } : { state: 'empty' })
@@ -178,7 +195,7 @@ function SheetBody({ target }: { target: DownloadTarget }) {
     return () => {
       cancelled = true
     }
-  }, [title, year, imdbId, mediaType, season, episode])
+  }, [title, year, imdbId, mediaType, season, episode, loadReleases])
 
   return (
     <>
@@ -202,14 +219,16 @@ function SheetBody({ target }: { target: DownloadTarget }) {
       </div>
 
       {/* Video / Subtitles */}
-      <div role="tablist" aria-label="What to download" className="mx-5 mb-3 grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-white/[0.06] p-1 md:mx-6">
-        <TabButton active={tab === 'video'} onClick={() => setTab('video')} icon={<Film className="h-4 w-4" aria-hidden="true" />}>
-          Video
-        </TabButton>
-        <TabButton active={tab === 'subtitles'} onClick={() => setTab('subtitles')} icon={<Captions className="h-4 w-4" aria-hidden="true" />}>
-          Subtitles
-        </TabButton>
-      </div>
+      {hasSubtitles && (
+        <div role="tablist" aria-label="What to download" className="mx-5 mb-3 grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-white/[0.06] p-1 md:mx-6">
+          <TabButton active={tab === 'video'} onClick={() => setTab('video')} icon={<Film className="h-4 w-4" aria-hidden="true" />}>
+            Video
+          </TabButton>
+          <TabButton active={tab === 'subtitles'} onClick={() => setTab('subtitles')} icon={<Captions className="h-4 w-4" aria-hidden="true" />}>
+            Subtitles
+          </TabButton>
+        </div>
+      )}
 
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-3 md:px-4">
         {tab === 'video' ? (
@@ -308,6 +327,7 @@ function OfferRow({ offer }: { offer: Offer }) {
       <p className="mt-1.5 truncate text-[11px] text-white/35" title={offer.release.name}>
         {offer.release.name}
         {offer.seasonPack && <span className="text-white/50"> · pick the episode in your torrent app</span>}
+        {offer.sessionPack && <span className="text-white/50"> · pick the session in your torrent app</span>}
       </p>
       <div className="mt-2.5 flex gap-2">
         <a

@@ -29,6 +29,7 @@ import recommendationsRouter from './routes/recommendations'
 import dislikesRouter from './routes/dislikes'
 import debridRouter from './routes/debrid'
 import releasesRouter from './routes/releases'
+import f1Router from './routes/f1'
 import meRouter from './routes/me'
 import adminUsersRouter from './routes/adminUsers'
 import sitemapRouter from './routes/sitemap'
@@ -134,6 +135,7 @@ app.use('/recommendations', recommendationsRouter)
 app.use('/dislikes', dislikesRouter)
 app.use('/debrid', debridRouter)
 app.use('/releases', releasesRouter)
+app.use('/f1', f1Router)
 // /sitemap-titles.xml — proxied by the frontend host onto the site's domain
 app.use('/', sitemapRouter)
 

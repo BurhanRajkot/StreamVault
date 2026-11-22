@@ -154,6 +154,13 @@ export const seasons = createNamespace('season', 3600)
 export const debrid = createNamespace('debrid', 60 * 60)
 
 /**
+ * The F1 archive (lib/f1.ts): season calendars from Jolpica and each race
+ * weekend's releases. Callers set the TTL — a finished season never changes,
+ * the current one does every weekend.
+ */
+export const f1 = createNamespace('f1', 60 * 60)
+
+/**
  * Subtitle searches and files (OpenSubtitles): 12 hours default. A title's
  * subtitles change slowly, and a file never changes once uploaded.
  */

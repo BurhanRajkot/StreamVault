@@ -31,6 +31,7 @@ This file is automatically read by Claude Code at the start of each session to m
   - Continue watching tracking
   - Premium (Real-Debrid) server — admin + accounts the admin approves
   - Public release search for magnet-link downloads
+  - F1 archive — every season's race weekends, each session to watch (Premium) or download
   - Admin dashboard
 
 ### Infrastructure
@@ -282,6 +283,26 @@ framework) or `test.use({ admin: true })` (Playwright) holds an admin
 session; set `mockApi.state.users` / `premiumPausedForAll` / `accessRequests` to test
 accounts, and `mockApi.state.asApp = true` to play an approved account's Premium
 (as the app would).
+
+### F1 archive
+`/f1` on the website (`src/pages/F1*.tsx`) and in the app
+(`app/src/screens/F1*.tsx`): a season's race weekends → a weekend's sessions
+(Practice 1–3, Sprint Qualifying, Sprint, Qualifying, Race) → watch or
+download. The public backend `GET /f1/seasons/:year` takes calendars, session
+times and winners from Jolpica (Ergast's successor, keyless);
+`GET /f1/seasons/:year/races/:round/releases` asks apibay by the Grand Prix's
+names and round, and `lib/f1Names.ts` reads each release name: which race,
+which sessions (a "Qualifying + Race" torrent or a ~77 GB SkyUHD weekend pack
+holds several — `pack`), dropping shows, highlights, games and
+foreign-commentary broadcasts. Torrentio can't help (races have no IMDb id).
+Watching is ordinary Premium with the same rules (`PremiumPane` with a
+`releaseSource`, `src/lib/f1.ts f1ReleaseSource`): `/debrid/play` gets
+`session`, and `pickPlaybackFile` takes that session's file out of a pack; a
+pack is never the download fallback, and releases nobody seeds are still
+probed for Real-Debrid's cache. Downloads are the Download sheet's magnet
+links, open to everyone. Winners stay hidden until the viewer turns results
+on (`useF1ShowResults`). E2E mock data: `F1_RACES` / `f1Releases` in
+`e2e/fixtures/data.ts`.
 
 ### Protected Routes
 Admin pages guard themselves rather than being wrapped in a route element —
