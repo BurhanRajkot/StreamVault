@@ -4,7 +4,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
 import { Check, CheckCircle2, ChevronDown, Download, Play, Plus, Share, Star, ThumbsUp, Zap } from 'lucide-react'
-import { DEBRID_SERVER_ID, defaultServer, serverOptions, type Media } from '@/lib/config'
+import { type Media } from '@/lib/config'
 import { logRecommendationInteraction } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
@@ -13,6 +13,7 @@ import { useFavorites } from '@/context/FavoritesContext'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { SITE_URL } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
+import { startServer } from '@app/lib/startServer'
 import { useIsWide } from '@app/lib/hooks'
 import { EASE_OUT, item, spring, stagger } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
@@ -115,12 +116,9 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
   const { data: continueEntries } = useContinueWatching()
   const progress = continueEntries?.find((e) => e.item.tmdbId === media.id && e.item.mediaType === kind)?.item
 
-  const [server, setServer] = useState(() => {
-    const saved = progress?.server
-    const preferred = saved || settings.defaultServer
-    if (preferred === DEBRID_SERVER_ID) return premium ? DEBRID_SERVER_ID : defaultServer(kind)
-    return preferred && serverOptions(kind).some((o) => o.id === preferred) ? preferred : defaultServer(kind)
-  })
+  /** A server picked on this page; until then the start rule decides (and follows Premium access as it loads). */
+  const [picked, setPicked] = useState<string | null>(null)
+  const server = picked ?? startServer(kind, premium, settings, progress?.server)
   const [season, setSeason] = useState(progress?.season ?? 1)
   const [seasonsOpen, setSeasonsOpen] = useState(false)
   const [download, setDownload] = useState<DownloadTarget | null>(null)
@@ -139,7 +137,8 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
   const artOpacity = useTransform(scrollY, [0, wide ? 900 : 480], [1, wide ? 0.3 : 0.15])
 
   const play = (s?: number, e?: number) => {
-    const qs = new URLSearchParams({ server })
+    // Unpicked, the player applies the same start rule once it knows the account's Premium access
+    const qs = new URLSearchParams(picked ? { server: picked } : progress?.server ? { saved: progress.server } : {})
     if (kind === 'tv') {
       qs.set('s', String(s ?? progress?.season ?? activeSeason))
       qs.set('e', String(e ?? progress?.episode ?? 1))
@@ -305,7 +304,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
         {/* Where it plays — chosen before pressing Play, changeable again in the player */}
         <div className="mt-6 w-full text-left">
           <p className="t-footnote mb-2 font-semibold text-label-2">Play on</p>
-          <ServerChips kind={kind} server={server} onPick={setServer} />
+          <ServerChips kind={kind} server={server} onPick={setPicked} />
         </div>
       </motion.section>
 

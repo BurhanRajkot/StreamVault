@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Download, Gauge, Heart, Info, Loader2, LogOut, RefreshCw, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
-import { CONFIG, DEBRID_SERVER_ID, defaultServer } from '@/lib/config'
+import { CONFIG, DEBRID_SERVER_ID } from '@/lib/config'
+import { startServer } from '@app/lib/startServer'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useAccessRequests } from '@/hooks/useAccessRequests'
 import { clearAdminToken } from '@/lib/api'
@@ -35,7 +36,8 @@ export function ProfileScreen() {
   const settings = useSettings()
   const [serverOpen, setServerOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
-  const serverName = settings.defaultServer === DEBRID_SERVER_ID ? 'Premium' : CONFIG.PROVIDER_NAMES[settings.defaultServer || defaultServer('movie')]
+  const startsOn = startServer('movie', access.premium, settings)
+  const serverName = startsOn === DEBRID_SERVER_ID ? 'Premium' : CONFIG.PROVIDER_NAMES[startsOn]
   const premiumStatus = access.loading ? 'Checking…' : access.admin ? 'Active · admin' : PREMIUM_LABEL[access.reason] ?? 'Not active'
 
   return (
@@ -206,8 +208,9 @@ export function ProfileScreen() {
         open={serverOpen}
         onOpenChange={setServerOpen}
         kind="movie"
-        server={settings.defaultServer || defaultServer('movie')}
-        onPick={(id) => updateSettings({ defaultServer: id })}
+        server={startsOn}
+        // With Premium, picking another server here is the one way to stop starting on Premium
+        onPick={(id) => updateSettings(access.premium ? { defaultServer: id, premiumDefault: id === DEBRID_SERVER_ID } : { defaultServer: id })}
       />
       <Sheet open={aboutOpen} onOpenChange={setAboutOpen} title="About">
         <div className="t-subhead space-y-3 text-label-2">

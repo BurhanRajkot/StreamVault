@@ -520,16 +520,46 @@ function registerIpc() {
       }
       await fsp.chmod(tmp, 0o755)
       await fsp.rename(tmp, current)
-      setTimeout(() => {
-        app.relaunch({ execPath: current })
-        app.exit(0)
-      }, 400)
+      relaunchAppImage(current)
       return { ok: true }
     } catch (err) {
       await fsp.rm(tmp, { force: true })
       return { ok: false, reason: err && err.message ? err.message : String(err) }
     }
   })
+}
+
+/**
+ * Start the freshly swapped AppImage once this copy has gone. Not
+ * app.relaunch(): its helper runs from this AppImage's FUSE mount
+ * (/tmp/.mount_…), which is torn down the moment this process exits, so the
+ * helper died with it and the window just vanished — the "crash on update".
+ * A detached /bin/sh outside the mount waits for this process (it holds the
+ * single-instance lock and the local port) and then starts the new file, with
+ * the mount's environment stripped so the new copy sets up its own.
+ */
+function relaunchAppImage(appImage) {
+  const env = { ...process.env }
+  const mount = process.env.APPDIR
+  for (const key of Object.keys(env)) {
+    if (['APPIMAGE', 'APPDIR', 'ARGV0', 'OWD'].includes(key) || (mount && env[key] && env[key].includes(mount))) delete env[key]
+  }
+  // Keep switches people launch with (--no-sandbox); leave out Chromium's per-process ones
+  const args = process.argv.slice(1).filter((a) => a.startsWith('--') && !/^--(type|sv-|inspect|remote-debugging)/.test(a))
+  const script = 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; shift; exec "$@"'
+  const waiter = spawn('/bin/sh', ['-c', script, 'sv-relaunch', String(process.pid), appImage, ...args], {
+    detached: true,
+    stdio: 'ignore',
+    env,
+    cwd: app.getPath('home'),
+  })
+  waiter.on('error', (err) => console.warn('StreamVault: could not restart after the update:', err && err.message))
+  waiter.unref()
+  setTimeout(() => {
+    app.quit()
+    // Nothing may hold the quit up — the new copy is waiting on this process
+    setTimeout(() => app.exit(0), 3000)
+  }, 400)
 }
 
 /**

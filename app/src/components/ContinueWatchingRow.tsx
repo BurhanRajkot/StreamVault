@@ -60,7 +60,8 @@ export function ContinueWatchingRow() {
       params.set('s', String(item.season ?? 1))
       params.set('e', String(item.episode ?? 1))
     }
-    if (item.server) params.set('server', item.server)
+    // A hint, not a pick: an account with Premium starts on Premium regardless (lib/startServer)
+    if (item.server) params.set('saved', item.server)
     navigate(`/watch/${item.mediaType}/${item.tmdbId}?${params}`)
   }
 
