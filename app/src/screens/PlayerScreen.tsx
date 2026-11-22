@@ -14,6 +14,7 @@ import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { PremiumPane } from '@/components/player/PremiumPane'
 import { desktop, setPlaybackMode } from '@app/native/platform'
 import { getSettings } from '@app/lib/settings'
+import { startServer } from '@app/lib/startServer'
 import { useWindowState } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
@@ -35,6 +36,11 @@ export function PlayerScreen() {
   const kind = parseKind(params.type)
   const id = Number(params.id)
   const { data: media } = useTitleDetails(kind, id)
+  const [search] = useSearchParams()
+  const { isLoading: authLoading } = useAuth0()
+  const { loading: accessLoading } = usePremiumAccess()
+  // No server picked: the start server depends on Premium access, so wait for it rather than open the wrong one
+  const deciding = !search.get('server') && (authLoading || accessLoading)
 
   // The whole screen, sideways, for as long as the player is open
   useEffect(() => {
@@ -44,7 +50,7 @@ export function PlayerScreen() {
 
   return (
     <div className="app-player fixed inset-0 z-[300] bg-black">
-      {media && kind ? (
+      {media && kind && !deciding ? (
         <Player media={media} kind={kind} />
       ) : (
         <div className="flex h-full items-center justify-center">
@@ -69,11 +75,13 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
 
   const season = Number(search.get('s') ?? 1) || 1
   const episode = Number(search.get('e') ?? 1) || 1
-  const requested = search.get('server') || getSettings().defaultServer
+  const requested = search.get('server')
+  const saved = search.get('saved')
   const server = useMemo(() => {
+    if (!requested) return startServer(kind, premium, getSettings(), saved)
     if (requested === DEBRID_SERVER_ID || requested === LEGACY_TORBOX_SERVER_ID) return premium || accessLoading ? DEBRID_SERVER_ID : defaultServer(kind)
     return serverOptions(kind).some((o) => o.id === requested) ? requested : defaultServer(kind)
-  }, [requested, premium, accessLoading, kind])
+  }, [requested, saved, premium, accessLoading, kind])
   const isPremium = server === DEBRID_SERVER_ID
 
   const setParams = (patch: Record<string, string>) => {

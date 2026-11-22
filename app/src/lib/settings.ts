@@ -4,6 +4,11 @@ import type { QualityPreference } from '@app/downloads/premiumFile'
 export interface AppSettings {
   /** Server new playbacks start on; '' means the site's default (Sol). */
   defaultServer: string
+  /**
+   * An account with Premium starts every playback on it (lib/startServer).
+   * Turned off only by picking another default server while it has Premium.
+   */
+  premiumDefault: boolean
   downloadQuality: QualityPreference
   /** Android: hold downloads until the phone is on Wi-Fi. */
   wifiOnly: boolean
@@ -12,7 +17,7 @@ export interface AppSettings {
 }
 
 const KEY = 'sv-app:settings'
-const DEFAULTS: AppSettings = { defaultServer: '', downloadQuality: '1080p', wifiOnly: false, acceptedTerms: false }
+const DEFAULTS: AppSettings = { defaultServer: '', premiumDefault: true, downloadQuality: '1080p', wifiOnly: false, acceptedTerms: false }
 
 function read(): AppSettings {
   try {
