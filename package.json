@@ -57,7 +57,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
-    "@e2e-dev/web": "^0.16.0",
+    "@e2e-dev/web": "^0.16.1",
     "@eslint/js": "^10.0.1",
     "@ghostery/adblocker-playwright": "^2.20.3",
     "@playwright/test": "^1.65.1",
