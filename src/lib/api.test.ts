@@ -207,13 +207,13 @@ describe('stream provider registry', () => {
 });
 
 describe('serverOptions', () => {
-  it('starts on Sol (Vidy, 4K), then the stars, with Premium last for movies and TV', () => {
+  it('starts on Sirius (VidFast), then Sol (Vidy, 4K) and the rest, with Premium last for movies and TV', () => {
     const options = serverOptions('movie')
-    expect(options[0]).toMatchObject({ id: 'vidy', name: 'Sol', detail: '4K', label: 'Sol (4K)' })
-    expect(options[1]).toMatchObject({ id: 'vidfast_pro', name: 'Sirius', label: 'Sirius' })
+    expect(options[0]).toMatchObject({ id: 'vidfast_pro', name: 'Sirius', detail: 'HD', label: 'Sirius (HD)' })
+    expect(options[1]).toMatchObject({ id: 'vidy', name: 'Sol', detail: '4K', label: 'Sol (4K)' })
     expect(options.at(-1)).toMatchObject({ id: DEBRID_SERVER_ID, name: 'Premium', detail: '4K/1080p' })
-    expect(defaultServer('movie')).toBe('vidy')
-    expect(defaultServer('tv')).toBe('vidy')
+    expect(defaultServer('movie')).toBe('vidfast_pro')
+    expect(defaultServer('tv')).toBe('vidfast_pro')
   })
 
   it('locks Premium for whoever may not use it, and keeps it last for those who may', () => {
@@ -221,7 +221,7 @@ describe('serverOptions', () => {
     expect(premium(false)).toMatchObject({ id: DEBRID_SERVER_ID, locked: true, label: 'Premium (4K/1080p) · Invite only' })
     expect(premium(true)).toMatchObject({ id: DEBRID_SERVER_ID, locked: false, label: 'Premium (4K/1080p)' })
     // Having Premium doesn't change what plays by default
-    expect(serverOptions('movie', { unlocked: true })[0].id).toBe('vidy')
+    expect(serverOptions('movie', { unlocked: true })[0].id).toBe('vidfast_pro')
   })
 
   it('offers only the embed servers outside movies and TV, labelled by name and tag', () => {

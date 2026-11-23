@@ -26,7 +26,7 @@ const PERKS: { icon: typeof Film; color: TileColor; title: string; body: string 
   { icon: MonitorPlay, color: 'blue', title: '4K & 1080p from Real-Debrid', body: 'Straight from the source — no ads, no pop-ups.' },
   { icon: Subtitles, color: 'indigo', title: 'Our own player', body: 'Quality, audio and subtitle choices, resume where you stopped.' },
   { icon: Download, color: 'green', title: 'Offline downloads', body: 'Save movies and episodes to watch without internet.' },
-  { icon: Film, color: 'graphite', title: 'Every other server too', body: 'Sol, Sirius and the rest stay free for everyone.' },
+  { icon: Film, color: 'graphite', title: 'The free server too', body: 'Sirius stays free for everyone.' },
 ]
 
 const NOTICE: Record<string, string> = {

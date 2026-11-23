@@ -1,6 +1,6 @@
 /**
  * Downloading what's playing: once a title is playing on an embed server
- * (Sol, the default), the watch screen still offers its download, for the
+ * (Sirius, the default), the watch screen still offers its download, for the
  * film or for the episode on screen.
  */
 

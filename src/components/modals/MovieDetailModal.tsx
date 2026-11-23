@@ -90,7 +90,7 @@ export function MovieDetailModal({
       return isAdminAuthenticated() && (mode === 'movie' || mode === 'tv') ? DEBRID_SERVER_ID : defaultServer(mode)
     }
     // A saved server (continue watching, quick view) is kept — that's where
-    // the viewer's progress is. Anything else starts on Sol (Vidy).
+    // the viewer's progress is. Anything else starts on Sirius (VidFast), the default.
     if (initialServer && serverOptions(mode).some(({ id }) => id === initialServer)) {
       return initialServer
     }
