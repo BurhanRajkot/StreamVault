@@ -186,6 +186,12 @@ export interface PlayReleaseOptions {
   instantOnly?: boolean
   /** The file is wanted to save (offline download), not to stream: refused unless the admin allows this account's downloads. */
   purpose?: 'download'
+  /**
+   * Getting it ready ahead of Play (lib/premiumWarm), not playing it yet:
+   * asked of POST /debrid/warm, which is always instant-only and has its own
+   * rate limit, so looking around doesn't use up the plays.
+   */
+  warm?: boolean
 }
 
 /**
@@ -199,7 +205,7 @@ export async function playDebridRelease(
   token?: string,
   opts: PlayReleaseOptions = {}
 ): Promise<DebridPlayback> {
-  const res = await fetchWithRetry(`${API_BASE}/debrid/play`, {
+  const res = await fetchWithRetry(`${API_BASE}/debrid/${opts.warm ? 'warm' : 'play'}`, {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify({
@@ -210,7 +216,7 @@ export async function playDebridRelease(
       season: opts.season,
       episode: opts.episode,
       session: opts.session,
-      instantOnly: opts.instantOnly,
+      instantOnly: opts.warm || opts.instantOnly,
       purpose: opts.purpose,
     }),
   })

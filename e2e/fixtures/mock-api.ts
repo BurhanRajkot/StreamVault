@@ -509,6 +509,10 @@ export class MockApi {
     this.on('GET', '/debrid/media-search', premiumOnly(({ query }) => releasesFor(query)))
     this.on('POST', '/debrid/play', premiumOnly(() => ok(readyPlayback())))
     this.on('GET', '/debrid/play/:torrentId', premiumOnly(() => ok(readyPlayback())))
+    // Getting a release ready ahead of Play (lib/premiumWarm) is refused unless a test turns it on
+    // (premium-warm.e2e.ts): whether it lands before the test presses Play is timing, and the
+    // tests that count or reshape POST /debrid/play mustn't depend on it. Refused, the player plays as before.
+    this.on('POST', '/debrid/warm', premiumOnly(() => ({ status: 429, json: { error: 'Too many requests' } })))
     // No subtitles unless a test brings some (see subtitlesFor in data.ts)
     this.on('GET', '/debrid/subtitles', premiumOnly(() => ok({ languages: [] })))
     this.on('GET', '/debrid/subtitles/file/:id', premiumOnly(() => ({ status: 404, json: { error: 'Subtitle not found' } })))

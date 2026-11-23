@@ -114,4 +114,19 @@ export const downloadRateLimiter = rateLimit({
   validate: { trustProxy: false },
 })
 
+/**
+ * Limiter for POST /debrid/warm — a release got ready while a viewer looks at
+ * a title, so Play starts at once. One per title opened (after a moment on
+ * the page): kept apart from downloadRateLimiter so browsing never uses up
+ * the plays.
+ */
+export const warmRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 90,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests', retryAfter: '15 minutes' },
+  validate: { trustProxy: false },
+})
+
 export default apiRateLimiter
