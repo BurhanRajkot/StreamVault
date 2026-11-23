@@ -51,10 +51,10 @@ test('a wrong code is refused, the right one signs the admin in and the film sta
   expect(play.admin, 'the play request carries the admin token').toBe(true)
 })
 
-adminTest('an admin still starts on Sol, with Premium last and unlocked', async ({ app, screen }) => {
+adminTest('an admin still starts on Sirius, with Premium last and unlocked', async ({ app, screen }) => {
   await app.open(watchPath(MOVIE))
   const picker = screen.getByRole('combobox', SERVER)
-  await expect(picker).toContainText('Sol')
+  await expect(picker).toContainText('Sirius')
 
   await picker.tap()
   const premium = screen.getByRole('option').last()

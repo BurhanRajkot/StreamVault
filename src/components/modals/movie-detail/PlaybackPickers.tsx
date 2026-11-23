@@ -22,7 +22,7 @@ const content =
 const item = 'cursor-pointer rounded-lg py-2.5 text-sm focus:bg-white/10 focus:text-white data-[state=checked]:bg-white/[0.06]'
 
 /**
- * "Sol 4K", "Premium 4K/1080p 🔒 Invite only" — the tags, the zap and the lock are
+ * "Sirius HD", "Sol 4K", "Premium 4K/1080p 🔒 Invite only" — the tags, the zap and the lock are
  * drawn, the rest is plain text.
  */
 function ServerLabel({ option }: { option: ServerOption }) {

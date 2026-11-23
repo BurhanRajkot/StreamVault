@@ -4,7 +4,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, ChevronLeft, ListVideo, Maximize, Minimize, Server, SkipForward, X, Zap } from 'lucide-react'
-import { CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, defaultServer, serverOptions, type Media } from '@/lib/config'
+import { CONFIG, DEBRID_SERVER_ID, LEGACY_TORBOX_SERVER_ID, type Media } from '@/lib/config'
 import { buildEmbedUrl, logRecommendationInteraction, saveGuestProgress, updateContinueWatching } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { nextEpisode } from '@/lib/episodeNavigation'
@@ -15,6 +15,7 @@ import { PremiumPane } from '@/components/player/PremiumPane'
 import { desktop, setPlaybackMode } from '@app/native/platform'
 import { getSettings } from '@app/lib/settings'
 import { startServer } from '@app/lib/startServer'
+import { appDefaultServer, isAppServer } from '@app/lib/servers'
 import { useWindowState } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
@@ -79,8 +80,8 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   const saved = search.get('saved')
   const server = useMemo(() => {
     if (!requested) return startServer(kind, premium, getSettings(), saved)
-    if (requested === DEBRID_SERVER_ID || requested === LEGACY_TORBOX_SERVER_ID) return premium || accessLoading ? DEBRID_SERVER_ID : defaultServer(kind)
-    return serverOptions(kind).some((o) => o.id === requested) ? requested : defaultServer(kind)
+    if (requested === DEBRID_SERVER_ID || requested === LEGACY_TORBOX_SERVER_ID) return premium || accessLoading ? DEBRID_SERVER_ID : appDefaultServer()
+    return isAppServer(kind, requested) ? requested : appDefaultServer()
   }, [requested, saved, premium, accessLoading, kind])
   const isPremium = server === DEBRID_SERVER_ID
 

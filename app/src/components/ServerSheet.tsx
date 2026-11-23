@@ -1,25 +1,26 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AlertTriangle, Check, Lock, Zap } from 'lucide-react'
-import { CONFIG, DEBRID_SERVER_ID, serverOptions } from '@/lib/config'
+import { CONFIG, DEBRID_SERVER_ID } from '@/lib/config'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { cn } from '@/lib/utils'
 import { spring } from '@app/lib/motion'
+import { appServerOptions } from '@app/lib/servers'
 import { IconTile } from './kit'
 import { Sheet } from './Sheet'
 
 export function useServerOptions(kind: 'movie' | 'tv') {
   const { premium } = usePremiumAccess()
-  return serverOptions(kind, { unlocked: premium })
+  return appServerOptions(kind, { unlocked: premium })
 }
 
 /** A server's display name — "Premium" for Real-Debrid. */
 export function serverName(id: string): string {
-  return id === DEBRID_SERVER_ID ? 'Premium' : CONFIG.PROVIDER_NAMES[id] ?? 'Sol'
+  return id === DEBRID_SERVER_ID ? 'Premium' : CONFIG.PROVIDER_NAMES[id] ?? 'Player'
 }
 
 /**
- * Every server, Sol first and ⚡ Premium last — the website's same lineup.
+ * The app's two servers — the embed first, ⚡ Premium last (see servers.ts).
  * `failed` marks the ones that already didn't start this time, so the next
  * pick is obvious.
  */

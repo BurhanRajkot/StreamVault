@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { QualityPreference } from '@app/downloads/premiumFile'
 
 export interface AppSettings {
-  /** Server new playbacks start on; '' means the site's default (Sol). */
+  /** Server new playbacks start on; '' means the app's embed server (see servers.ts). */
   defaultServer: string
   /**
    * An account with Premium starts every playback on it (lib/startServer).

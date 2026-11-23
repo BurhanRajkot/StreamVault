@@ -14,9 +14,7 @@ export interface StreamProvider {
   id: string
   /**
    * Label shown in the server dropdown. Servers are named after the brightest
-   * stars in the night sky, brightest first (Sirius, Canopus, Arcturus, ...),
-   * so the brightest name is the best-tested server; Sol (the Sun, brighter
-   * than all of them) is Vidy, on top. ⚡ Premium (Real-Debrid) sits last.
+   * stars in the night sky (Sol is the Sun). ⚡ Premium (Real-Debrid) sits last.
    * The provider itself only shows in `id` and the URLs.
    */
   name: string
@@ -50,34 +48,55 @@ export interface StreamProvider {
 /**
  * Ordered as they appear in the server dropdown, above ⚡ Premium, which sits
  * last (see serverOptions). The first entry is the default server — what every
- * playback starts on; the rest are fallbacks the user can switch to.
+ * playback starts on; the rest are fallbacks the user can switch to. The app
+ * offers only the first of these plus Premium (app/src/lib/servers.ts).
  *
- * Lineup and order come from a real-playback test on 2026-11-12: each server
- * played in Chrome, framed from the production origin, across nine titles
- * (Fight Club, Sinners, Breaking Bad, Severance, Frieren, Tokyo Story,
- * 3 Idiots, Laapataa Ladies, Panchayat), reading the <video> element itself
- * for start time, resolution and seek recovery. Ids are kept for servers that
- * stayed, so saved continue-watching rows still resume on them.
+ * Lineup and order come from a real-playback test on 2026-11-23/24: 21
+ * servers played in headed Chromium, framed from the production origin, across
+ * 11 titles (Fight Club, Sinners, 3 Idiots, Laapataa Ladies, Tokyo Story,
+ * Breaking Bad, Severance S2, Panchayat, Frieren), reading the <video> element
+ * itself (shadow DOM included) for start time, resolution, smoothness and seek
+ * recovery. VidFast played all 11 in 1080p and starts fastest, so it leads.
+ * Ids are kept for servers that stayed, so saved continue-watching rows still
+ * resume on them.
  *
- * Dropped then, with the reason, so they aren't re-added blind:
- * - 111movies.net now redirects to player.vidmario.net (outside our CSP) and
- *   sat on "FETCHING MEDIA" for every title
- * - player.videasy.to serves a self-signed DDoS-Guard certificate
- * - vidsrc.pm answers 404 on its embed paths
- * - nontongo.win shows a details page whose Play button does nothing
- * - vidrock.to / vidrock.net: the first click turns the frame into a
- *   full-page scam ad
- * - vidup.to is on VidFast's CDN but failed 3 of 9 titles, so it adds no cover
+ * Dropped, with the reason, so they aren't re-added blind:
+ * - embed.vidsrc.pk: 0 of 11 — never produced a picture
+ * - vidcore.org, vidspark.to: wait on their own play button almost every
+ *   time, missed Severance and Tokyo Story, and seek slowly (VidSpark up to 25s)
+ * - cinemaos.tech, primesrc.me, vidplay.to, 2embed.cc, vidup.to: 0 plays
+ * - embedwave.cc, vidapi.xyz, cinesrc.st: half or fewer, mostly 480p; vidapi
+ *   opens 2–4 pop-ups per play; cinesrc has no TV
+ * - player.videasy.net, vidking.net, vidsrc.xyz, zxcstream: don't resolve here
+ * - vixsrc.to, mapple, multiembed.mov, moviesapi.to: Cloudflare challenge
+ * - vidjoy.pro, embedmaster.link: redirect to ad pages
+ * - earlier (2026-11-12): 111movies, nontongo, vidrock (scam-ad frame), vidsrc.pm
  */
 export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
   {
-    // Default server since 2026-11-13: Vidy (vidy.st) is the embed player
-    // behind movy.sx — up to 4K, its own quality / location / audio /
-    // subtitle menus, and a public embed API (vidy.st → Docs). It redirects
-    // vidy.st → www.vidy.st, so the templates point at www directly. Flags:
-    // `color` is the accent (hex, no #), `autoplay=true` starts with sound once
-    // a stream is found. It posts MEDIA_DATA about once a second (JSON
-    // strings) while it plays, so the stall watchdog can use it.
+    // Default server since 2026-11-24 and the app's one embed server: 11 of 11
+    // test titles, all 1080p, ~7s to a picture, autoplays. Also what hover
+    // previews play — it must autoplay (see HoverVideoPlayer).
+    id: 'vidfast_pro',
+    name: 'Sirius',
+    tv: 'https://vidfast.vc/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
+    movie: 'https://vidfast.vc/movie/{tmdbId}?autoPlay=true',
+    quality: '1080p, 4K where available',
+    badge: 'HD',
+    seekSupport: 'excellent',
+    description: 'VidFast — played all 11 test titles in 1080p, fastest to start',
+    // vidfast.pro only redirects here; vidfast.domains lists .vc as current.
+    messageOrigins: ['https://vidfast.vc'],
+    reportsPlayback: true,
+  },
+  {
+    // Vidy (vidy.st), the player behind movy.sx — up to 4K, its own quality /
+    // location / audio / subtitle menus, and a public embed API (vidy.st →
+    // Docs). It redirects vidy.st → www.vidy.st, so the templates point at www
+    // directly. Flags: `color` is the accent (hex, no #), `autoplay=true`
+    // starts with sound once a stream is found. It posts MEDIA_DATA about once
+    // a second (JSON strings) while it plays. 10 of 11, but slower to start
+    // (~10–13s) than VidFast, so it's second.
     id: 'vidy',
     name: 'Sol',
     tv: 'https://www.vidy.st/tv/{tmdbId}/{season}/{episode}?autoplay=true&color=2563EB',
@@ -90,72 +109,62 @@ export const STREAM_PROVIDER_LIST: readonly StreamProvider[] = [
     reportsPlayback: true,
   },
   {
-    // What hover previews use — it must autoplay (see HoverVideoPlayer).
-    id: 'vidfast_pro',
-    name: 'Sirius',
-    tv: 'https://vidfast.vc/tv/{tmdbId}/{season}/{episode}?autoPlay=true',
-    movie: 'https://vidfast.vc/movie/{tmdbId}?autoPlay=true',
-    quality: '1080p, 4K where available',
+    // 11 of 11, 720p–1080p, the fewest pop-up ads of any server tested.
+    id: 'vidsrc_sh',
+    name: 'Canopus',
+    tv: 'https://vidsrc.sh/embed/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://vidsrc.sh/embed/movie/{tmdbId}',
+    quality: '720p–1080p',
     seekSupport: 'excellent',
-    description: 'VidFast — played all 9 test titles in 1080p',
-    // vidfast.pro only redirects here; vidfast.domains lists .vc as current.
-    messageOrigins: ['https://vidfast.vc'],
+    description: 'VidSrc.sh — played all 11 test titles, fewest ads',
+    messageOrigins: ['https://vidsrc.sh'],
     reportsPlayback: true,
   },
   {
-    id: 'vidspark',
-    name: 'Canopus',
-    tv: 'https://vidspark.to/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://vidspark.to/movie/{tmdbId}',
+    id: 'vidzee',
+    name: 'Vega',
+    tv: 'https://player.vidzee.wtf/embed/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://player.vidzee.wtf/embed/movie/{tmdbId}',
     quality: '1080p',
     seekSupport: 'excellent',
-    description: 'VidSpark — played all 9 test titles, 7 in 1080p',
-    // Never autoplays (no URL flag for it): it waits on its own play button,
-    // so it stays out of reportsPlayback — the stall watchdog would otherwise
-    // tell a viewer who simply hasn't pressed play yet that it's stuck.
+    description: 'VidZee — played 10 of 11 test titles in 1080p',
+    messageOrigins: ['https://player.vidzee.wtf'],
+    reportsPlayback: true,
   },
   {
+    // Often loads the title and then waits on its own play button.
     id: 'vidlink_pro',
     name: 'Arcturus',
     tv: 'https://vidlink.pro/tv/{tmdbId}/{season}/{episode}?autoplay=true',
     movie: 'https://vidlink.pro/movie/{tmdbId}?autoplay=true',
     quality: '1080p',
     seekSupport: 'excellent',
-    description: 'VidLink — played 8 of 9 test titles, 6 in 1080p',
+    description: 'VidLink — played 8 of 11 test titles; press play if it waits',
     messageOrigins: ['https://vidlink.pro'],
     reportsPlayback: true,
   },
   {
-    // Slow to start on some titles, but it played on every run on the live site.
-    id: 'vidzee',
-    name: 'Vega',
-    tv: 'https://player.vidzee.wtf/embed/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://player.vidzee.wtf/embed/movie/{tmdbId}',
-    quality: '480p–1080p',
+    // Rive's embed: 4K on some titles, few ads, but posts nothing to the parent,
+    // so it stays out of reportsPlayback.
+    id: 'rive',
+    name: 'Capella',
+    tv: 'https://www.rivestream.app/embed?type=tv&id={tmdbId}&season={season}&episode={episode}',
+    movie: 'https://www.rivestream.app/embed?type=movie&id={tmdbId}',
+    quality: '480p–4K',
     seekSupport: 'good',
-    description: 'VidZee — played all 9 test titles; quality varies',
-    messageOrigins: ['https://player.vidzee.wtf'],
-    reportsPlayback: true,
+    description: 'Rive — played 10 of 11 test titles, up to 4K',
   },
   {
-    // Quickest to start when it plays, but in 5 of 17 runs on the built and
-    // live app it sat at 00:00 with its player showing "playing".
-    id: 'vidsrc_pk',
-    name: 'Capella',
-    tv: 'https://embed.vidsrc.pk/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://embed.vidsrc.pk/movie/{tmdbId}',
+    // No pop-ups at all in the test; posts MEDIA_DATA while it plays.
+    id: 'viduki',
+    name: 'Rigel',
+    tv: 'https://www.viduki.net/1/tv/{tmdbId}/{season}/{episode}',
+    movie: 'https://www.viduki.net/1/movie/{tmdbId}',
     quality: '720p–1080p',
     seekSupport: 'good',
-    description: 'VidSrc.pk — quickest to start, played 8 of 9 test titles',
-  },
-  {
-    id: 'vidcore',
-    name: 'Rigel',
-    tv: 'https://vidcore.org/embed/tv/{tmdbId}/{season}/{episode}',
-    movie: 'https://vidcore.org/embed/movie/{tmdbId}',
-    quality: '480p–1080p',
-    seekSupport: 'good',
-    description: 'VidCore — last resort, played 8 of 9 test titles',
+    description: 'Viduki — played 9 of 11 test titles, no pop-ups',
+    messageOrigins: ['https://www.viduki.net'],
+    reportsPlayback: true,
   },
 ] as const
 
@@ -229,11 +238,9 @@ export const CONFIG = {
   DEFAULT_PROVIDER: STREAM_PROVIDER_LIST[0].id,
 
   /**
-   * What the hover (quick-view) preview plays: Sol, the default server, so the
-   * preview is the same picture Play opens. Vidy has no mute flag — with
-   * `autoplay=true` it starts WITH sound once the visitor has clicked anywhere
-   * on the site (the disclaimer's Accept counts), and otherwise shows its own
-   * play button. Closing the popup unmounts the frame, which stops the sound.
+   * What the hover (quick-view) preview plays: the default server (VidFast),
+   * so the preview is the same picture Play opens. It autoplays; closing the
+   * popup unmounts the frame, which stops the sound.
    */
   PREVIEW_PROVIDER: STREAM_PROVIDER_LIST[0].id,
 
@@ -368,7 +375,7 @@ export interface ServerOption {
   name: string
   /** The whole entry as plain text, for places that can't style parts of it (a native <select>). */
   label: string
-  /** What it streams in — Premium's "4K/1080p", Sol's "4K". */
+  /** What it streams in — Premium's "4K/1080p", Sol's "4K", Sirius's "HD". */
   detail?: string
   /** Premium only: it won't play for this viewer (not the admin, not an approved account). */
   locked?: boolean
@@ -380,7 +387,7 @@ export interface ServerOption {
  * Torrentio) rather than fuzzy title text, so season packs vs per-episode
  * releases aren't the reliability problem they'd be with title matching alone.
  *
- * It always comes last — Sol (Vidy) first, then the stars, then Premium —
+ * It always comes last — Sirius (VidFast) first, then the rest, then Premium —
  * for everyone. Premium plays for the admin and for accounts the admin
  * approved (the backend enforces it); everyone else sees it with a lock.
  */
@@ -407,7 +414,7 @@ export function serverOptions(
 
 /**
  * The server a playback starts on when nothing picked one: the first in the
- * dropdown — Sol (Vidy) everywhere.
+ * dropdown — Sirius (VidFast) everywhere.
  */
 export function defaultServer(mode: MediaMode): string {
   return serverOptions(mode)[0].id

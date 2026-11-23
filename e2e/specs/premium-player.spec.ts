@@ -1,6 +1,6 @@
 /**
- * ⚡ Premium (Real-Debrid) — the last server in the list (Sol, Vidy's player,
- * is the default) and admin-only: these tests hold an admin session and pick
+ * ⚡ Premium (Real-Debrid) — the last server in the list (Sirius, VidFast's
+ * player, is the default) and admin-only: these tests hold an admin session and pick
  * it, as the admin would. What everyone else sees — the lock, the notice,
  * the admin sign-in — is e2e/tests/premium-admin.e2e.ts.
  */
@@ -13,29 +13,29 @@ import { CONVERTED_STREAM_URL, MOVIE, SAMPLE_VIDEO_URL, SHOW, convertedPlayback,
 test.use({ admin: true })
 
 test.describe('Server list', () => {
-  test('Sol is the server selected by default for movies and shows', async ({ watch }) => {
+  test('Sirius is the server selected by default for movies and shows', async ({ watch }) => {
     await watch.goto(MOVIE)
-    await expect(watch.serverPicker).toContainText('Sol')
+    await expect(watch.serverPicker).toContainText('Sirius')
 
     await watch.goto(SHOW)
-    await expect(watch.serverPicker).toContainText('Sol')
+    await expect(watch.serverPicker).toContainText('Sirius')
   })
 
-  test('lists Sol (4K) first, then the stars, and Premium last', async ({ page, watch }) => {
+  test('lists Sirius first, then Sol (4K) and the rest, and Premium last', async ({ page, watch }) => {
     await watch.goto(MOVIE)
     await watch.serverPicker.click()
 
     const options = page.getByRole('option')
-    await expect(options.first()).toHaveText(/^Sol\s*4K$/)
-    await expect(options.nth(1)).toHaveText('Sirius')
+    await expect(options.first()).toHaveText(/^Sirius\s*HD$/)
+    await expect(options.nth(1)).toHaveText(/^Sol\s*4K$/)
     await expect(options.last()).toHaveText(/^Premium\s*4K\/1080p/)
   })
 
-  test('Sol plays in an embed, from vidy.st', async ({ watch }) => {
+  test('Sirius plays in an embed, from vidfast.vc', async ({ watch }) => {
     await watch.goto(MOVIE)
     await watch.play()
 
-    await expect(watch.embed).toHaveAttribute('src', new RegExp(`^https://www\\.vidy\\.st/movie/${MOVIE.id}\\?`))
+    await expect(watch.embed).toHaveAttribute('src', new RegExp(`^https://vidfast\\.vc/movie/${MOVIE.id}\\?`))
     await expect(watch.embedFrame.getByText(EMBED_STUB_TEXT)).toBeVisible()
     await expect(watch.premiumVideo).toHaveCount(0)
   })
@@ -277,7 +277,7 @@ test.describe('Premium server', () => {
 
     await expect(page.getByText('No Premium stream available')).toBeVisible()
     await page.getByRole('button', { name: 'Switch server' }).first().click()
-    await page.getByRole('option', { name: 'Sirius' }).click()
+    await page.getByRole('option', { name: /^Sirius/ }).click()
 
     await expect(watch.embed).toBeVisible()
     await expect(watch.embedFrame.getByText(EMBED_STUB_TEXT)).toBeVisible()
@@ -286,7 +286,7 @@ test.describe('Premium server', () => {
 
   test('a viewer can still pick an embed server up front', async ({ watch }) => {
     await watch.goto(MOVIE)
-    await watch.chooseServer('Canopus')
+    await watch.chooseServer(/^Sol/)
     await watch.play()
 
     await expect(watch.embedFrame.getByText(EMBED_STUB_TEXT)).toBeVisible()

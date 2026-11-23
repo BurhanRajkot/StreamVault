@@ -3,7 +3,7 @@ import { type MediaFixture, titleOf, watchPath } from '../fixtures/data'
 
 /**
  * The title page (/watch/:type/:id): details, server picker, and the player
- * — either an embed server's iframe (Sol, the default, and the stars) or
+ * — either an embed server's iframe (Sirius, the default, and the other stars) or
  * ⚡ Premium's own <video>.
  *
  * Desktop and mobile render different pre-play layouts ("Play Now" vs
@@ -43,7 +43,7 @@ export class WatchPage {
   }
 
   /**
-   * Open the title page with ⚡ Premium picked. Every title starts on Sol
+   * Open the title page with ⚡ Premium picked. Every title starts on Sirius
    * (Vidy) and Premium is the last server, so Premium's tests choose it, the
    * way a viewer would. It only plays for an admin: `test.use({ admin: true })`.
    */
