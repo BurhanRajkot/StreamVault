@@ -66,6 +66,8 @@
   --tabbar-h: 62px;
   --navbar-h: 52px;
   --topbar-h: 60px;
+  /* The narrow desktop window's title strip (WindowControls.tsx) */
+  --wbar-h: 32px;
 }
 
 @media (max-resolution: 1.5dppx) {
@@ -465,4 +467,23 @@ textarea {
   .skeleton {
     animation: none;
   }
+}
+
+/*
+ * A narrow desktop window has the phone layout; its title strip
+ * (WindowStrip) stands where a phone's status bar would, so the layout's
+ * safe-area top makes room for it. The players draw their own window
+ * controls and keep the real safe area.
+ */
+@media (max-width: 1023.98px) {
+  :root.sv-frameless {
+    --sat: var(--wbar-h);
+  }
+}
+.app-player {
+  --sat: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+}
+/* The Premium player's title drags the window while its controls show (not in full screen) */
+.sv-frameless .app-player .player-top[data-shown="true"] .player-overlay-title {
+  -webkit-app-region: drag;
 }

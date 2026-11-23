@@ -1232,10 +1232,11 @@ export function PlayerControls({
       </>
       )}
 
-      {/* Top bar */}
+      {/* Top bar (data-shown: the desktop app lets its title drag the window while it shows) */}
       <div
+        data-shown={shown}
         className={cn(
-          'pointer-events-none absolute inset-x-0 top-0 flex items-start gap-3 pb-6 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] transition-opacity duration-300 sm:pt-4',
+          'player-top pointer-events-none absolute inset-x-0 top-0 flex items-start gap-3 pb-6 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pt-[max(0.75rem,env(safe-area-inset-top,0px))] transition-opacity duration-300 sm:pt-4',
           shown ? 'opacity-100 [&_button]:pointer-events-auto' : 'opacity-0'
         )}
       >

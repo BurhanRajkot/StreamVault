@@ -73,7 +73,12 @@ static for speed, while the app runs on the device and animates freely
 cards that lift under the mouse, sheets you swipe away). Fonts (Manrope,
 Inter) are bundled. In a wide window it switches to the desktop layout — a
 glass top bar that is also the desktop window's title bar (the window is
-frameless; `TitleBar.tsx` draws the drag area and window buttons). On embed
+frameless; `TitleBar.tsx` draws the drag area and window buttons). A narrow
+window (snapped beside another, split screen) gets a slim title strip instead,
+and the players carry the window's buttons too (`WindowControls.tsx`): a film
+plays in the window — move it, resize it, minimize it, or pin it on top of
+other windows — and goes full screen only from its button, F11 or the
+"Open the player in full screen" setting (Escape leaves it). On embed
 servers the player's bar fades, but a handle at the top always opens the
 server drawer, and Escape (forwarded by the shell even while the embed's
 frame has focus) brings the controls back.

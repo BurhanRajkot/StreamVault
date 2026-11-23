@@ -12,12 +12,14 @@ export interface AppSettings {
   downloadQuality: QualityPreference
   /** Android: hold downloads until the phone is on Wi-Fi. */
   wifiOnly: boolean
+  /** Desktop: the player takes the whole screen as it opens (otherwise it plays in the window). */
+  playerFullscreen: boolean
   /** Shown once, on first launch. */
   acceptedTerms: boolean
 }
 
 const KEY = 'sv-app:settings'
-const DEFAULTS: AppSettings = { defaultServer: '', premiumDefault: true, downloadQuality: '1080p', wifiOnly: false, acceptedTerms: false }
+const DEFAULTS: AppSettings = { defaultServer: '', premiumDefault: true, downloadQuality: '1080p', wifiOnly: false, playerFullscreen: false, acceptedTerms: false }
 
 function read(): AppSettings {
   try {
