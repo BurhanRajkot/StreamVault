@@ -70,6 +70,15 @@ export function useFinePointer(): boolean {
 /** The Linux window's maximized / fullscreen state. */
 export function useWindowState(): WindowState {
   const [state, setState] = useState<WindowState>({ maximized: false, fullscreen: false })
-  useEffect(() => desktop?.onWindowState?.(setState), [])
+  useEffect(() => {
+    let live = true
+    // Ask once (the window may already be maximized or full screen), then follow its changes
+    desktop?.windowControl?.('state').then((s) => live && s && setState(s), () => {})
+    const off = desktop?.onWindowState?.(setState)
+    return () => {
+      live = false
+      off?.()
+    }
+  }, [])
   return state
 }

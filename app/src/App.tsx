@@ -10,6 +10,7 @@ import { desktop, isAndroid } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
 import { TitleBar } from '@app/components/shell/TitleBar'
 import { TabBar } from '@app/components/shell/TabBar'
+import { WindowStrip, useFramelessClass } from '@app/components/shell/WindowControls'
 import { UpdateBanner } from '@app/components/UpdateBanner'
 import { Welcome } from '@app/screens/Welcome'
 import { HomeScreen } from '@app/screens/HomeScreen'
@@ -36,6 +37,7 @@ export function App() {
   useAndroidBackButton()
   useEscapeBridge()
   useScrollMemory()
+  useFramelessClass()
 
   if (!settings.acceptedTerms) {
     return (
@@ -53,6 +55,8 @@ export function App() {
           <AccountSync />
           <UserSwitchGuard />
           {!fullscreen && <TitleBar />}
+          {/* A narrow (snapped, split-screen) desktop window: a slim title bar instead — the players carry their own */}
+          {!fullscreen && <WindowStrip />}
           <main className="relative z-10 min-h-[100dvh] text-foreground">
             <Suspense fallback={<div className="min-h-[100dvh]" />}>
               {/* Each screen fades in. Opacity only: a transform here would trap the screens' fixed layers. */}
@@ -145,6 +149,15 @@ function useEscapeBridge() {
       }),
     []
   )
+  // Escape leaves full screen (the shell does too; asking twice is harmless)
+  useEffect(() => {
+    if (!desktop) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') void desktop?.setFullscreen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
 }
 
 /** Another account signed in: nothing of the previous one's may show. */

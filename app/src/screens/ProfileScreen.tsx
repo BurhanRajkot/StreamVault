@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, Gauge, Heart, Info, Loader2, LogOut, RefreshCw, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
+import { Download, Gauge, Heart, Info, Loader2, LogOut, Maximize, RefreshCw, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID } from '@/lib/config'
 import { startServer } from '@app/lib/startServer'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
@@ -8,7 +8,7 @@ import { clearAdminToken } from '@/lib/api'
 import { initialsOf } from '@/lib/utils'
 import { useAppAuth } from '@app/auth/AppAuthProvider'
 import { updateSettings, useSettings } from '@app/lib/settings'
-import { APP_VERSION, isAndroid, isNativeApp, platformLabel } from '@app/native/platform'
+import { APP_VERSION, isAndroid, isDesktop, isNativeApp, platformLabel } from '@app/native/platform'
 import { useAvailableUpdate } from '@app/native/updates'
 import { useInstallUpdate } from '@app/native/installUpdate'
 import { ServerSheet } from '@app/components/ServerSheet'
@@ -140,6 +140,20 @@ export function ProfileScreen() {
             />
           }
         />
+        {isDesktop && (
+          <ListRow
+            icon={
+              <IconTile color="indigo">
+                <Maximize />
+              </IconTile>
+            }
+            label="Open the player in full screen"
+            detail="Off: films play in the window — move it, resize it, snap it beside another or minimize it"
+            trailing={
+              <Switch label="Open the player in full screen" checked={settings.playerFullscreen} onChange={(v) => updateSettings({ playerFullscreen: v })} />
+            }
+          />
+        )}
         {isAndroid && (
           <ListRow
             icon={

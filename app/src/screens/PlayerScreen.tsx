@@ -23,6 +23,7 @@ import { ServerList, serverName, useServerOptions } from '@app/components/Server
 import { Sheet } from '@app/components/Sheet'
 import { SegmentedControl } from '@app/components/kit'
 import { CONTINUE_WATCHING_KEY } from '@app/components/ContinueWatchingRow'
+import { PlayerWindowControls } from '@app/components/shell/WindowControls'
 import { tmdbImg } from '@app/components/media'
 
 /** The overlay over an embed fades after this long without a touch. */
@@ -301,7 +302,12 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
               onNext={next ? () => goTo(next.season, next.episode) : undefined}
               nextLabel={next ? `S${next.season} · E${next.episode}` : undefined}
               episodes={episodesList}
-              topActions={serverButton}
+              topActions={
+                <>
+                  {serverButton}
+                  <PlayerWindowControls />
+                </>
+              }
               runtimeMinutes={kind === 'tv' ? media.episode_run_time?.[0] : media.runtime}
             />
           ) : (
@@ -366,11 +372,23 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                     </BarButton>
                   )}
                   {desktop && (
-                    <BarButton onClick={() => void desktop!.setFullscreen(!windowState.fullscreen)} label={windowState.fullscreen ? 'Exit full screen' : 'Full screen'} iconOnly>
+                    <BarButton onClick={() => void desktop!.setFullscreen(!windowState.fullscreen)} label={windowState.fullscreen ? 'Exit full screen (Esc)' : 'Full screen (F11)'} iconOnly>
                       {windowState.fullscreen ? <Minimize className="h-[18px] w-[18px]" /> : <Maximize className="h-[18px] w-[18px]" />}
                     </BarButton>
                   )}
                 </div>
+                {/* Desktop, in a window: the empty middle drags it, the window's buttons sit on the right */}
+                {desktop?.frameless && !windowState.fullscreen && (
+                  <>
+                    <div
+                      className="drag pointer-events-auto h-10 min-w-6 flex-1"
+                      onDoubleClick={(e) => {
+                        if (e.target === e.currentTarget) void desktop?.windowControl?.('maximize')
+                      }}
+                    />
+                    <PlayerWindowControls />
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

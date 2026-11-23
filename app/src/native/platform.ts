@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import type { LocalStreamRequest } from '@/lib/localStream'
+import { getSettings } from '@app/lib/settings'
 
 /** A transfer the OS downloader (Android) or the desktop shell is running. */
 export interface NativeTransfer {
@@ -63,8 +64,11 @@ export interface DesktopBridge {
   freeSpace(): Promise<{ bytes: number }>
   /** The window has no system frame — the app draws the title bar and its buttons. */
   frameless?: boolean
-  /** Minimize, maximize/restore or close the window; answers its state after. Missing on shells older than the redesign. */
-  windowControl?(action: 'minimize' | 'maximize' | 'close'): Promise<WindowState | null>
+  /**
+   * Minimize, maximize/restore (or leave full screen) or close the window, keep it above others ('pin' toggles,
+   * 'unpin' clears), or just ask ('state'); answers its state after. Missing on shells older than the redesign.
+   */
+  windowControl?(action: WindowAction): Promise<WindowState | null>
   onWindowState?(callback: (state: WindowState) => void): () => void
   /** Keys the shell sees even while an embedded player's frame has focus (Escape). */
   onKey?(callback: (key: string) => void): () => void
@@ -74,9 +78,13 @@ export interface DesktopBridge {
   rdClose?(token: string): Promise<void>
 }
 
+export type WindowAction = 'minimize' | 'maximize' | 'close' | 'pin' | 'unpin' | 'state'
+
 export interface WindowState {
   maximized: boolean
   fullscreen: boolean
+  /** Kept above other windows. Missing on shells older than it. */
+  pinned?: boolean
 }
 
 declare global {
@@ -115,11 +123,22 @@ export async function openExternal(url: string): Promise<void> {
   window.open(url, '_blank', 'noopener')
 }
 
-/** Full screen and sideways for playback; back to normal after. */
+/**
+ * Android: full screen and sideways for playback, back to normal after.
+ * Desktop: the player opens in the window as it is — it can still be moved,
+ * resized, snapped beside another window or minimized — unless the viewer
+ * asked for full screen (settings); leaving the player leaves full screen
+ * and lets go of "keep on top".
+ */
 export async function setPlaybackMode(enabled: boolean): Promise<void> {
   try {
     if (isAndroid) await SvNative.setImmersive({ enabled })
-    else if (desktop) await desktop.setFullscreen(enabled)
+    else if (desktop) {
+      if (!enabled) {
+        await desktop.setFullscreen(false)
+        await desktop.windowControl?.('unpin')
+      } else if (getSettings().playerFullscreen) await desktop.setFullscreen(true)
+    }
   } catch {
     // Not fatal: the player still fills the window
   }

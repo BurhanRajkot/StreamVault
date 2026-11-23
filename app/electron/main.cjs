@@ -295,6 +295,10 @@ function isAllowedInWindow(url) {
   }
 }
 
+function windowState() {
+  return { maximized: win.isMaximized(), fullscreen: win.isFullScreen(), pinned: win.isAlwaysOnTop() }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1360,
@@ -325,9 +329,12 @@ function createWindow() {
   // The app's window buttons and its full-screen player follow the window's state
   const sendState = () => {
     if (!win || win.isDestroyed()) return
-    win.webContents.send('sv:window-state', { maximized: win.isMaximized(), fullscreen: win.isFullScreen() })
+    win.webContents.send('sv:window-state', windowState())
   }
-  for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'restore']) win.on(event, sendState)
+  // A video's own full-screen button (the Premium player, offline files) fills the window too — the "html" events
+  for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'enter-html-full-screen', 'leave-html-full-screen', 'restore', 'always-on-top-changed']) {
+    win.on(event, () => setTimeout(sendState, 0))
+  }
 
   // Links meant for outside (magnet:, upi:, the releases page) go to the system;
   // pop-ups from embed players are dropped.
@@ -342,6 +349,8 @@ function createWindow() {
   })
   win.webContents.on('before-input-event', (_event, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen())
+    // Escape leaves full screen, whatever has focus (an embed's frame keeps the key to itself)
+    if (input.type === 'keyDown' && input.key === 'Escape' && win.isFullScreen()) win.setFullScreen(false)
     // An embedded player's frame swallows keys; Escape still has to reach the app (show the controls, close a panel)
     if (input.type === 'keyDown' && input.key === 'Escape') win.webContents.send('sv:key', 'Escape')
     if (input.type === 'keyDown' && input.key === 'F12' && !app.isPackaged) win.webContents.toggleDevTools()
@@ -465,12 +474,19 @@ function registerIpc() {
   ipcMain.handle('sv:fullscreen', (_e, enabled) => {
     if (win && win.isFullScreen() !== !!enabled) win.setFullScreen(!!enabled)
   })
+  // Window buttons the app draws (TitleBar.tsx, WindowControls.tsx). 'state' only answers; 'pin' keeps
+  // the window above others (a film in a corner while you work), 'unpin' lets it go.
   ipcMain.handle('sv:window', (_e, action) => {
     if (!win) return null
     if (action === 'minimize') win.minimize()
-    else if (action === 'maximize') (win.isMaximized() ? win.unmaximize() : win.maximize())
-    else if (action === 'close') win.close()
-    return { maximized: win.isMaximized(), fullscreen: win.isFullScreen() }
+    else if (action === 'maximize') {
+      if (win.isFullScreen()) win.setFullScreen(false)
+      else if (win.isMaximized()) win.unmaximize()
+      else win.maximize()
+    } else if (action === 'close') win.close()
+    else if (action === 'pin') win.setAlwaysOnTop(!win.isAlwaysOnTop(), 'floating')
+    else if (action === 'unpin') win.setAlwaysOnTop(false)
+    return windowState()
   })
   ipcMain.handle('sv:free-space', async () => {
     const dir = downloadsDir()

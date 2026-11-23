@@ -2,13 +2,14 @@ import { useEffect } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { motion } from 'framer-motion'
-import { ChevronLeft, Copy, Download, Minus, Search, Square, X, Zap } from 'lucide-react'
+import { ChevronLeft, Download, Search, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { desktop } from '@app/native/platform'
 import { useDownloads } from '@app/downloads/store'
-import { useScrolled, useWindowState } from '@app/lib/hooks'
+import { useScrolled } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { Logo } from '@app/components/Logo'
+import { WindowButtons } from '@app/components/shell/WindowControls'
 
 const LINKS = [
   { to: '/', label: 'Home' },
@@ -55,7 +56,7 @@ export function TitleBar() {
   return (
     <header
       className={cn(
-        'drag fixed inset-x-0 top-0 z-50 hidden h-[var(--topbar-h)] items-center gap-2 pl-5 pr-2 transition-[background-color,box-shadow,backdrop-filter] duration-500 lg:flex',
+        'drag fixed inset-x-0 top-0 z-50 hidden h-[var(--topbar-h)] items-center gap-1.5 pl-4 pr-2 xl:gap-2 xl:pl-5 transition-[background-color,box-shadow,backdrop-filter] duration-500 lg:flex',
         solid ? 'material-bar' : 'bg-gradient-to-b from-black/60 via-black/20 to-transparent'
       )}
       onDoubleClick={(e) => {
@@ -74,11 +75,11 @@ export function TitleBar() {
         <ChevronLeft className="-ml-0.5 h-5 w-5 shrink-0" strokeWidth={2.4} />
       </motion.button>
 
-      <Link to="/" className="mr-6 shrink-0" aria-label="StreamVault home">
+      <Link to="/" className="mr-2 shrink-0 xl:mr-6" aria-label="StreamVault home">
         <Logo />
       </Link>
 
-      <nav aria-label="Main" className="flex items-center gap-1">
+      <nav aria-label="Main" className="flex min-w-0 items-center gap-0.5 xl:gap-1">
         {LINKS.map((link) => {
           const isActive = isCurrent(link.to, pathname)
           return (
@@ -86,7 +87,7 @@ export function TitleBar() {
               key={link.to}
               to={link.to}
               className={cn(
-                'relative rounded-full px-3.5 py-[7px] text-[14px] font-medium transition-colors',
+                'relative shrink-0 whitespace-nowrap rounded-full px-2.5 py-[7px] text-[13.5px] font-medium transition-colors xl:px-3.5 xl:text-[14px]',
                 isActive ? 'text-white' : 'text-white/65 hover:text-white'
               )}
             >
@@ -101,14 +102,16 @@ export function TitleBar() {
 
       <button
         onClick={() => navigate('/search')}
+        aria-label="Search"
+        title="Search (Ctrl K)"
         className={cn(
-          'group flex h-9 w-[240px] shrink-0 items-center gap-2 rounded-full bg-fill px-3.5 text-[14px] text-label-2 transition-colors hover:bg-[rgb(118_118_128/0.32)] xl:w-[300px]',
+          'group flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full bg-fill text-[14px] text-label-2 transition-colors hover:bg-[rgb(118_118_128/0.32)] xl:w-[240px] xl:justify-start xl:px-3.5 2xl:w-[300px]',
           pathname === '/search' && 'text-white/80'
         )}
       >
-        <Search className="h-4 w-4" strokeWidth={2.2} />
-        <span className="flex-1 text-left">Search</span>
-        <kbd className="font-sans text-[12px] text-label-3">Ctrl K</kbd>
+        <Search className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+        <span className="hidden flex-1 text-left xl:inline">Search</span>
+        <kbd className="hidden font-sans text-[12px] text-label-3 xl:inline">Ctrl K</kbd>
       </button>
 
       <IconLink to="/downloads" label="Downloads" active={pathname === '/downloads'}>
@@ -139,7 +142,7 @@ export function TitleBar() {
         )}
       </Link>
 
-      {desktop?.frameless && <WindowButtons />}
+      {desktop?.frameless && <WindowButtons className="ml-2 pl-1 xl:ml-3" />}
     </header>
   )
 }
@@ -157,25 +160,5 @@ function IconLink({ to, label, active, children }: { to: string; label: string; 
     >
       {children}
     </Link>
-  )
-}
-
-/** Minimize, maximize/restore, close — the frameless window's own. */
-function WindowButtons() {
-  const { maximized } = useWindowState()
-  const control = (action: 'minimize' | 'maximize' | 'close') => void desktop?.windowControl?.(action)
-  const base = 'flex h-8 w-10 items-center justify-center rounded-lg text-white/60 transition-colors hover:text-white'
-  return (
-    <div className="ml-3 flex items-center gap-0.5 pl-1">
-      <button onClick={() => control('minimize')} aria-label="Minimize" className={cn(base, 'hover:bg-white/10')}>
-        <Minus className="h-4 w-4" />
-      </button>
-      <button onClick={() => control('maximize')} aria-label={maximized ? 'Restore' : 'Maximize'} className={cn(base, 'hover:bg-white/10')}>
-        {maximized ? <Copy className="h-3.5 w-3.5 -scale-x-100" /> : <Square className="h-3.5 w-3.5" />}
-      </button>
-      <button onClick={() => control('close')} aria-label="Close" className={cn(base, 'hover:bg-red-500/90')}>
-        <X className="h-4 w-4" />
-      </button>
-    </div>
   )
 }

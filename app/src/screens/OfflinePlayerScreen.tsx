@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { setPlaybackMode } from '@app/native/platform'
 import { getDownloads, openWithOtherApp, playableUrl } from '@app/downloads/store'
+import { PlayerWindowControls } from '@app/components/shell/WindowControls'
 
 /**
  * A downloaded file, played with no connection: the app's video element
@@ -50,7 +51,7 @@ export function OfflinePlayerScreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-[300] bg-black" onPointerDown={() => setChrome(true)}>
+    <div className="app-player fixed inset-0 z-[300] bg-black" onPointerDown={() => setChrome(true)} onPointerMove={() => setChrome(true)}>
       {src && (
         <video
           ref={videoRef}
@@ -78,7 +79,8 @@ export function OfflinePlayerScreen() {
         <button onClick={back} aria-label="Back" className="flex h-10 w-10 items-center justify-center rounded-full text-white active:bg-white/10">
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div className="min-w-0 flex-1">
+        {/* The title drags a desktop window (while the bar shows) */}
+        <div className={`min-w-0 flex-1 ${chrome || error ? 'drag' : ''}`}>
           <p className="t-subhead truncate font-semibold text-white">{record.title}</p>
           <p className="text-[11.5px] text-white/55">
             {record.mediaType === 'tv' ? `S${record.season} · E${record.episode} · ` : ''}Offline · {record.quality}
@@ -90,6 +92,7 @@ export function OfflinePlayerScreen() {
         >
           <ExternalLink className="h-4 w-4" /> Open with…
         </button>
+        <PlayerWindowControls className="h-9" />
       </div>
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
