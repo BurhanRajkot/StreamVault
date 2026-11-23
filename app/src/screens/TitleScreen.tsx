@@ -9,6 +9,11 @@ import { logRecommendationInteraction } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
+import { useDebridToken } from '@/hooks/useDebridToken'
+import { DEBRID_SERVER_ID } from '@/lib/config'
+import { warmNearestEdge } from '@/lib/debridHost'
+import { prefetchPremiumReleases } from '@/lib/premiumSearch'
+import { WARM_AFTER_MS, warmPremiumTitle } from '@/lib/premiumWarm'
 import { useFavorites } from '@/context/FavoritesContext'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { SITE_URL } from '@app/native/platform'
@@ -135,6 +140,17 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
   const { scrollY } = useScroll()
   const artY = useTransform(scrollY, [0, 800], [0, wide ? 140 : 100])
   const artOpacity = useTransform(scrollY, [0, wide ? 900 : 480], [1, wide ? 0.3 : 0.15])
+
+  usePremiumHeadStart({
+    on: server === DEBRID_SERVER_ID && premium && !partial && !!imdbId,
+    title: display.title,
+    year: display.year,
+    imdbId,
+    kind,
+    season: kind === 'tv' ? progress?.season ?? activeSeason : undefined,
+    episode: kind === 'tv' ? progress?.episode ?? 1 : undefined,
+    runtimeMinutes: kind === 'tv' ? media.episode_run_time?.[0] : media.runtime,
+  })
 
   const play = (s?: number, e?: number) => {
     // Unpicked, the player applies the same start rule once it knows the account's Premium access
@@ -561,4 +577,52 @@ export function ProgressRing({ value, size = 22 }: { value: number; size?: numbe
       />
     </svg>
   )
+}
+
+/**
+ * Premium, started while the viewer reads the page: the release search right
+ * away (shared with the player, lib/premiumSearch), Real-Debrid's nearest
+ * server measured, and — once they've stayed a moment — the release Play
+ * would start made ready (lib/premiumWarm). Play then goes straight to the
+ * video instead of "Finding the best stream…" and "Starting the stream…".
+ */
+function usePremiumHeadStart({
+  on,
+  title,
+  year,
+  imdbId,
+  kind,
+  season,
+  episode,
+  runtimeMinutes,
+}: {
+  on: boolean
+  title: string
+  year?: string | number
+  imdbId?: string | null
+  kind: TitleKind
+  season?: number
+  episode?: number
+  runtimeMinutes?: number | null
+}) {
+  const getDebridToken = useDebridToken()
+  useEffect(() => {
+    if (!on) return
+    let live = true
+    let warmTimer: ReturnType<typeof setTimeout> | undefined
+    const target = { title, year, imdbId, mediaType: kind, season, episode }
+    const timer = setTimeout(() => {
+      warmNearestEdge()
+      void getDebridToken().then((token) => {
+        if (!live) return
+        prefetchPremiumReleases(target, token)
+        warmTimer = setTimeout(() => void warmPremiumTitle(target, token, runtimeMinutes), WARM_AFTER_MS)
+      })
+    }, 250)
+    return () => {
+      live = false
+      clearTimeout(timer)
+      clearTimeout(warmTimer)
+    }
+  }, [on, title, year, imdbId, kind, season, episode, runtimeMinutes, getDebridToken])
 }

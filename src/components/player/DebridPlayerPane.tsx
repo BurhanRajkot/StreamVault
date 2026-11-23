@@ -49,10 +49,8 @@ import {
 import {
   declaresBrowserAudio,
   detectBrowserVideoSupport,
-  fitReleasesToConnection,
   isLikelyDirectPlayable,
   playsWithoutRdTranscode,
-  rankReleasesForPlayback,
   replacementReleases,
   type StruggleCause,
 } from '@/lib/releasePlayback'
@@ -60,6 +58,7 @@ import { appConvertsAudio } from '@/lib/localStream'
 import { estimateConnection, knownThroughput } from '@/lib/connection'
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases, type PremiumReleaseSource } from '@/lib/premiumSearch'
+import { MAX_AUTO_RELEASE_ATTEMPTS, planPlayback, takeWarmPlayback } from '@/lib/premiumWarm'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
@@ -177,12 +176,13 @@ interface DownloadProgress {
 }
 
 /**
- * Releases tried automatically before an error is shown — each costs one
- * backend round trip (~3-4s; a release Real-Debrid refuses outright, e.g. a
- * DMCA'd one, well under 1s). Popular series often have several refused
- * packs at the top.
+ * Releases asked about alongside the one being started, when nothing says
+ * which are in Real-Debrid's cache (probing — an F1 archive's releases, or
+ * when Torrentio is unreachable). One at a time, a run of releases that
+ * aren't cached cost ~3 s each before one played; asked a few at once, the
+ * best-ranked instant one starts as soon as its own answer is in.
  */
-const MAX_AUTO_RELEASE_ATTEMPTS = 8
+const PROBE_LOOKAHEAD = 2
 
 /**
  * Extra cached releases resolved, when the first one would need Real-Debrid's
@@ -563,10 +563,11 @@ export function DebridPlayerPane({
         triedReleasesRef.current.add(rel.info_hash)
         autoAttemptsRef.current++
         try {
-          const res = await playDebridRelease(rel, token, {
-            ...episodeOpts,
-            instantOnly: rel.cached || probingRef.current,
-          })
+          const instantOnly = rel.cached || probingRef.current
+          // Got ready while the viewer was still on the title's page (lib/premiumWarm)
+          const warm = instantOnly ? takeWarmPlayback(rel, episodeOpts) : null
+          const askNow = () => playDebridRelease(rel, token, { ...episodeOpts, instantOnly })
+          const res = warm ? await warm.catch(askNow) : await askNow()
           const current = generationRef.current === generation
           if (res.status === 'ready') {
             if (probingRef.current && current) {
@@ -626,6 +627,13 @@ export function DebridPlayerPane({
         setActiveRelease(playing)
 
         const answer = ask(playing)
+        if (probingRef.current) {
+          // Nobody knows which are cached: ask about the next few at the same time
+          releaseQueueRef.current
+            .filter((r) => r.info_hash !== playing.info_hash && open(r) && !answers.has(r.info_hash))
+            .slice(0, Math.max(0, Math.min(PROBE_LOOKAHEAD, MAX_AUTO_RELEASE_ATTEMPTS - autoAttemptsRef.current)))
+            .forEach((r) => void ask(r))
+        }
         if (!speculated) {
           speculated = true
           // A name that promises browser-safe audio usually plays directly;
@@ -858,41 +866,27 @@ export function DebridPlayerPane({
         : await findPremiumReleases({ title, year, imdbId, mediaType, season, episode }, token, { fresh })
       if (generationRef.current !== generation) return
 
-      const support = detectBrowserVideoSupport()
-      // A heavy file is only told by its bitrate, so only once the running time is actually known.
-      const ranked = rankReleasesForPlayback(releases, support, { durationS: knownDurationRef.current, appConvertsAudio: appConvertsAudio() })
       const kbps = (await within(connection, CONNECTION_WAIT_MS)) ?? knownThroughput()
       if (generationRef.current !== generation) return
-      /** Best first, as far as this connection can carry it. */
-      const fit = (list: DebridRelease[]) => fitReleasesToConnection(list, kbps, expectedDurationRef.current, support)
-      const cached = ranked.filter((r) => r.cached)
-      // An uncached release needs live seeders, or it just sits in
-      // Real-Debrid's download queue forever.
-      const seeded = (r: DebridRelease) => parseInt(r.seeders, 10) > 0
-      const uncached = fit(ranked.filter((r) => !r.cached && seeded(r)))
-      // A pack would be downloaded whole for the one thing in it that's wanted: never the fallback
-      uncachedFallbackRef.current = uncached.find((r) => !r.pack) ?? null
+      const plan = planPlayback(releases, {
+        support: detectBrowserVideoSupport(),
+        kbps,
+        durationS: expectedDurationRef.current,
+        knownDurationS: knownDurationRef.current,
+        probeUnseeded: source?.probeUnseeded,
+        appConvertsAudio: appConvertsAudio(),
+      })
+      uncachedFallbackRef.current = plan.uncachedFallback
 
-      if (cached.length > 0) {
+      if (plan.queue.length > 0) {
         // The Quality menu keeps the best first; only the automatic pick follows the connection.
-        setInstantReleases(cached)
-        const queue = fit(cached)
-        if (queue[0] !== cached[0]) {
-          console.info(`Connection carries ~${((kbps ?? 0) / 1000).toFixed(1)} Mbit/s — starting with ${queue[0].name}`)
+        setInstantReleases(plan.instant)
+        if (!plan.probing && plan.queue[0] !== plan.instant[0]) {
+          console.info(`Connection carries ~${((kbps ?? 0) / 1000).toFixed(1)} Mbit/s — starting with ${plan.queue[0].name}`)
         }
-        releaseQueueRef.current = queue
-        await streamRelease(queue[0], token, { preferDirect: true })
-        return
-      }
-
-      // Nothing says what's cached, but popular releases usually are: ask
-      // Real-Debrid about the best few before downloading anything — and,
-      // for an archive, about the ones nobody shares any more as well.
-      const probe = source?.probeUnseeded ? [...uncached, ...ranked.filter((r) => !r.cached && !seeded(r))] : uncached
-      if (probe.length > 0) {
-        probingRef.current = true
-        releaseQueueRef.current = probe.slice(0, MAX_AUTO_RELEASE_ATTEMPTS)
-        await streamRelease(probe[0], token, { preferDirect: true })
+        probingRef.current = plan.probing
+        releaseQueueRef.current = plan.queue
+        await streamRelease(plan.queue[0], token, { preferDirect: true })
         return
       }
 

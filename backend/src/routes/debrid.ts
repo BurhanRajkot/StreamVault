@@ -26,7 +26,7 @@
 import { Router, Request, Response } from 'express'
 import { requireAdminAuth } from '../admin/middleware'
 import { requirePremiumAccess } from '../middleware/premiumAccess'
-import { downloadRateLimiter } from '../cybersecurity/rateLimiter'
+import { downloadRateLimiter, warmRateLimiter } from '../cybersecurity/rateLimiter'
 import { logger } from '../lib/logger'
 import * as debrid from '../lib/debrid'
 import * as subtitles from '../lib/subtitles'
@@ -170,7 +170,8 @@ router.get('/media-search', async (req: Request, res: Response) => {
 //   { status: 'not-cached' } — only with instantOnly: it wasn't instant, and was removed again
 // ---------------------------------------------------------------------------
 
-router.post('/play', downloadRateLimiter, async (req: Request, res: Response) => {
+/** POST /play and POST /warm: one release made ready, as the body describes it. `warm` is always instant-only and never a download. */
+async function playRelease(req: Request, res: Response, { warm }: { warm: boolean }) {
   const body = req.body as {
     hash?: unknown
     name?: unknown
@@ -189,9 +190,9 @@ router.post('/play', downloadRateLimiter, async (req: Request, res: Response) =>
 
   // An offline download asks for the file as such: only the admin, and
   // accounts the admin allowed to download, get it (streaming is unaffected).
-  if (body.purpose === 'download' && !req.admin) {
+  if (body.purpose === 'download' && (warm || !req.admin)) {
     const userId = getUserId(req)
-    if (!userId || !(await debridDownloadsAllowed(userId))) {
+    if (warm || !userId || !(await debridDownloadsAllowed(userId))) {
       return res.status(403).json({ error: "Downloads aren't enabled for your account.", code: 'premium_downloads_off' })
     }
   }
@@ -205,21 +206,35 @@ router.post('/play', downloadRateLimiter, async (req: Request, res: Response) =>
       season: optionalInt(body.season),
       episode: optionalInt(body.episode),
       session: isF1Session(body.session) ? body.session : undefined,
-      instantOnly: body.instantOnly === true,
+      // Getting ready ahead of Play never leaves a download running in the account
+      instantOnly: warm || body.instantOnly === true,
     })
     if (result.status !== 'ready') {
       logger.info('Debrid release not instantly playable', {
         hash: body.hash,
         status: result.status,
+        warm,
         debridStatus: 'debridStatus' in result ? result.debridStatus : undefined,
       })
     }
     return res.json(result)
   } catch (err: unknown) {
-    logger.error('Debrid play failed', { hash: body.hash, error: errorMessage(err) })
+    logger.error(warm ? 'Debrid warm failed' : 'Debrid play failed', { hash: body.hash, error: errorMessage(err) })
     return sendDebridFailure(res, err, 'Failed to start stream')
   }
-})
+}
+
+router.post('/play', downloadRateLimiter, (req: Request, res: Response) => playRelease(req, res, { warm: false }))
+
+// ---------------------------------------------------------------------------
+// POST /debrid/warm — the same body and answer as POST /play, always
+// instantOnly. The player asks it for the release it would start while the
+// viewer is still on the title's page; the answer (and Real-Debrid's, kept
+// in lib/debrid's caches) makes Play start at once. Its own limiter, so
+// looking around doesn't use up the plays.
+// ---------------------------------------------------------------------------
+
+router.post('/warm', warmRateLimiter, (req: Request, res: Response) => playRelease(req, res, { warm: true }))
 
 // ---------------------------------------------------------------------------
 // GET /debrid/play/:torrentId[?fileName=&fileIdx=&season=&episode=&session=]

@@ -22,7 +22,8 @@ import { nowPlayingMeta } from './movie-detail/types'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
-import { prefetchPremiumReleases } from '@/lib/premiumSearch'
+import { prefetchPremiumReleases, type PremiumSearchTarget } from '@/lib/premiumSearch'
+import { WARM_AFTER_MS, warmPremiumTitle } from '@/lib/premiumWarm'
 import { warmNearestEdge } from '@/lib/debridHost'
 import type { PlaybackControls } from './movie-detail/types'
 import {
@@ -550,6 +551,7 @@ export function MovieDetailModal({
   const { premium: canUsePremium } = usePremiumAccess()
   const debridMediaType = mode === 'tv' ? 'tv' : 'movie'
   const prefetch = server !== DEBRID_SERVER_ID || !canUsePremium ? null : !isPlaying ? position : nextTarget
+  const runtimeMinutes = mode === 'tv' ? media.episode_run_time?.[0] : media.runtime
   const prefetchSeason = prefetch?.season
   const prefetchEpisode = prefetch?.episode
   useEffect(() => {
@@ -558,18 +560,22 @@ export function MovieDetailModal({
       () => {
         // And which of Real-Debrid's servers is nearest (lib/debridHost) — measured once every few hours.
         warmNearestEdge()
-        void getDebridToken().then((token) =>
-          prefetchPremiumReleases(
-            { title, year: display.year, imdbId, mediaType: debridMediaType, season: prefetchSeason, episode: prefetchEpisode },
-            token
-          )
-        )
+        void getDebridToken().then((token) => {
+          const target: PremiumSearchTarget = { title, year: display.year, imdbId, mediaType: debridMediaType, season: prefetchSeason, episode: prefetchEpisode }
+          prefetchPremiumReleases(target, token)
+          // Still on the page a moment later: get the release Play would start ready too (lib/premiumWarm)
+          if (!isPlaying) warmTimer = setTimeout(() => void warmPremiumTitle(target, token, runtimeMinutes), WARM_AFTER_MS)
+        })
       },
       // Settled on the page (not just passing through a season picker), or well into the episode
       isPlaying ? 30_000 : 250
     )
-    return () => clearTimeout(timer)
-  }, [prefetchSeason, prefetchEpisode, isPlaying, title, display.year, imdbId, debridMediaType, getDebridToken])
+    let warmTimer: ReturnType<typeof setTimeout> | undefined
+    return () => {
+      clearTimeout(timer)
+      clearTimeout(warmTimer)
+    }
+  }, [prefetchSeason, prefetchEpisode, isPlaying, title, display.year, imdbId, debridMediaType, getDebridToken, runtimeMinutes])
   const isDesktopShow = !isMobile && mode === 'tv'
   // Shares its query with the episode list, so naming the episode is free
   const { data: playingSeasonEpisodes } = useSeasonEpisodes(media.id, season, isPlaying && mode === 'tv')
