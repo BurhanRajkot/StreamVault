@@ -5,9 +5,11 @@ import { ChevronLeft, Download, Flag, Lock, Play, Trophy } from 'lucide-react'
 import { DownloadSheet, type DownloadTarget } from '@/components/downloads/DownloadSheet'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useF1ShowResults } from '@/hooks/useF1ShowResults'
+import { useF1HeadStart } from '@/hooks/useF1HeadStart'
 import { parseTorrentQuality } from '@/lib/debridApi'
 import { cn } from '@/lib/utils'
 import {
+  SESSION_BADGE,
   countryCode,
   defaultSeasonYear,
   f1PremiumNote,
@@ -15,26 +17,18 @@ import {
   f1SeasonQuery,
   formatF1Date,
   isUpcoming,
+  releaseSummary,
   releasesFor,
   sessionLabel,
+  sessionTime,
+  sessionsByDay,
   sessionsToList,
-  startsAt,
+  weekendDates,
   type F1Release,
   type F1Session,
   type F1SessionSlot,
 } from '@/lib/f1'
 import { Button, EmptyState, ListRow, ListSection, NavBar, Switch, useBack } from '@app/components/kit'
-
-/** The short badge each session gets in the list. */
-const SESSION_BADGE: Record<F1Session, string> = {
-  fp1: 'P1',
-  fp2: 'P2',
-  fp3: 'P3',
-  'sprint-qualifying': 'SQ',
-  sprint: 'S',
-  qualifying: 'Q',
-  race: 'R',
-}
 
 /** One race weekend: a header in racing red, then its sessions — each to watch on Premium or download. */
 export function F1RaceScreen() {
@@ -56,6 +50,10 @@ export function F1RaceScreen() {
   const prev = index > 0 ? season?.races[index - 1] : undefined
   const next = season && index >= 0 ? season.races[index + 1] : undefined
   const sessions = useMemo(() => (race ? sessionsToList(race, releasesQuery.data) : []), [race, releasesQuery.data])
+  const days = useMemo(() => sessionsByDay(sessions), [sessions])
+
+  // Before the early returns below: hooks run on every render
+  useF1HeadStart(year, race && !isUpcoming({ date: race.date, time: race.time }) ? round : undefined)
 
   const openDownload = (session: F1Session) => {
     if (!race) return
@@ -88,7 +86,6 @@ export function F1RaceScreen() {
 
   const note = access.loading ? '' : f1PremiumNote(access.reason)
   const raceRun = race ? !isUpcoming({ date: race.date, time: race.time }) : false
-  const firstDay = sessions.find((s) => s.date)?.date ?? null
   const shortName = race?.name.replace(/ Grand Prix\b/, ' GP') ?? 'Formula 1'
 
   return (
@@ -113,8 +110,7 @@ export function F1RaceScreen() {
           {race ? (
             <>
               <p className="t-caption font-semibold uppercase tracking-[0.14em] text-white/70">
-                Round {race.round} · {firstDay && firstDay !== race.date ? `${formatF1Date(firstDay, { year: false })} – ` : ''}
-                {formatF1Date(race.date)}
+                Round {race.round} · {weekendDates(race)}
               </p>
               <h1 className="mt-1.5 text-[32px] font-bold leading-[1.08] tracking-tight text-white lg:text-[44px]">{race.name}</h1>
               <p className="t-subhead mt-2 text-white/70">
@@ -147,29 +143,33 @@ export function F1RaceScreen() {
                 </div>
               )}
 
+              {days.map((day) => (
+                <section key={day.key} className="mb-6">
+                  <h2 className="t-footnote mb-1.5 px-4 uppercase tracking-[0.02em] text-label-2">{day.label ?? 'Sessions'}</h2>
+                  <ul className="glass-card overflow-hidden rounded-[16px]">
+                    {day.sessions.map((slot) => (
+                      <SessionRow
+                        key={slot.key}
+                        year={year}
+                        round={round}
+                        slot={slot}
+                        releases={releasesQuery.data ? releasesFor(releasesQuery.data, slot.key) : undefined}
+                        searching={releasesQuery.isLoading}
+                        premium={access.premium || access.loading}
+                        onDownload={() => openDownload(slot.key)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
               <section className="mb-7">
-                <h2 className="t-footnote mb-1.5 px-4 uppercase tracking-[0.02em] text-label-2">Sessions</h2>
-                <ul className="glass-card overflow-hidden rounded-[16px]">
-                  {sessions.map((slot) => (
-                    <SessionRow
-                      key={slot.key}
-                      year={year}
-                      round={round}
-                      slot={slot}
-                      releases={releasesQuery.data ? releasesFor(releasesQuery.data, slot.key) : undefined}
-                      searching={releasesQuery.isLoading}
-                      premium={access.premium || access.loading}
-                      onDownload={() => openDownload(slot.key)}
-                    />
-                  ))}
-                </ul>
-                <p className="t-footnote mt-1.5 px-4 text-label-2">
+                <p className="t-footnote px-4 text-label-2">
                   {releasesQuery.isError ? (
                     <button onClick={() => void releasesQuery.refetch()} className="text-tint">
                       Couldn’t check who’s sharing this weekend — try again
                     </button>
                   ) : (
-                    'Watch streams on Premium. Download opens a magnet link in your torrent app.'
+                    'Times are in your time zone. Watch streams on Premium; Download opens a magnet link in your torrent app.'
                   )}
                 </p>
               </section>
@@ -224,20 +224,6 @@ function CodeTile({ code, sub }: { code: string; sub: string }) {
   )
 }
 
-function sessionWhen(slot: F1SessionSlot): string {
-  const at = startsAt(slot)
-  if (at === null) return ''
-  if (!slot.time) return formatF1Date(slot.date, { year: false })
-  return new Date(at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-}
-
-/** "9 copies · 4K" */
-function releaseSummary(releases: F1Release[]): string {
-  const order = ['4K', '1080p', '720p', '480p', 'SD']
-  const best = releases.map((r) => parseTorrentQuality(r.name)).sort((a, b) => order.indexOf(a) - order.indexOf(b))[0]
-  return `${releases.length} ${releases.length === 1 ? 'copy' : 'copies'}${best && best !== 'SD' ? ` · ${best}` : ''}`
-}
-
 function SessionRow({
   year,
   round,
@@ -262,13 +248,22 @@ function SessionRow({
   // A copy nobody seeds can still be in Premium's cache, but a torrent app would wait on it forever
   const shared = releases !== undefined && releases.some((r) => Number(r.seeders) > 0)
   const isRace = slot.key === 'race'
-  const status = upcoming ? 'Not run yet' : searching ? 'Looking for copies…' : none ? 'Nobody is sharing it yet' : releases ? releaseSummary(releases) : ''
+  const status = upcoming
+    ? 'Not run yet'
+    : searching
+      ? 'Looking for copies…'
+      : none
+        ? 'Nobody is sharing it yet'
+        : releases
+          ? releaseSummary(releases, parseTorrentQuality)
+          : ''
   // An empty list may just be out of date: the player searches again itself
-  const available = !upcoming && !none
+  const available = !upcoming
+  const time = sessionTime(slot)
 
   return (
     <li
-      className={cn('cell-sep-inset relative flex min-h-[66px] items-center gap-3 px-4 py-3', !available && !searching && 'opacity-60')}
+      className={cn('cell-sep-inset relative flex min-h-[66px] items-center gap-3 px-4 py-3', upcoming && 'opacity-60')}
       style={{ '--sep-inset': '68px' } as React.CSSProperties}
     >
       <span
@@ -282,8 +277,11 @@ function SessionRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className={cn('t-body block truncate', isRace && 'font-semibold')}>{label}</span>
-        <span className="t-footnote mt-0.5 block truncate text-label-2">{sessionWhen(slot)}</span>
-        {status && <span className={cn('t-caption mt-0.5 block truncate', available && releases ? 'text-ios-green' : 'text-label-3')}>{status}</span>}
+        <span className="t-footnote mt-0.5 block truncate">
+          <span className="tabular-nums text-label-2">{time || (slot.date ? formatF1Date(slot.date, { year: false }) : '')}</span>
+          {(time || slot.date) && status && <span className="text-label-3"> · </span>}
+          {status && <span className={!upcoming && releases && !none ? 'text-ios-green' : 'text-label-3'}>{status}</span>}
+        </span>
       </span>
 
       {!upcoming && (

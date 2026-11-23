@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Flag } from 'lucide-react'
 import { PageMeta } from '@/seo/PageMeta'
 import { Button } from '@/components/ui/button'
-import { F1Chrome, LatestRaceHero, RaceRow, ResultsToggle, SeasonSelect, f1Gutter } from '@/components/f1/F1Parts'
+import { F1Chrome, LatestRaceHero, NextRaceCard, RaceCard, ResultsToggle, SeasonSelect, f1Gutter } from '@/components/f1/F1Parts'
 import { FIRST_F1_SEASON, defaultSeasonYear, f1SeasonQuery, latestRace, nextRace } from '@/lib/f1'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useF1ShowResults } from '@/hooks/useF1ShowResults'
+import { useF1HeadStart } from '@/hooks/useF1HeadStart'
 
 /**
  * The F1 archive: one season's race weekends. A race opens its sessions —
@@ -33,8 +34,9 @@ const F1 = () => {
   const races = season?.races ?? []
   const latest = season ? latestRace(season) : null
   const next = season ? nextRace(season) : null
-  const half = Math.ceil(races.length / 2)
+  const done = latest ? races.indexOf(latest) + 1 : 0
   const access = usePremiumAccess()
+  useF1HeadStart(year, latest?.round)
 
   return (
     <>
@@ -74,28 +76,43 @@ const F1 = () => {
             </div>
           ) : isLoading ? (
             <div aria-busy="true">
-              <div className="mb-8 h-[260px] animate-pulse rounded-3xl bg-muted" />
-              <div className="h-[480px] animate-pulse rounded-2xl bg-muted" />
+              <div className="mb-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="h-[280px] animate-pulse rounded-3xl bg-muted" />
+                <div className="hidden h-[280px] animate-pulse rounded-3xl bg-muted lg:block" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-[108px] animate-pulse rounded-2xl bg-muted" />
+                ))}
+              </div>
             </div>
-          ) : races.length === 0 ? (
+          ) : races.length === 0 || !season ? (
             <p className="py-20 text-center text-sm text-muted-foreground">The {year} calendar isn't out yet.</p>
           ) : (
             <>
-              {latest && <LatestRaceHero year={year} race={latest} next={next} showResults={showResults} canWatch={access.premium} />}
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">Races</h2>
-              <div className="grid gap-x-6 gap-y-3 lg:grid-cols-2">
-                {[races.slice(0, half), races.slice(half)].map((part, i) =>
-                  part.length ? (
-                    <ul key={i} className="divide-y divide-border/50 self-start overflow-hidden rounded-2xl border border-border/60 bg-secondary/20">
-                      {part.map((race) => (
-                        <li key={race.round}>
-                          <RaceRow year={year} race={race} showResults={showResults} />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null
-                )}
+              {(latest || next) && (
+                <div className={`mb-10 grid gap-4 ${latest && next ? 'lg:grid-cols-[minmax(0,1fr)_360px]' : ''}`}>
+                  {latest && <LatestRaceHero year={year} race={latest} finale={!next} showResults={showResults} canWatch={access.premium} />}
+                  {next && <NextRaceCard year={year} race={next} />}
+                </div>
+              )}
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">Calendar</h2>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {done} of {races.length} run
+                </p>
               </div>
+              {/* How far into the season */}
+              <div className="mb-5 h-1 overflow-hidden rounded-full bg-foreground/[0.07]" aria-hidden="true">
+                <div className="h-full rounded-full bg-[#e10600]" style={{ width: `${(done / races.length) * 100}%` }} />
+              </div>
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {races.map((race) => (
+                  <li key={race.round} className="min-w-0">
+                    <RaceCard year={year} race={race} season={season} showResults={showResults} />
+                  </li>
+                ))}
+              </ul>
             </>
           )}
         </main>
