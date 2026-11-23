@@ -92,6 +92,10 @@ export function f1SeasonQuery(year: number) {
     queryFn: () => fetchF1Season(year),
     staleTime: 15 * 60_000,
     gcTime: 60 * 60_000,
+    // The backend answers from its fallbacks within ~1.5 s even when Jolpica is down: an error is
+    // real, and three retries with backoff kept the skeleton up for most of a minute
+    retry: 1,
+    retryDelay: 800,
   }
 }
 
@@ -297,4 +301,107 @@ export function f1ReleaseSource(queryClient: QueryClient, year: number, round: n
       return releasesFor(releases, session).map((r) => (r.pack ? { ...r, size: '0' } : r))
     },
   }
+}
+
+// ---------------------------------------------------------------------------
+// The weekend, for the pages
+// ---------------------------------------------------------------------------
+
+/** Where a race weekend stands: run, under way, the next one, or further off. */
+export type RaceState = 'done' | 'live' | 'next' | 'upcoming'
+
+/** When the weekend's first session starts — the race's own start when nothing earlier is known. */
+export function weekendStart(race: F1Race): number | null {
+  const starts = race.sessions.map(startsAt).filter((t): t is number => t !== null)
+  return starts.length > 0 ? Math.min(...starts) : startsAt({ date: race.date, time: race.time })
+}
+
+/** A race is over ~3 hours after its start (the day's end when its start isn't known). */
+function raceOver(race: F1Race): number | null {
+  const at = startsAt({ date: race.date, time: race.time ?? '23:59:59Z' })
+  return at === null ? null : at + (race.time ? 3 * 60 * 60 * 1000 : 0)
+}
+
+export function raceState(race: F1Race, season: F1Season, now = Date.now()): RaceState {
+  const over = raceOver(race)
+  if (over === null || over <= now) return 'done'
+  const start = weekendStart(race)
+  if (start !== null && start <= now) return 'live'
+  const next = season.races.find((r) => (raceOver(r) ?? 0) > now)
+  return next?.round === race.round ? 'next' : 'upcoming'
+}
+
+/** "20–22 Nov 2026", "30 Oct – 1 Nov 2026" — the weekend's days, from its first session to the race. */
+export function weekendDates(race: F1Race, opts: { year?: boolean } = {}): string {
+  const first = race.sessions.map((s) => s.date).filter((d): d is string => !!d).sort()[0]
+  if (!first || first === race.date) return formatF1Date(race.date, opts)
+  const a = new Date(`${first}T12:00:00Z`)
+  const b = new Date(`${race.date}T12:00:00Z`)
+  const format = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', ...(opts.year !== false ? { year: 'numeric' } : {}), timeZone: 'UTC' })
+  // "20–22 Nov 2026" / "Nov 20 – 22, 2026", each locale its own way
+  if (typeof format.formatRange === 'function') return format.formatRange(a, b)
+  return `${formatF1Date(first, { year: false })} – ${formatF1Date(race.date, opts)}`
+}
+
+/** A weekend's sessions under the day they run, in the viewer's time. Sessions with no date go together, unlabelled. */
+export interface SessionDay {
+  key: string
+  /** "Friday 20 Nov" — null for sessions the calendar gives no day for. */
+  label: string | null
+  sessions: F1SessionSlot[]
+}
+
+export function sessionsByDay(sessions: readonly F1SessionSlot[]): SessionDay[] {
+  const days: SessionDay[] = []
+  for (const slot of sessions) {
+    const at = startsAt(slot)
+    let key = 'undated'
+    let label: string | null = null
+    if (at !== null) {
+      // A known start is shown on the viewer's own day; a date alone is the track's
+      const d = slot.time ? new Date(at) : new Date(`${slot.date}T12:00:00Z`)
+      const opts: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'short', ...(slot.time ? {} : { timeZone: 'UTC' }) }
+      label = d.toLocaleDateString(undefined, opts)
+      key = label
+    }
+    const last = days[days.length - 1]
+    if (last && last.key === key) last.sessions.push(slot)
+    else days.push({ key, label, sessions: [slot] })
+  }
+  return days
+}
+
+/** "18:30" in the viewer's time — empty when the calendar gives no start time. */
+export function sessionTime(slot: F1SessionSlot): string {
+  const at = startsAt(slot)
+  if (at === null || !slot.time) return ''
+  return new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
+/** Days, hours and minutes until `at` — all zero once it's passed. */
+export function countdown(at: number, now = Date.now()): { days: number; hours: number; minutes: number } {
+  const left = Math.max(0, at - now)
+  return {
+    days: Math.floor(left / 86_400_000),
+    hours: Math.floor((left % 86_400_000) / 3_600_000),
+    minutes: Math.floor((left % 3_600_000) / 60_000),
+  }
+}
+
+/** The short badge each session gets. */
+export const SESSION_BADGE: Record<F1Session, string> = {
+  fp1: 'P1',
+  fp2: 'P2',
+  fp3: 'P3',
+  'sprint-qualifying': 'SQ',
+  sprint: 'S',
+  qualifying: 'Q',
+  race: 'R',
+}
+
+/** "9 copies · up to 4K" — what's shared of a session. */
+export function releaseSummary(releases: readonly F1Release[], parseQuality: (name: string) => string): string {
+  const order = ['4K', '1080p', '720p', '480p', 'SD']
+  const best = releases.map((r) => parseQuality(r.name)).sort((a, b) => order.indexOf(a) - order.indexOf(b))[0]
+  return `${releases.length} ${releases.length === 1 ? 'copy' : 'copies'}${best && best !== 'SD' ? ` · up to ${best}` : ''}`
 }

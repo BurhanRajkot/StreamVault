@@ -2,9 +2,10 @@
  * The F1 archive: every season's calendar, and for each race weekend the
  * releases people share, sorted into its sessions.
  *
- * - Calendars come from Jolpica (api.jolpi.ca), the Ergast API's successor:
- *   free, keyless, every season since 1950, with session times since 2005-ish
- *   and race winners.
+ * - Calendars: a finished season from the bundled snapshot (lib/f1Snapshot,
+ *   from f1db); the season under way from Jolpica (api.jolpi.ca), the Ergast
+ *   API's successor — free, keyless, with session times and race winners —
+ *   falling back on the snapshot and OpenF1 when it's down (lib/f1Calendar).
  * - Releases come from Knaben (an index of public trackers, The Pirate Bay's
  *   among them) and apibay, searched by the Grand Prix's names and its round
  *   number, then read by lib/f1Names: which race each one is, which sessions
@@ -23,6 +24,7 @@ import * as cache from '../services/cache'
 import { logger } from './logger'
 import { searchApibay, type ApibayResult, type DebridRelease } from './debrid'
 import { F1_SESSIONS, matchRace, readF1Release, searchNames, type F1Session } from './f1Names'
+import { fillWinners, isComplete, openF1Season, snapshotSeason } from './f1Calendar'
 
 const JOLPICA_BASE = process.env.JOLPICA_BASE_URL || 'https://api.jolpi.ca/ergast/f1'
 
@@ -81,7 +83,12 @@ interface JolpicaSession {
   time?: string
 }
 
-interface JolpicaRace {
+/**
+ * One race as Jolpica's calendar has it — also the shape the other calendar
+ * sources (lib/f1Calendar: the bundled snapshot, OpenF1) are put into, so
+ * every source goes through the same session logic.
+ */
+export interface JolpicaRace {
   season: string
   round: string
   raceName: string
@@ -119,7 +126,7 @@ const ASSUMED_SESSIONS: F1Session[] = ['qualifying']
 async function jolpica(path: string): Promise<JolpicaRace[]> {
   const res = await fetch(`${JOLPICA_BASE}${path}`, {
     headers: { 'User-Agent': 'StreamVault/1.0', Accept: 'application/json' },
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(JOLPICA_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`Jolpica ${path} answered ${res.status}`)
   const body = (await res.json()) as JolpicaRaceTable
@@ -146,7 +153,7 @@ export function sessionSlots(race: JolpicaRace): { sessions: F1SessionSlot[]; li
   return { sessions: slots, listed }
 }
 
-function toRace(race: JolpicaRace, winners: Map<number, F1Race['winner']>): F1Race {
+export function toRace(race: JolpicaRace, winners: Map<number, F1Race['winner']>): F1Race {
   const round = Number(race.round)
   const { sessions, listed } = sessionSlots(race)
   return {
@@ -163,7 +170,7 @@ function toRace(race: JolpicaRace, winners: Map<number, F1Race['winner']>): F1Ra
   }
 }
 
-function winnerOf(race: JolpicaRace): F1Race['winner'] {
+export function winnerOf(race: JolpicaRace): F1Race['winner'] {
   const first = race.Results?.[0]
   const driver = [first?.Driver?.givenName, first?.Driver?.familyName].filter(Boolean).join(' ')
   return driver ? { driver, team: first?.Constructor?.name ?? '' } : null
@@ -181,15 +188,98 @@ export function isSeasonYear(year: number, now = new Date()): boolean {
 
 const SEASON_DONE_TTL_S = 7 * 24 * 60 * 60
 const SEASON_LIVE_TTL_S = 60 * 60
+/** A calendar that came from a fallback: Jolpica is asked again soon after. */
+const SEASON_FALLBACK_TTL_S = 10 * 60
+/** The last calendar Jolpica gave for a season, kept to fall back on. */
+const SEASON_LAST_GOOD_TTL_S = 60 * 24 * 60 * 60
+
+/**
+ * Jolpica answers in well under a second when it's up. Past this it's taken
+ * for down: a page mustn't wait on it (it hung for hours on 2026-11-23,
+ * and every F1 page waited 10 s, then said the calendar didn't load).
+ */
+const JOLPICA_TIMEOUT_MS = Number(process.env.JOLPICA_TIMEOUT_MS || 5000)
+/**
+ * How long a page waits on Jolpica before the fallbacks answer it; Jolpica
+ * goes on to JOLPICA_TIMEOUT_MS in the background, for the next visitor.
+ */
+const JOLPICA_WAIT_MS = Number(process.env.JOLPICA_WAIT_MS || 1500)
+/** Once Jolpica has failed, how long it's left alone — the fallbacks answer at once meanwhile. */
+const JOLPICA_DOWN_MS = 5 * 60_000
+let jolpicaDownUntil = 0
+
+/** `promise`'s value if it settles within `ms`, else null (it carries on). Never rejects. */
+function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      }
+    )
+  })
+}
+
+/** Forget that Jolpica failed — tests only. */
+export function resetJolpicaForTests(): void {
+  jolpicaDownUntil = 0
+}
 
 const inflightSeasons = new Map<number, Promise<F1Season>>()
 
+/** The season from Jolpica, winners included when they can be had. Throws when Jolpica is down or slow. */
+async function jolpicaSeason(year: number): Promise<F1Season> {
+  const [races, results] = await Promise.all([
+    jolpica(`/${year}/races.json?limit=100`),
+    jolpica(`/${year}/results/1.json?limit=100`).catch((err: unknown) => {
+      logger.warn('F1 winners unavailable', { year, error: err instanceof Error ? err.message : String(err) })
+      return [] as JolpicaRace[]
+    }),
+  ])
+  const winners = new Map(results.map((r) => [Number(r.round), winnerOf(r)] as const))
+  return { year, races: races.map((r) => toRace(r, winners)).sort((a, b) => a.round - b.round) }
+}
+
+const winnerCount = (races: readonly F1Race[]) => races.filter((r) => r.winner).length
+
 /**
- * A season's calendar with its sessions and winners. Cached a week once the
- * season is over, an hour while it runs. Winners are a nicety: when they
- * can't be fetched the calendar comes back without them.
+ * The season when Jolpica can't say: the last calendar it gave, or the
+ * bundled snapshot — whichever knows more winners — with winners since
+ * filled in from OpenF1; else OpenF1's own calendar. Null when nothing has it.
+ */
+async function fallbackSeason(year: number): Promise<F1Season | null> {
+  const lastGood = await cache.f1.get<F1Season>(`season-last:${year}`)
+  const snap = snapshotSeason(year)
+  const known = [lastGood?.races, snap].filter((r): r is F1Race[] => !!r && r.length > 0)
+  if (known.length > 0) {
+    const best = known.reduce((a, b) => (winnerCount(b) > winnerCount(a) ? b : a))
+    return { year, races: await fillWinners(year, best) }
+  }
+  const fromOpenF1 = await openF1Season(year).catch((err: unknown) => {
+    logger.warn('F1 calendar from OpenF1 unavailable', { year, error: err instanceof Error ? err.message : String(err) })
+    return null
+  })
+  return fromOpenF1 ? { year, races: fromOpenF1 } : null
+}
+
+/**
+ * A season's calendar with its sessions and winners.
+ *
+ * A finished season comes from the bundled snapshot: it can't change, and it
+ * answers at once whatever Jolpica is doing. The season under way (and next
+ * year's) is asked of Jolpica — cached an hour — and, when Jolpica is down
+ * or slow, of the fallbacks (fallbackSeason), cached ten minutes. Winners are
+ * a nicety: when they can't be fetched the calendar comes back without them.
  */
 export async function getSeason(year: number): Promise<F1Season> {
+  const snap = year < currentSeasonYear() ? snapshotSeason(year) : null
+  if (snap && isComplete(snap)) return { year, races: snap }
+
   const key = `season:${year}`
   const hit = await cache.f1.get<F1Season>(key)
   if (hit) return hit
@@ -198,20 +288,38 @@ export async function getSeason(year: number): Promise<F1Season> {
   if (inflight) return inflight
 
   const load = (async () => {
-    const [races, results] = await Promise.all([
-      jolpica(`/${year}/races.json?limit=100`),
-      jolpica(`/${year}/results/1.json?limit=100`).catch((err: unknown) => {
-        logger.warn('F1 winners unavailable', { year, error: err instanceof Error ? err.message : String(err) })
-        return [] as JolpicaRace[]
-      }),
-    ])
-    const winners = new Map(results.map((r) => [Number(r.round), winnerOf(r)] as const))
-    const season: F1Season = { year, races: races.map((r) => toRace(r, winners)).sort((a, b) => a.round - b.round) }
     const done = year < currentSeasonYear()
-    // An empty calendar is likelier a hiccup (or next year's not out yet) than final: keep it briefly
-    const ttl = season.races.length === 0 ? 10 * 60 : done ? SEASON_DONE_TTL_S : SEASON_LIVE_TTL_S
-    await cache.f1.set(key, season, ttl)
-    return season
+    /** Jolpica's answer arrived — a fallback that finishes later mustn't overwrite it. */
+    let liveArrived = false
+    let live: F1Season | null = null
+    if (Date.now() >= jolpicaDownUntil) {
+      // Kept going after the wait below: a slow answer still fills the cache for the next visitor
+      const asked = jolpicaSeason(year).then(
+        async (season) => {
+          if (season.races.length === 0) return season
+          liveArrived = true
+          await cache.f1.set(key, season, done ? SEASON_DONE_TTL_S : SEASON_LIVE_TTL_S)
+          await cache.f1.set(`season-last:${year}`, season, SEASON_LAST_GOOD_TTL_S)
+          return season
+        },
+        (err: unknown) => {
+          jolpicaDownUntil = Date.now() + JOLPICA_DOWN_MS
+          logger.warn('Jolpica unavailable — using the F1 calendar fallbacks', { year, error: err instanceof Error ? err.message : String(err) })
+          return null
+        }
+      )
+      live = await settleWithin(asked, JOLPICA_WAIT_MS)
+    }
+    if (live && live.races.length > 0) return live
+
+    // Jolpica down, slow, or without the calendar (a season it hasn't got yet): see what else has it
+    const fallback = await fallbackSeason(year)
+    if (!fallback) {
+      if (live) return live
+      throw new Error(`No F1 calendar for ${year} anywhere`)
+    }
+    if (!liveArrived) await cache.f1.set(key, fallback, SEASON_FALLBACK_TTL_S)
+    return fallback
   })().finally(() => inflightSeasons.delete(year))
 
   inflightSeasons.set(year, load)
