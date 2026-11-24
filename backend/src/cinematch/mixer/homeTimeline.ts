@@ -23,6 +23,7 @@ import {
   RecommendationResult,
   UserProfile,
   CandidateSource,
+  RecommendationSection,
 } from '../types'
 import { buildSections } from './sectionBuilder'
 import { logger } from '../../lib/logger'
@@ -264,24 +265,57 @@ export async function getRecommendations(
 // ── Guest Recommendations (Cold-Start / No Auth) ──────────
 // Globally trending + popular blend for unauthenticated users.
 // Cached globally for 30 minutes (same content for everyone).
+
+/** Below this many votes a "top rated" score is a handful of fans, not a verdict. */
+const TOP_RATED_MIN_VOTES = 1000
+const GUEST_ROW_SIZE = 40
+
+/**
+ * The guest home rows. A title appears in one row only: this week's trending
+ * titles are also the most popular ones, so "Most Popular Right Now" used to
+ * repeat "Trending This Week" title for title. "Top Rated All Time" is ordered
+ * by rating (the ranker orders by buzz) and needs enough votes to mean it.
+ */
+export function buildGuestSections(candidates: ScoredCandidate[]): RecommendationSection[] {
+  const shown = new Set<string>()
+  const key = (c: ScoredCandidate) => `${c.mediaType}:${c.tmdbId}`
+  const take = (items: ScoredCandidate[]) => {
+    const row: ScoredCandidate[] = []
+    for (const c of items) {
+      if (row.length >= GUEST_ROW_SIZE) break
+      if (shown.has(key(c))) continue
+      row.push(c)
+    }
+    if (row.length >= 5) for (const c of row) shown.add(key(c))
+    return row
+  }
+
+  const trending = take(candidates.filter((c) => hasSource(c, 'trending')))
+  const popular = take(candidates.filter((c) => hasSource(c, 'popular_fallback')))
+  const topRated = take(
+    candidates
+      .filter((c) => hasSource(c, 'tmdb_recommendations') && (c.voteCount ?? 0) >= TOP_RATED_MIN_VOTES)
+      .sort((a, b) => (b.voteAverage ?? 0) - (a.voteAverage ?? 0)),
+  )
+  const discover = take(candidates.filter((c) => hasSource(c, 'genre_discovery')))
+
+  return [
+    trending.length >= 5 ? { title: 'Trending This Week', items: trending, source: 'trending' as const } : null,
+    popular.length >= 5 ? { title: 'Most Popular Right Now', items: popular, source: 'popular_fallback' as const } : null,
+    topRated.length >= 5 ? { title: 'Top Rated All Time', items: topRated, source: 'tmdb_recommendations' as const } : null,
+    discover.length >= 5 ? { title: 'Discover New Favourites', items: discover, source: 'genre_discovery' as const } : null,
+  ].filter((s): s is NonNullable<typeof s> => s !== null)
+}
+
 export async function getGuestRecommendations(): Promise<RecommendationResult> {
   const GUEST_CACHE_KEY = '__guest__'
   const cached = recCache.get<ScoredCandidate[]>(GUEST_CACHE_KEY)
 
   if (cached) {
-    const trendingItems = cached.filter((c: ScoredCandidate) => hasSource(c, 'trending')).slice(0, 40)
-    const popularItems  = cached.filter((c: ScoredCandidate) => hasSource(c, 'popular_fallback')).slice(0, 40)
-    const topRated      = cached.filter((c: ScoredCandidate) => hasSource(c, 'tmdb_recommendations')).slice(0, 40)
-    const genreItems    = cached.filter((c: ScoredCandidate) => hasSource(c, 'genre_discovery')).slice(0, 40)
     return {
       userId: null,
       items: cached,
-      sections: [
-        ...(trendingItems.length >= 5 ? [{ title: 'Trending This Week', items: trendingItems, source: 'trending' as const }] : []),
-        ...(popularItems.length >= 5 ? [{ title: 'Most Popular Right Now', items: popularItems, source: 'popular_fallback' as const }] : []),
-        ...(topRated.length >= 5 ? [{ title: 'Top Rated All Time', items: topRated, source: 'tmdb_recommendations' as const }] : []),
-        ...(genreItems.length >= 5 ? [{ title: 'Discover New Favourites', items: genreItems, source: 'genre_discovery' as const }] : []),
-      ],
+      sections: buildGuestSections(cached),
       computedAt: new Date().toISOString(),
       isPersonalized: false,
     }
@@ -309,23 +343,10 @@ export async function getGuestRecommendations(): Promise<RecommendationResult> {
 
   recCache.set(GUEST_CACHE_KEY, topK, 1800)  // 30 min global cache
 
-  // For guests: build richer sections from available content
-  const trendingItems  = topK.filter(c => hasSource(c, 'trending')).slice(0, 40)
-  const popularItems   = topK.filter(c => hasSource(c, 'popular_fallback')).slice(0, 40)
-  const topRatedItems  = topK.filter(c => hasSource(c, 'tmdb_recommendations')).slice(0, 40)
-  const genreItems     = topK.filter(c => hasSource(c, 'genre_discovery')).slice(0, 40)
-
-  const guestSections = [
-    trendingItems.length >= 5 ? { title: 'Trending This Week', items: trendingItems, source: 'trending' as const } : null,
-    popularItems.length >= 5 ? { title: 'Most Popular Right Now', items: popularItems, source: 'popular_fallback' as const } : null,
-    topRatedItems.length >= 5 ? { title: 'Top Rated All Time', items: topRatedItems, source: 'tmdb_recommendations' as const } : null,
-    genreItems.length >= 5 ? { title: 'Discover New Favourites', items: genreItems, source: 'genre_discovery' as const } : null,
-  ].filter((s): s is NonNullable<typeof s> => s !== null)
-
   return {
     userId: null,
     items: topK,
-    sections: guestSections,
+    sections: buildGuestSections(topK),
     computedAt: new Date().toISOString(),
     isPersonalized: false,
   }
