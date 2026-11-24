@@ -75,8 +75,14 @@ const MIN_NEW_TITLES = 6
 const MY_LIST_AFTER = 6
 
 const isBecause = (title: string) => /^Because you (watched|liked)\b/i.test(title)
-/** The catalog has these already. */
-const isGeneric = (title: string) => /^(Trending This Week|Popular Right Now)$/i.test(title)
+/**
+ * The catalog has these already: trending and popular (Top 10 Today, Trending
+ * Movies…), top rated (All-Time Greats). The backend's guest rows are all of
+ * this kind, so a signed-out Home used to open on "Most Popular Right Now" —
+ * the same titles as the Top 10 row under it and the hero above it.
+ */
+const isGeneric = (title: string) =>
+  /^(Trending This Week|(Most )?Popular Right Now|Top Rated All Time|Discover New Favourites)$/i.test(title)
 const itemKey = (m: Media) => `${m.media_type ?? 'movie'}:${m.id}`
 
 interface PersonalRow {
@@ -131,7 +137,8 @@ function HomeRows({ mode, rows }: { mode: MediaMode; rows: RowSpec[] }) {
 
   // Top Picks, then the catalog and the personal rows taking turns
   const slots: ReactNode[] = []
-  if (isLoading && personal.length === 0) slots.push(<PosterRow key="reco-loading" title="Recommended for You" items={[]} loading />)
+  // Guests get no personal row (theirs are all generic), so no placeholder that would vanish
+  if (isAuthenticated && isLoading && personal.length === 0) slots.push(<PosterRow key="reco-loading" title="Recommended for You" items={[]} loading />)
   const catalog = rows.map((row) => <CatalogRow key={`${mode}-${row.key}`} mode={mode} spec={row} />)
   const mine = personal.map((r) => <PosterRow key={`reco-${r.title}`} title={r.title} items={r.items} />)
   if (mine[0]) slots.push(mine[0])
