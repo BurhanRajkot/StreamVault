@@ -108,11 +108,11 @@ export const APP_VERSION = __APP_VERSION__
 /** The site's address — also the origin both shells serve the app from. */
 export const SITE_URL = 'https://stream-vault.site'
 
-/** Open a URL outside the app: the system browser, or the app that handles it (upi://, magnet:). */
+/** Open a URL outside the app: the system browser, or the app that handles it (magnet:). */
 export async function openExternal(url: string): Promise<void> {
   if (desktop) return desktop.openExternal(url)
   if (isAndroid) {
-    // http(s) in a Custom Tab; anything else (upi:, magnet:) is an intent the WebView hands to Android
+    // http(s) in a Custom Tab; anything else (magnet:) is an intent the WebView hands to Android
     if (/^https?:/i.test(url)) {
       const { Browser } = await import('@capacitor/browser')
       return Browser.open({ url, toolbarColor: '#0a0a0c' })

@@ -26,7 +26,7 @@ This is your complete guide to using Claude Code with StreamVault. Everything ha
 exit
 
 # Start new session in your project
-cd /home/user/Desktop/movie/StreamVault
+cd /path/to/StreamVault
 claude
 ```
 
@@ -95,7 +95,7 @@ This lets Claude read your PRs and issues directly.
 
 2. **Add Token to .env.local**
    ```bash
-   cd /home/user/Desktop/movie/StreamVault
+   cd /path/to/StreamVault
    echo "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here" >> .env.local
    ```
 
@@ -498,7 +498,7 @@ Edit `.claude/settings.local.json` and increase timeout:
 ```json
 {
   "type": "command",
-  "command": "cd /home/user/Desktop/movie/StreamVault && npx tsc --noEmit 2>&1 | head -20 || true",
+  "command": "cd /path/to/StreamVault && npx tsc --noEmit 2>&1 | head -20 || true",
   "statusMessage": "Running TypeScript check",
   "timeout": 30  // Increase from 10 to 30 seconds
 }

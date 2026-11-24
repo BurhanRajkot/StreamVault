@@ -101,9 +101,8 @@ If in doubt about whether a specific action is acceptable, ask us first via the 
 Security issues affecting StreamVault's own code and infrastructure, including:
 
 - **Frontend** (React/Vite SPA): XSS, DOM clobbering, client-side injection, insecure handling of tokens in the browser, PWA/service-worker issues, CSP bypasses, clickjacking on first-party routes.
-- **Backend API** (Bun + Express): authentication and authorization flaws, broken access control, IDOR, injection, SSRF, request smuggling, insecure deserialization, rate-limit bypass, and logic flaws in routes such as `admin`, `subscriptions`, `favorites`, `downloads`, `recommendations`, and `tmdb`.
+- **Backend API** (Bun + Express): authentication and authorization flaws, broken access control, IDOR, injection, SSRF, request smuggling, insecure deserialization, rate-limit bypass, and logic flaws in routes such as `admin`, `debrid`, `favorites`, `releases`, `recommendations`, and `tmdb`.
 - **Authentication & sessions**: Auth0 (OAuth2/JWT) integration flaws, JWT validation issues, and the separate **admin authentication** path (`ADMIN_SECRET` / `ADMIN_JWT_SECRET`) — e.g., privilege escalation to admin.
-- **Payments**: vulnerabilities in the UPI payment flow (`backend/src/lib/upi.ts`), including tampering, amount manipulation, or leakage of payee details.
 - **Data layer**: Supabase access-control / Row-Level-Security misconfigurations, and any exposure of the **Supabase service-role key** or other server-side secrets.
 - **Recommendation engine (CineMatch / ML pipeline)**: prompt-injection, data poisoning, or abuse of the recommendation/eval endpoints.
 - **Supply chain & CI/CD**: workflow injection, secret exfiltration via Actions, tampering with build provenance/SBOM, or weaknesses in container images and Kubernetes manifests.
@@ -173,7 +172,7 @@ All scanner findings are published as SARIF to the repository's **Security** tab
 ## Handling of Secrets & Sensitive Data
 
 - **Never commit secrets.** Use `.env.local` (git-ignored); `.env.example` documents required variables with placeholder values only.
-- The **Supabase service-role key**, **Auth0 secrets**, **`ADMIN_SECRET` / `ADMIN_JWT_SECRET`**, **TMDB API key**, **UPI payment details**, and any LLM/API keys are server-side secrets and must never reach the client bundle or version control.
+- The **Supabase service-role key**, **Auth0 secrets**, **`ADMIN_SECRET` / `ADMIN_JWT_SECRET`**, **TMDB API key**, and any LLM/API keys are server-side secrets and must never reach the client bundle or version control.
 - Only variables explicitly prefixed `VITE_` are exposed to the browser; treat anything `VITE_`-prefixed as **public**. In particular, do not place service-role keys or admin secrets behind a `VITE_` prefix.
 - If you discover an exposed secret (in git history, logs, build artifacts, or a deployment), please report it privately and immediately — we will rotate it.
 

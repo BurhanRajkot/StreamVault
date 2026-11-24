@@ -39,7 +39,7 @@ export function Footer() {
             </Link>
           </div>
           <p className="flex items-center gap-1">
-            Developed with <Heart className="h-3 w-3 fill-red-500 text-red-500" /> by Piracy Is Not Stealing
+            Developed with <Heart className="h-3 w-3 fill-red-500 text-red-500" /> — piracy is not stealing
           </p>
         </div>
       </div>

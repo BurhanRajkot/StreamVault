@@ -1057,7 +1057,7 @@ export function setPremiumPausedForAll(pausedForAll: boolean): Promise<{ premium
 
 /* ======================================================
    PREMIUM ACCESS REQUESTS
-   Asked from the app (star / donate, both optional), approved or deleted by
+   Asked from the app (a GitHub star is optional), approved or deleted by
    the admin. See backend/src/routes/accessRequests.ts.
 ====================================================== */
 
@@ -1068,8 +1068,6 @@ export interface AccessRequest {
   github: string | null
   /** The GitHub account has starred the repo; null = no username given, or GitHub couldn't be asked. */
   starred: boolean | null
-  /** UPI reference (UTR) of a donation. */
-  reference: string | null
   note: string | null
   status: 'pending' | 'approved'
   createdAt: string
@@ -1082,7 +1080,6 @@ export interface AdminAccessRequest extends AccessRequest {
 
 export interface AccessRequestInput {
   github?: string
-  reference?: string
   note?: string
   email?: string | null
 }

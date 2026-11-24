@@ -1,14 +1,14 @@
 /**
  * Premium access requests — how an account asks the admin for ⚡ Premium.
  *
- * Nothing is paid. In the app, a signed-in viewer may star the GitHub repo or
- * donate (both optional), then sends a request: their GitHub username (the
- * star is checked against GitHub, see lib/githubStars), a donation's UPI
- * reference, a note — all optional. The admin approves it (Premium is switched
- * on for the account, in the app only — see lib/clientKind) or deletes it.
+ * Nothing is paid. In the app, a signed-in viewer may star the GitHub repo
+ * (optional), then sends a request: their GitHub username (the star is checked
+ * against GitHub, see lib/githubStars) and a note — both optional. The admin
+ * approves it (Premium is switched on for the account, in the app only — see
+ * lib/clientKind) or deletes it.
  *
  *   GET    /me/access-request                       — this account's request, if any
- *   POST   /me/access-request                       — { github?, reference?, note?, email? }, app only
+ *   POST   /me/access-request                       — { github?, note?, email? }, app only
  *   GET    /admin/access-requests                   — every request, pending first (admin)
  *   POST   /admin/access-requests/:userId/approve   — grant Premium (admin)
  *   DELETE /admin/access-requests/:userId           — drop the request (admin)
@@ -41,8 +41,6 @@ export interface AccessRequest {
   github: string | null
   /** Whether that account has starred the repo: null = no username, or GitHub couldn't be asked. */
   starred: boolean | null
-  /** UPI reference (UTR) of a donation, if they made one. */
-  reference: string | null
   note: string | null
   status: 'pending' | 'approved'
   createdAt: string
@@ -50,8 +48,6 @@ export interface AccessRequest {
 }
 
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/
-/** A UPI UTR is 12 digits; other apps' references are letters and digits — 6 to 35 of them. */
-const REFERENCE_RE = /^[A-Za-z0-9]{6,35}$/
 
 /** Printable, single-spaced, capped — or null. */
 export function cleanText(value: unknown, max: number): string | null {
@@ -63,7 +59,6 @@ export function cleanText(value: unknown, max: number): string | null {
 
 export interface RequestInput {
   github: string | null
-  reference: string | null
   note: string | null
   email: string | null
 }
@@ -73,12 +68,9 @@ export function parseRequestInput(body: unknown): RequestInput | string {
   const raw = (body ?? {}) as Record<string, unknown>
   const github = cleanText(raw.github, 60)?.replace(/^@/, '').replace(/^https?:\/\/github\.com\//i, '').replace(/\/.*$/, '') || null
   if (github && !GITHUB_USERNAME_RE.test(github)) return 'That doesn’t look like a GitHub username.'
-  const reference = cleanText(raw.reference, 60)?.replace(/[\s-]/g, '') || null
-  if (reference && !REFERENCE_RE.test(reference)) return 'The payment reference should be the 12-digit UTR from your UPI app.'
   const email = cleanText(raw.email, 254)?.toLowerCase() ?? null
   return {
     github,
-    reference,
     note: cleanText(raw.note, 300),
     email: email && EMAIL_RE.test(email) ? email : null,
   }
@@ -95,7 +87,6 @@ export function toRequest(value: unknown): AccessRequest | null {
     name: str(v.name),
     github: str(v.github),
     starred: typeof v.starred === 'boolean' ? v.starred : null,
-    reference: str(v.reference),
     note: str(v.note),
     status: v.status === 'approved' ? 'approved' : 'pending',
     createdAt: v.createdAt,
@@ -158,7 +149,6 @@ userAccessRequestRouter.post('/access-request', strictRateLimiter, requireUser, 
       name: row?.name ?? null,
       github: input.github,
       starred: input.github ? await hasStarred(input.github) : null,
-      reference: input.reference,
       note: input.note,
       status: 'pending',
       // Sending it again (say, after starring) updates it but keeps its place in the queue.

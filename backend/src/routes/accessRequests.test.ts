@@ -13,7 +13,7 @@ beforeAll(async () => {
 
 describe('parseRequestInput', () => {
   it('takes everything as optional', () => {
-    expect(mod.parseRequestInput({})).toEqual({ github: null, reference: null, note: null, email: null })
+    expect(mod.parseRequestInput({})).toEqual({ github: null, note: null, email: null })
   })
 
   it('accepts a username typed as @name or a profile link', () => {
@@ -26,9 +26,8 @@ describe('parseRequestInput', () => {
     expect(typeof mod.parseRequestInput({ github: '-leading' })).toBe('string')
   })
 
-  it('keeps a UPI reference without spaces or dashes, and refuses junk', () => {
-    expect(mod.parseRequestInput({ reference: '4123 4567-8901' })).toMatchObject({ reference: '412345678901' })
-    expect(typeof mod.parseRequestInput({ reference: '12;drop' })).toBe('string')
+  it('ignores a payment reference an older app still sends', () => {
+    expect(mod.parseRequestInput({ reference: '412345678901' })).toEqual({ github: null, note: null, email: null })
   })
 
   it('drops an invalid email and caps the note', () => {

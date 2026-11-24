@@ -4,7 +4,7 @@ import { sendEmail, type Email, type SendResult } from './mailer'
 
 /**
  * The email an account gets when the admin gives it Premium — from the
- * access-request queue, the Users panel, or a subscription approval.
+ * access-request queue or the Users panel.
  *
  * `resumed`: the account had Premium before and the admin paused it; this
  * says it's back on rather than welcoming them again.

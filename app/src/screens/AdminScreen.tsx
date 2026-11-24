@@ -162,7 +162,6 @@ function RequestCell({
 
       <div className="mt-2.5 flex flex-wrap gap-1.5 pl-[52px]">
         <StarChip request={r} />
-        {r.reference && <Chip className="font-mono">UPI {r.reference}</Chip>}
       </div>
       {r.note && <p className="t-subhead mt-2 pl-[52px] text-white/85">“{r.note}”</p>}
 

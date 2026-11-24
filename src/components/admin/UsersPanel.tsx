@@ -46,12 +46,7 @@ function relativeTime(iso: string | null): string {
  * suspend it (My List, continue watching, recommendations and Premium are
  * refused; the free servers still play, as they need no account).
  */
-interface UsersPanelProps {
-  /** An account was changed here — e.g. so the subscription requests show its downloads switch the same. */
-  onUserChanged?: (user: AdminUser) => void
-}
-
-export function UsersPanel({ onUserChanged }: UsersPanelProps = {}) {
+export function UsersPanel() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
@@ -80,7 +75,6 @@ export function UsersPanel({ onUserChanged }: UsersPanelProps = {}) {
       queryClient.setQueryData(queryKey, (old: typeof data) =>
         old ? { ...old, users: old.users.map((u) => (u.id === user.id ? user : u)) } : old
       )
-      onUserChanged?.(user)
       const who = user.email ?? user.name ?? 'Account'
       if (change.suspended !== undefined) toast.success(change.suspended ? `${who} suspended` : `${who} restored`)
       else if (change.debridDownloads !== undefined) {

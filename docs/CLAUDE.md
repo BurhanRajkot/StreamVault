@@ -259,9 +259,9 @@ anywhere). It's a soft line — a header — not a lock. App builds older than
 `PREMIUM_MIN_APP_VERSION` (default 1.0.21, `isOutdatedApp` in `lib/clientKind.ts`)
 get `update-required` instead, so an old release can't skip newer gates; raise it
 when a release adds a gate that matters. Accounts ask for access
-from the app's Premium screen (`/me/access-request`; starring the repo and
-donating are optional, the star is checked with GitHub by
-`lib/githubStars.ts`); the admin approves or deletes requests in the
+from the app's Premium screen (`/me/access-request`; starring the repo is
+optional and checked with GitHub by `lib/githubStars.ts`; there is no
+payment or donation of any kind — the UPI/QR flow was removed); the admin approves or deletes requests in the
 dashboard (`/admin/access-requests`, kept as `AppSetting`
 'access-request:<user id>' rows, no migration). The app has its own admin
 dashboard at `/admin` (My Space → Admin).

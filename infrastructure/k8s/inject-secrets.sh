@@ -71,10 +71,6 @@ ADMIN_SECRET=$(prompt_secret "ADMIN_SECRET" "your admin secret code" "")
 ADMIN_JWT_SECRET=$(prompt_secret "ADMIN_JWT_SECRET" "your admin JWT secret" "")
 DATABASE_URL=$(prompt_secret "DATABASE_URL" "PostgreSQL database connection string" "")
 GEMINI_API_KEY=$(prompt_secret "GEMINI_API_KEY" "Gemini API key" "")
-STRIPE_SECRET_KEY=$(prompt_secret "STRIPE_SECRET_KEY" "Stripe API secret key" "")
-STRIPE_WEBHOOK_SECRET=$(prompt_secret "STRIPE_WEBHOOK_SECRET" "Stripe webhook secret" "")
-UPI_ID=$(prompt_secret "UPI_ID" "UPI payment address" "")
-UPI_PAYEE_NAME=$(prompt_secret "UPI_PAYEE_NAME" "UPI payee name" "")
 
 echo ""
 echo -ne "${BOLD}VITE_AUTH0_CLIENT_ID${RESET} ${CYAN}(optional, press ENTER to skip)${RESET}: "
@@ -108,10 +104,6 @@ for NS in streamvault streamvault-staging; do
     --from-literal="ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET}"
     --from-literal="DATABASE_URL=${DATABASE_URL}"
     --from-literal="GEMINI_API_KEY=${GEMINI_API_KEY}"
-    --from-literal="STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}"
-    --from-literal="STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}"
-    --from-literal="UPI_ID=${UPI_ID}"
-    --from-literal="UPI_PAYEE_NAME=${UPI_PAYEE_NAME}"
     -n "$NS"
     --dry-run=client -o yaml
   )

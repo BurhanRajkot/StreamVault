@@ -38,7 +38,7 @@
     },
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/Desktop/movie/StreamVault"],
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
       "description": "Enhanced file system access for the project directory"
     }
   }

@@ -24,8 +24,7 @@ export function StarBadge({ request }: { request: Pick<AdminAccessRequest, 'gith
 
 /**
  * Premium access requests, sent from the app: who asked, whether their
- * GitHub account starred the repo (checked with GitHub), a donation's UPI
- * reference, their note. Approve switches Premium on for the account — it
+ * GitHub account starred the repo (checked with GitHub), their note. Approve switches Premium on for the account — it
  * plays in the app only. Delete drops the request; access already given
  * stays until it's changed in the Users panel.
  */
@@ -77,7 +76,6 @@ export function AccessRequestsPanel() {
                         <Github className="h-3 w-3" aria-hidden="true" /> {r.github}
                       </a>
                     )}
-                    {r.reference && <Badge variant="outline" className="font-mono">UPI {r.reference}</Badge>}
                   </div>
                   {r.note && <p className="mt-2 text-sm text-muted-foreground">“{r.note}”</p>}
                 </div>

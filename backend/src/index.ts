@@ -18,10 +18,8 @@ import {
 } from './cybersecurity'
 import { httpsEnforcement } from './cybersecurity/httpsEnforcement'
 
-import subscriptionAdminRouter from './routes/admin'
 import favoritesRouter from './routes/favorites'
 import continueWatchingRouter from './routes/continueWatching'
-import subscriptionsRouter from './routes/subscriptions'
 import { adminAccessRequestRouter, userAccessRequestRouter } from './routes/accessRequests'
 import tmdbRouter from './routes/tmdb'
 import adminRouter from './admin/routes'
@@ -123,8 +121,6 @@ app.get('/cache-stats', requireAdminAuth, (_req, res) => {
 app.use('/tmdb', tmdbRouter)
 app.use('/favorites', favoritesRouter)
 app.use('/continue-watching', continueWatchingRouter)
-app.use('/subscriptions/admin', subscriptionAdminRouter) // Mount specific admin routes first
-app.use('/subscriptions', subscriptionsRouter)
 // Before '/admin' so the Users panel's routes aren't swallowed by the login router.
 app.use('/admin', adminUsersRouter)
 app.use('/admin', adminAccessRequestRouter)

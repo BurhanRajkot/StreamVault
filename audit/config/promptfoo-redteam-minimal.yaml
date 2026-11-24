@@ -36,4 +36,4 @@ redteam:
 defaultTest:
   assert:
     - type: javascript
-      value: file:///home/user/Desktop/movie/StreamVault/audit/scripts/local_grader.mjs
+      value: file://../scripts/local_grader.mjs

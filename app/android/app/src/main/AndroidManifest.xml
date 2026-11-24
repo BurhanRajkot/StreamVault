@@ -59,15 +59,11 @@
     <!-- Installing an update the app downloaded from GitHub Releases -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Asking which apps can play a file / handle a payment link (Android 11+ visibility) -->
+    <!-- Asking which apps can play a file / open a magnet link (Android 11+ visibility) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="video/*" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="upi" />
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />

@@ -1,164 +1,32 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { PageMeta } from '@/seo/PageMeta'
-import { Check, X, Loader2, ShieldCheck } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Footer } from '@/components/layout/Footer'
-import { toast } from 'sonner'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { useQueryClient } from '@tanstack/react-query'
-import { AdminApiError, clearAdminToken, getAdminToken, isAdminAuthenticated, premiumEmailNote, updateAdminUser, type AdminUser, type PremiumEmailResult } from '@/lib/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AdminApiError, clearAdminToken, fetchAdminSettings, isAdminAuthenticated } from '@/lib/api'
 import AdminLoginModal from '@/components/admin/AdminLoginModal'
 import { AdminModeBadge } from '@/components/admin/AdminModeBadge'
-import { DownloadsSelect } from '@/components/admin/DownloadsSelect'
 import { PremiumStatusCard } from '@/components/admin/PremiumStatusCard'
 import { PremiumSwitchCard } from '@/components/admin/PremiumSwitchCard'
 import { UsersPanel } from '@/components/admin/UsersPanel'
 import { AccessRequestsPanel } from '@/components/admin/AccessRequestsPanel'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-
-interface SubscriptionRequest {
-  id: string
-  /** Null for a guest request: no account behind it. */
-  user_id: string | null
-  email: string
-  plan_id: string
-  amount: number
-  currency: string
-  transaction_id: string
-  status: 'pending' | 'approved' | 'rejected'
-  created_at: string
-  /** Whether the buyer may save Premium's file — null when there's no account (or an older backend). */
-  debrid_downloads?: boolean | null
-}
-
 export default function AdminDashboard() {
   const queryClient = useQueryClient()
-  const [requests, setRequests] = useState<SubscriptionRequest[]>([])
-  const [loading, setLoading] = useState(true)
-  const [processingId, setProcessingId] = useState<string | null>(null)
-  /** The account whose downloads are being changed from a request row. */
-  const [downloadsBusyFor, setDownloadsBusyFor] = useState<string | null>(null)
-  const [isAdmin, setIsAdmin] = useState(isAdminAuthenticated())
+  const [hasToken, setHasToken] = useState(isAdminAuthenticated())
   const [showLoginModal, setShowLoginModal] = useState(false)
 
-  /** Show an account's downloads switch the same on every request it made. */
-  const syncDownloads = useCallback((user: AdminUser) => {
-    setRequests((prev) => prev.map((r) => (r.user_id === user.id ? { ...r, debrid_downloads: user.debridDownloads } : r)))
-  }, [])
-
-  /** Allow a buyer's Premium downloads (or switch them off), from their request row. */
-  const setDownloads = async (request: SubscriptionRequest, allowed: boolean) => {
-    if (!request.user_id) return
-    setDownloadsBusyFor(request.user_id)
-    try {
-      const { user } = await updateAdminUser(request.user_id, { debridDownloads: allowed })
-      syncDownloads(user)
-      // The Users panel lists the same accounts.
-      void queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-      toast.success(`${user.email ?? request.email}: Premium downloads ${user.debridDownloads ? 'allowed' : 'off'}`)
-    } catch (err: unknown) {
-      if (err instanceof AdminApiError && err.status === 401) {
-        setIsAdmin(false)
-        toast.error('Your admin session expired — please log in again')
-        return
-      }
-      toast.error(err instanceof Error ? err.message : 'Could not change downloads for this account')
-    } finally {
-      setDownloadsBusyFor(null)
-    }
-  }
-
-
-  const fetchRequests = useCallback(async () => {
-    const adminToken = getAdminToken()
-    if (!adminToken) {
-      setIsAdmin(false)
-      setLoading(false)
-      return
-    }
-
-    try {
-      const res = await fetch(`${API_URL}/subscriptions/admin/requests`, {
-        headers: {
-          'Authorization': `Bearer ${adminToken}`
-        }
-      })
-      if (!res.ok) {
-        if (res.status === 401) {
-          // Expired/invalid token — the login screen below explains this well
-          // enough on its own; an error toast on top of it just reads as a bug.
-          setIsAdmin(false)
-          clearAdminToken()
-          return
-        }
-        throw new Error('Failed to fetch requests')
-      }
-      const data = await res.json()
-      setRequests(data)
-      setIsAdmin(true)
-    } catch (_err) {
-      toast.error('Failed to load subscription requests')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchRequests()
-  }, [fetchRequests])
-
-  const handleAction = async (requestId: string, action: 'approve' | 'reject') => {
-    const adminToken = getAdminToken()
-    if (!adminToken) {
-      setIsAdmin(false)
-      toast.error('You must be logged in as admin to perform this action')
-      return
-    }
-
-    setProcessingId(requestId)
-    try {
-      const res = await fetch(`${API_URL}/subscriptions/admin/${action}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`
-        },
-        body: JSON.stringify({ requestId }),
-      })
-
-      if (!res.ok) {
-        // An expired token has to drop us back to the login screen, otherwise
-        // every subsequent click just fails with no way to re-authenticate.
-        if (res.status === 401) {
-          clearAdminToken()
-          setIsAdmin(false)
-          toast.error('Your admin session expired — please log in again')
-          return
-        }
-        throw new Error(`Failed to ${action} request`)
-      }
-
-      const result = (await res.json().catch(() => ({}))) as { premiumEmail?: PremiumEmailResult }
-      toast.success(`Request ${action === 'approve' ? 'Approved' : 'Rejected'}${premiumEmailNote(result.premiumEmail)}`)
-
-      // Refresh list
-      fetchRequests()
-    } catch (_err) {
-      toast.error(`Could not ${action} the request. Please try again.`)
-    } finally {
-      setProcessingId(null)
-    }
-  }
+  // The same call the Premium switch makes (one request between them): a 401
+  // means the saved token has expired, so the login screen takes over.
+  const { error: sessionError } = useQuery({
+    queryKey: ['admin-settings'],
+    queryFn: fetchAdminSettings,
+    retry: false,
+    enabled: hasToken,
+  })
+  const isAdmin = hasToken && !(sessionError instanceof AdminApiError && sessionError.status === 401)
 
   if (!isAdmin) {
     return (
@@ -192,9 +60,8 @@ export default function AdminDashboard() {
             isOpen={showLoginModal}
             onClose={() => setShowLoginModal(false)}
             onSuccess={() => {
-              setIsAdmin(true)
-              setLoading(true)
-              fetchRequests()
+              setHasToken(true)
+              void queryClient.resetQueries({ queryKey: ['admin-settings'] })
             }}
           />
         </div>
@@ -219,7 +86,7 @@ export default function AdminDashboard() {
                 size="sm"
                 onClick={() => {
                   clearAdminToken()
-                  setIsAdmin(false)
+                  setHasToken(false)
                 }}
               >
                 Logout
@@ -236,110 +103,7 @@ export default function AdminDashboard() {
             <PremiumStatusCard />
             <PremiumSwitchCard />
             <AccessRequestsPanel />
-            <UsersPanel onUserChanged={syncDownloads} />
-
-            <section aria-label="Subscription requests">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold">Subscription Requests</h2>
-                <Button onClick={fetchRequests} variant="outline" size="sm">
-                  Refresh
-                </Button>
-              </div>
-
-              {loading ? (
-                <div className="flex justify-center py-20">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : requests.length === 0 ? (
-                <div className="text-center py-20 border rounded-xl bg-card/50">
-                  <p className="text-muted-foreground">No pending requests</p>
-                </div>
-              ) : (
-                <div className="border rounded-xl bg-card overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>User Email</TableHead>
-                        <TableHead>Plan</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Transaction ID</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {requests.map((request) => (
-                        <TableRow key={request.id}>
-                          <TableCell className="text-muted-foreground whitespace-nowrap">
-                            {new Date(request.created_at).toLocaleDateString()}
-                            <br />
-                            <span className="text-xs">{new Date(request.created_at).toLocaleTimeString()}</span>
-                          </TableCell>
-                          <TableCell className="font-medium">{request.email || request.user_id}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={request.plan_id === 'premium' ? 'border-violet-500 text-violet-500' : ''}>
-                              {request.plan_id.toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>₹{request.amount}</TableCell>
-                          <TableCell className="font-mono text-xs">{request.transaction_id}</TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              request.status === 'approved' ? 'default' :
-                              request.status === 'rejected' ? 'destructive' : 'secondary'
-                            }>
-                              {request.status.toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {request.status === 'pending' && (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-8 p-0"
-                                  aria-label="Reject"
-                                  onClick={() => handleAction(request.id, 'reject')}
-                                  disabled={processingId === request.id}
-                                >
-                                  <X className="h-4 w-4 text-destructive" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="h-8 w-8 p-0 bg-gradient-to-br from-golden-amber to-violet-500 shadow-[0_0_14px_rgba(245,197,90,0.35)] transition-shadow hover:shadow-[0_0_20px_rgba(245,197,90,0.5)]"
-                                  aria-label="Approve"
-                                  onClick={() => handleAction(request.id, 'approve')}
-                                  disabled={processingId === request.id}
-                                >
-                                  {processingId === request.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin text-white" />
-                                  ) : (
-                                    <Check className="h-4 w-4 text-white" />
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                            {/* A buyer with an account: their Premium downloads can be allowed here too */}
-                            {request.status === 'approved' && request.user_id && typeof request.debrid_downloads === 'boolean' && (
-                              <div className="flex justify-end">
-                                <DownloadsSelect
-                                  allowed={request.debrid_downloads}
-                                  onChange={(allowed) => void setDownloads(request, allowed)}
-                                  who={request.email || request.user_id}
-                                  disabled={downloadsBusyFor === request.user_id}
-                                  long
-                                />
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </section>
+            <UsersPanel />
           </div>
         </main>
         <Footer />

@@ -336,7 +336,7 @@ function createWindow() {
     win.on(event, () => setTimeout(sendState, 0))
   }
 
-  // Links meant for outside (magnet:, upi:, the releases page) go to the system;
+  // Links meant for outside (magnet:, the releases page) go to the system;
   // pop-ups from embed players are dropped.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^magnet:/i.test(url)) shell.openExternal(url)
@@ -345,7 +345,7 @@ function createWindow() {
   win.webContents.on('will-navigate', (event, url) => {
     if (isAllowedInWindow(url)) return
     event.preventDefault()
-    if (/^(https?|magnet|upi):/i.test(url)) shell.openExternal(url)
+    if (/^(https?|magnet):/i.test(url)) shell.openExternal(url)
   })
   win.webContents.on('before-input-event', (_event, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen())
@@ -469,7 +469,7 @@ function registerIpc() {
   })
   ipcMain.handle('sv:sign-in-cancel', () => browserSignIn.cancel())
   ipcMain.handle('sv:open-external', async (_e, url) => {
-    if (/^(https?|magnet|upi):/i.test(url)) await shell.openExternal(url)
+    if (/^(https?|magnet):/i.test(url)) await shell.openExternal(url)
   })
   ipcMain.handle('sv:fullscreen', (_e, enabled) => {
     if (win && win.isFullScreen() !== !!enabled) win.setFullScreen(!!enabled)

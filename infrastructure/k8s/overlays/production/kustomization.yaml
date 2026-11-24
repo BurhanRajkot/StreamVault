@@ -10,7 +10,7 @@ resources:
 # Image tags are updated by the GitOps workflow (gitops-deploy.yml).
 # ArgoCD detects the commit and syncs the cluster.
 # Registry: GitHub Container Registry (ghcr.io)
-# Org: dragon-manner (your GitHub username)
+# Org: dragon-manner (the GitHub account)
 images:
   - name: ghcr.io/dragon-manner/streamvault-frontend
     newTag: sha-8219160  # Replaced by GitOps workflow with sha-<commit>
