@@ -73,8 +73,8 @@ export function SearchScreen() {
   return (
     <div className="pb-tabbar pt-page">
       <NavBar title="Search" />
-      <div className="px-4 lg:mx-auto lg:max-w-3xl lg:px-12">
-        <h1 className="t-large mb-3 lg:mb-6 lg:text-center lg:text-[40px] lg:leading-[48px]">Search</h1>
+      <div className="px-4 lg:max-w-[52rem] lg:px-12">
+        <h1 className="t-large mb-3 lg:mb-5 lg:text-[34px] lg:leading-[40px] lg:tracking-[-0.02em]">Search</h1>
         <div className="flex h-11 items-center gap-2 rounded-full bg-fill px-3.5 lg:h-12 lg:px-5">
           {isFetching ? <Loader2 className="h-[18px] w-[18px] shrink-0 animate-spin text-label-2" /> : <Search className="h-[18px] w-[18px] shrink-0 text-label-2" strokeWidth={2.2} />}
           <input
@@ -108,7 +108,7 @@ export function SearchScreen() {
           </AnimatePresence>
         </div>
         {!searching && (
-          <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:mt-4 lg:flex-wrap lg:justify-center lg:px-0">
+          <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:mt-4 lg:flex-wrap lg:px-0">
             {QUICK.map((q) => (
               <button key={q} type="button" onClick={() => setQuery(q)} className="press h-8 shrink-0 rounded-full bg-fill px-3.5 text-[14px] font-medium text-white/85">
                 {q}
@@ -150,9 +150,9 @@ export function SearchScreen() {
             <EmptyState icon={<Search />} title={`No results for “${debounced}”`} text="Check the spelling, or try a person's name." />
           )
         ) : (
-          <div className="lg:mx-auto lg:max-w-3xl">
+          <div>
             <h2 className="mb-2 text-[20px] font-bold leading-[25px] tracking-[-0.012em] lg:text-[22px]">Top Searches</h2>
-            <ul className="lg:grid lg:grid-cols-2 lg:gap-x-6">
+            <ul className="lg:grid lg:grid-cols-2 lg:gap-x-8 2xl:grid-cols-3">
               {(trending ?? [])
                 .filter((m) => m.backdrop_path)
                 .slice(0, 12)

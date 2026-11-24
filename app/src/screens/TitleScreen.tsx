@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
-import { Check, CheckCircle2, ChevronDown, Download, Play, Plus, Share, Star, ThumbsUp, Zap } from 'lucide-react'
+import { Check, CheckCircle2, ChevronDown, Download, Play, Plus, Share, Star, ThumbsUp } from 'lucide-react'
 import { type Media } from '@/lib/config'
 import { logRecommendationInteraction } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
@@ -28,7 +28,7 @@ import { FadeImg, PosterGrid, PosterGridSkeleton, tmdbImg } from '@app/component
 import { ServerChips } from '@app/components/ServerSheet'
 import { DownloadOptionsSheet } from '@app/components/DownloadOptionsSheet'
 import { Sheet } from '@app/components/Sheet'
-import { Button, CircleButton, IconTile, ListRow, ListSection, NavBar, SegmentedControl } from '@app/components/kit'
+import { Button, CircleButton, ListRow, ListSection, NavBar, SegmentedControl } from '@app/components/kit'
 
 export function TitleScreen() {
   const params = useParams()
@@ -227,7 +227,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
       />
 
       {/* Artwork: fixed behind a wide window, at the top of a phone's page */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[62vh] overflow-hidden lg:fixed lg:inset-0 lg:h-auto">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[62vh] overflow-hidden lg:fixed lg:inset-0 lg:left-[var(--sidebar-w)] lg:h-auto">
         <motion.div style={{ y: artY, opacity: artOpacity }} className="absolute inset-0">
           {/* A small copy shows at once; the full-size one fades in over it */}
           <img src={tmdbImg(media.backdrop_path || media.poster_path, 'w300')} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
@@ -242,7 +242,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, ease: EASE_OUT }}
-        className="relative z-10 flex flex-col items-center px-4 pb-2 pt-[36vh] text-center lg:min-h-[90vh] lg:max-w-[min(50rem,60%)] lg:items-start lg:justify-end lg:px-12 lg:pb-14 lg:pt-[calc(var(--topbar-h)+2rem)] lg:text-left"
+        className="relative z-10 flex flex-col items-center px-4 pb-2 pt-[36vh] text-center lg:min-h-[80vh] lg:max-w-[min(50rem,60%)] lg:items-start lg:justify-end lg:px-12 lg:pb-14 lg:pt-[calc(var(--topbar-h)+2rem)] lg:text-left"
       >
         <div className="mb-3 lg:mb-5">
           {display.logoImage ? (
@@ -319,7 +319,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
 
         {/* Where it plays — chosen before pressing Play, changeable again in the player */}
         <div className="mt-6 w-full text-left">
-          <p className="t-footnote mb-2 font-semibold text-label-2">Play on</p>
+          <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-white/45">Server</p>
           <ServerChips kind={kind} server={server} onPick={setPicked} />
         </div>
       </motion.section>
@@ -356,20 +356,6 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
             </>
           )}
 
-          {!premium && (
-            <ListSection className="mb-0 mt-10 lg:max-w-xl">
-              <ListRow
-                to="/premium"
-                icon={
-                  <IconTile color="yellow">
-                    <Zap className="fill-current" />
-                  </IconTile>
-                }
-                label="StreamVault Premium"
-                detail="4K from Real-Debrid, subtitles and offline downloads."
-              />
-            </ListSection>
-          )}
         </div>
       </div>
 

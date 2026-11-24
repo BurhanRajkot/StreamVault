@@ -20,31 +20,6 @@ export function useScrolled(threshold = 24): boolean {
   return scrolled
 }
 
-/** True while the reader scrolls down through content; false again on the way back up. */
-export function useHideOnScroll(minY = 140): boolean {
-  const [hidden, setHidden] = useState(false)
-  useEffect(() => {
-    let last = window.scrollY
-    let frame = 0
-    const onScroll = () => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
-        const y = window.scrollY
-        const delta = y - last
-        if (Math.abs(delta) < 6) return
-        setHidden(delta > 0 && y > minY)
-        last = y
-      })
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', onScroll)
-    }
-  }, [minY])
-  return hidden
-}
-
 function subscribeMedia(query: string) {
   return (fn: () => void) => {
     const mql = window.matchMedia(query)

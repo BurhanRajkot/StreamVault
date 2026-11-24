@@ -2,31 +2,47 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { MotionConfig, motion } from 'framer-motion'
+import { MotionConfig } from 'framer-motion'
 import { FavoritesProvider } from '@/context/FavoritesContext'
 import { DislikesProvider } from '@/context/DislikesContext'
 import { AccountSync } from '@/components/layout/AccountSync'
+import { cn } from '@/lib/utils'
 import { desktop, isAndroid } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
-import { TitleBar } from '@app/components/shell/TitleBar'
+import { Sidebar, TopStrip } from '@app/components/shell/Sidebar'
 import { TabBar } from '@app/components/shell/TabBar'
 import { WindowStrip, useFramelessClass } from '@app/components/shell/WindowControls'
 import { UpdateBanner } from '@app/components/UpdateBanner'
 import { Welcome } from '@app/screens/Welcome'
 import { HomeScreen } from '@app/screens/HomeScreen'
 
-const TitleScreen = lazy(() => import('@app/screens/TitleScreen').then((m) => ({ default: m.TitleScreen })))
-const PlayerScreen = lazy(() => import('@app/screens/PlayerScreen').then((m) => ({ default: m.PlayerScreen })))
-const OfflinePlayerScreen = lazy(() => import('@app/screens/OfflinePlayerScreen').then((m) => ({ default: m.OfflinePlayerScreen })))
-const SearchScreen = lazy(() => import('@app/screens/SearchScreen').then((m) => ({ default: m.SearchScreen })))
-const DownloadsScreen = lazy(() => import('@app/screens/DownloadsScreen').then((m) => ({ default: m.DownloadsScreen })))
-const ProfileScreen = lazy(() => import('@app/screens/ProfileScreen').then((m) => ({ default: m.ProfileScreen })))
-const MyListScreen = lazy(() => import('@app/screens/MyListScreen').then((m) => ({ default: m.MyListScreen })))
-const PremiumScreen = lazy(() => import('@app/screens/PremiumScreen').then((m) => ({ default: m.PremiumScreen })))
-const AdminScreen = lazy(() => import('@app/screens/AdminScreen').then((m) => ({ default: m.AdminScreen })))
-const F1Screen = lazy(() => import('@app/screens/F1Screen').then((m) => ({ default: m.F1Screen })))
-const F1RaceScreen = lazy(() => import('@app/screens/F1RaceScreen').then((m) => ({ default: m.F1RaceScreen })))
-const F1PlayerScreen = lazy(() => import('@app/screens/F1PlayerScreen').then((m) => ({ default: m.F1PlayerScreen })))
+/** The screens past Home, loaded on first use — and fetched in the background right after start, so none opens blank. */
+const screens = {
+  title: () => import('@app/screens/TitleScreen').then((m) => ({ default: m.TitleScreen })),
+  player: () => import('@app/screens/PlayerScreen').then((m) => ({ default: m.PlayerScreen })),
+  offline: () => import('@app/screens/OfflinePlayerScreen').then((m) => ({ default: m.OfflinePlayerScreen })),
+  search: () => import('@app/screens/SearchScreen').then((m) => ({ default: m.SearchScreen })),
+  downloads: () => import('@app/screens/DownloadsScreen').then((m) => ({ default: m.DownloadsScreen })),
+  profile: () => import('@app/screens/ProfileScreen').then((m) => ({ default: m.ProfileScreen })),
+  myList: () => import('@app/screens/MyListScreen').then((m) => ({ default: m.MyListScreen })),
+  premium: () => import('@app/screens/PremiumScreen').then((m) => ({ default: m.PremiumScreen })),
+  admin: () => import('@app/screens/AdminScreen').then((m) => ({ default: m.AdminScreen })),
+  f1: () => import('@app/screens/F1Screen').then((m) => ({ default: m.F1Screen })),
+  f1Race: () => import('@app/screens/F1RaceScreen').then((m) => ({ default: m.F1RaceScreen })),
+  f1Player: () => import('@app/screens/F1PlayerScreen').then((m) => ({ default: m.F1PlayerScreen })),
+}
+const TitleScreen = lazy(screens.title)
+const PlayerScreen = lazy(screens.player)
+const OfflinePlayerScreen = lazy(screens.offline)
+const SearchScreen = lazy(screens.search)
+const DownloadsScreen = lazy(screens.downloads)
+const ProfileScreen = lazy(screens.profile)
+const MyListScreen = lazy(screens.myList)
+const PremiumScreen = lazy(screens.premium)
+const AdminScreen = lazy(screens.admin)
+const F1Screen = lazy(screens.f1)
+const F1RaceScreen = lazy(screens.f1Race)
+const F1PlayerScreen = lazy(screens.f1Player)
 
 /** Screens that own the whole display — no bars. */
 const FULLSCREEN = /^\/(watch|offline)\//
@@ -38,6 +54,7 @@ export function App() {
   useEscapeBridge()
   useScrollMemory()
   useFramelessClass()
+  usePreloadScreens()
 
   if (!settings.acceptedTerms) {
     return (
@@ -54,39 +71,32 @@ export function App() {
         <DislikesProvider>
           <AccountSync />
           <UserSwitchGuard />
-          {!fullscreen && <TitleBar />}
+          {!fullscreen && <Sidebar />}
+          {!fullscreen && <TopStrip />}
           {/* A narrow (snapped, split-screen) desktop window: a slim title bar instead — the players carry their own */}
           {!fullscreen && <WindowStrip />}
-          <main className="relative z-10 min-h-[100dvh] text-foreground">
+          <main className={cn('relative z-10 min-h-[100dvh] text-foreground', !fullscreen && 'lg:pl-[var(--sidebar-w)]')}>
             <Suspense fallback={<div className="min-h-[100dvh]" />}>
-              {/* Each screen fades in. Opacity only: a transform here would trap the screens' fixed layers. */}
-              <motion.div
-                key={fullscreen ? 'player' : location.pathname}
-                initial={fullscreen ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-              >
-                <Routes location={location}>
-                  <Route path="/" element={<HomeScreen mode="home" />} />
-                  <Route path="/movies" element={<HomeScreen mode="movie" />} />
-                  <Route path="/tv" element={<HomeScreen mode="tv" />} />
-                  <Route path="/anime" element={<HomeScreen mode="anime" />} />
-                  <Route path="/documentaries" element={<HomeScreen mode="documentary" />} />
-                  <Route path="/search" element={<SearchScreen />} />
-                  <Route path="/downloads" element={<DownloadsScreen />} />
-                  <Route path="/me" element={<ProfileScreen />} />
-                  <Route path="/my-list" element={<MyListScreen />} />
-                  <Route path="/premium" element={<PremiumScreen />} />
-                  <Route path="/admin" element={<AdminScreen />} />
-                  <Route path="/title/:type/:id" element={<TitleScreen />} />
-                  <Route path="/watch/:type/:id" element={<PlayerScreen />} />
-                  <Route path="/f1" element={<F1Screen />} />
-                  <Route path="/f1/:year/:round" element={<F1RaceScreen />} />
-                  <Route path="/watch/f1/:year/:round/:session" element={<F1PlayerScreen />} />
-                  <Route path="/offline/:id" element={<OfflinePlayerScreen />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </motion.div>
+              <Routes location={location}>
+                <Route path="/" element={<HomeScreen mode="home" />} />
+                <Route path="/movies" element={<HomeScreen mode="movie" />} />
+                <Route path="/tv" element={<HomeScreen mode="tv" />} />
+                <Route path="/anime" element={<HomeScreen mode="anime" />} />
+                <Route path="/documentaries" element={<HomeScreen mode="documentary" />} />
+                <Route path="/search" element={<SearchScreen />} />
+                <Route path="/downloads" element={<DownloadsScreen />} />
+                <Route path="/me" element={<ProfileScreen />} />
+                <Route path="/my-list" element={<MyListScreen />} />
+                <Route path="/premium" element={<PremiumScreen />} />
+                <Route path="/admin" element={<AdminScreen />} />
+                <Route path="/title/:type/:id" element={<TitleScreen />} />
+                <Route path="/watch/:type/:id" element={<PlayerScreen />} />
+                <Route path="/f1" element={<F1Screen />} />
+                <Route path="/f1/:year/:round" element={<F1RaceScreen />} />
+                <Route path="/watch/f1/:year/:round/:session" element={<F1PlayerScreen />} />
+                <Route path="/offline/:id" element={<OfflinePlayerScreen />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
             </Suspense>
           </main>
           {!fullscreen && <TabBar />}
@@ -95,6 +105,15 @@ export function App() {
       </FavoritesProvider>
     </MotionConfig>
   )
+}
+
+/** Fetch every screen's code once the app has settled, so moving around never waits on a chunk. */
+function usePreloadScreens() {
+  useEffect(() => {
+    const run = () => Object.values(screens).forEach((load) => void load().catch(() => {}))
+    const idle = window.requestIdleCallback ? window.requestIdleCallback(run, { timeout: 2500 }) : window.setTimeout(run, 1200)
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(idle) : window.clearTimeout(idle))
+  }, [])
 }
 
 /**

@@ -38,13 +38,13 @@ export function CategoryHeader({ active, overHero = true }: { active: Category; 
     <header
       className={cn(
         'fixed inset-x-0 top-0 z-30 pt-safe transition-[background-color,backdrop-filter,box-shadow] duration-300 lg:hidden',
-        scrolled || !overHero ? 'material-bar' : 'bg-gradient-to-b from-black/60 via-black/25 to-transparent'
+        scrolled || !overHero ? 'material-bar' : 'bg-gradient-to-b from-black/50 to-transparent'
       )}
     >
-      <div className="flex h-11 items-center px-4">
-        <Logo />
+      <div className="flex h-12 items-center px-4">
+        <Logo compact />
       </div>
-      <nav ref={nav} className="no-scrollbar relative flex gap-2 overflow-x-auto px-4 pb-2.5 pt-1" aria-label="Categories">
+      <nav ref={nav} className="no-scrollbar relative flex gap-2 overflow-x-auto px-4 pb-3 pt-0.5" aria-label="Categories">
         {CATEGORIES.map((c) => {
           const isActive = c.id === active
           return (
@@ -54,8 +54,8 @@ export function CategoryHeader({ active, overHero = true }: { active: Category; 
               replace
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'relative flex h-8 shrink-0 items-center rounded-full px-3.5 text-[14px] font-semibold transition-colors',
-                isActive ? 'text-black' : 'glass-button text-white'
+                'relative flex h-[30px] shrink-0 items-center rounded-full px-3.5 text-[13.5px] font-semibold transition-colors',
+                isActive ? 'text-black' : 'text-white/85 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.28)] active:bg-white/10'
               )}
             >
               {isActive && <motion.span layoutId="category-pill" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}

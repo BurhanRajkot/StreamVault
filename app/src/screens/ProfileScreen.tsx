@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Download, Gauge, Heart, Info, Loader2, LogOut, Maximize, RefreshCw, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { Bookmark, Download, Gauge, Info, Loader2, LogOut, Maximize, RefreshCw, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID } from '@/lib/config'
 import { startServer } from '@app/lib/startServer'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
@@ -16,7 +17,7 @@ import { Sheet } from '@app/components/Sheet'
 import { LogoMark } from '@app/components/Logo'
 import type { QualityPreference } from '@app/downloads/premiumFile'
 import { PageHeader } from '@app/components/PageHeader'
-import { IconTile, ListRow, ListSection, SegmentedControl, Switch } from '@app/components/kit'
+import { Button, IconTile, ListRow, ListSection, SegmentedControl, Switch } from '@app/components/kit'
 
 const PREMIUM_LABEL: Record<string, string> = {
   granted: 'Active',
@@ -41,77 +42,59 @@ export function ProfileScreen() {
   const premiumStatus = access.loading ? 'Checking…' : access.admin ? 'Active · admin' : PREMIUM_LABEL[access.reason] ?? 'Not active'
 
   return (
-    <div className="mx-auto max-w-[760px] px-4 pb-tabbar pt-page lg:px-8">
+    <div className="mx-auto max-w-[720px] px-4 pb-tabbar pt-page lg:mx-0 lg:max-w-[920px] lg:px-12">
       <PageHeader title="My Space" />
 
       {/* Account */}
-      <ListSection>
+      <section className="mb-7 flex items-center gap-4">
         {isAuthenticated && user ? (
-          <div className="flex items-center gap-3.5 px-4 py-3">
+          <>
             {user.picture ? (
-              <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-[60px] w-[60px] rounded-full object-cover" />
+              <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-full object-cover" />
             ) : (
-              <span className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-ios-gray text-[22px] font-semibold">{initialsOf(user.name)}</span>
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/[0.12] text-[22px] font-semibold">{initialsOf(user.name)}</span>
             )}
             <div className="min-w-0 flex-1">
-              <p className="t-title3 truncate">{user.name || user.nickname}</p>
+              <p className="t-title2 truncate">{user.name || user.nickname}</p>
               <p className="t-footnote truncate text-label-2">{user.email}</p>
             </div>
-          </div>
-        ) : (
-          <>
-            <ListRow
-              onClick={() => !isLoading && void signIn()}
-              icon={
-                <span className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-ios-gray/60 text-white/90">
-                  <UserRound className="h-8 w-8" strokeWidth={1.6} />
-                </span>
-              }
-              label={<span className="t-headline text-tint">Sign in to StreamVault</span>}
-              detail="Your list, continue watching and recommendations — the same as on the website."
-              className="py-3"
-            />
-            <ListRow onClick={() => !isLoading && void signIn({ signup: true })} label="Create an account" tint />
           </>
+        ) : (
+          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-white/70">
+                <UserRound className="h-8 w-8" strokeWidth={1.6} />
+              </span>
+              <div className="min-w-0">
+                <p className="t-title3">Not signed in</p>
+                <p className="t-footnote text-label-2">Sync your list and progress across devices</p>
+              </div>
+            </div>
+            <div className="flex gap-2.5">
+              <Button onClick={() => !isLoading && void signIn()} className="flex-1 sm:flex-none">
+                Sign In
+              </Button>
+              <Button variant="gray" onClick={() => !isLoading && void signIn({ signup: true })} className="flex-1 sm:flex-none">
+                Create Account
+              </Button>
+            </div>
+          </div>
         )}
-      </ListSection>
+      </section>
 
-      {/* Premium */}
-      <ListSection>
-        <ListRow
+      {/* Where you go most */}
+      <div className="mb-8 grid grid-cols-3 gap-2.5 lg:gap-3">
+        <Tile to="/my-list" icon={<Bookmark />} label="My List" />
+        <Tile to="/downloads" icon={<Download />} label="Downloads" />
+        <Tile
           to="/premium"
-          icon={
-            <IconTile color="yellow">
-              <Zap className="fill-current" />
-            </IconTile>
-          }
+          icon={<Zap className="fill-current text-ios-yellow" />}
           label="Premium"
-          value={<span className={access.premium ? 'text-ios-green' : undefined}>{premiumStatus}</span>}
+          detail={<span className={access.premium ? 'text-ios-green' : undefined}>{premiumStatus}</span>}
         />
-      </ListSection>
+      </div>
 
-      <ListSection header="Library">
-        <ListRow
-          to="/my-list"
-          icon={
-            <IconTile color="pink">
-              <Heart className="fill-current" />
-            </IconTile>
-          }
-          label="My List"
-        />
-        <ListRow
-          to="/downloads"
-          icon={
-            <IconTile color="blue">
-              <Download strokeWidth={2.4} />
-            </IconTile>
-          }
-          label="Downloads"
-        />
-      </ListSection>
-
-      <ListSection header="Playback & downloads">
+      <ListSection header="Playback">
         <ListRow
           onClick={() => setServerOpen(true)}
           icon={
@@ -128,15 +111,20 @@ export function ProfileScreen() {
               <Gauge />
             </IconTile>
           }
-          label="Download quality"
-          detail={
+          label={
+            <>
+              <span className="sm:hidden">Quality</span>
+              <span className="max-sm:hidden">Download quality</span>
+            </>
+          }
+          trailing={
             <SegmentedControl
               size="sm"
               layoutId="quality-thumb"
               options={(['720p', '1080p', '4K'] as QualityPreference[]).map((q) => ({ id: q, label: q }))}
               value={settings.downloadQuality}
               onChange={(q) => updateSettings({ downloadQuality: q })}
-              className="mb-1 mt-2 max-w-[280px]"
+              className="w-[168px]"
             />
           }
         />
@@ -147,11 +135,8 @@ export function ProfileScreen() {
                 <Maximize />
               </IconTile>
             }
-            label="Open the player in full screen"
-            detail="Off: films play in the window — move it, resize it, snap it beside another or minimize it"
-            trailing={
-              <Switch label="Open the player in full screen" checked={settings.playerFullscreen} onChange={(v) => updateSettings({ playerFullscreen: v })} />
-            }
+            label="Play in full screen"
+            trailing={<Switch label="Play in full screen" checked={settings.playerFullscreen} onChange={(v) => updateSettings({ playerFullscreen: v })} />}
           />
         )}
         {isAndroid && (
@@ -167,24 +152,23 @@ export function ProfileScreen() {
         )}
       </ListSection>
 
-      <ListSection header="Admin">
-        <ListRow
-          to="/admin"
-          icon={
-            <IconTile color="gray">
-              <ShieldCheck />
-            </IconTile>
-          }
-          label={access.admin ? 'Admin dashboard' : 'Admin sign-in'}
-          detail={access.admin ? undefined : 'For the site’s admin — opens the dashboard'}
-          value={access.admin && !pendingRequests ? 'Signed in' : undefined}
-          trailing={
-            pendingRequests > 0 ? (
-              <span className="rounded-full bg-ios-red px-2 text-[13px] font-semibold leading-[20px]">{pendingRequests}</span>
-            ) : undefined
-          }
-        />
-        {access.admin && (
+      {/* Only the admin sees these; signing in as admin lives under About */}
+      {access.admin && (
+        <ListSection header="Admin">
+          <ListRow
+            to="/admin"
+            icon={
+              <IconTile color="gray">
+                <ShieldCheck />
+              </IconTile>
+            }
+            label="Admin dashboard"
+            trailing={
+              pendingRequests > 0 ? (
+                <span className="rounded-full bg-ios-red px-2 text-[13px] font-semibold leading-[20px]">{pendingRequests}</span>
+              ) : undefined
+            }
+          />
           <ListRow
             onClick={() => clearAdminToken()}
             icon={
@@ -195,8 +179,8 @@ export function ProfileScreen() {
             label="Leave admin mode"
             accessory="none"
           />
-        )}
-      </ListSection>
+        </ListSection>
+      )}
 
       <ListSection header="App">
         {isNativeApp && <UpdateRow />}
@@ -235,14 +219,30 @@ export function ProfileScreen() {
               Version {APP_VERSION} for {platformLabel}
             </p>
           </div>
-          <p>Movies, shows, anime and documentaries — the same library, account and servers as stream-vault.site.</p>
           <p>
-            StreamVault doesn&apos;t host any video. Titles play from third-party servers, and Premium plays from the Real-Debrid account of the site&apos;s admin. Watch what you have the right to watch where you live.
+            StreamVault doesn&apos;t host any video — titles play from third-party servers. Title data and images from TMDB; this product uses the TMDB API but is not endorsed or certified by TMDB.
           </p>
-          <p>Title data and images from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+          {!access.admin && (
+            <Link to="/admin" onClick={() => setAboutOpen(false)} className="block pt-2 text-center text-[13px] text-label-3 hover:text-label-2">
+              Admin sign-in
+            </Link>
+          )}
         </div>
       </Sheet>
     </div>
+  )
+}
+
+/** A shortcut card: an icon, a name, sometimes a line of status. */
+function Tile({ to, icon, label, detail }: { to: string; icon: ReactNode; label: string; detail?: ReactNode }) {
+  return (
+    <Link to={to} className="glass-card press flex min-h-[96px] flex-col justify-between gap-3 rounded-[14px] p-3.5 transition-colors hover:bg-white/[0.06] lg:min-h-[108px] lg:p-4">
+      <span className="text-white/85 [&>svg]:h-[22px] [&>svg]:w-[22px]">{icon}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-[15px] font-semibold">{label}</span>
+        {detail && <span className="block truncate text-[12px] text-label-2">{detail}</span>}
+      </span>
+    </Link>
   )
 }
 

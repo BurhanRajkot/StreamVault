@@ -103,9 +103,9 @@ export function NavBar({
 /** A screen's large title, as on iOS: the nav bar takes it over as it scrolls away. */
 export function LargeTitle({ title, subtitle, actions, className }: { title: string; subtitle?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
-    <header className={cn('mb-5 flex items-end gap-3 lg:mb-8', className)}>
+    <header className={cn('mb-6 flex items-end gap-3 lg:mb-8', className)}>
       <div className="min-w-0 flex-1">
-        <h1 className="t-large lg:text-[40px] lg:leading-[48px]">{title}</h1>
+        <h1 className="t-large lg:text-[34px] lg:leading-[40px] lg:tracking-[-0.02em]">{title}</h1>
         {subtitle && <p className="t-subhead mt-1 text-label-2">{subtitle}</p>}
       </div>
       {actions}
@@ -119,24 +119,29 @@ export function LargeTitle({ title, subtitle, actions, className }: { title: str
 export function ListSection({ header, footer, children, className }: { header?: ReactNode; footer?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={cn('mb-7', className)}>
-      {header && <h2 className="t-footnote mb-1.5 px-4 uppercase tracking-[0.02em] text-label-2">{header}</h2>}
-      <div className="glass-card overflow-hidden rounded-[16px]">{children}</div>
-      {footer && <p className="t-footnote mt-1.5 px-4 text-label-2">{footer}</p>}
+      {header && <h2 className="mb-2 px-1 text-[13px] font-semibold text-white/50">{header}</h2>}
+      <div className="glass-card overflow-hidden rounded-[14px]">{children}</div>
+      {footer && <p className="t-footnote mt-2 px-1 text-label-2">{footer}</p>}
     </section>
   )
 }
 
+/*
+ * The row glyph's colour. The tiles themselves are one quiet neutral — a
+ * rainbow of settings squares is what made the lists look like a form —
+ * and only Premium's bolt and a destructive action keep a colour.
+ */
 const TILE_COLORS = {
-  blue: 'bg-tint',
-  green: 'bg-ios-green',
-  red: 'bg-ios-red',
-  orange: 'bg-ios-orange',
-  yellow: 'bg-ios-yellow text-black',
-  pink: 'bg-ios-pink',
-  indigo: 'bg-ios-indigo',
-  teal: 'bg-ios-teal',
-  gray: 'bg-ios-gray',
-  graphite: 'bg-[#3a3a3c]',
+  blue: 'text-white/85',
+  green: 'text-white/85',
+  red: 'text-ios-red',
+  orange: 'text-white/85',
+  yellow: 'text-ios-yellow',
+  pink: 'text-white/85',
+  indigo: 'text-white/85',
+  teal: 'text-white/85',
+  gray: 'text-white/85',
+  graphite: 'text-white/85',
 } as const
 
 export type TileColor = keyof typeof TILE_COLORS
@@ -144,7 +149,7 @@ export type TileColor = keyof typeof TILE_COLORS
 /** The rounded coloured square an iOS settings row carries its glyph in. */
 export function IconTile({ color, children, className }: { color: TileColor; children: ReactNode; className?: string }) {
   return (
-    <span className={cn('flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] text-white [&>svg]:h-[18px] [&>svg]:w-[18px]', TILE_COLORS[color], className)}>
+    <span className={cn('flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-[9px] bg-white/[0.07] [&>svg]:h-[17px] [&>svg]:w-[17px]', TILE_COLORS[color], className)}>
       {children}
     </span>
   )
@@ -197,12 +202,12 @@ export function ListRow({
     </>
   )
   const cls = cn(
-    'cell-sep-inset relative flex min-h-[50px] w-full items-center gap-3 px-4 py-2.5 text-left',
+    'cell-sep-inset relative flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left',
     (to || onClick) && !disabled && 'tap',
     disabled && 'opacity-50',
     className
   )
-  const style = { '--sep-inset': icon ? '58px' : '16px' } as React.CSSProperties
+  const style = { '--sep-inset': icon ? '60px' : '16px' } as React.CSSProperties
   if (to)
     return (
       <Link to={to} className={cls} style={style}>

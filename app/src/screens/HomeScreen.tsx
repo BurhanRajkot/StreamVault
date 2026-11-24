@@ -29,7 +29,7 @@ export function HomeScreen({ mode }: { mode: MediaMode }) {
       <HeroCarousel items={featured} fallbackKind={heroRow.kind} />
 
       {/* The rows ride up over the hero's fade */}
-      <div className="relative z-10 mt-2 lg:-mt-[6vw]">
+      <div className="relative z-10 lg:-mt-[4vw]">
         {(mode === 'home' || mode === 'movie' || mode === 'tv') && <ContinueWatchingRow />}
         {mode === 'home' && <TasteSetup />}
         {mode === 'home' && <Recommendations />}
