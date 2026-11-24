@@ -262,10 +262,11 @@ function PhoneHero({
             </p>
           )}
           <div className="flex w-full gap-2.5">
-            <Button onClick={() => navigate(`/watch/${kind}/${media.id}`)} {...intent} className="h-11 flex-1">
+            {/* A short phone's card is ~260px wide: no wrapping "My / List" */}
+            <Button onClick={() => navigate(`/watch/${kind}/${media.id}`)} {...intent} className="h-11 min-w-0 flex-1 whitespace-nowrap px-3">
               <Play className="fill-current" /> Play
             </Button>
-            <Button variant="glass" onClick={() => toggleFavorite(media.id, kind, media.genre_ids)} className="h-11 flex-1">
+            <Button variant="glass" onClick={() => toggleFavorite(media.id, kind, media.genre_ids)} className="h-11 min-w-0 flex-1 whitespace-nowrap px-3">
               {inList ? <Check strokeWidth={2.6} /> : <Plus strokeWidth={2.6} />} My List
             </Button>
           </div>

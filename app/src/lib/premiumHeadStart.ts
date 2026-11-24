@@ -6,6 +6,7 @@ import { warmNearestEdge } from '@/lib/debridHost'
 import { estimateConnection } from '@/lib/connection'
 import { prefetchPremiumReleases } from '@/lib/premiumSearch'
 import { warmPremiumTitle } from '@/lib/premiumWarm'
+import { audioLanguageFor } from '@/lib/audioLanguage'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { getSettings } from '@app/lib/settings'
@@ -68,6 +69,8 @@ export function headStartPremium(queryClient: QueryClient, target: HeadStartTarg
         mediaType: target.kind,
         season: tv ? target.season ?? 1 : undefined,
         episode: tv ? target.episode ?? 1 : undefined,
+        // As PlayerScreen asks it (useAudioLanguage), so both share one search and one release
+        audioLang: audioLanguageFor(media, target.kind),
       }
       prefetchPremiumReleases(search, token)
       await warmPremiumTitle(search, token, tv ? media.episode_run_time?.[0] : media.runtime)

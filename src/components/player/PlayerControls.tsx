@@ -68,6 +68,22 @@ export interface PlayerSource {
   name?: string
 }
 
+/** One choice in the Audio menu: a track of the playing file, or another version in a language it hasn't got. */
+export interface PlayerAudioOption {
+  id: string
+  /** "Hindi" */
+  label: string
+  /** "5.1", "1080p version" */
+  detail?: string
+}
+
+/** The Audio menu: what's playing, and what else there is. */
+export interface PlayerAudio {
+  options: PlayerAudioOption[]
+  activeId: string | null
+  onSelect: (id: string) => void
+}
+
 /**
  * The file's clock when the element plays only part of it. Real-Debrid's
  * converted stream restarts wherever the viewer jumps to, so element time 0
@@ -104,6 +120,8 @@ export interface PlayerControlsProps {
   sources?: PlayerSource[]
   activeSourceId?: string | null
   onSourceChange?: (id: string) => void
+  /** The audio language: the file's tracks, and other versions in another language. */
+  audio?: PlayerAudio | null
   /** How the stream reaches the browser, when that's worth knowing ("Converted stream"). */
   streamNote?: string | null
   /** The file's direct link — offered for VLC, mpv or a download. */
@@ -285,7 +303,7 @@ type WebkitPresentationVideo = HTMLVideoElement & {
   webkitPresentationMode?: string
 }
 
-type MenuView = 'main' | 'quality' | 'speed' | 'subtitles' | 'subtitle-versions' | 'episodes'
+type MenuView = 'main' | 'quality' | 'audio' | 'speed' | 'subtitles' | 'subtitle-versions' | 'episodes'
 
 interface SeekRipple {
   side: 'back' | 'forward'
@@ -306,6 +324,7 @@ export function PlayerControls({
   sources = [],
   activeSourceId = null,
   onSourceChange,
+  audio = null,
   streamNote,
   externalUrl,
   timeline,
@@ -1470,6 +1489,14 @@ export function PlayerControls({
               {sources.length > 0 && (
                 <MenuRow onClick={() => setMenu('quality')} label="Quality" value={activeSource?.label ?? 'Auto'} chevron />
               )}
+              {audio && audio.options.length > 0 && (
+                <MenuRow
+                  onClick={() => setMenu('audio')}
+                  label="Audio"
+                  value={audio.options.find((o) => o.id === audio.activeId)?.label ?? audio.options[0].label}
+                  chevron
+                />
+              )}
               {subtitles && (
                 <MenuRow onClick={() => setMenu('subtitles')} label="Subtitles" value={subtitles.summary} chevron />
               )}
@@ -1544,6 +1571,32 @@ export function PlayerControls({
                         </span>
                         {source.name && <span className="mt-0.5 block truncate text-[11px] text-white/40">{source.name}</span>}
                       </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {menu === 'audio' && audio && (
+            <>
+              <MenuHeader title="Audio" onBack={() => setMenu('main')} />
+              <div className="overflow-y-auto overscroll-contain">
+                {audio.options.map((option) => {
+                  const selected = option.id === audio.activeId
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => {
+                        setMenu(null)
+                        if (!selected) audio.onSelect(option.id)
+                      }}
+                      aria-current={selected || undefined}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                    >
+                      <Check className={cn('h-4 w-4 shrink-0', selected ? 'opacity-100' : 'opacity-0')} />
+                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                      {option.detail && <span className="shrink-0 text-xs text-white/50">{option.detail}</span>}
                     </button>
                   )
                 })}

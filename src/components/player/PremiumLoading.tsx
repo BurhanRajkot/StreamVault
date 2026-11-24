@@ -7,6 +7,7 @@
  */
 
 import type { ReactNode } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** Full-pane screen over the title's artwork. */
@@ -15,11 +16,18 @@ export function PaneBackdrop({
   testId,
   onSwitchServer,
   switchLabel = 'Switch server',
+  onBack,
   className,
   children,
 }: {
   backdropUrl?: string | null
   testId?: string
+  /**
+   * Leave for the title's details — drawn where the page's own back button
+   * isn't on screen (the app, a phone turned sideways, fullscreen), as the
+   * player's controls draw theirs, so the wait always has a way out.
+   */
+  onBack?: () => void
   /** A quiet way out while the viewer waits. */
   onSwitchServer?: () => void
   /** What that way out is called, where there are no other servers to switch to. */
@@ -42,6 +50,15 @@ export function PaneBackdrop({
         />
       )}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.35)_0%,rgba(0,0,0,0.85)_75%)]" />
+      {onBack && (
+        <button
+          onClick={onBack}
+          aria-label="Back to details"
+          className="player-back absolute left-[max(0.25rem,env(safe-area-inset-left,0px))] top-[max(0.5rem,env(safe-area-inset-top,0px))] z-20 hidden h-11 w-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:top-3"
+        >
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+      )}
       <div className="relative z-10 flex max-w-md flex-col items-center px-6 text-center">{children}</div>
       {onSwitchServer && (
         <button
@@ -104,6 +121,8 @@ interface PremiumLoadingProps {
   detail?: ReactNode
   onSwitchServer?: () => void
   switchLabel?: string
+  /** A way back to the title's details while it waits (see PaneBackdrop). */
+  onBack?: () => void
   testId?: string
   className?: string
 }
@@ -118,12 +137,13 @@ export function PremiumLoading({
   detail,
   onSwitchServer,
   switchLabel,
+  onBack,
   testId,
   className,
 }: PremiumLoadingProps) {
   const current = STEPS.findIndex((s) => s.id === step)
   return (
-    <PaneBackdrop backdropUrl={backdropUrl} testId={testId} onSwitchServer={onSwitchServer} switchLabel={switchLabel} className={className}>
+    <PaneBackdrop backdropUrl={backdropUrl} testId={testId} onSwitchServer={onSwitchServer} switchLabel={switchLabel} onBack={onBack} className={className}>
       <TitleLines title={title} episodeLine={episodeLine} />
       {percent !== null ? (
         <div

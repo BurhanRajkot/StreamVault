@@ -457,6 +457,13 @@ export interface Media {
   tagline?: string
   number_of_seasons?: number
   episode_run_time?: number[]
+  /** ISO 639-1, e.g. "hi" — what the film or show was made in. */
+  original_language?: string
+  /** ISO 3166-1 countries the film or show comes from (TMDB gives TV this; movies, `production_countries`). */
+  origin_country?: string[]
+  production_countries?: { iso_3166_1: string; name: string }[]
+  /** The film series a movie belongs to (detail responses). */
+  belongs_to_collection?: { id: number; name: string; poster_path: string | null; backdrop_path: string | null } | null
   /** Present on movie detail responses directly; TV needs `external_ids` appended. */
   imdb_id?: string | null
   external_ids?: { imdb_id?: string | null }

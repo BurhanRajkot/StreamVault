@@ -28,6 +28,7 @@ import { ServerChips } from '@app/components/ServerSheet'
 import { DownloadOptionsSheet } from '@app/components/DownloadOptionsSheet'
 import { Sheet } from '@app/components/Sheet'
 import { Button, CircleButton, ListRow, ListSection, NavBar, SegmentedControl } from '@app/components/kit'
+import { audioLanguageFor } from '@/lib/audioLanguage'
 
 export function TitleScreen() {
   const params = useParams()
@@ -171,6 +172,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
     episode: kind === 'tv' ? e : undefined,
     episodeName,
     posterUrl: tmdbImg(media.poster_path, 'w342'),
+    audioLang: audioLanguageFor(media, kind),
   })
 
   const like = async () => {

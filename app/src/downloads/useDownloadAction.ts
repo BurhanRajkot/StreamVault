@@ -9,6 +9,8 @@ import { canDownloadOffline, findDownload, startDownload, useDownloads, type Dow
 export interface DownloadTarget extends DownloadMeta {
   imdbId?: string | null
   year?: string
+  /** The audio language wanted (lib/audioLanguage). */
+  audioLang?: string
 }
 
 /**
@@ -42,6 +44,7 @@ export function useDownloadAction() {
           mediaType: target.mediaType,
           season: target.season,
           episode: target.episode,
+          audioLang: target.audioLang,
         },
         token,
         getSettings().downloadQuality
