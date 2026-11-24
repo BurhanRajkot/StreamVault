@@ -30,11 +30,19 @@ export const helmetMiddleware = helmet({
   // Configure Referrer-Policy to allow domain verification for embedded players
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 
-  // Content Security Policy - prevents XSS attacks
-  // NOTE: This backend CSP is intentionally disabled. The frontend (Vercel/Netlify)
-  // enforces CSP via deployment configs. Backend responses don't need CSP headers
-  // because they serve JSON APIs, not HTML pages.
-  contentSecurityPolicy: false, // Disabled - frontend handles CSP
+  // Content Security Policy. The API answers JSON, media and subtitles, never
+  // a page, so nothing it sends should run, load or be framed if a browser
+  // ever opens it as a document (an error page, a tampered content type).
+  // The site's own CSP (vercel.json) is what protects the app itself.
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'none'"],
+      baseUri: ["'none'"],
+      formAction: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
 
   // HTTP Strict Transport Security - Force HTTPS
   hsts: isProduction ? {

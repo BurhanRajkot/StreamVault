@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # ── Stage 1: Base Node Environment ──────────────────────────────────
-FROM node:26-slim AS base
+# Pinned by digest (Scorecard); Dependabot's docker updates move tag and digest together
+FROM node:26-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS base
 
 ENV WORKDIR=/opt/app
 WORKDIR $WORKDIR
@@ -11,8 +12,8 @@ FROM base AS development
 # Copy only package files to cache dependencies
 COPY package*.json ./
 
-# Install all dependencies
-RUN npm install --legacy-peer-deps
+# Install all dependencies, exactly as locked
+RUN npm ci --legacy-peer-deps
 
 EXPOSE 8080
 
@@ -31,8 +32,8 @@ COPY vite.config.ts ./
 COPY eslint.config.js ./
 COPY components.json ./
 
-# Install dependencies for building
-RUN npm install --legacy-peer-deps
+# Install dependencies for building, exactly as locked
+RUN npm ci --legacy-peer-deps
 
 # Copy the rest of the frontend source code
 COPY . .
@@ -43,7 +44,7 @@ ENV VITE_MOCK_AUTH=${VITE_MOCK_AUTH}
 RUN npm run build
 
 # ── Stage 4: Serve with nginx (Production) ──────────────────────────
-FROM nginx:1.31-alpine AS production
+FROM nginx:1.31-alpine@sha256:b50897d5c7b1aa08067c3d90c5e8b3e47ec4e3c91c91446f67820228f7b41e34 AS production
 
 # Security Hardening: patch OS packages inherited from the Alpine base.
 # Same rationale as the backend image — Trivy scans with `ignore-unfixed:

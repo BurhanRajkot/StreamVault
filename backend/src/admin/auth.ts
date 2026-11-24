@@ -34,12 +34,32 @@ export interface AdminTokenPayload {
   exp?: number
 }
 
+// A code stays valid for its whole window (up to ~90s with the drift allowance
+// above), so one that has already signed someone in is refused after that:
+// someone who sees a code over the admin's shoulder, or in a proxy log, can't
+// reuse it for a second session. Kept for longer than any window it could
+// still pass in.
+const USED_CODE_TTL_MS = 3 * 60_000
+const usedCodes = new Map<string, number>()
+
+function forgetExpiredCodes(now: number): void {
+  for (const [code, at] of usedCodes) {
+    if (now - at > USED_CODE_TTL_MS) usedCodes.delete(code)
+  }
+}
+
 export function validateAdminCode(code: string): boolean {
   try {
     if (!code || typeof code !== 'string') return false
-    if (!/^\d{6}$/.test(code.trim())) return false
+    const token = code.trim()
+    if (!/^\d{6}$/.test(token)) return false
 
-    return authenticator.verify({ token: code.trim(), secret: ADMIN_TOTP_SECRET })
+    const now = Date.now()
+    forgetExpiredCodes(now)
+    if (usedCodes.has(token)) return false
+    if (!authenticator.verify({ token, secret: ADMIN_TOTP_SECRET })) return false
+    usedCodes.set(token, now)
+    return true
   } catch (_error) {
     return false
   }
@@ -51,13 +71,14 @@ export function generateAdminToken(): string {
   }
 
   return jwt.sign(payload, ADMIN_JWT_SECRET, {
+    algorithm: 'HS256',
     expiresIn: TOKEN_EXPIRATION,
   })
 }
 
 export function verifyAdminToken(token: string): AdminTokenPayload | null {
   try {
-    const decoded = jwt.verify(token, ADMIN_JWT_SECRET) as AdminTokenPayload
+    const decoded = jwt.verify(token, ADMIN_JWT_SECRET, { algorithms: ['HS256'] }) as AdminTokenPayload
 
     if (decoded.role !== 'admin') {
       return null

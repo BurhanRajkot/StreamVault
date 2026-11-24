@@ -59,7 +59,8 @@ runs:
       # Fix: use env var instead of direct template injection (zizmor #403, #404)
       env:
         INSTALL_ARGS: ${{ inputs.install-args }}
-      run: npm install $INSTALL_ARGS
+      # npm ci: exactly the lockfile, nothing resolved fresh (Scorecard pinned-dependencies)
+      run: npm ci $INSTALL_ARGS
 
     - name: Install (bun)
       if: inputs.install == 'bun'

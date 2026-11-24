@@ -32,6 +32,10 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "UTC"
+    # New releases wait a week before a PR: most hijacked packages are caught
+    # and pulled within days. Security updates are not held back by this.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     # Target the main branch (where CI runs)
     target-branch: "main"
@@ -154,6 +158,10 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "UTC"
+    # New releases wait a week before a PR: most hijacked packages are caught
+    # and pulled within days. Security updates are not held back by this.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     target-branch: "main"
     labels:
@@ -214,6 +222,10 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "UTC"
+    # New releases wait a week before a PR: most hijacked packages are caught
+    # and pulled within days. Security updates are not held back by this.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 3
     target-branch: "main"
     labels:
@@ -231,6 +243,10 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "UTC"
+    # New releases wait a week before a PR: most hijacked packages are caught
+    # and pulled within days. Security updates are not held back by this.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 3
     target-branch: "main"
     labels:
@@ -254,6 +270,10 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "UTC"
+    # New releases wait a week before a PR: most hijacked packages are caught
+    # and pulled within days. Security updates are not held back by this.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     target-branch: "main"
     labels:
@@ -301,6 +321,10 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "UTC"
+    # New releases wait a week before a PR: most hijacked packages are caught
+    # and pulled within days. Security updates are not held back by this.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 3
     target-branch: "main"
     labels:
