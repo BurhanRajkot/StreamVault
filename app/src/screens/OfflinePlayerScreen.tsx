@@ -4,7 +4,6 @@ import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
 import { setPlaybackMode } from '@app/native/platform'
 import { getDownloads, openWithOtherApp, playableUrl } from '@app/downloads/store'
-import { PlayerWindowControls } from '@app/components/shell/WindowControls'
 
 /**
  * A downloaded file, played with no connection: the app's video element
@@ -92,7 +91,6 @@ export function OfflinePlayerScreen() {
         >
           <ExternalLink className="h-4 w-4" /> Open with…
         </button>
-        <PlayerWindowControls className="h-9" />
       </div>
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">

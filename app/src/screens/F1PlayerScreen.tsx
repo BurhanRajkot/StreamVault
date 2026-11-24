@@ -8,7 +8,6 @@ import { F1_ELSEWHERE, SESSION_MINUTES, f1ReleaseSource, f1SeasonQuery, isF1Sess
 import { setPlaybackMode } from '@app/native/platform'
 import { Sheet } from '@app/components/Sheet'
 import { ListRow, ListSection } from '@app/components/kit'
-import { PlayerWindowControls } from '@app/components/shell/WindowControls'
 
 /**
  * One F1 session on Premium, full screen like a film's player. The
@@ -68,10 +67,7 @@ export function F1PlayerScreen() {
               exitLabel="Back to the race"
               elsewhere={F1_ELSEWHERE}
               topActions={
-                <>
-                  {sessionButton}
-                  <PlayerWindowControls />
-                </>
+                sessionButton
               }
             />
           </div>
