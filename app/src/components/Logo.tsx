@@ -20,11 +20,11 @@ export function LogoMark({ className }: { className?: string }) {
   )
 }
 
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className, compact }: { className?: string; compact?: boolean }) {
   return (
-    <span className={cn('flex items-center gap-2.5', className)}>
-      <LogoMark />
-      <span className="text-[19px] font-bold tracking-[-0.02em] text-white">StreamVault</span>
+    <span className={cn('flex items-center', compact ? 'gap-2' : 'gap-2.5', className)}>
+      <LogoMark className={compact ? 'h-6 w-6' : undefined} />
+      <span className={cn('font-bold tracking-[-0.02em] text-white', compact ? 'text-[17px]' : 'text-[19px]')}>StreamVault</span>
     </span>
   )
 }

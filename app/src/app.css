@@ -63,9 +63,11 @@
   --sab: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   --sal: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
   --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
-  --tabbar-h: 62px;
+  --tabbar-h: 54px;
   --navbar-h: 52px;
-  --topbar-h: 60px;
+  /* The wide layout: the sidebar, and the strip along the top beside it (back, window buttons) */
+  --topbar-h: 48px;
+  --sidebar-w: 0px;
   /* The narrow desktop window's title strip (WindowControls.tsx) */
   --wbar-h: 32px;
 }
@@ -73,6 +75,17 @@
 @media (max-resolution: 1.5dppx) {
   :root {
     --hairline: 1px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --sidebar-w: 76px;
+  }
+}
+@media (min-width: 1280px) {
+  :root {
+    --sidebar-w: 236px;
   }
 }
 
@@ -161,8 +174,8 @@ textarea {
 /* ── Type: the iOS scale ─────────────────────────────────────────────────── */
 
 @utility t-large {
-  font-size: 34px;
-  line-height: 41px;
+  font-size: 30px;
+  line-height: 36px;
   font-weight: 700;
   letter-spacing: -0.012em;
 }
@@ -185,14 +198,14 @@ textarea {
   letter-spacing: -0.006em;
 }
 @utility t-headline {
-  font-size: 17px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 21px;
   font-weight: 600;
   letter-spacing: -0.005em;
 }
 @utility t-body {
-  font-size: 17px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 21px;
   letter-spacing: -0.005em;
 }
 @utility t-callout {
@@ -272,6 +285,13 @@ textarea {
     0 6px 18px -8px rgb(0 0 0 / 0.5);
 }
 
+/* The phone's docked tab bar */
+@utility material-dock {
+  background: rgb(10 10 12 / 0.82);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: inset 0 var(--hairline) 0 rgb(255 255 255 / 0.08);
+}
+
 /*
  * Grouped-list cards: a faint lit edge and sheen. No blur — they sit on
  * black, where it would show nothing and cost scrolling.
@@ -300,6 +320,32 @@ textarea {
     0 16px 44px -12px rgb(0 0 0 / 0.7) !important;
 }
 
+/*
+ * Android's WebView redraws live blur on every scrolled frame, and that is
+ * where the app stuttered. There the bars and buttons are solid instead —
+ * the same colours, nothing to recompute.
+ */
+.sv-android .material-bar,
+.sv-android .material-dock {
+  backdrop-filter: none;
+  background: rgb(10 10 12 / 0.97);
+}
+.sv-android .material-float,
+.sv-android .material-sheet {
+  backdrop-filter: none;
+  background: #1c1c1f;
+}
+.sv-android .glass-button,
+.sv-android .glass,
+.sv-android .glass-strong {
+  backdrop-filter: none;
+  background-color: rgb(52 52 58 / 0.82);
+}
+.sv-android [data-sonner-toaster] [data-sonner-toast].sv-toast {
+  backdrop-filter: none;
+  background: #26262a !important;
+}
+
 @layer components {
   /* Older names, kept for the screens and site parts that use them */
   .glass {
@@ -314,6 +360,12 @@ textarea {
   }
   .surface {
     background: #1c1c1e;
+  }
+
+  /* The phone hero's poster card: as large as the screen allows, leaving the first row in view */
+  .hero-card {
+    aspect-ratio: 2 / 3;
+    width: min(calc(100vw - 32px), calc((100dvh - var(--sat) - var(--sab) - 250px) * 2 / 3), 460px);
   }
 
   /* Horizontal rows: swipe or arrow through, no bar */
@@ -357,7 +409,7 @@ textarea {
     padding-bottom: var(--sab);
   }
   .pb-tabbar {
-    padding-bottom: calc(var(--tabbar-h) + var(--sab) + 36px);
+    padding-bottom: calc(var(--tabbar-h) + var(--sab) + 28px);
   }
   @media (min-width: 1024px) {
     .pb-tabbar {
@@ -370,7 +422,7 @@ textarea {
   }
   @media (min-width: 1024px) {
     .pt-page {
-      padding-top: calc(var(--topbar-h) + 32px);
+      padding-top: calc(var(--topbar-h) + 24px);
     }
   }
 

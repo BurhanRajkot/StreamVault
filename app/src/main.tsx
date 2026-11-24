@@ -8,9 +8,12 @@ import { AppAuthProvider } from '@app/auth/AppAuthProvider'
 import { App } from '@app/App'
 import { registerPremiumStreams } from '@app/native/premiumStreams'
 import { markAppRequests } from '@app/native/clientHeader'
+import { isAndroid, isDesktop } from '@app/native/platform'
 import './app.css'
 
 markAppRequests()
+// Per-platform styling hooks: Android's WebView gets solid bars instead of live blur (app.css)
+document.documentElement.classList.add(isAndroid ? 'sv-android' : isDesktop ? 'sv-desktop' : 'sv-web')
 registerPremiumStreams()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
