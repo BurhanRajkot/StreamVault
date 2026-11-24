@@ -1045,15 +1045,20 @@ export function DebridPlayerPane({
       // No track list from Real-Debrid: the release's own word for its language
       const said = [...releaseLanguages(activeRelease)].find((l) => l.length === 2 && l !== 'in')
       if (said) inFile.add(said)
-      options.push({ id: 'file', label: said ? languageName(said) : 'Default' })
+      options.push({ id: 'file', label: said ? languageName(said) : 'This version' })
     }
-    for (const lang of SWITCHABLE_LANGUAGES) {
+    // An F1 broadcast has its own commentary: only the file's tracks, when it has several
+    if (releaseSource && tracks.length < 2) return null
+    // Hindi and English always listed: another version when the file hasn't got them, or why not
+    for (const lang of releaseSource ? [] : SWITCHABLE_LANGUAGES) {
       if (inFile.has(lang)) continue
       const other = releaseInLanguage(lang)
-      if (other) options.push({ id: `release:${lang}`, label: languageName(lang), detail: `${parseTorrentQuality(other.name)} version` })
+      options.push(
+        other
+          ? { id: `release:${lang}`, label: languageName(lang), detail: `${parseTorrentQuality(other.name)} version` }
+          : { id: `release:${lang}`, label: languageName(lang), detail: 'Not on Premium', disabled: true }
+      )
     }
-    // Nothing to switch to: the menu still says what's playing, when that's known
-    if (options.length === 0 || (options.length === 1 && options[0].label === 'Default')) return null
     const selected = playback.media?.selectedAudio
     return {
       options,
@@ -1083,7 +1088,7 @@ export function DebridPlayerPane({
         }
       },
     }
-  }, [playback, activeRelease, releaseInLanguage, chooseLanguage, switchRelease])
+  }, [playback, activeRelease, releaseSource, releaseInLanguage, chooseLanguage, switchRelease])
 
   const releaseControls = useMemo<ReleaseControls | null>(() => {
     if (sources.length === 0) return null

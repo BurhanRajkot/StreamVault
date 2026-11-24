@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
 import { Check, CheckCircle2, ChevronDown, Download, Play, Plus, Share, Star, ThumbsUp } from 'lucide-react'
@@ -28,7 +28,9 @@ import { ServerChips } from '@app/components/ServerSheet'
 import { DownloadOptionsSheet } from '@app/components/DownloadOptionsSheet'
 import { Sheet } from '@app/components/Sheet'
 import { Button, CircleButton, ListRow, ListSection, NavBar, SegmentedControl } from '@app/components/kit'
-import { audioLanguageFor } from '@/lib/audioLanguage'
+import { languageName, releaseHasLanguage, releaseLanguageRank, type AudioLanguage } from '@/lib/audioLanguage'
+import { useAudioLanguage } from '@/hooks/useAudioLanguage'
+import { findPremiumReleases } from '@/lib/premiumSearch'
 
 export function TitleScreen() {
   const params = useParams()
@@ -147,10 +149,29 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
   const headStartOn = server === DEBRID_SERVER_ID && premium && !partial
   const headStartSeason = kind === 'tv' ? progress?.season ?? activeSeason : undefined
   const headStartEpisode = kind === 'tv' ? progress?.episode ?? 1 : undefined
+  // The language it plays in: the title's own (Hindi for a Hindi original), or what was picked here or in the player
+  const { audioLanguage, onAudioLanguageChange } = useAudioLanguage(media, kind)
   useEffect(() => {
     // At once: the search it starts with takes a second anyway, and Play may come sooner
-    if (headStartOn) headStartPremium(queryClient, { kind, id: media.id, season: headStartSeason, episode: headStartEpisode }, getDebridToken)
-  }, [headStartOn, kind, media.id, headStartSeason, headStartEpisode, queryClient, getDebridToken])
+    if (headStartOn) {
+      headStartPremium(queryClient, { kind, id: media.id, season: headStartSeason, episode: headStartEpisode, audioLang: audioLanguage }, getDebridToken)
+    }
+  }, [headStartOn, kind, media.id, headStartSeason, headStartEpisode, audioLanguage, queryClient, getDebridToken])
+  // The head start's own search (the same request): says whether there's a version in the language picked
+  const { data: releases } = useQuery({
+    queryKey: ['title-premium-releases', kind, media.id, headStartSeason, headStartEpisode, audioLanguage],
+    queryFn: async () =>
+      findPremiumReleases(
+        { title: display.title, year: display.year, imdbId, mediaType: kind, season: headStartSeason ?? 1, episode: headStartEpisode ?? 1, audioLang: audioLanguage },
+        await getDebridToken()
+      ),
+    enabled: headStartOn && !!imdbId,
+    staleTime: 10 * 60_000,
+  })
+  const languageMissing =
+    !!releases &&
+    releases.length > 0 &&
+    !releases.some((r) => (audioLanguage === 'en' ? releaseLanguageRank(r, 'en') === 0 : releaseHasLanguage(r, audioLanguage)))
 
   const play = (s?: number, e?: number) => {
     // Unpicked, the player applies the same start rule once it knows the account's Premium access
@@ -172,7 +193,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
     episode: kind === 'tv' ? e : undefined,
     episodeName,
     posterUrl: tmdbImg(media.poster_path, 'w342'),
-    audioLang: audioLanguageFor(media, kind),
+    audioLang: audioLanguage,
   })
 
   const like = async () => {
@@ -323,6 +344,24 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
           <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-white/45">Server</p>
           <ServerChips kind={kind} server={server} onPick={setPicked} />
         </div>
+
+        {/* The language it plays in on Premium — changeable mid-film too, from the player's settings */}
+        {server === DEBRID_SERVER_ID && premium && (
+          <div className="mt-5 w-full text-left">
+            <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-white/45">Audio language</p>
+            <LanguageChips
+              options={media.original_language === 'hi' ? ['hi', 'en'] : ['en', 'hi']}
+              original={media.original_language}
+              active={audioLanguage}
+              onPick={onAudioLanguageChange}
+            />
+            {languageMissing && (
+              <p className="mt-2 text-[13px] leading-snug text-white/50">
+                No {languageName(audioLanguage)} version on Premium yet — it’ll play in the language there is.
+              </p>
+            )}
+          </div>
+        )}
       </motion.section>
 
       {/* Below the fold */}
@@ -563,5 +602,41 @@ export function ProgressRing({ value, size = 22 }: { value: number; size?: numbe
         style={{ transition: 'stroke-dashoffset 0.6s ease' }}
       />
     </svg>
+  )
+}
+
+/** Hindi · English, the title's own language marked "Original". */
+function LanguageChips({
+  options,
+  original,
+  active,
+  onPick,
+}: {
+  options: AudioLanguage[]
+  original?: string
+  active: AudioLanguage
+  onPick: (lang: AudioLanguage) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((lang) => {
+        const selected = lang === active
+        return (
+          <button
+            key={lang}
+            onClick={() => onPick(lang)}
+            aria-pressed={selected}
+            className={cn(
+              'press relative z-0 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-semibold transition-colors',
+              selected ? 'text-black' : 'bg-fill text-white/85 hover:bg-[rgb(118_118_128/0.32)]'
+            )}
+          >
+            {selected && <motion.span layoutId="language-chip" transition={spring} className="absolute inset-0 -z-10 rounded-full bg-white" />}
+            {languageName(lang)}
+            {lang === original && <span className={cn('text-[11px] font-semibold', selected ? 'text-black/55' : 'text-label-2')}>Original</span>}
+          </button>
+        )
+      })}
+    </div>
   )
 }
