@@ -192,17 +192,17 @@ export function ListRow({
     <>
       {icon}
       <span className={cn('min-w-0 flex-1', center && 'text-center')}>
-        <span className={cn('t-body block truncate', destructive && 'text-ios-red', tint && 'text-tint')}>{label}</span>
+        <span className={cn('t-body block truncate lg:text-[15px] lg:leading-5', destructive && 'text-ios-red', tint && 'text-tint')}>{label}</span>
         {detail && <span className="t-footnote mt-0.5 block text-label-2">{detail}</span>}
       </span>
-      {value !== undefined && value !== null && <span className="t-body max-w-[48%] shrink-0 truncate text-label-2">{value}</span>}
+      {value !== undefined && value !== null && <span className="t-body max-w-[48%] shrink-0 truncate text-label-2 lg:text-[15px] lg:leading-5">{value}</span>}
       {trailing}
       {accessory === 'chevron' && <ChevronRight className="-mr-1 h-[18px] w-[18px] shrink-0 text-label-3" strokeWidth={2.4} />}
       {accessory === 'check' && <Check className="h-5 w-5 shrink-0 text-tint" strokeWidth={2.6} />}
     </>
   )
   const cls = cn(
-    'cell-sep-inset relative flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left',
+    'cell-sep-inset relative flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left lg:min-h-[48px]',
     (to || onClick) && !disabled && 'tap',
     disabled && 'opacity-50',
     className
