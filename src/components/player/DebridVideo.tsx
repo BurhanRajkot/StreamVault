@@ -71,6 +71,7 @@ type ChromeProps = Pick<
   | 'sources'
   | 'activeSourceId'
   | 'onSourceChange'
+  | 'audio'
   | 'onNext'
   | 'nextLabel'
   | 'overlay'

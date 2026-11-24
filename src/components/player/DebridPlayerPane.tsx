@@ -55,6 +55,18 @@ import {
   type StruggleCause,
 } from '@/lib/releasePlayback'
 import { appConvertsAudio } from '@/lib/localStream'
+import {
+  DEFAULT_AUDIO_LANGUAGE,
+  channelLabel,
+  languageName,
+  releaseHasLanguage,
+  releaseLanguageRank,
+  releaseLanguages,
+  trackLanguage,
+  withAudioLanguage,
+  withAudioTrack,
+  type AudioLanguage,
+} from '@/lib/audioLanguage'
 import { estimateConnection, knownThroughput } from '@/lib/connection'
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases, type PremiumReleaseSource } from '@/lib/premiumSearch'
@@ -67,7 +79,7 @@ import { clearAdminToken } from '@/lib/api'
 import { MY_ACCESS_QUERY_KEY, usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { DebridVideo, type Struggle } from './DebridVideo'
 import { ActionRow, PaneBackdrop, PremiumLoading, StatusMessage, primaryAction, secondaryAction } from './PremiumLoading'
-import type { PlayerSource } from './PlayerControls'
+import type { PlayerAudio, PlayerAudioOption, PlayerSource } from './PlayerControls'
 
 export interface DebridPlayerPaneProps {
   title: string
@@ -109,6 +121,13 @@ export interface DebridPlayerPaneProps {
   subtitle?: string
   /** What the way out is called — "Switch server" unless the page has no other servers. */
   exitLabel?: string
+  /**
+   * The audio language to play (lib/audioLanguage): releases in it go first,
+   * and a file's track in it plays. English when not given.
+   */
+  audioLanguage?: AudioLanguage
+  /** The viewer picked another language in the player — to keep for this title. */
+  onAudioLanguageChange?: (lang: AudioLanguage) => void
 }
 
 /** What the page shows under the player: the releases to switch between, and the playing file to save. */
@@ -138,11 +157,24 @@ function toPlayerSource(rel: DebridRelease): PlayerSource {
   return {
     id: rel.info_hash,
     label: parseTorrentQuality(rel.name),
-    tags: [hdr, isImaxRelease(rel.name) ? 'IMAX' : null].filter((t): t is string => !!t),
+    tags: [hdr, isImaxRelease(rel.name) ? 'IMAX' : null, languageTag(rel)].filter((t): t is string => !!t),
     size: Number.isFinite(size) && size > 0 ? formatBytes(size) : undefined,
     name: rel.name,
   }
 }
+
+/** "Hindi", "Hindi + English", "Multi-audio" — the languages a release says it has, when it says. */
+function languageTag(rel: DebridRelease): string | null {
+  const langs = releaseLanguages(rel)
+  const named = [...langs].filter((l) => l.length === 2 && l !== 'in').map(languageName)
+  if (named.length > 0) return named.length > 2 ? `${named.slice(0, 2).join(' + ')} +${named.length - 2}` : named.join(' + ')
+  if (langs.has('multi')) return 'Multi-audio'
+  if (langs.has('in')) return 'Indian audio'
+  return null
+}
+
+/** Languages the player offers a whole other version in, when the playing file hasn't got them. */
+const SWITCHABLE_LANGUAGES: AudioLanguage[] = ['hi', 'en']
 
 type Status = 'searching' | 'loading-stream' | 'downloading' | 'ready' | 'not-found' | 'error' | 'access-refused'
 
@@ -279,7 +311,18 @@ export function DebridPlayerPane({
   releaseSource,
   subtitle,
   exitLabel = 'Switch server',
+  audioLanguage = DEFAULT_AUDIO_LANGUAGE,
+  onAudioLanguageChange,
 }: DebridPlayerPaneProps) {
+  /**
+   * Read when a search or a file starts, not watched: picking a language in
+   * the player switches the track or the release itself, without searching
+   * again.
+   */
+  const audioLangRef = useRef(audioLanguage)
+  useEffect(() => {
+    audioLangRef.current = audioLanguage
+  }, [audioLanguage])
   const getToken = useDebridToken()
   /** The file itself may be offered (save, VLC) — the admin can pause that per account. */
   const { downloads: downloadsAllowed } = usePremiumAccess()
@@ -416,7 +459,7 @@ export function DebridPlayerPane({
     const start = startPositionRef.current
     playingKeyRef.current = storageKeyRef.current
     setActiveRelease(release)
-    setPlayback(ready)
+    setPlayback(withAudioLanguage(ready, audioLangRef.current))
     setStartAt(start)
     setResumeToast(resumeToast && !!start && start > 0)
     setAutoSwitch(null)
@@ -564,12 +607,13 @@ export function DebridPlayerPane({
           const res = warm ? await warm.catch(askNow) : await askNow()
           const current = generationRef.current === generation
           if (res.status === 'ready') {
+            const ready = withAudioLanguage(res, audioLangRef.current)
             if (probingRef.current && current) {
               // Proven instant — offer it in the picker.
               const proven: DebridRelease = { ...rel, cached: true }
               setInstantReleases((prev) => (prev.some((r) => r.info_hash === proven.info_hash) ? prev : [...prev, proven]))
             }
-            return { kind: 'ready', playback: res, direct: playsWithoutRdTranscode(res, support, appConvertsAudio()) }
+            return { kind: 'ready', playback: ready, direct: playsWithoutRdTranscode(ready, support, appConvertsAudio()) }
           }
           if (res.status === 'not-cached') {
             notInstantRef.current.add(rel.info_hash)
@@ -857,7 +901,7 @@ export function DebridPlayerPane({
       const source = releaseSourceRef.current
       const releases = source
         ? await source.find({ fresh })
-        : await findPremiumReleases({ title, year, imdbId, mediaType, season, episode }, token, { fresh })
+        : await findPremiumReleases({ title, year, imdbId, mediaType, season, episode, audioLang: audioLangRef.current }, token, { fresh })
       if (generationRef.current !== generation) return
 
       const kbps = (await within(connection, CONNECTION_WAIT_MS)) ?? knownThroughput()
@@ -869,6 +913,7 @@ export function DebridPlayerPane({
         knownDurationS: knownDurationRef.current,
         probeUnseeded: source?.probeUnseeded,
         appConvertsAudio: appConvertsAudio(),
+        audioLang: audioLangRef.current,
       })
       uncachedFallbackRef.current = plan.uncachedFallback
 
@@ -956,6 +1001,90 @@ export function DebridPlayerPane({
     [instantReleases, activeRelease, switchRelease]
   )
 
+  /** The viewer chose a language: kept for the title (the next episode plays in it too). */
+  const chooseLanguage = useCallback(
+    (lang: AudioLanguage) => {
+      audioLangRef.current = lang
+      onAudioLanguageChange?.(lang)
+    },
+    [onAudioLanguageChange]
+  )
+
+  /**
+   * Another version of the film in `lang`, best first: one that names it,
+   * else — for English, which releases rarely name — one that names no
+   * other language either.
+   */
+  const releaseInLanguage = useCallback(
+    (lang: AudioLanguage): DebridRelease | null => {
+      const others = instantReleases.filter((r) => r.info_hash !== activeRelease?.info_hash)
+      return (
+        others.find((r) => releaseHasLanguage(r, lang)) ??
+        (lang === DEFAULT_AUDIO_LANGUAGE ? others.find((r) => releaseLanguageRank(r, 'hi') === 2) : undefined) ??
+        null
+      )
+    },
+    [instantReleases, activeRelease]
+  )
+
+  /** The Audio menu: the playing file's tracks, then other versions in a language the file hasn't got. */
+  const audio = useMemo<PlayerAudio | null>(() => {
+    if (!playback) return null
+    const tracks = playback.media?.audioTracks ?? []
+    const options: PlayerAudioOption[] = []
+    const inFile = new Set<AudioLanguage>()
+    tracks.forEach((track, i) => {
+      const lang = trackLanguage(track)
+      if (lang) inFile.add(lang)
+      const twin = tracks.some((other) => other !== track && trackLanguage(other) === lang)
+      const label = lang ? languageName(lang) : track.lang && track.lang.toLowerCase() !== 'und' ? track.lang : `Track ${i + 1}`
+      const detail = [channelLabel(track.channels), twin ? `Track ${i + 1}` : null].filter(Boolean).join(' · ')
+      options.push({ id: `track:${track.id}`, label, detail: detail || undefined })
+    })
+    if (tracks.length === 0 && activeRelease) {
+      // No track list from Real-Debrid: the release's own word for its language
+      const said = [...releaseLanguages(activeRelease)].find((l) => l.length === 2 && l !== 'in')
+      if (said) inFile.add(said)
+      options.push({ id: 'file', label: said ? languageName(said) : 'Default' })
+    }
+    for (const lang of SWITCHABLE_LANGUAGES) {
+      if (inFile.has(lang)) continue
+      const other = releaseInLanguage(lang)
+      if (other) options.push({ id: `release:${lang}`, label: languageName(lang), detail: `${parseTorrentQuality(other.name)} version` })
+    }
+    // Nothing to switch to: the menu still says what's playing, when that's known
+    if (options.length === 0 || (options.length === 1 && options[0].label === 'Default')) return null
+    const selected = playback.media?.selectedAudio
+    return {
+      options,
+      activeId: tracks.length > 0 ? `track:${selected ?? tracks[0].id}` : 'file',
+      onSelect: (id: string) => {
+        if (id.startsWith('track:')) {
+          const trackId = id.slice('track:'.length)
+          const track = tracks.find((t) => t.id === trackId)
+          if (!track || trackId === selected) return
+          const lang = trackLanguage(track)
+          if (lang) chooseLanguage(lang)
+          // The same file again, from here, with the other track
+          startPositionRef.current = positionRef.current > 0 ? positionRef.current : startPositionRef.current
+          setPlayback(withAudioTrack(playback, trackId))
+          setStartAt(startPositionRef.current)
+          setResumeToast(false)
+          setVideoStarted(false)
+          setPlayNonce((n) => n + 1)
+          return
+        }
+        if (id.startsWith('release:')) {
+          const lang = id.slice('release:'.length)
+          const release = releaseInLanguage(lang)
+          if (!release) return
+          chooseLanguage(lang)
+          switchRelease(release)
+        }
+      },
+    }
+  }, [playback, activeRelease, releaseInLanguage, chooseLanguage, switchRelease])
+
   const releaseControls = useMemo<ReleaseControls | null>(() => {
     if (sources.length === 0) return null
     const ready = status === 'ready' && playback
@@ -987,6 +1116,7 @@ export function DebridPlayerPane({
     return (
       <PremiumLoading
         backdropUrl={backdropUrl}
+        onBack={onBack}
         testId="debrid-loading"
         onSwitchServer={onSwitchServer}
         switchLabel={exitLabel}
@@ -1008,7 +1138,7 @@ export function DebridPlayerPane({
   // once the access check reruns; until it does (or if it still says yes), say so here ---
   if (status === 'access-refused') {
     return (
-      <PaneBackdrop backdropUrl={backdropUrl}>
+      <PaneBackdrop backdropUrl={backdropUrl} onBack={onBack}>
         <StatusMessage heading="Premium isn't available to you right now" body="Your access may have changed. Every other server still works." />
         <ActionRow>
           <button onClick={onSwitchServer} className={primaryAction}>
@@ -1022,7 +1152,7 @@ export function DebridPlayerPane({
   // --- Not found / error ---
   if (status === 'not-found' || status === 'error') {
     return (
-      <PaneBackdrop backdropUrl={backdropUrl}>
+      <PaneBackdrop backdropUrl={backdropUrl} onBack={onBack}>
         <StatusMessage
           heading={status === 'not-found' ? 'No Premium stream available' : "Premium couldn't start this"}
           body={statusMessage}
@@ -1043,7 +1173,7 @@ export function DebridPlayerPane({
   // --- The connection dropped and stayed down: the film waits where it stopped ---
   if (lostAt !== null && playback) {
     return (
-      <PaneBackdrop backdropUrl={backdropUrl}>
+      <PaneBackdrop backdropUrl={backdropUrl} onBack={onBack}>
         <StatusMessage
           heading="Connection lost"
           body={
@@ -1069,7 +1199,7 @@ export function DebridPlayerPane({
   if (playbackFailed || !playback) {
     const nextRelease = instantReleases.find((r) => r.info_hash !== activeRelease?.info_hash)
     return (
-      <PaneBackdrop backdropUrl={backdropUrl}>
+      <PaneBackdrop backdropUrl={backdropUrl} onBack={onBack}>
         <StatusMessage
           heading="Playback stopped"
           body={
@@ -1122,6 +1252,7 @@ export function DebridPlayerPane({
         sources={sources}
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}
+        audio={audio}
         episodes={episodes}
         topActions={topActions}
         subtitles={subtitles}

@@ -22,6 +22,7 @@ import { nowPlayingMeta } from './movie-detail/types'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
+import { useAudioLanguage } from '@/hooks/useAudioLanguage'
 import { prefetchPremiumReleases, type PremiumSearchTarget } from '@/lib/premiumSearch'
 import { WARM_AFTER_MS, warmPremiumTitle } from '@/lib/premiumWarm'
 import { warmNearestEdge } from '@/lib/debridHost'
@@ -489,6 +490,7 @@ export function MovieDetailModal({
   }, [initialMedia])
 
   const display = deriveMediaDisplay(media, mode)
+  const { audioLanguage, onAudioLanguageChange } = useAudioLanguage(media, mode === 'tv' ? 'tv' : 'movie')
   const { title, heroImage, posterImage } = display
 
   // Episode navigation within and across seasons
@@ -561,7 +563,15 @@ export function MovieDetailModal({
         // And which of Real-Debrid's servers is nearest (lib/debridHost) — measured once every few hours.
         warmNearestEdge()
         void getDebridToken().then((token) => {
-          const target: PremiumSearchTarget = { title, year: display.year, imdbId, mediaType: debridMediaType, season: prefetchSeason, episode: prefetchEpisode }
+          const target: PremiumSearchTarget = {
+            title,
+            year: display.year,
+            imdbId,
+            mediaType: debridMediaType,
+            season: prefetchSeason,
+            episode: prefetchEpisode,
+            audioLang: audioLanguage,
+          }
           prefetchPremiumReleases(target, token)
           // Still on the page a moment later: get the release Play would start ready too (lib/premiumWarm)
           if (!isPlaying) warmTimer = setTimeout(() => void warmPremiumTitle(target, token, runtimeMinutes), WARM_AFTER_MS)
@@ -575,7 +585,7 @@ export function MovieDetailModal({
       clearTimeout(timer)
       clearTimeout(warmTimer)
     }
-  }, [prefetchSeason, prefetchEpisode, isPlaying, title, display.year, imdbId, debridMediaType, getDebridToken, runtimeMinutes])
+  }, [prefetchSeason, prefetchEpisode, isPlaying, title, display.year, imdbId, debridMediaType, getDebridToken, runtimeMinutes, audioLanguage])
   const isDesktopShow = !isMobile && mode === 'tv'
   // Shares its query with the episode list, so naming the episode is free
   const { data: playingSeasonEpisodes } = useSeasonEpisodes(media.id, season, isPlaying && mode === 'tv')
@@ -810,6 +820,8 @@ export function MovieDetailModal({
                       nextLabel={nextLabel}
                       onReleaseControls={setReleaseControls}
                       runtimeMinutes={mode === 'tv' ? media.episode_run_time?.[0] : media.runtime}
+                      audioLanguage={audioLanguage}
+                      onAudioLanguageChange={onAudioLanguageChange}
                       episodes={
                         mode === 'tv' ? (
                           <EpisodeList

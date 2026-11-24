@@ -11,7 +11,7 @@ export function parseKind(value: string | undefined): TitleKind | null {
 const DETAILS_STALE_MS = 2 * 60 * 60 * 1000
 
 /** A title's full details — the same query (and cache entry) the website's title page uses. */
-function detailsQuery(kind: TitleKind, id: number) {
+export function detailsQuery(kind: TitleKind, id: number) {
   return {
     queryKey: ['mediaDetails', kind, String(id)],
     queryFn: () => fetchMediaDetails(kind, id),

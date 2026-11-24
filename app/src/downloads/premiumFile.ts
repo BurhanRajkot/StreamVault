@@ -1,6 +1,7 @@
 import { DebridRequestError, playDebridRelease, parseTorrentQuality, type DebridRelease } from '@/lib/debridApi'
 import { detectBrowserVideoSupport, rankReleasesForPlayback } from '@/lib/releasePlayback'
 import { findPremiumReleases, type PremiumSearchTarget } from '@/lib/premiumSearch'
+import { releaseLanguageRank } from '@/lib/audioLanguage'
 
 /** What the downloader fetches: a Real-Debrid direct link to one video file. */
 export interface PremiumFile {
@@ -37,10 +38,14 @@ export async function resolvePremiumFile(
   const releases = await findPremiumReleases(target, token)
   if (releases.length === 0) throw new Error('No releases found for this title.')
 
-  const ranked = rankReleasesForPlayback(releases, detectBrowserVideoSupport())
+  const lang = target.audioLang ?? 'en'
+  const ranked = rankReleasesForPlayback(releases, detectBrowserVideoSupport(), { audioLang: lang })
   const order = QUALITY_ORDER[preference]
+  // The language first (an offline copy plays its first track), then the quality asked for
   const byPreference = [...ranked].sort(
-    (a, b) => order.indexOf(parseTorrentQuality(a.name)) - order.indexOf(parseTorrentQuality(b.name))
+    (a, b) =>
+      releaseLanguageRank(a, lang) - releaseLanguageRank(b, lang) ||
+      order.indexOf(parseTorrentQuality(a.name)) - order.indexOf(parseTorrentQuality(b.name))
   )
   const candidates: DebridRelease[] = byPreference.filter((r) => r.cached)
   if (candidates.length === 0) throw new Error('Nothing is ready to download instantly. Stream it on Premium, or try again later.')

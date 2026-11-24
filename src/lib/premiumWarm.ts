@@ -51,11 +51,17 @@ export interface PlanOptions {
   /** Ask about releases nobody shares any more too (an archive's: lib/f1). */
   probeUnseeded?: boolean
   appConvertsAudio: boolean
+  /** The audio language wanted (lib/audioLanguage) — English when not given. */
+  audioLang?: string
 }
 
 /** Which releases the player starts with, in which order. Pure. */
 export function planPlayback(releases: DebridRelease[], opts: PlanOptions): PlayPlan {
-  const ranked = rankReleasesForPlayback(releases, opts.support, { durationS: opts.knownDurationS, appConvertsAudio: opts.appConvertsAudio })
+  const ranked = rankReleasesForPlayback(releases, opts.support, {
+    durationS: opts.knownDurationS,
+    appConvertsAudio: opts.appConvertsAudio,
+    audioLang: opts.audioLang,
+  })
   /** Best first, as far as this connection can carry it. */
   const fit = (list: DebridRelease[]) => fitReleasesToConnection(list, opts.kbps, opts.durationS, opts.support)
   // An uncached release needs live seeders, or it just sits in Real-Debrid's download queue forever
@@ -143,6 +149,7 @@ export interface WarmTarget {
   durationS: number
   knownDurationS?: number
   probeUnseeded?: boolean
+  audioLang?: string
 }
 
 /**
@@ -163,6 +170,7 @@ export async function warmPremiumPlay(target: WarmTarget): Promise<void> {
       knownDurationS: target.knownDurationS,
       probeUnseeded: target.probeUnseeded,
       appConvertsAudio: appConvertsAudio(),
+      audioLang: target.audioLang,
     })
     const first = plan.queue[0]
     if (!first) return
@@ -238,5 +246,6 @@ export function warmPremiumTitle(target: PremiumSearchTarget, token: string | un
     token,
     durationS: known ?? (tv ? 45 : 120) * 60,
     knownDurationS: known,
+    audioLang: target.audioLang,
   })
 }

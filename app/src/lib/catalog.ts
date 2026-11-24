@@ -43,20 +43,20 @@ export interface RowSpec {
 const picks = (items: { tmdbId: number; mediaType: 'movie' | 'tv' }[]) => () => fetchMediaSummaries(items.slice(0, 16))
 
 const day = (d: Date) => d.toISOString().slice(0, 10)
-const monthsAgo = (n: number) => {
+export const monthsAgo = (n: number) => {
   const d = new Date()
   d.setMonth(d.getMonth() - n)
   return day(d)
 }
-const yearsAgo = (n: number) => monthsAgo(n * 12)
-const today = () => day(new Date())
+export const yearsAgo = (n: number) => monthsAgo(n * 12)
+export const today = () => day(new Date())
 
 /**
  * Talk shows, news, reality, soaps and kids' TV. TMDB ranks them near the top
  * of every TV list (decades of daily episodes), and they're nobody's idea of
  * "popular shows".
  */
-const NOT_SERIES = '10767,10763,10764,10766,10762'
+export const NOT_SERIES = '10767,10763,10764,10766,10762'
 const NOT_SERIES_OR_ANIMATION = `16,${NOT_SERIES}`
 const APPEARANCE_GENRES = new Set([10767, 10763, 10764])
 
@@ -102,7 +102,8 @@ async function top10India(type: 'movie' | 'tv'): Promise<Media[]> {
 }
 
 /**
- * Every browse screen is a fixed set of rows — finite, no endless feed.
+ * Every browse screen is a fixed set of rows — Home then goes on with a
+ * feed of different ideas as the viewer scrolls (lib/discoveryFeed).
  * Genre rows use TMDB discover with a vote floor so obscure titles with no
  * art don't fill them, and TV rows a recency window (see `current`).
  */

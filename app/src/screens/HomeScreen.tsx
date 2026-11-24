@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
-import type { MediaMode } from '@/lib/config'
+import type { Media, MediaMode } from '@/lib/config'
+import type { RecoSection } from '@/lib/api'
 import { useRecommendations } from '@/hooks/useRecommendations'
 import { rowsFor, recoToMedia, type RowSpec } from '@app/lib/catalog'
 import { PosterRow, TopTenRow, WideRow } from '@app/components/media'
@@ -10,6 +11,7 @@ import { ContinueWatchingRow } from '@app/components/ContinueWatchingRow'
 import { MyListRow } from '@app/components/MyListRow'
 import { TasteSetup } from '@app/components/TasteSetup'
 import { CategoryHeader } from '@app/components/CategoryHeader'
+import { DiscoveryFeed } from '@app/components/DiscoveryFeed'
 
 const ROW_STALE_MS = 30 * 60 * 1000
 
@@ -31,12 +33,11 @@ export function HomeScreen({ mode }: { mode: MediaMode }) {
       {/* The rows ride up over the hero's fade */}
       <div className="relative z-10 lg:-mt-[4vw]">
         {(mode === 'home' || mode === 'movie' || mode === 'tv') && <ContinueWatchingRow />}
-        {mode === 'home' && <TasteSetup />}
-        {mode === 'home' && <Recommendations />}
-        {rows.map((row) => (
-          <CatalogRow key={`${mode}-${row.key}`} mode={mode} spec={row} />
-        ))}
-        {mode === 'home' && <MyListRow />}
+        {mode === 'home' ? (
+          <HomeRows mode={mode} rows={rows} />
+        ) : (
+          rows.map((row) => <CatalogRow key={`${mode}-${row.key}`} mode={mode} spec={row} />)
+        )}
       </div>
     </div>
   )
@@ -61,18 +62,89 @@ function CatalogRow({ mode, spec }: { mode: MediaMode; spec: RowSpec }) {
   return <PosterRow title={spec.title} items={data} loading={isLoading} kind={spec.kind} />
 }
 
-function Recommendations() {
+// ---------------------------------------------------------------------------
+// Home: the personal rows among the rest, then a feed that keeps going
+// ---------------------------------------------------------------------------
+
+/** "Because you watched" rows on Home — one idea, so only a few, never two in a row. */
+const MAX_BECAUSE_ROWS = 3
+/** A personal row needs this many titles the rows above it didn't show. */
+const MIN_NEW_TITLES = 6
+/** My List comes after this many rows. */
+const MY_LIST_AFTER = 6
+
+const isBecause = (title: string) => /^Because you (watched|liked)\b/i.test(title)
+/** The catalog has these already. */
+const isGeneric = (title: string) => /^(Trending This Week|Popular Right Now)$/i.test(title)
+const itemKey = (m: Media) => `${m.media_type ?? 'movie'}:${m.id}`
+
+interface PersonalRow {
+  title: string
+  items: Media[]
+}
+
+/**
+ * The recommendation rows as Home shows them: Top Picks first, then "Because
+ * you watched" and the other kinds (a genre, an actor, fans like you) taking
+ * turns — and each showing only titles the rows above it didn't. The
+ * backend's "Because you watched" rows share most of their titles with Top
+ * Picks and with each other, which is what made Home feel like the same row
+ * six times.
+ */
+export function arrangePersonalRows(sections: RecoSection[], limit: number): PersonalRow[] {
+  const usable = sections.filter((s) => !isGeneric(s.title))
+  const because = usable.filter((s) => isBecause(s.title))
+  const others = usable.filter((s) => !isBecause(s.title))
+  const [lead, ...rest] = others[0]?.title === 'Top Picks for You' ? others : [undefined, ...others]
+
+  const ordered: RecoSection[] = lead ? [lead] : []
+  for (let i = 0; i < Math.max(because.length, rest.length); i++) {
+    if (because[i]) ordered.push(because[i])
+    if (rest[i]) ordered.push(rest[i])
+  }
+
+  const seen = new Set<string>()
+  const out: PersonalRow[] = []
+  let becauseRows = 0
+  for (const section of ordered) {
+    if (out.length >= limit) break
+    if (isBecause(section.title) && becauseRows >= MAX_BECAUSE_ROWS) continue
+    // Two "Because you watched" rows may still meet when the others ran out
+    if (isBecause(section.title) && out.length > 0 && isBecause(out[out.length - 1].title)) continue
+    const fresh = section.items.map(recoToMedia).filter((m) => m.poster_path && !seen.has(itemKey(m)))
+    if (fresh.length < MIN_NEW_TITLES) continue
+    const items = fresh.slice(0, 18)
+    for (const m of items) seen.add(itemKey(m))
+    if (isBecause(section.title)) becauseRows++
+    out.push({ title: section.title, items })
+  }
+  return out
+}
+
+function HomeRows({ mode, rows }: { mode: MediaMode; rows: RowSpec[] }) {
   const { isAuthenticated } = useAuth0()
   const { sections, isLoading } = useRecommendations(true)
-  // Signed in: Top Picks, then a "Because you watched" row per favourite, then
-  // genre rows — enough to scroll through, few enough to stay personal
-  const shown = sections.filter((s) => s.items.length >= 4).slice(0, isAuthenticated ? 6 : 1)
-  if (isLoading && shown.length === 0) return <PosterRow title="Recommended for You" items={[]} loading />
+  const personal = useMemo(() => arrangePersonalRows(sections, isAuthenticated ? 8 : 1), [sections, isAuthenticated])
+  const shownPersonal = useMemo(() => new Set(personal.flatMap((r) => r.items.map(itemKey))), [personal])
+  const personalTitles = useMemo(() => new Set(personal.map((r) => r.title)), [personal])
+
+  // Top Picks, then the catalog and the personal rows taking turns
+  const slots: ReactNode[] = []
+  if (isLoading && personal.length === 0) slots.push(<PosterRow key="reco-loading" title="Recommended for You" items={[]} loading />)
+  const catalog = rows.map((row) => <CatalogRow key={`${mode}-${row.key}`} mode={mode} spec={row} />)
+  const mine = personal.map((r) => <PosterRow key={`reco-${r.title}`} title={r.title} items={r.items} />)
+  if (mine[0]) slots.push(mine[0])
+  for (let i = 0; i < Math.max(catalog.length, mine.length - 1); i++) {
+    if (catalog[i]) slots.push(catalog[i])
+    if (mine[i + 1]) slots.push(mine[i + 1])
+  }
+  slots.splice(Math.min(MY_LIST_AFTER, slots.length), 0, <MyListRow key="my-list" />)
+
   return (
     <>
-      {shown.map((s) => (
-        <PosterRow key={s.title} title={s.title} items={s.items.map(recoToMedia)} />
-      ))}
+      <TasteSetup />
+      {slots}
+      <DiscoveryFeed exclude={shownPersonal} excludeTitles={personalTitles} />
     </>
   )
 }

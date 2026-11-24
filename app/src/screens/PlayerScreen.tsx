@@ -12,6 +12,7 @@ import { cn, genreIdsOf } from '@/lib/utils'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
+import { useAudioLanguage } from '@/hooks/useAudioLanguage'
 import { PremiumPane } from '@/components/player/PremiumPane'
 import { desktop, setPlaybackMode } from '@app/native/platform'
 import { getSettings } from '@app/lib/settings'
@@ -75,6 +76,7 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { premium, loading: accessLoading } = usePremiumAccess()
   const display = useMemo(() => deriveMediaDisplay(media, kind), [media, kind])
+  const { audioLanguage, onAudioLanguageChange } = useAudioLanguage(media, kind)
   const { data: seasons = [] } = useSeasons(kind, media.id)
   const options = useServerOptions(kind)
 
@@ -323,6 +325,8 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                 serverButton
               }
               runtimeMinutes={kind === 'tv' ? media.episode_run_time?.[0] : media.runtime}
+              audioLanguage={audioLanguage}
+              onAudioLanguageChange={onAudioLanguageChange}
             />
           ) : (
             <>

@@ -66,6 +66,10 @@ const DISCOVER_FILTERS: Array<[string, RegExp]> = [
   ['with_companies', ID_LIST],
   ['with_keywords', ID_LIST],
   ['with_networks', ID_LIST],
+  // People: a director's films ("Because you like Christopher Nolan"), an actor's
+  ['with_crew', ID_LIST],
+  ['with_cast', ID_LIST],
+  ['with_people', ID_LIST],
   // TV: 0 documentary, 1 news, 2 miniseries, 3 reality, 4 scripted, 5 talk show, 6 video
   ['with_type', /^[0-6]([|,][0-6]){0,6}$/],
   // The Anime tab: Japanese-language animation (with_genres=16 + ja)
@@ -464,6 +468,27 @@ router.get('/search/:mediaType', async (req: Request, res: Response) => {
     res.json(data)
   } catch (_error) {
     res.status(500).json({ error: 'Failed to search media' })
+  }
+})
+
+/**
+ * GET /tmdb/collection/:id
+ * A film series' parts — The Dark Knight Collection, the MCU's phases — for
+ * the app's "more of this franchise" rows.
+ */
+router.get('/collection/:id', async (req: Request, res: Response) => {
+  const parsedId = Number(req.params.id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || parsedId > 100_000_000) {
+    return res.status(400).json({ error: 'Invalid collection id: must be a positive integer' })
+  }
+  try {
+    const data = await fetchTMDB(`/collection/${parsedId}`)
+    // A series gains a part every few years
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+    res.setHeader('Vary', 'Accept-Encoding')
+    res.json(data)
+  } catch (_error) {
+    res.status(500).json({ error: 'Failed to fetch collection' })
   }
 })
 

@@ -84,6 +84,7 @@ export function PremiumPane({ elsewhere, ...props }: PremiumPaneProps) {
         backdropUrl={props.backdropUrl}
         onSwitchServer={props.onSwitchServer}
         switchLabel={props.exitLabel}
+        onBack={props.onBack}
         title={props.title}
         step="find"
         percent={null}
@@ -95,7 +96,7 @@ export function PremiumPane({ elsewhere, ...props }: PremiumPaneProps) {
   if (!access.premium || signingIn) {
     const notice = NOTICES[access.reason === 'granted' ? 'sign-in-required' : access.reason]
     return (
-      <PaneBackdrop backdropUrl={props.backdropUrl}>
+      <PaneBackdrop backdropUrl={props.backdropUrl} onBack={props.onBack}>
         <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10" aria-hidden="true">
           <Lock className="h-5 w-5 text-white/80" />
         </span>
@@ -130,6 +131,7 @@ export function PremiumPane({ elsewhere, ...props }: PremiumPaneProps) {
           backdropUrl={props.backdropUrl}
           onSwitchServer={props.onSwitchServer}
           switchLabel={props.exitLabel}
+          onBack={props.onBack}
           title={props.title}
           step="find"
           percent={null}

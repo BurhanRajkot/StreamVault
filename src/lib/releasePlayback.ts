@@ -12,13 +12,8 @@
  * constantly.
  */
 
-import {
-  parseTorrentQuality,
-  isImaxRelease,
-  isLikelyNonEnglishRelease,
-  type DebridRelease,
-  type DebridReadyPlayback,
-} from './debridApi'
+import { parseTorrentQuality, isImaxRelease, type DebridRelease, type DebridReadyPlayback } from './debridApi'
+import { DEFAULT_AUDIO_LANGUAGE, releaseLanguageRank, type AudioLanguage } from './audioLanguage'
 
 export type ReleaseVideoCodec = 'avc' | 'hevc' | 'av1'
 
@@ -211,6 +206,8 @@ export interface RankOptions {
    * against it.
    */
   appConvertsAudio?: boolean
+  /** The audio language wanted (lib/audioLanguage) — English when not given. */
+  audioLang?: AudioLanguage
 }
 
 /** Whether a release's file needs more than HEAVY_FILE_KBPS — false when that can't be told. */
@@ -231,11 +228,15 @@ function trustsFileSize(release: DebridRelease): boolean {
 
 /**
  * Order releases for automatic playback, best first:
- *   decodable by this browser → cached → not a cam/telesync → audio not
- *   declared as Dolby/DTS → 1080p over 4K over 720p → likely English → one
- *   audio language → not a remux → not heavy (HEAVY_FILE_KBPS, when the
- *   running time is known) → audio declared browser-safe → IMAX → seeders →
- *   smaller file (lower bitrate, less buffering).
+ *   decodable by this browser → cached → not a cam/telesync → in the wanted
+ *   language (English unless said: lib/audioLanguage) → audio not declared
+ *   as Dolby/DTS → 1080p over 4K over 720p → one audio language → not a
+ *   remux → not heavy (HEAVY_FILE_KBPS, when the running time is known) →
+ *   audio declared browser-safe → IMAX → seeders → smaller file (lower
+ *   bitrate, less buffering).
+ *
+ * The language comes before the picture: The Family Man in 4K English is
+ * the wrong show to someone who watches it in Hindi.
  *
  * Real-Debrid's HLS transcode can rescue an undecodable file (it always
  * outputs H.264 + AAC), but a jump outside what it has loaded restarts the
@@ -246,7 +247,7 @@ function trustsFileSize(release: DebridRelease): boolean {
 export function rankReleasesForPlayback(
   releases: DebridRelease[],
   support: BrowserVideoSupport,
-  { durationS, appConvertsAudio = false }: RankOptions = {}
+  { durationS, appConvertsAudio = false, audioLang = DEFAULT_AUDIO_LANGUAGE }: RankOptions = {}
 ): DebridRelease[] {
   const key = (r: DebridRelease): number[] => {
     const size = parseInt(r.size, 10)
@@ -255,9 +256,9 @@ export function rankReleasesForPlayback(
       isBrowserPlayable(r.name, support) ? 0 : 1,
       r.cached ? 0 : 1,
       isTheatricalRip(r.name) ? 1 : 0,
+      releaseLanguageRank(r, audioLang),
       audio === 2 ? 1 : 0,
       resolutionRank(r.name),
-      isLikelyNonEnglishRelease(r.name) ? 1 : 0,
       !appConvertsAudio && isMultiAudio(r.name) ? 1 : 0,
       isRemux(r.name) ? 1 : 0,
       isHeavyRelease(r, durationS) ? 1 : 0,

@@ -63,6 +63,8 @@ export interface DebridReadyPlayback {
   downloadId?: string
   /** Real-Debrid's own HLS transcode: always H.264 video + AAC audio. */
   hls: string | null
+  /** The same transcode for each audio track, by track id — to switch language. Missing from an older backend. */
+  hlsAudio?: Record<string, string>
   media: DebridMediaSummary | null
 }
 
@@ -105,6 +107,11 @@ export interface DebridRelease {
    * is picked out of it, and its size isn't the size of what plays.
    */
   pack?: boolean
+  /**
+   * Audio languages Torrentio tags it with (ISO 639-1; "in" = an Indian
+   * language it doesn't name, "multi" = several) — see lib/audioLanguage.
+   */
+  languages?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +288,8 @@ interface ReleaseSearchOptions {
   season?: number
   episode?: number
   limit?: number
+  /** The audio language wanted (lib/audioLanguage): releases in it are kept and put first. */
+  lang?: string
 }
 
 function releaseSearchParams(
@@ -294,6 +303,7 @@ function releaseSearchParams(
   if (opts.season != null) params.set('season', String(opts.season))
   if (opts.episode != null) params.set('episode', String(opts.episode))
   if (opts.limit) params.set('limit', String(opts.limit))
+  if (opts.lang && opts.lang !== 'en') params.set('lang', opts.lang)
   return params
 }
 

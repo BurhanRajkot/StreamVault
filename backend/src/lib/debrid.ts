@@ -23,6 +23,7 @@
  */
 
 import { searchTorrentio, torrentioTorrentCandidates, type TorrentioTorrentCandidate } from './torrentio'
+import { releaseLanguageRank } from './releaseLanguage'
 import { findSessionFile, type F1Session } from './f1Names'
 import * as cache from '../services/cache'
 import { logger } from './logger'
@@ -666,6 +667,8 @@ export type PlaybackResult =
        * couldn't produce one (non-video file, etc.).
        */
       hls: string | null
+      /** The same transcode for each audio track, by track id — the player's Audio menu switches between them. */
+      hlsAudio?: Record<string, string>
       media: DebridMediaSummary | null
     }
 
@@ -790,6 +793,7 @@ async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult
 
   let media: DebridMediaSummary | null = null
   let hls: string | null = null
+  let hlsAudio: Record<string, string> | undefined
 
   if (unrestricted.streamable === 1) {
     const answer = await settleWithin(fetchMediaAnswers(streamingId), MEDIA_INFO_BUDGET_MS)
@@ -801,6 +805,10 @@ async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult
 
     if (infos?.modelUrl && media?.selectedAudio) {
       hls = transcodeUrl(infos.modelUrl, media.selectedAudio, TRANSCODE_QUALITY)
+      if (media.audioTracks.length > 1) {
+        const modelUrl = infos.modelUrl
+        hlsAudio = Object.fromEntries(media.audioTracks.map((t) => [t.id, transcodeUrl(modelUrl, t.id, TRANSCODE_QUALITY)]))
+      }
     } else if (links?.apple?.original) {
       hls = links.apple.original
     }
@@ -813,6 +821,7 @@ async function resolveStreams(link: string): Promise<Omit<Extract<PlaybackResult
     directUrl: unrestricted.download,
     downloadId: unrestricted.id,
     hls,
+    ...(hlsAudio ? { hlsAudio } : {}),
     media,
   }
 }
@@ -949,6 +958,8 @@ export interface DebridRelease {
   /** File Torrentio matched inside the torrent — helps pick the right file of a pack */
   file_name?: string
   file_idx?: number
+  /** Audio languages Torrentio tags it with (lib/releaseLanguage): ISO 639-1, "in" (🇮🇳), "multi". */
+  languages?: string[]
 }
 
 const APIBAY_BASE = 'https://apibay.org'
@@ -1268,8 +1279,13 @@ export async function searchMediaReleases(params: {
    * not involve the account at all — everything then comes back `cached: false`.
    */
   debridTags?: boolean
+  /**
+   * The audio language the viewer plays the title in (ISO 639-1, English
+   * when not given): releases in it are kept within the limit, and first.
+   */
+  audioLang?: string
 }): Promise<DebridRelease[]> {
-  const { title, imdbId, mediaType, season, episode, limit = 20, debridTags = true } = params
+  const { title, imdbId, mediaType, season, episode, limit = 20, debridTags = true, audioLang = 'en' } = params
   const useApibay = mediaType === 'movie'
   const tvTarget = mediaType === 'tv' && season !== undefined && episode !== undefined ? { season, episode } : null
   const startedAt = Date.now()
@@ -1388,6 +1404,8 @@ export async function searchMediaReleases(params: {
       cached: c.cached,
       file_name: c.fileName,
       file_idx: c.fileIdx,
+      // Cached lookups from before languages were read have none
+      ...(c.languages?.length ? { languages: c.languages } : {}),
     })
   }
 
@@ -1444,7 +1462,7 @@ export async function searchMediaReleases(params: {
     )
   })
 
-  return selectBalancedReleases(candidates, limit)
+  return selectBalancedReleases(candidates, limit, audioLang)
 }
 
 /** Min share of the returned list reserved for each of the 4K and 1080p tiers (when they have that many releases). */
@@ -1456,13 +1474,17 @@ const RESERVED_TIER_SHARE = 0.4
  * used to return nothing but 4K, leaving no 1080p fallback for browsers that
  * can't decode 10-bit HEVC.
  *
- * Within a tier: cached first (instant playback), then releases likely to
- * have English audio, then the IMAX cut, then seeders.
+ * Within a tier: cached first (instant playback), then releases in the
+ * wanted audio language (English unless said — Hindi for a Hindi original),
+ * then the IMAX cut, then seeders.
  */
-export function selectBalancedReleases(releases: DebridRelease[], limit: number): DebridRelease[] {
+export function selectBalancedReleases(releases: DebridRelease[], limit: number, audioLang = 'en'): DebridRelease[] {
+  const langRank = new Map(
+    releases.map((r) => [r, releaseLanguageRank(r.name, r.languages, audioLang, isLikelyNonEnglishRelease(r.name))])
+  )
   const withinTier = (a: DebridRelease, b: DebridRelease) => {
     if (a.cached !== b.cached) return b.cached ? 1 : -1
-    const langDiff = Number(isLikelyNonEnglishRelease(a.name)) - Number(isLikelyNonEnglishRelease(b.name))
+    const langDiff = (langRank.get(a) ?? 0) - (langRank.get(b) ?? 0)
     if (langDiff !== 0) return langDiff
     const imaxDiff = Number(isImaxRelease(b.name)) - Number(isImaxRelease(a.name))
     if (imaxDiff !== 0) return imaxDiff

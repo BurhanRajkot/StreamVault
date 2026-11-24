@@ -21,6 +21,8 @@
  * search then runs keyless and every release is reported as not cached.
  */
 
+import { torrentioLanguages } from './releaseLanguage'
+
 const TORRENTIO_BASE_URL = process.env.TORRENTIO_BASE_URL || 'https://torrentio.strem.fun'
 
 /**
@@ -126,6 +128,8 @@ export interface TorrentioTorrentCandidate {
   seeders: number
   /** True when Torrentio tags the release "[RD+]" (instantly available on Real-Debrid). */
   cached: boolean
+  /** Audio languages Torrentio tags it with (lib/releaseLanguage) — "in" for its 🇮🇳, "multi" for several. */
+  languages: string[]
 }
 
 const INFO_HASH_RE = /^[a-fA-F0-9]{40}$/
@@ -165,6 +169,7 @@ export function torrentioTorrentCandidates(streams: TorrentioStream[]): Torrenti
       size: parseSize(stream),
       seeders: parseSeeders(stream),
       cached: /\[RD\+\]/.test(stream.name || ''),
+      languages: torrentioLanguages(stream.title),
     })
   }
   return candidates
