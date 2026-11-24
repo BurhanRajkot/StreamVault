@@ -86,11 +86,35 @@ async function discoverMovieAndTv(
    TMDB FETCHING (via Backend Proxy)
 ====================================================== */
 
-export async function fetchPopular(
+type PopularPage = { results: Media[]; total_pages: number }
+
+/**
+ * The hero carousel (fetchTrending) and the catalogue's first page ask for
+ * the same popular page under different query keys, so home sent every
+ * discover request twice. One answer is shared for a short while; an empty
+ * one (a failed fetch) isn't kept.
+ */
+const POPULAR_SHARE_MS = 60_000
+const popularShared = new Map<string, { at: number; page: Promise<PopularPage> }>()
+
+export function fetchPopular(mode: MediaMode, page = 1, providerId?: string | null): Promise<PopularPage> {
+  const key = `${mode}|${page}|${providerId ?? ''}`
+  const now = Date.now()
+  const shared = popularShared.get(key)
+  if (shared && now - shared.at < POPULAR_SHARE_MS) return shared.page
+  const pending = fetchPopularPage(mode, page, providerId).then((result) => {
+    if (result.results.length === 0) popularShared.delete(key)
+    return result
+  })
+  popularShared.set(key, { at: now, page: pending })
+  return pending
+}
+
+async function fetchPopularPage(
   mode: MediaMode,
   page = 1,
   providerId?: string | null
-): Promise<{ results: Media[]; total_pages: number }> {
+): Promise<PopularPage> {
   // HOME + DOCUMENTARY + ANIME: blended movie/tv feed sorted by popularity,
   // identical apart from the discover filter (see blendedModeFilter).
   const genre = blendedModeFilter(mode)
