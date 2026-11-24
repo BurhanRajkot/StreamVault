@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import type { DebridRelease } from './debridApi'
-import { MAX_AUTO_RELEASE_ATTEMPTS, planPlayback, resetWarmForTests, takeWarmPlayback, warmPremiumPlay } from './premiumWarm'
+import { MAX_AUTO_RELEASE_ATTEMPTS, hasWarmPlayback, planPlayback, preferWarmed, resetWarmForTests, takeWarmPlayback, warmPremiumPlay } from './premiumWarm'
 
 const support = { hevc: false, av1: false }
 const GB = 1024 ** 3
@@ -87,4 +87,35 @@ describe('warmPremiumPlay', () => {
     await warmPremiumPlay({ ...target, releases: async () => Promise.reject(new Error('down')) })
     expect(posts).toHaveLength(0)
   })
+
+  it('plays the release got ready first when it is near the top of the player\'s own order', async () => {
+    const best = release('Film.2020.2160p.WEB-DL.x265.AAC', { cached: true })
+    const second = release('Film.2020.1080p.WEB-DL.x264.AAC', { cached: true })
+    const third = release('Film.2020.1080p.BluRay.x264.AAC', { cached: true })
+    const fourth = release('Film.2020.720p.WEB-DL.x264.AAC', { cached: true })
+    const file = { season: 1, episode: 2 }
+
+    // The warm-up chose the 1080p (it saw a slower connection than the player does)
+    await warmPremiumPlay({ ...target, releases: async () => [second] })
+    expect(hasWarmPlayback(second, file)).toBe(true)
+    expect(hasWarmPlayback(second, { season: 1, episode: 3 })).toBe(false)
+    expect(preferWarmed([best, second, third], file).map((r) => r.name)).toEqual([second.name, best.name, third.name])
+    // Already first, or nothing warm: the order stands
+    expect(preferWarmed([second, best], file).map((r) => r.name)).toEqual([second.name, best.name])
+    expect(preferWarmed([best, third], file).map((r) => r.name)).toEqual([best.name, third.name])
+
+    // Too far down the player's order: not worth playing over the better ones
+    resetWarmForTests()
+    await warmPremiumPlay({ ...target, releases: async () => [fourth] })
+    expect(preferWarmed([best, second, third, fourth], file).map((r) => r.name)).toEqual([best.name, second.name, third.name, fourth.name])
+  })
+
+  it('stands down when Play already asked for that release itself', async () => {
+    // The player found nothing ready and asks Real-Debrid on its own…
+    expect(takeWarmPlayback(film, { season: 1, episode: 2 })).toBeNull()
+    // …so a warm-up arriving afterwards doesn't ask a second time
+    await warmPremiumPlay(target)
+    expect(posts).toHaveLength(0)
+  })
 })
+

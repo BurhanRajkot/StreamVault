@@ -108,7 +108,11 @@ export function App() {
 /** Fetch every screen's code once the app has settled, so moving around never waits on a chunk. */
 function usePreloadScreens() {
   useEffect(() => {
-    const run = () => Object.values(screens).forEach((load) => void load().catch(() => {}))
+    const run = () => {
+      Object.values(screens).forEach((load) => void load().catch(() => {}))
+      // The Premium player itself (PremiumPane loads it lazily): ready before the first Play
+      void import('@/components/player/DebridPlayerPane').catch(() => {})
+    }
     const idle = window.requestIdleCallback ? window.requestIdleCallback(run, { timeout: 2500 }) : window.setTimeout(run, 1200)
     return () => (window.cancelIdleCallback ? window.cancelIdleCallback(idle) : window.clearTimeout(idle))
   }, [])

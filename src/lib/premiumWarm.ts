@@ -18,7 +18,7 @@
 import { playDebridRelease, type DebridPlayback, type DebridRelease } from './debridApi'
 import { detectBrowserVideoSupport, fitReleasesToConnection, rankReleasesForPlayback, type BrowserVideoSupport } from './releasePlayback'
 import { appConvertsAudio } from './localStream'
-import { knownThroughput } from './connection'
+import { estimateConnection, knownThroughput } from './connection'
 import { findPremiumReleases, type PremiumSearchTarget } from './premiumSearch'
 
 /**
@@ -83,14 +83,37 @@ export interface WarmFileOptions {
 
 /**
  * How long a viewer is on a title's page before its release is got ready —
- * past someone just passing through (each warm-up is a few Real-Debrid calls).
+ * past someone just passing through (each warm-up is a few Real-Debrid
+ * calls). Short: the search it waits for takes a second or more anyway, and
+ * every moment of it is a moment Play would wait (it was 1.2 s, and Play
+ * pressed sooner found nothing ready).
  */
-export const WARM_AFTER_MS = 1200
+export const WARM_AFTER_MS = 300
+
+/**
+ * How long the release choice waits for the connection measurement — the
+ * warm-up's and the player's alike. They must choose alike: the choice
+ * follows the connection, and a warm-up that readied a release the player
+ * then passed over (the 4K one ready, the 1080p one played) saved nothing.
+ */
+export const CONNECTION_WAIT_MS = 600
+
+/** How far down the player's own order a release got ready ahead may sit and still be played first. */
+const WARM_PREFERENCE_DEPTH = 3
 
 /** A warmed answer is taken for this long — Real-Debrid's links last hours; the backend keeps its own answers 20 minutes. */
 const WARM_TTL_MS = 10 * 60_000
 
 const warmed = new Map<string, { at: number; answer: Promise<DebridPlayback> }>()
+
+/**
+ * Releases the player has already asked for itself, by key → when: a
+ * warm-up arriving after Play mustn't ask Real-Debrid a second time (two
+ * requests could each add the release to the account).
+ */
+const claimed = new Map<string, number>()
+/** A claim stands this long — longer than any start takes. */
+const CLAIM_MS = 2 * 60_000
 
 function warmKey(hash: string, file: WarmFileOptions): string {
   return [hash.toLowerCase(), file.season ?? '', file.episode ?? '', file.session ?? ''].join('|')
@@ -103,7 +126,11 @@ function warmKey(hash: string, file: WarmFileOptions): string {
 export function takeWarmPlayback(release: Pick<DebridRelease, 'info_hash'>, file: WarmFileOptions): Promise<DebridPlayback> | null {
   const key = warmKey(release.info_hash, file)
   const hit = warmed.get(key)
-  if (!hit) return null
+  if (!hit) {
+    // Nothing ready: the player asks for this one itself, and a warm-up still on its way stands down
+    claimed.set(key, Date.now())
+    return null
+  }
   warmed.delete(key)
   return Date.now() - hit.at < WARM_TTL_MS ? hit.answer : null
 }
@@ -125,10 +152,13 @@ export interface WarmTarget {
  */
 export async function warmPremiumPlay(target: WarmTarget): Promise<void> {
   try {
+    // Measured alongside the search, and kept: the player reads the same figure
+    const connection = settleWithin(estimateConnection(), CONNECTION_WAIT_MS)
     const releases = await target.releases()
+    const kbps = (await connection) ?? knownThroughput()
     const plan = planPlayback(releases, {
       support: detectBrowserVideoSupport(),
-      kbps: knownThroughput(),
+      kbps,
       durationS: target.durationS,
       knownDurationS: target.knownDurationS,
       probeUnseeded: target.probeUnseeded,
@@ -139,6 +169,9 @@ export async function warmPremiumPlay(target: WarmTarget): Promise<void> {
     const key = warmKey(first.info_hash, target.file)
     const held = warmed.get(key)
     if (held && Date.now() - held.at < WARM_TTL_MS) return
+    // Play came first and is asking for it already
+    const claim = claimed.get(key)
+    if (claim && Date.now() - claim < CLAIM_MS) return
     const answer = playDebridRelease(first, target.token, { ...target.file, warm: true })
     const entry = { at: Date.now(), answer }
     warmed.set(key, entry)
@@ -150,9 +183,45 @@ export async function warmPremiumPlay(target: WarmTarget): Promise<void> {
   }
 }
 
+/** A warm-up is ready or on its way for this release and file. */
+export function hasWarmPlayback(release: Pick<DebridRelease, 'info_hash'>, file: WarmFileOptions): boolean {
+  const hit = warmed.get(warmKey(release.info_hash, file))
+  return !!hit && Date.now() - hit.at < WARM_TTL_MS
+}
+
+/**
+ * The player's order, with a release got ready ahead of Play moved to the
+ * front when it's among the first few — near enough the player's own first
+ * choice that starting at once beats waiting a few seconds for that one.
+ * Further down (the connection changed a lot since), the order stands.
+ */
+export function preferWarmed(queue: DebridRelease[], file: WarmFileOptions): DebridRelease[] {
+  const index = queue.slice(0, WARM_PREFERENCE_DEPTH).findIndex((r) => hasWarmPlayback(r, file))
+  if (index <= 0) return queue
+  return [queue[index], ...queue.slice(0, index), ...queue.slice(index + 1)]
+}
+
+/** `promise`'s value if it settles within `ms`, else null. Never rejects. */
+function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      }
+    )
+  })
+}
+
 /** Forget every warmed answer — tests only. */
 export function resetWarmForTests(): void {
   warmed.clear()
+  claimed.clear()
 }
 
 /**
