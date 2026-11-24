@@ -1336,16 +1336,38 @@ export async function searchMediaReleases(params: {
   // Torrentio is the only source that knows what's cached, so it gets a
   // generous window even when apibay already answered; a slow lookup keeps
   // running in the background and lands in the cache for the next search.
-  const torrentioWaitMs =
+  const graceLeft = () => Math.max(0, MOVIE_TORRENTIO_GRACE_MS - (Date.now() - startedAt))
+  const apibayLate = apibayEarly === undefined || tvApibayEarly === undefined
+  const torrentioCandidates =
     apibayResults.length > 0 || tvApibayResults.length > 0
-      ? Math.max(0, MOVIE_TORRENTIO_GRACE_MS - (Date.now() - startedAt))
-      : TORRENTIO_ONLY_WAIT_MS
-  const torrentioCandidates = (await resolveWithin(torrentioPromise, torrentioWaitMs)) ?? []
+      ? ((await resolveWithin(torrentioPromise, graceLeft())) ?? [])
+      : apibayLate
+        ? await torrentioOrLateApibay()
+        : ((await resolveWithin(torrentioPromise, TORRENTIO_ONLY_WAIT_MS)) ?? [])
 
-  // Torrentio came back empty: apibay is all there is, so it gets its full time
-  if (torrentioCandidates.length === 0) {
-    if (apibayEarly === undefined) apibayResults = (await apibayPromise).slice(0, apibayLimit)
-    if (tvApibayEarly === undefined) tvApibayResults = await tvApibayPromise
+  /**
+   * apibay is still out: Torrentio gets its long wait — unless apibay comes
+   * through first, and then only what's left of the usual grace, as when
+   * apibay answers in time. A hung Torrentio mustn't hold up apibay's rows.
+   */
+  async function torrentioOrLateApibay(): Promise<TorrentioTorrentCandidate[]> {
+    const torrentio = resolveWithin(torrentioPromise, TORRENTIO_ONLY_WAIT_MS).then((rows) => rows ?? [])
+    const apibayLanded = Promise.all([apibayPromise, tvApibayPromise]).then(([movie, tv]) => movie.length > 0 || tv.length > 0)
+    const first = await Promise.race([torrentio.then((rows) => ({ rows })), apibayLanded.then((landed) => ({ landed }))])
+    if ('rows' in first) return first.rows
+    if (!first.landed) return torrentio
+    return Promise.race([torrentio, resolveWithin(torrentioPromise, graceLeft()).then((rows) => rows ?? [])])
+  }
+
+  // apibay's late rows, when they're in by now; all of them when Torrentio
+  // came back empty — then apibay is all there is, and gets its full time
+  if (apibayEarly === undefined) {
+    const late = torrentioCandidates.length === 0 ? await apibayPromise : await resolveWithin(apibayPromise, 0)
+    if (late) apibayResults = late.slice(0, apibayLimit)
+  }
+  if (tvApibayEarly === undefined) {
+    const late = torrentioCandidates.length === 0 ? await tvApibayPromise : await resolveWithin(tvApibayPromise, 0)
+    if (late) tvApibayResults = late
   }
 
   const merged = new Map<string, DebridRelease>()

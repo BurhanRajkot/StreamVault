@@ -10,6 +10,7 @@ import { useFavorites } from '@/context/FavoritesContext'
 import { useTitleDetails } from '@app/lib/useTitle'
 import { useIsWide } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
+import { usePremiumIntent } from '@app/lib/premiumHeadStart'
 import { Button } from './kit'
 import { TitleLink, kindOf, titleOf, tmdbImg, yearOf, type MediaKind } from './media'
 
@@ -131,6 +132,7 @@ export function HeroCarousel({ items, fallbackKind }: { items: Media[]; fallback
 
 function HeroCopy({ media, kind, logo }: { media: Media; kind: MediaKind; logo: string | null }) {
   const navigate = useNavigate()
+  const intent = usePremiumIntent({ kind, id: media.id })
   const { isFavorited, toggleFavorite } = useFavorites()
   const inList = isFavorited(media.id, kind)
   const genres = genreNames(media.genre_ids ?? genreIdsOf(media), 2)
@@ -154,7 +156,7 @@ function HeroCopy({ media, kind, logo }: { media: Media; kind: MediaKind; logo: 
       <p className="mb-4 text-[15px] font-medium text-white/70">{meta}</p>
       <p className="mb-6 line-clamp-3 max-w-[36rem] text-[15px] leading-relaxed text-white/75">{media.overview}</p>
       <div className="pointer-events-auto flex items-center gap-3">
-        <Button size="lg" onClick={() => navigate(`/watch/${kind}/${media.id}`)} className="px-8">
+        <Button size="lg" onClick={() => navigate(`/watch/${kind}/${media.id}`)} {...intent} className="px-8">
           <Play className="fill-current" /> Play
         </Button>
         <motion.button
@@ -201,6 +203,7 @@ function PhoneHero({
   onDragEnd: (e: unknown, info: PanInfo) => void
 }) {
   const navigate = useNavigate()
+  const intent = usePremiumIntent({ kind, id: media.id })
   const { isFavorited, toggleFavorite } = useFavorites()
   const inList = isFavorited(media.id, kind)
   const genres = genreNames(media.genre_ids ?? genreIdsOf(media), 3)
@@ -259,7 +262,7 @@ function PhoneHero({
             </p>
           )}
           <div className="flex w-full gap-2.5">
-            <Button onClick={() => navigate(`/watch/${kind}/${media.id}`)} className="h-11 flex-1">
+            <Button onClick={() => navigate(`/watch/${kind}/${media.id}`)} {...intent} className="h-11 flex-1">
               <Play className="fill-current" /> Play
             </Button>
             <Button variant="glass" onClick={() => toggleFavorite(media.id, kind, media.genre_ids)} className="h-11 flex-1">

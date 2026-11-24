@@ -39,6 +39,11 @@ export function prefetchTitleDetails(queryClient: QueryClient, kind: TitleKind, 
   if (id > 0) void queryClient.prefetchQuery(detailsQuery(kind, id))
 }
 
+/** A title's details from the cache, or loaded now — the same entry the title page and the player read. */
+export function fetchTitleDetails(queryClient: QueryClient, kind: TitleKind, id: number): Promise<Media> {
+  return queryClient.fetchQuery(detailsQuery(kind, id))
+}
+
 export function useSeasons(kind: TitleKind | null, id: number) {
   return useQuery({
     queryKey: ['tvSeasons', id],

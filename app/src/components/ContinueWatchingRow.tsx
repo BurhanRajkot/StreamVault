@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -11,6 +12,7 @@ import {
   type ContinueWatchingItem,
 } from '@/lib/api'
 import type { Media } from '@/lib/config'
+import { usePremiumHeadStart } from '@app/lib/premiumHeadStart'
 import { FadeImg, Row, titleOf, tmdbImg } from './media'
 
 interface Entry {
@@ -19,6 +21,11 @@ interface Entry {
 }
 
 export const CONTINUE_WATCHING_KEY = 'continueWatching'
+
+/** After Home settles, the first card's playback is got ready on Premium. */
+const FIRST_HEAD_START_MS = 1500
+/** A pointer resting this long on a card means it's about to be played. */
+const HOVER_INTENT_MS = 200
 
 /** The account's (or this device's, signed out) unfinished titles — the website's same list. */
 export function useContinueWatching() {
@@ -51,6 +58,23 @@ export function ContinueWatchingRow() {
   const queryClient = useQueryClient()
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { data: entries = [] } = useContinueWatching()
+  const headStart = usePremiumHeadStart()
+  const intent = useRef<ReturnType<typeof setTimeout>>(undefined)
+  /** What resuming this entry would play — got ready on Premium ahead of the tap. */
+  const warm = ({ item }: Entry) =>
+    headStart({ kind: item.mediaType, id: item.tmdbId, season: item.season ?? 1, episode: item.episode ?? 1 }, item.server)
+
+  // The first card is what's most often resumed: ready it once Home has settled
+  const first = entries[0]?.item
+  useEffect(() => {
+    if (!first) return
+    const timer = setTimeout(
+      () => headStart({ kind: first.mediaType, id: first.tmdbId, season: first.season ?? 1, episode: first.episode ?? 1 }, first.server),
+      FIRST_HEAD_START_MS
+    )
+    return () => clearTimeout(timer)
+  }, [first, headStart])
+  useEffect(() => () => clearTimeout(intent.current), [])
 
   if (entries.length === 0) return null
 
@@ -84,7 +108,17 @@ export function ContinueWatchingRow() {
         const percent = Math.max(4, Math.round(item.progress * 100))
         return (
           <div key={`${item.mediaType}-${item.tmdbId}`} className="group/card relative w-[268px] shrink-0 lg:w-[330px] 2xl:w-[370px]">
-            <button onClick={() => resume(entry)} aria-label={`Resume ${titleOf(media)}`} className="press block w-full text-left">
+            <button
+              onClick={() => resume(entry)}
+              onPointerEnter={(e) => {
+                if (e.pointerType === 'mouse') intent.current = setTimeout(() => warm(entry), HOVER_INTENT_MS)
+              }}
+              onPointerLeave={() => clearTimeout(intent.current)}
+              onPointerDown={() => warm(entry)}
+              onFocus={() => warm(entry)}
+              aria-label={`Resume ${titleOf(media)}`}
+              className="press block w-full text-left"
+            >
               <span className="skeleton relative block aspect-video w-full overflow-hidden rounded-[10px] transition-transform duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] [@media(hover:hover)]:group-hover/card:scale-[1.04]">
                 <FadeImg src={tmdbImg(media.backdrop_path || media.poster_path, 'w780')} loading="lazy" className="h-full w-full object-cover" />
                 <span className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent" />

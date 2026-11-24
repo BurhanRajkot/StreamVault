@@ -10,10 +10,12 @@ import { deriveMediaDisplay } from '@/lib/mediaDisplay'
 import { nextEpisode } from '@/lib/episodeNavigation'
 import { cn, genreIdsOf } from '@/lib/utils'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
+import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { PremiumPane } from '@/components/player/PremiumPane'
 import { desktop, setPlaybackMode } from '@app/native/platform'
 import { getSettings } from '@app/lib/settings'
+import { headStartPremium } from '@app/lib/premiumHeadStart'
 import { startServer } from '@app/lib/startServer'
 import { appDefaultServer, isAppServer } from '@app/lib/servers'
 import { useWindowState } from '@app/lib/hooks'
@@ -25,6 +27,8 @@ import { SegmentedControl } from '@app/components/kit'
 import { CONTINUE_WATCHING_KEY } from '@app/components/ContinueWatchingRow'
 import { tmdbImg } from '@app/components/media'
 
+/** How far into an episode on Premium the next one is got ready. */
+const NEXT_EPISODE_HEAD_START_MS = 60_000
 /** The overlay over an embed fades after this long without a touch. */
 const CHROME_HIDE_MS = 4500
 /** No word from a reporting embed by now: it most likely isn't going to start. */
@@ -104,6 +108,20 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   const episodeCount = seasons.find((s) => s.season_number === season)?.episode_count ?? 99
   const next = kind === 'tv' ? nextEpisode({ season, episode }, seasons, episodeCount) : null
   const goTo = (s: number, e: number) => setParams({ s: String(s), e: String(e) })
+
+  // Binge-watching: a minute into an episode on Premium, the next one is got
+  // ready, so it starts at once when this one ends (lib/premiumHeadStart)
+  const getDebridToken = useDebridToken()
+  const nextSeason = next?.season
+  const nextEpisodeNumber = next?.episode
+  useEffect(() => {
+    if (!isPremium || nextSeason === undefined || nextEpisodeNumber === undefined) return
+    const timer = setTimeout(
+      () => headStartPremium(queryClient, { kind: 'tv', id: media.id, season: nextSeason, episode: nextEpisodeNumber }, getDebridToken),
+      NEXT_EPISODE_HEAD_START_MS
+    )
+    return () => clearTimeout(timer)
+  }, [isPremium, nextSeason, nextEpisodeNumber, media.id, queryClient, getDebridToken])
 
   const switchServer = (id: string, markFailed = false) => {
     if (markFailed) setFailed((prev) => new Set(prev).add(server))

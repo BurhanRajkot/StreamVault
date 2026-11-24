@@ -58,7 +58,7 @@ import { appConvertsAudio } from '@/lib/localStream'
 import { estimateConnection, knownThroughput } from '@/lib/connection'
 import { knownEdge, nearestEdge, type EdgeChoice } from '@/lib/debridHost'
 import { findPremiumReleases, type PremiumReleaseSource } from '@/lib/premiumSearch'
-import { MAX_AUTO_RELEASE_ATTEMPTS, planPlayback, takeWarmPlayback } from '@/lib/premiumWarm'
+import { CONNECTION_WAIT_MS, MAX_AUTO_RELEASE_ATTEMPTS, planPlayback, preferWarmed, takeWarmPlayback } from '@/lib/premiumWarm'
 import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSubtitles } from '@/hooks/useSubtitles'
 import { formatPlayerTime, readResumePosition, resumeKey, saveResumePosition } from '@/lib/playbackPosition'
@@ -218,14 +218,8 @@ const AUTO_SWITCH_MAX_POSITION_S = 30
 const DOWNLOAD_POLL_TIMEOUT_MS = 15 * 60 * 1000
 const DOWNLOAD_POLL_INTERVAL_MS = 5000
 
-/**
- * How much longer than the search the connection's measurement is waited
- * for. It starts with the search and is usually done before it; past this,
- * the pick goes ahead with what's already known. Short: on a fast line the
- * measurement is long over by then, and on a slow one it runs its full few
- * seconds anyway — the start shouldn't wait on it either way.
- */
-const CONNECTION_WAIT_MS = 600
+// How long the pick waits for the connection's measurement: CONNECTION_WAIT_MS,
+// shared with the title page's warm-up (lib/premiumWarm) so both pick alike.
 
 /**
  * Automatic moves to a smoother release per title or episode. Past that —
@@ -885,8 +879,10 @@ export function DebridPlayerPane({
           console.info(`Connection carries ~${((kbps ?? 0) / 1000).toFixed(1)} Mbit/s — starting with ${plan.queue[0].name}`)
         }
         probingRef.current = plan.probing
-        releaseQueueRef.current = plan.queue
-        await streamRelease(plan.queue[0], token, { preferDirect: true })
+        // A release got ready while the viewer was on the title's page starts first (lib/premiumWarm)
+        const queue = preferWarmed(plan.queue, episodeOpts)
+        releaseQueueRef.current = queue
+        await streamRelease(queue[0], token, { preferDirect: true })
         return
       }
 
@@ -903,7 +899,7 @@ export function DebridPlayerPane({
       setStatusMessage(isNetworkFailure(err) ? NETWORK_ERROR_MESSAGE : err instanceof Error ? err.message : 'Search failed')
     }
     // A new release source searches again through storageKey, which is keyed by it
-  }, [title, year, imdbId, mediaType, season, episode, storageKey, getToken, streamRelease])
+  }, [title, year, imdbId, mediaType, season, episode, episodeOpts, storageKey, getToken, streamRelease])
 
   // Back online: pick up whatever the connection interrupted — the film
   // where it stopped, or the search that didn't get through.
