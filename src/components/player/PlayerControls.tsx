@@ -75,6 +75,8 @@ export interface PlayerAudioOption {
   label: string
   /** "5.1", "1080p version" */
   detail?: string
+  /** Listed, but there's no version in it to switch to. */
+  disabled?: boolean
 }
 
 /** The Audio menu: what's playing, and what else there is. */
@@ -1492,7 +1494,7 @@ export function PlayerControls({
               {audio && audio.options.length > 0 && (
                 <MenuRow
                   onClick={() => setMenu('audio')}
-                  label="Audio"
+                  label="Audio language"
                   value={audio.options.find((o) => o.id === audio.activeId)?.label ?? audio.options[0].label}
                   chevron
                 />
@@ -1580,19 +1582,20 @@ export function PlayerControls({
 
           {menu === 'audio' && audio && (
             <>
-              <MenuHeader title="Audio" onBack={() => setMenu('main')} />
+              <MenuHeader title="Audio language" onBack={() => setMenu('main')} />
               <div className="overflow-y-auto overscroll-contain">
                 {audio.options.map((option) => {
                   const selected = option.id === audio.activeId
                   return (
                     <button
                       key={option.id}
+                      disabled={option.disabled}
                       onClick={() => {
                         setMenu(null)
                         if (!selected) audio.onSelect(option.id)
                       }}
                       aria-current={selected || undefined}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
                     >
                       <Check className={cn('h-4 w-4 shrink-0', selected ? 'opacity-100' : 'opacity-0')} />
                       <span className="min-w-0 flex-1 truncate">{option.label}</span>

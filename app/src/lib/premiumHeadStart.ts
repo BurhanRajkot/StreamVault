@@ -34,14 +34,17 @@ export interface HeadStartTarget {
   /** The episode Play would start — a show's first, when not given. */
   season?: number
   episode?: number
+  /** The audio language picked on the title page — else the title's own (lib/audioLanguage). */
+  audioLang?: string
 }
 
 /** A head start is good for this long — the warmed answer itself keeps 10 minutes (lib/premiumWarm). */
 const HEAD_START_TTL_MS = 8 * 60_000
 const started = new Map<string, number>()
 
-function headStartKey({ kind, id, season, episode }: HeadStartTarget): string {
-  return kind === 'tv' ? `tv:${id}:${season ?? 1}:${episode ?? 1}` : `movie:${id}`
+function headStartKey({ kind, id, season, episode, audioLang }: HeadStartTarget): string {
+  const lang = audioLang ? `:${audioLang}` : ''
+  return kind === 'tv' ? `tv:${id}:${season ?? 1}:${episode ?? 1}${lang}` : `movie:${id}${lang}`
 }
 
 /** Start getting this title (or episode) ready on Premium. Never throws; once per title for a while. */
@@ -70,7 +73,7 @@ export function headStartPremium(queryClient: QueryClient, target: HeadStartTarg
         season: tv ? target.season ?? 1 : undefined,
         episode: tv ? target.episode ?? 1 : undefined,
         // As PlayerScreen asks it (useAudioLanguage), so both share one search and one release
-        audioLang: audioLanguageFor(media, target.kind),
+        audioLang: target.audioLang ?? audioLanguageFor(media, target.kind),
       }
       prefetchPremiumReleases(search, token)
       await warmPremiumTitle(search, token, tv ? media.episode_run_time?.[0] : media.runtime)
