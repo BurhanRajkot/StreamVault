@@ -65,9 +65,7 @@
   --sar: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
   --tabbar-h: 54px;
   --navbar-h: 52px;
-  /* The wide layout: the sidebar, and the strip along the top beside it (back, window buttons) */
-  --topbar-h: 48px;
-  --sidebar-w: 0px;
+  --topbar-h: 60px;
   /* The narrow desktop window's title strip (WindowControls.tsx) */
   --wbar-h: 32px;
 }
@@ -78,16 +76,6 @@
   }
 }
 
-@media (min-width: 1024px) {
-  :root {
-    --sidebar-w: 76px;
-  }
-}
-@media (min-width: 1280px) {
-  :root {
-    --sidebar-w: 236px;
-  }
-}
 
 html,
 body {
@@ -422,7 +410,7 @@ textarea {
   }
   @media (min-width: 1024px) {
     .pt-page {
-      padding-top: calc(var(--topbar-h) + 24px);
+      padding-top: calc(var(--topbar-h) + 32px);
     }
   }
 

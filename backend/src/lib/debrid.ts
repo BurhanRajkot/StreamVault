@@ -1172,6 +1172,16 @@ const MOVIE_TORRENTIO_GRACE_MS = 4000
 const TORRENTIO_ONLY_WAIT_MS = 12_000
 
 /**
+ * How long a search waits on apibay before going on without it. apibay is
+ * the fallback source (it can't say what Real-Debrid has cached) and it can
+ * hang: on 2026-11-24 one query took 20 s, so every movie's Premium search
+ * sat at its 8 s timeout while Torrentio had answered in 1 s. A late answer
+ * still lands in the cache for the next search; when Torrentio finds
+ * nothing, the search waits for apibay after all.
+ */
+const APIBAY_WAIT_MS = 2500
+
+/**
  * Torrentio returns every release it knows (2,000+ for a popular movie).
  * Cached ones are always kept; the rest are trimmed to the best-seeded few
  * hundred.
@@ -1315,8 +1325,13 @@ export async function searchMediaReleases(params: {
       ).catch(() => [])
     : Promise.resolve([])
 
-  const apibayResults = (await apibayPromise).slice(0, Math.max(limit * 3, 60))
-  const tvApibayResults = await tvApibayPromise
+  const apibayLimit = Math.max(limit * 3, 60)
+  const [apibayEarly, tvApibayEarly] = await Promise.all([
+    resolveWithin(apibayPromise, APIBAY_WAIT_MS),
+    resolveWithin(tvApibayPromise, APIBAY_WAIT_MS),
+  ])
+  let apibayResults = (apibayEarly ?? []).slice(0, apibayLimit)
+  let tvApibayResults = tvApibayEarly ?? []
 
   // Torrentio is the only source that knows what's cached, so it gets a
   // generous window even when apibay already answered; a slow lookup keeps
@@ -1326,6 +1341,12 @@ export async function searchMediaReleases(params: {
       ? Math.max(0, MOVIE_TORRENTIO_GRACE_MS - (Date.now() - startedAt))
       : TORRENTIO_ONLY_WAIT_MS
   const torrentioCandidates = (await resolveWithin(torrentioPromise, torrentioWaitMs)) ?? []
+
+  // Torrentio came back empty: apibay is all there is, so it gets its full time
+  if (torrentioCandidates.length === 0) {
+    if (apibayEarly === undefined) apibayResults = (await apibayPromise).slice(0, apibayLimit)
+    if (tvApibayEarly === undefined) tvApibayResults = await tvApibayPromise
+  }
 
   const merged = new Map<string, DebridRelease>()
 

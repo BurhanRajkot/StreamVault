@@ -6,10 +6,9 @@ import { MotionConfig } from 'framer-motion'
 import { FavoritesProvider } from '@/context/FavoritesContext'
 import { DislikesProvider } from '@/context/DislikesContext'
 import { AccountSync } from '@/components/layout/AccountSync'
-import { cn } from '@/lib/utils'
 import { desktop, isAndroid } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
-import { Sidebar, TopStrip } from '@app/components/shell/Sidebar'
+import { TitleBar } from '@app/components/shell/TitleBar'
 import { TabBar } from '@app/components/shell/TabBar'
 import { WindowStrip, useFramelessClass } from '@app/components/shell/WindowControls'
 import { UpdateBanner } from '@app/components/UpdateBanner'
@@ -71,11 +70,10 @@ export function App() {
         <DislikesProvider>
           <AccountSync />
           <UserSwitchGuard />
-          {!fullscreen && <Sidebar />}
-          {!fullscreen && <TopStrip />}
+          {!fullscreen && <TitleBar />}
           {/* A narrow (snapped, split-screen) desktop window: a slim title bar instead — the players carry their own */}
           {!fullscreen && <WindowStrip />}
-          <main className={cn('relative z-10 min-h-[100dvh] text-foreground', !fullscreen && 'lg:pl-[var(--sidebar-w)]')}>
+          <main className="relative z-10 min-h-[100dvh] text-foreground">
             <Suspense fallback={<div className="min-h-[100dvh]" />}>
               <Routes location={location}>
                 <Route path="/" element={<HomeScreen mode="home" />} />
