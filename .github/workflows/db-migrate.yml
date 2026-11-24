@@ -49,11 +49,18 @@ jobs:
           persist-credentials: false  # read-only checkout (zizmor #436)
 
       - name: Validate migration file exists
+        # Inputs reach the script as env vars, never expanded into it (zizmor template-injection)
+        env:
+          FILE: ${{ inputs.migration_file }}
         run: |
           MIGRATION_DIR="backend/supabase/migrations"
-          FILE="${{ inputs.migration_file }}"
 
           if [ -n "$FILE" ]; then
+            # A bare file name in the migrations folder — no paths, no ../
+            if ! [[ "$FILE" =~ ^[A-Za-z0-9_.-]+\.sql$ ]] || [[ "$FILE" == *..* ]]; then
+              echo "::error::Not a migration file name: ${FILE}"
+              exit 1
+            fi
             if [ ! -f "${MIGRATION_DIR}/${FILE}" ]; then
               echo "::error::Migration file not found: ${MIGRATION_DIR}/${FILE}"
               ls -la "${MIGRATION_DIR}/"
@@ -121,18 +128,19 @@ jobs:
           echo "Migration: $(cat "$GITHUB_OUTPUT")"
 
       - name: Execute migration
+        # Inputs and outputs reach the script as env vars, never expanded into it (zizmor template-injection)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PHASE: ${{ inputs.migration_phase }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FILE: ${{ steps.migration.outputs.file }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          PHASE="${{ inputs.migration_phase }}"
-          DRY_RUN="${{ inputs.dry_run }}"
-          FILE="${{ steps.migration.outputs.file }}"
-
           echo "══════════════════════════════════════════════"
           echo "  Phase:       ${PHASE}"
-          echo "  Environment: ${{ inputs.environment }}"
+          echo "  Environment: ${ENVIRONMENT}"
           echo "  File:        ${FILE}"
           echo "  Dry Run:     ${DRY_RUN}"
           echo "══════════════════════════════════════════════"
@@ -143,7 +151,7 @@ jobs:
             echo ""
             echo "✓ Migration file is valid SQL (dry run complete)."
           else
-            echo "Applying migration to ${{ inputs.environment }}..."
+            echo "Applying migration to ${ENVIRONMENT}..."
             # Link to the remote Supabase project
             supabase link --project-ref "$SUPABASE_PROJECT_REF"
             # Push the migration

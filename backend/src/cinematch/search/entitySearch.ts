@@ -224,6 +224,14 @@ export function matchCollection(collections: Named[], query: string): Named | nu
   return collections.find((c) => c.name && (normalizeTitle(c.name) === `${q} collection` || normalizeTitle(c.name) === q)) ?? null
 }
 
+/** "Star Wars Collection" → "Star Wars". No regex: `\s+Collection$` backtracks on long runs of spaces. */
+export function withoutCollectionSuffix(name: string): string {
+  const trimmed = name.trimEnd()
+  const cut = trimmed.length - 'collection'.length
+  if (cut < 1 || trimmed.slice(cut).toLowerCase() !== 'collection' || !/\s/.test(trimmed[cut - 1])) return name
+  return trimmed.slice(0, cut).trimEnd()
+}
+
 /** A TMDB keyword spelled exactly as typed — only for phrases ("true crime", "time travel"), never single words. */
 export function matchKeyword(keywords: Named[], query: string): Named | null {
   const q = normalizeTitle(query)
@@ -311,7 +319,7 @@ export async function resolveSearchEntity(query: string): Promise<ResolvedEntity
         entity: {
           kind: 'collection',
           id: collection.id,
-          name: (data.name ?? collection.name ?? q).replace(/\s+Collection$/i, ''),
+          name: withoutCollectionSuffix(data.name ?? collection.name ?? q),
           imagePath: data.poster_path ?? null,
           role: 'Franchise',
         },

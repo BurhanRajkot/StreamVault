@@ -52,7 +52,8 @@ interface GithubRelease {
   prerelease: boolean
   published_at: string
   html_url: string
-  assets: { name: string; browser_download_url: string; size: number }[]
+  /** `digest` is "sha256:<hex>" on every asset GitHub has hashed. */
+  assets: { name: string; browser_download_url: string; size: number; digest?: string | null }[]
 }
 
 /** Compare dotted versions numerically: 1.0.10 is newer than 1.0.9. */
@@ -113,6 +114,7 @@ async function fetchFromGithub(): Promise<AppRelease | null> {
     pageUrl: latest.release.html_url,
     assetUrl: asset?.browser_download_url ?? null,
     assetSize: asset?.size ?? null,
+    assetSha256: asset?.digest?.startsWith('sha256:') ? asset.digest.slice('sha256:'.length) : undefined,
   }
 }
 
