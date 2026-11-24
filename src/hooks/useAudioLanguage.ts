@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { audioLanguageFor, rememberAudioLanguage, type AudioLanguage } from '@/lib/audioLanguage'
+import { audioBaseFor, audioLanguageChoices, audioLanguageFor, rememberAudioLanguage, type AudioLanguage } from '@/lib/audioLanguage'
 
 interface TitleLanguageInfo {
   id: number
@@ -25,5 +25,7 @@ export function useAudioLanguage(media: TitleLanguageInfo, kind: 'movie' | 'tv')
     },
     [kind, media.id, key]
   )
-  return { audioLanguage, onAudioLanguageChange }
+  const audioBase = audioBaseFor(media)
+  const languageChoices = useMemo(() => audioLanguageChoices(media), [media])
+  return { audioLanguage, audioBase, languageChoices, onAudioLanguageChange }
 }

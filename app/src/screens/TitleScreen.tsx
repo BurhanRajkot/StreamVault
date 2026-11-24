@@ -28,7 +28,7 @@ import { ServerChips } from '@app/components/ServerSheet'
 import { DownloadOptionsSheet } from '@app/components/DownloadOptionsSheet'
 import { Sheet } from '@app/components/Sheet'
 import { Button, CircleButton, ListRow, ListSection, NavBar, SegmentedControl } from '@app/components/kit'
-import { languageName, releaseHasLanguage, releaseLanguageRank, type AudioLanguage } from '@/lib/audioLanguage'
+import { languageName, releaseHasLanguage, type AudioLanguage } from '@/lib/audioLanguage'
 import { useAudioLanguage } from '@/hooks/useAudioLanguage'
 import { findPremiumReleases } from '@/lib/premiumSearch'
 
@@ -150,7 +150,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
   const headStartSeason = kind === 'tv' ? progress?.season ?? activeSeason : undefined
   const headStartEpisode = kind === 'tv' ? progress?.episode ?? 1 : undefined
   // The language it plays in: the title's own (Hindi for a Hindi original), or what was picked here or in the player
-  const { audioLanguage, onAudioLanguageChange } = useAudioLanguage(media, kind)
+  const { audioLanguage, audioBase, languageChoices, onAudioLanguageChange } = useAudioLanguage(media, kind)
   useEffect(() => {
     // At once: the search it starts with takes a second anyway, and Play may come sooner
     if (headStartOn) {
@@ -162,16 +162,22 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
     queryKey: ['title-premium-releases', kind, media.id, headStartSeason, headStartEpisode, audioLanguage],
     queryFn: async () =>
       findPremiumReleases(
-        { title: display.title, year: display.year, imdbId, mediaType: kind, season: headStartSeason ?? 1, episode: headStartEpisode ?? 1, audioLang: audioLanguage },
+        {
+          title: display.title,
+          year: display.year,
+          imdbId,
+          mediaType: kind,
+          season: headStartSeason ?? 1,
+          episode: headStartEpisode ?? 1,
+          audioLang: audioLanguage,
+          audioBase,
+        },
         await getDebridToken()
       ),
     enabled: headStartOn && !!imdbId,
     staleTime: 10 * 60_000,
   })
-  const languageMissing =
-    !!releases &&
-    releases.length > 0 &&
-    !releases.some((r) => (audioLanguage === 'en' ? releaseLanguageRank(r, 'en') === 0 : releaseHasLanguage(r, audioLanguage)))
+  const languageMissing = !!releases && releases.length > 0 && !releases.some((r) => releaseHasLanguage(r, audioLanguage, audioBase))
 
   const play = (s?: number, e?: number) => {
     // Unpicked, the player applies the same start rule once it knows the account's Premium access
@@ -194,6 +200,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
     episodeName,
     posterUrl: tmdbImg(media.poster_path, 'w342'),
     audioLang: audioLanguage,
+    audioBase,
   })
 
   const like = async () => {
@@ -350,7 +357,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
           <div className="mt-5 w-full text-left">
             <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-white/45">Audio language</p>
             <LanguageChips
-              options={media.original_language === 'hi' ? ['hi', 'en'] : ['en', 'hi']}
+              options={languageChoices}
               original={media.original_language}
               active={audioLanguage}
               onPick={onAudioLanguageChange}

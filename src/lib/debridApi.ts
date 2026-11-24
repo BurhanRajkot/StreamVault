@@ -290,6 +290,8 @@ interface ReleaseSearchOptions {
   limit?: number
   /** The audio language wanted (lib/audioLanguage): releases in it are kept and put first. */
   lang?: string
+  /** The language releases are in when they don't say — Japanese for anime. */
+  base?: string
 }
 
 function releaseSearchParams(
@@ -304,6 +306,7 @@ function releaseSearchParams(
   if (opts.episode != null) params.set('episode', String(opts.episode))
   if (opts.limit) params.set('limit', String(opts.limit))
   if (opts.lang && opts.lang !== 'en') params.set('lang', opts.lang)
+  if (opts.base && opts.base !== 'en') params.set('base', opts.base)
   return params
 }
 

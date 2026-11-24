@@ -76,7 +76,7 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
   const { isAuthenticated, getAccessTokenSilently } = useAuth0()
   const { premium, loading: accessLoading } = usePremiumAccess()
   const display = useMemo(() => deriveMediaDisplay(media, kind), [media, kind])
-  const { audioLanguage, onAudioLanguageChange } = useAudioLanguage(media, kind)
+  const { audioLanguage, audioBase, languageChoices, onAudioLanguageChange } = useAudioLanguage(media, kind)
   const { data: seasons = [] } = useSeasons(kind, media.id)
   const options = useServerOptions(kind)
 
@@ -326,6 +326,8 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
               }
               runtimeMinutes={kind === 'tv' ? media.episode_run_time?.[0] : media.runtime}
               audioLanguage={audioLanguage}
+              audioBase={audioBase}
+              languageChoices={languageChoices}
               onAudioLanguageChange={onAudioLanguageChange}
             />
           ) : (

@@ -1,12 +1,16 @@
 /**
  * Which language a Premium film or episode plays in.
  *
- * Every title plays in English, as it always did — except one whose
- * original language is Hindi (The Family Man, Jawan, Panchayat...), which
- * plays in Hindi: an English dub of a Hindi show is nobody's first choice.
- * Anime stays as it is (English). The viewer can switch the language in the
- * player's settings; that choice is kept per title, so the next episode
- * plays in it too.
+ * A title plays in its original language when that's Hindi (The Family
+ * Man, Jawan, Panchayat...) or when it's anime (Japanese), and in English
+ * otherwise. The other choice is always there — English for those, Hindi
+ * for the rest — on the title page and in the player's settings; the pick is
+ * kept per title, so the next episode plays in it too.
+ *
+ * Anime releases say it the other way round: one that names no language is
+ * Japanese (SubsPlease, Erai-raws), the English ones say "Dual Audio",
+ * "Multi-Dub" or "English Dub", and Torrentio's flags under them are mostly
+ * subtitle languages — so anime has rules of its own (`animeAudio`).
  *
  * A release's languages come from its name ("Hindi", "Hin.Tam.Tel.Eng",
  * "Dual Audio [Hindi + English]") and from the tags Torrentio puts under
@@ -44,9 +48,25 @@ function isAnime(media: TitleLanguageInfo): boolean {
   return genres.includes(ANIMATION_GENRE) && media.original_language === 'ja'
 }
 
+const JAPANESE: AudioLanguage = 'ja'
+
+/**
+ * The language a title's releases are in when they don't say: Japanese for
+ * anime, English for everything else.
+ */
+export function audioBaseFor(media: TitleLanguageInfo): AudioLanguage {
+  return isAnime(media) ? JAPANESE : DEFAULT_AUDIO_LANGUAGE
+}
+
+/** The languages offered for a title, its own first: Japanese · English for anime, Hindi · English, English · Hindi. */
+export function audioLanguageChoices(media: TitleLanguageInfo): AudioLanguage[] {
+  if (isAnime(media)) return [JAPANESE, DEFAULT_AUDIO_LANGUAGE]
+  return media.original_language === 'hi' ? ['hi', DEFAULT_AUDIO_LANGUAGE] : [DEFAULT_AUDIO_LANGUAGE, 'hi']
+}
+
 const storageKey = (kind: string, id: number) => `sv:audio-lang:${kind}:${id}`
 
-/** The language a title plays in: the viewer's own pick for it, else its original language when that's Hindi, else English. */
+/** The language a title plays in: the viewer's own pick for it, else its original language for anime and Hindi titles, else English. */
 export function audioLanguageFor(media: TitleLanguageInfo, kind: 'movie' | 'tv'): AudioLanguage {
   try {
     const picked = localStorage.getItem(storageKey(kind, media.id))
@@ -54,7 +74,7 @@ export function audioLanguageFor(media: TitleLanguageInfo, kind: 'movie' | 'tv')
   } catch {
     // No storage: the title's own language
   }
-  if (isAnime(media)) return DEFAULT_AUDIO_LANGUAGE
+  if (isAnime(media)) return JAPANESE
   const original = media.original_language
   return original && ORIGINAL_AUDIO_LANGUAGES.has(original) ? original : DEFAULT_AUDIO_LANGUAGE
 }
@@ -111,20 +131,27 @@ export function nameLanguages(name: string): Set<AudioLanguage> {
  */
 export function releaseLanguages(release: Pick<DebridRelease, 'name' | 'languages'>): Set<AudioLanguage> {
   const langs = nameLanguages(release.name)
-  for (const lang of release.languages ?? []) langs.add(lang)
+  // "Dubbed" says there's a dub, not which language: anime reads it (animeAudio)
+  for (const lang of release.languages ?? []) if (lang !== 'dub') langs.add(lang)
   // A named Indian language says which one Torrentio's 🇮🇳 meant
   if (langs.has('in') && [...langs].some((l) => INDIAN_LANGUAGES.has(l))) langs.delete('in')
   return langs
 }
 
 /**
- * How well a release fits the wanted language — 0 best:
- *   English: 0 = English or not said (the usual case), 1 = other languages only.
- *   Others:  0 = has it, 1 = may have it (Torrentio's 🇮🇳 for an Indian
- *   language, or several audio tracks), 2 = doesn't say (often English),
- *   3 = other languages only.
+ * How well a release fits the wanted language — 0 best. `base` is the
+ * language its releases are in when they don't say (audioBaseFor).
+ *   The base language: 0 = has it or doesn't say (the usual case), 1 = other languages only.
+ *   Others: 0 = has it, 1 = may have it (Torrentio's 🇮🇳 for an Indian
+ *   language, or several audio tracks), 2 = doesn't say (so likely the
+ *   base language), 3 = other languages only.
  */
-export function releaseLanguageRank(release: Pick<DebridRelease, 'name' | 'languages'>, want: AudioLanguage): number {
+export function releaseLanguageRank(
+  release: Pick<DebridRelease, 'name' | 'languages'>,
+  want: AudioLanguage,
+  base: AudioLanguage = DEFAULT_AUDIO_LANGUAGE
+): number {
+  if (base === JAPANESE) return animeRank(release, want)
   const langs = releaseLanguages(release)
   if (want === DEFAULT_AUDIO_LANGUAGE) {
     if (langs.has('en') || langs.has('multi')) return 0
@@ -137,10 +164,64 @@ export function releaseLanguageRank(release: Pick<DebridRelease, 'name' | 'langu
   return 3
 }
 
-/** The release surely has this language — named, or (for an Indian language) Torrentio's 🇮🇳 alone. */
-export function releaseHasLanguage(release: Pick<DebridRelease, 'name' | 'languages'>, lang: AudioLanguage): boolean {
+/**
+ * The release has this language: named, Torrentio's 🇮🇳 alone for an Indian
+ * language, or — for the base language — not said otherwise.
+ */
+export function releaseHasLanguage(
+  release: Pick<DebridRelease, 'name' | 'languages'>,
+  lang: AudioLanguage,
+  base: AudioLanguage = DEFAULT_AUDIO_LANGUAGE
+): boolean {
+  if (base === JAPANESE) {
+    const anime = animeAudio(release)
+    if (lang === JAPANESE) return anime.japanese
+    if (lang === DEFAULT_AUDIO_LANGUAGE) return anime.englishDub || anime.multi
+  }
+  if (lang === base) return releaseLanguageRank(release, lang, base) === 0
   const langs = releaseLanguages(release)
   return langs.has(lang) || (INDIAN_LANGUAGES.has(lang) && langs.has('in'))
+}
+
+// ---------------------------------------------------------------------------
+// Anime
+// ---------------------------------------------------------------------------
+
+/** "Dual Audio", "Multi-Dub", "MULTi": the Japanese and a dub (usually English) in one file. */
+const ANIME_MULTI_RE = /\b(Dual|Multi)[ ._-]?(Audio|Dub)\b|\bMULTi\b|\bDUAL\b/i
+const ANIME_ENGLISH_DUB_RE = /\b(English|Eng)[ ._-]?Dub(bed)?\b|\bDub(bed)?[ ._-]?(English|Eng)\b/i
+const ANIME_OTHER_DUB_RE = /\b(Ger|German|Ita|Italian|Fre|French|Spa|Spanish|Latino|Rus|Russian|Por|Portuguese|Hindi|Tamil|Telugu|Arabic)[ ._-]?Dub(bed)?\b/i
+const JAPANESE_NAMED_RE = /\bJAP(anese)?\b|\bJPN\b/i
+const CYRILLIC_RE = /[\u0400-\u04FF]/
+
+/**
+ * What an anime release has: the Japanese unless it says it's a dub (or is
+ * a Russian release that doesn't name the Japanese), an English dub when it
+ * says so. Torrentio's flags are subtitle languages here, so only its
+ * "Dual/Multi Audio" and "Dubbed" tags count.
+ */
+export function animeAudio(release: Pick<DebridRelease, 'name' | 'languages'>): {
+  japanese: boolean
+  englishDub: boolean
+  multi: boolean
+} {
+  const name = release.name
+  const tags = release.languages ?? []
+  const multi = ANIME_MULTI_RE.test(name) || tags.includes('multi')
+  const flagged = tags.filter((t) => t.length === 2 && t !== 'in')
+  const englishDub = ANIME_ENGLISH_DUB_RE.test(name) || (!multi && tags.includes('dub') && flagged.length === 1 && flagged[0] === 'en')
+  const otherDub =
+    ANIME_OTHER_DUB_RE.test(name) || (!multi && !englishDub && tags.includes('dub')) || (CYRILLIC_RE.test(name) && !JAPANESE_NAMED_RE.test(name))
+  const japanese = multi || JAPANESE_NAMED_RE.test(name) || !(englishDub || otherDub)
+  return { japanese, englishDub, multi }
+}
+
+/** Japanese: 0 = has it, 3 = a dub only. English: 0 = an English dub, 1 = dual audio, 2 = Japanese only, 3 = another dub. */
+function animeRank(release: Pick<DebridRelease, 'name' | 'languages'>, want: AudioLanguage): number {
+  const anime = animeAudio(release)
+  if (want === JAPANESE) return anime.japanese ? 0 : 3
+  if (want === DEFAULT_AUDIO_LANGUAGE) return anime.englishDub ? 0 : anime.multi ? 1 : anime.japanese ? 2 : 3
+  return releaseLanguages(release).has(want) ? 0 : anime.multi ? 1 : 3
 }
 
 // ---------------------------------------------------------------------------

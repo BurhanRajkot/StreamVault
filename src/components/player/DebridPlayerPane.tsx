@@ -60,7 +60,6 @@ import {
   channelLabel,
   languageName,
   releaseHasLanguage,
-  releaseLanguageRank,
   releaseLanguages,
   trackLanguage,
   withAudioLanguage,
@@ -128,6 +127,10 @@ export interface DebridPlayerPaneProps {
   audioLanguage?: AudioLanguage
   /** The viewer picked another language in the player — to keep for this title. */
   onAudioLanguageChange?: (lang: AudioLanguage) => void
+  /** The language the title's releases are in when they don't say — Japanese for anime (lib/audioLanguage). */
+  audioBase?: AudioLanguage
+  /** The languages the Audio menu always offers — Hindi and English unless said (Japanese and English for anime). */
+  languageChoices?: AudioLanguage[]
 }
 
 /** What the page shows under the player: the releases to switch between, and the playing file to save. */
@@ -313,6 +316,8 @@ export function DebridPlayerPane({
   exitLabel = 'Switch server',
   audioLanguage = DEFAULT_AUDIO_LANGUAGE,
   onAudioLanguageChange,
+  audioBase = DEFAULT_AUDIO_LANGUAGE,
+  languageChoices = SWITCHABLE_LANGUAGES,
 }: DebridPlayerPaneProps) {
   /**
    * Read when a search or a file starts, not watched: picking a language in
@@ -901,7 +906,11 @@ export function DebridPlayerPane({
       const source = releaseSourceRef.current
       const releases = source
         ? await source.find({ fresh })
-        : await findPremiumReleases({ title, year, imdbId, mediaType, season, episode, audioLang: audioLangRef.current }, token, { fresh })
+        : await findPremiumReleases(
+            { title, year, imdbId, mediaType, season, episode, audioLang: audioLangRef.current, audioBase },
+            token,
+            { fresh }
+          )
       if (generationRef.current !== generation) return
 
       const kbps = (await within(connection, CONNECTION_WAIT_MS)) ?? knownThroughput()
@@ -914,6 +923,7 @@ export function DebridPlayerPane({
         probeUnseeded: source?.probeUnseeded,
         appConvertsAudio: appConvertsAudio(),
         audioLang: audioLangRef.current,
+        audioBase,
       })
       uncachedFallbackRef.current = plan.uncachedFallback
 
@@ -944,7 +954,7 @@ export function DebridPlayerPane({
       setStatusMessage(isNetworkFailure(err) ? NETWORK_ERROR_MESSAGE : err instanceof Error ? err.message : 'Search failed')
     }
     // A new release source searches again through storageKey, which is keyed by it
-  }, [title, year, imdbId, mediaType, season, episode, episodeOpts, storageKey, getToken, streamRelease])
+  }, [title, year, imdbId, mediaType, season, episode, audioBase, episodeOpts, storageKey, getToken, streamRelease])
 
   // Back online: pick up whatever the connection interrupted — the film
   // where it stopped, or the search that didn't get through.
@@ -1010,21 +1020,11 @@ export function DebridPlayerPane({
     [onAudioLanguageChange]
   )
 
-  /**
-   * Another version of the film in `lang`, best first: one that names it,
-   * else — for English, which releases rarely name — one that names no
-   * other language either.
-   */
+  /** Another version of the film in `lang`, best first (in the plan's order). */
   const releaseInLanguage = useCallback(
-    (lang: AudioLanguage): DebridRelease | null => {
-      const others = instantReleases.filter((r) => r.info_hash !== activeRelease?.info_hash)
-      return (
-        others.find((r) => releaseHasLanguage(r, lang)) ??
-        (lang === DEFAULT_AUDIO_LANGUAGE ? others.find((r) => releaseLanguageRank(r, 'hi') === 2) : undefined) ??
-        null
-      )
-    },
-    [instantReleases, activeRelease]
+    (lang: AudioLanguage): DebridRelease | null =>
+      instantReleases.find((r) => r.info_hash !== activeRelease?.info_hash && releaseHasLanguage(r, lang, audioBase)) ?? null,
+    [instantReleases, activeRelease, audioBase]
   )
 
   /** The Audio menu: the playing file's tracks, then other versions in a language the file hasn't got. */
@@ -1050,7 +1050,7 @@ export function DebridPlayerPane({
     // An F1 broadcast has its own commentary: only the file's tracks, when it has several
     if (releaseSource && tracks.length < 2) return null
     // Hindi and English always listed: another version when the file hasn't got them, or why not
-    for (const lang of releaseSource ? [] : SWITCHABLE_LANGUAGES) {
+    for (const lang of releaseSource ? [] : languageChoices) {
       if (inFile.has(lang)) continue
       const other = releaseInLanguage(lang)
       options.push(
@@ -1088,7 +1088,7 @@ export function DebridPlayerPane({
         }
       },
     }
-  }, [playback, activeRelease, releaseSource, releaseInLanguage, chooseLanguage, switchRelease])
+  }, [playback, activeRelease, releaseSource, languageChoices, releaseInLanguage, chooseLanguage, switchRelease])
 
   const releaseControls = useMemo<ReleaseControls | null>(() => {
     if (sources.length === 0) return null

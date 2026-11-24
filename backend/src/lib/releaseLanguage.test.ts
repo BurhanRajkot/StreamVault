@@ -47,3 +47,17 @@ describe('the release search for a language', () => {
     expect(releaseLanguageRank('Jawan 2023 Hindi 1080p', [], 'en', true)).toBe(1)
   })
 })
+
+describe('anime', () => {
+  it('reads "Dubbed" and keeps Japanese releases first for anime', () => {
+    expect(torrentioLanguages('Name\n👤 1 💾 1 GB ⚙️ 1337x\nDubbed / Dual Audio / 🇬🇧')).toEqual(['dub', 'multi', 'en'])
+    const rows = [
+      row('[Bl4ckDevil] Your Name 1080p [English Dub]', ['dub', 'en']),
+      row('[SubsPlease] Sousou no Frieren - 01 (1080p)'),
+      row('[Judas] Sousou no Frieren 1080p [Dual-Audio]', ['dub', 'multi', 'en']),
+    ]
+    expect(selectBalancedReleases(rows, 2, 'ja', 'ja').map((r) => r.name)).not.toContain(rows[0].name)
+    expect(selectBalancedReleases(rows, 1, 'en', 'ja')[0].name).toBe(rows[0].name)
+    expect(releaseLanguageRank('[Erai-raws] Frieren [ENG][POR-BR]', ['en', 'pt'], 'ja', false, 'ja')).toBe(0)
+  })
+})

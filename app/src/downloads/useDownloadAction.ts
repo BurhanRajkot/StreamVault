@@ -11,6 +11,8 @@ export interface DownloadTarget extends DownloadMeta {
   year?: string
   /** The audio language wanted (lib/audioLanguage). */
   audioLang?: string
+  /** The language releases are in when they don't say — Japanese for anime. */
+  audioBase?: string
 }
 
 /**
@@ -45,6 +47,7 @@ export function useDownloadAction() {
           season: target.season,
           episode: target.episode,
           audioLang: target.audioLang,
+          audioBase: target.audioBase,
         },
         token,
         getSettings().downloadQuality
