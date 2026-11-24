@@ -14,6 +14,7 @@ import { WindowStrip, useFramelessClass } from '@app/components/shell/WindowCont
 import { UpdateBanner } from '@app/components/UpdateBanner'
 import { Welcome } from '@app/screens/Welcome'
 import { HomeScreen } from '@app/screens/HomeScreen'
+import { HoverPreviewLayer } from '@app/components/HoverPreview'
 
 /** The screens past Home, loaded on first use — and fetched in the background right after start, so none opens blank. */
 const screens = {
@@ -29,6 +30,9 @@ const screens = {
   f1: () => import('@app/screens/F1Screen').then((m) => ({ default: m.F1Screen })),
   f1Race: () => import('@app/screens/F1RaceScreen').then((m) => ({ default: m.F1RaceScreen })),
   f1Player: () => import('@app/screens/F1PlayerScreen').then((m) => ({ default: m.F1PlayerScreen })),
+  person: () => import('@app/screens/PersonScreen').then((m) => ({ default: m.PersonScreen })),
+  collection: () => import('@app/screens/CollectionScreen').then((m) => ({ default: m.CollectionScreen })),
+  browse: () => import('@app/screens/BrowseScreen').then((m) => ({ default: m.BrowseScreen })),
 }
 const TitleScreen = lazy(screens.title)
 const PlayerScreen = lazy(screens.player)
@@ -42,6 +46,9 @@ const AdminScreen = lazy(screens.admin)
 const F1Screen = lazy(screens.f1)
 const F1RaceScreen = lazy(screens.f1Race)
 const F1PlayerScreen = lazy(screens.f1Player)
+const PersonScreen = lazy(screens.person)
+const CollectionScreen = lazy(screens.collection)
+const BrowseScreen = lazy(screens.browse)
 
 /** Screens that own the whole display — no bars. */
 const FULLSCREEN = /^\/(watch|offline)\//
@@ -71,6 +78,7 @@ export function App() {
           <AccountSync />
           <UserSwitchGuard />
           {!fullscreen && <TitleBar />}
+          <HoverPreviewLayer />
           {/* A narrow (snapped, split-screen) desktop window: a slim title bar instead — the players carry their own */}
           {!fullscreen && <WindowStrip />}
           <main className="relative z-10 min-h-[100dvh] text-foreground">
@@ -88,6 +96,9 @@ export function App() {
                 <Route path="/premium" element={<PremiumScreen />} />
                 <Route path="/admin" element={<AdminScreen />} />
                 <Route path="/title/:type/:id" element={<TitleScreen />} />
+                <Route path="/person/:id" element={<PersonScreen />} />
+                <Route path="/collection/:id" element={<CollectionScreen />} />
+                <Route path="/browse/:slug" element={<BrowseScreen />} />
                 <Route path="/watch/:type/:id" element={<PlayerScreen />} />
                 <Route path="/f1" element={<F1Screen />} />
                 <Route path="/f1/:year/:round" element={<F1RaceScreen />} />

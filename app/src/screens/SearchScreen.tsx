@@ -7,6 +7,7 @@ import { fetchTrending, searchMedia, type SearchEntity } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { FadeImg, PosterGrid, PosterGridSkeleton, TitleLink, kindOf, titleOf, tmdbImg, yearOf } from '@app/components/media'
 import { EmptyState, NavBar, SegmentedControl } from '@app/components/kit'
+import { GenreTiles } from '@app/components/GenreTiles'
 
 /** Each one is answered by what it names: a director's films, a studio's, a topic's. */
 const QUICK = ['Christopher Nolan', 'Korean drama', 'Bollywood', 'Studio Ghibli', 'Marvel', 'True crime', 'Shah Rukh Khan', 'Time travel', 'Pixar', 'Star Wars']
@@ -151,6 +152,7 @@ export function SearchScreen() {
           )
         ) : (
           <div>
+            <GenreTiles />
             <h2 className="mb-2 text-[20px] font-bold leading-[25px] tracking-[-0.012em] lg:text-[22px]">Top Searches</h2>
             <ul className="lg:grid lg:grid-cols-2 lg:gap-x-8 2xl:grid-cols-3">
               {(trending ?? [])

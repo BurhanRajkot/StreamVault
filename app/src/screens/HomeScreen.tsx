@@ -5,7 +5,7 @@ import type { Media, MediaMode } from '@/lib/config'
 import type { RecoSection } from '@/lib/api'
 import { useRecommendations } from '@/hooks/useRecommendations'
 import { rowsFor, recoToMedia, type RowSpec } from '@app/lib/catalog'
-import { PosterRow, TopTenRow, WideRow } from '@app/components/media'
+import { ComingSoonRow, PosterRow, TopTenRow, WideRow } from '@app/components/media'
 import { HeroCarousel } from '@app/components/HeroCarousel'
 import { ContinueWatchingRow } from '@app/components/ContinueWatchingRow'
 import { MyListRow } from '@app/components/MyListRow'
@@ -59,6 +59,7 @@ function CatalogRow({ mode, spec }: { mode: MediaMode; spec: RowSpec }) {
   })
   if (spec.style === 'top10') return <TopTenRow title={spec.title} items={data} kind={spec.kind} />
   if (spec.style === 'wide') return <WideRow title={spec.title} items={data} loading={isLoading} kind={spec.kind} />
+  if (spec.style === 'soon') return <ComingSoonRow title={spec.title} items={data} loading={isLoading} />
   return <PosterRow title={spec.title} items={data} loading={isLoading} kind={spec.kind} />
 }
 

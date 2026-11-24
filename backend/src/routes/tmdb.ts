@@ -472,6 +472,27 @@ router.get('/search/:mediaType', async (req: Request, res: Response) => {
 })
 
 /**
+ * GET /tmdb/person/:id
+ * A person's page in the app: who they are, and every film and show they're
+ * in or behind (combined_credits).
+ */
+router.get('/person/:id', async (req: Request, res: Response) => {
+  const parsedId = Number(req.params.id)
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || parsedId > 100_000_000) {
+    return res.status(400).json({ error: 'Invalid person id: must be a positive integer' })
+  }
+  try {
+    const data = await fetchTMDB(`/person/${parsedId}?append_to_response=combined_credits`)
+    // A filmography grows a few times a year
+    res.setHeader('Cache-Control', 'public, max-age=21600, stale-while-revalidate=86400')
+    res.setHeader('Vary', 'Accept-Encoding')
+    res.json(data)
+  } catch (_error) {
+    res.status(500).json({ error: 'Failed to fetch person' })
+  }
+})
+
+/**
  * GET /tmdb/collection/:id
  * A film series' parts — The Dark Knight Collection, the MCU's phases — for
  * the app's "more of this franchise" rows.

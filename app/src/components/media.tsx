@@ -7,6 +7,7 @@ import type { Media } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { item, stagger } from '@app/lib/motion'
 import { prefetchTitleDetails } from '@app/lib/useTitle'
+import { previewTrigger } from './HoverPreview'
 
 export type MediaKind = 'movie' | 'tv'
 
@@ -114,7 +115,7 @@ export const PosterCard = memo(function PosterCard({
   badge?: ReactNode
 }) {
   return (
-    <TitleLink item={media} kind={kind} aria-label={titleOf(media)} className={cn('group/card press relative block shrink-0 rounded-[10px] outline-none', className)}>
+    <TitleLink item={media} kind={kind} aria-label={titleOf(media)} {...previewTrigger(media, kind)} className={cn('group/card press relative block shrink-0 rounded-[10px] outline-none', className)}>
       <div className={cn(ART, HOVER, 'aspect-[2/3] w-full group-focus-visible/card:ring-2 group-focus-visible/card:ring-tint')}>
         {media.poster_path ? (
           <FadeImg src={tmdbImg(media.poster_path, 'w342')} loading="lazy" className="h-full w-full object-cover" />
@@ -133,7 +134,7 @@ export const PosterCard = memo(function PosterCard({
 export const WideCard = memo(function WideCard({ media, kind, className }: { media: Media; kind?: MediaKind; className?: string }) {
   const year = yearOf(media)
   return (
-    <TitleLink item={media} kind={kind} aria-label={titleOf(media)} className={cn('group/card press block shrink-0 outline-none', className)}>
+    <TitleLink item={media} kind={kind} aria-label={titleOf(media)} {...previewTrigger(media, kind)} className={cn('group/card press block shrink-0 outline-none', className)}>
       <div className={cn(ART, HOVER, 'aspect-video w-full')}>
         <FadeImg src={tmdbImg(media.backdrop_path || media.poster_path, 'w780')} loading="lazy" className="h-full w-full object-cover" />
       </div>
@@ -211,6 +212,17 @@ function ArrowButton({ side, hidden, onClick }: { side: 'left' | 'right'; hidden
   )
 }
 
+/** Each title once — a list may name a show twice (Netflix's Top 10 counts its seasons apart). */
+function uniqueTitles(items: Media[], kind?: MediaKind): Media[] {
+  const seen = new Set<string>()
+  return items.filter((m) => {
+    const key = `${kindOf(m, kind)}-${m.id}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 const POSTER_W = 'w-[124px] sm:w-[136px] lg:w-[168px] 2xl:w-[188px]'
 const WIDE_W = 'w-[268px] sm:w-[290px] lg:w-[330px] 2xl:w-[370px]'
 
@@ -228,7 +240,7 @@ export function PosterRow({
   kind?: MediaKind
   limit?: number
 }) {
-  const shown = (items ?? []).filter((m) => m.poster_path).slice(0, limit)
+  const shown = uniqueTitles((items ?? []).filter((m) => m.poster_path), kind).slice(0, limit)
   if (!loading && shown.length === 0) return null
   return (
     <Row title={title}>
@@ -241,7 +253,7 @@ export function PosterRow({
 
 /** A row of landscape cards. */
 export function WideRow({ title, items, loading, kind, limit = 14 }: { title: string; items: Media[] | undefined; loading?: boolean; kind?: MediaKind; limit?: number }) {
-  const shown = (items ?? []).filter((m) => m.backdrop_path).slice(0, limit)
+  const shown = uniqueTitles((items ?? []).filter((m) => m.backdrop_path), kind).slice(0, limit)
   if (!loading && shown.length === 0) return null
   return (
     <Row title={title}>
@@ -252,9 +264,47 @@ export function WideRow({ title, items, loading, kind, limit = 14 }: { title: st
   )
 }
 
+/** "12 / DEC" — a release date as a calendar leaf. */
+function dateLeaf(date: string): { day: string; month: string } | null {
+  const d = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  return { day: String(d.getDate()), month: d.toLocaleDateString(undefined, { month: 'short' }).toUpperCase() }
+}
+
+/** Coming soon: landscape cards, each with the day it comes out on a calendar leaf. */
+export function ComingSoonRow({ title, items, loading }: { title: string; items: Media[] | undefined; loading?: boolean }) {
+  const shown = uniqueTitles((items ?? []).filter((m) => m.backdrop_path && m.release_date), 'movie')
+  if (!loading && shown.length === 0) return null
+  return (
+    <Row title={title}>
+      {loading && shown.length === 0
+        ? Array.from({ length: 5 }, (_, i) => <div key={i} className={cn('skeleton aspect-video shrink-0 rounded-[10px]', WIDE_W)} />)
+        : shown.map((m) => {
+            const leaf = dateLeaf(m.release_date ?? '')
+            return (
+              <TitleLink key={m.id} item={m} kind="movie" aria-label={`${titleOf(m)}, out ${m.release_date}`} className={cn('group/card press block shrink-0 outline-none', WIDE_W)}>
+                <div className={cn(ART, HOVER, 'aspect-video w-full')}>
+                  <FadeImg src={tmdbImg(m.backdrop_path, 'w780')} loading="lazy" className="h-full w-full object-cover" />
+                  <span className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                  {leaf && (
+                    <span className="absolute left-2.5 top-2.5 flex w-11 flex-col items-center overflow-hidden rounded-[8px] bg-white text-black shadow-lg">
+                      <span className="w-full bg-[#e50914] py-[1px] text-center text-[9px] font-bold tracking-[0.08em] text-white">{leaf.month}</span>
+                      <span className="pb-0.5 text-[19px] font-bold leading-[22px] tabular-nums">{leaf.day}</span>
+                    </span>
+                  )}
+                </div>
+                <p className="t-subhead mt-2 truncate font-semibold text-white">{titleOf(m)}</p>
+                <p className="t-footnote truncate text-label-2">Coming {new Date(`${m.release_date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}</p>
+              </TitleLink>
+            )
+          })}
+    </Row>
+  )
+}
+
 /** Top 10: each poster with its place and title under it. */
 export function TopTenRow({ title, items, kind }: { title: string; items: Media[] | undefined; kind?: MediaKind }) {
-  const shown = (items ?? []).filter((m) => m.poster_path).slice(0, 10)
+  const shown = uniqueTitles((items ?? []).filter((m) => m.poster_path), kind).slice(0, 10)
   if (shown.length < 3) return null
   return (
     <Row title={title}>
@@ -284,7 +334,7 @@ const GRID = 'grid grid-cols-3 gap-x-2.5 gap-y-3 sm:grid-cols-4 md:grid-cols-5 l
 export function PosterGrid({ items, kind, className }: { items: Media[]; kind?: MediaKind; className?: string }) {
   return (
     <motion.div variants={stagger(0.015)} initial="hidden" animate="show" className={cn(GRID, className)}>
-      {items.map((m) => (
+      {uniqueTitles(items, kind).map((m) => (
         <motion.div key={`${kindOf(m, kind)}-${m.id}`} variants={item}>
           <PosterCard media={m} kind={kind} />
         </motion.div>
