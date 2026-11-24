@@ -23,7 +23,6 @@ import { ServerList, serverName, useServerOptions } from '@app/components/Server
 import { Sheet } from '@app/components/Sheet'
 import { SegmentedControl } from '@app/components/kit'
 import { CONTINUE_WATCHING_KEY } from '@app/components/ContinueWatchingRow'
-import { PlayerWindowControls } from '@app/components/shell/WindowControls'
 import { tmdbImg } from '@app/components/media'
 
 /** The overlay over an embed fades after this long without a touch. */
@@ -303,10 +302,7 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
               nextLabel={next ? `S${next.season} · E${next.episode}` : undefined}
               episodes={episodesList}
               topActions={
-                <>
-                  {serverButton}
-                  <PlayerWindowControls />
-                </>
+                serverButton
               }
               runtimeMinutes={kind === 'tv' ? media.episode_run_time?.[0] : media.runtime}
             />
@@ -386,7 +382,6 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                         if (e.target === e.currentTarget) void desktop?.windowControl?.('maximize')
                       }}
                     />
-                    <PlayerWindowControls />
                   </>
                 )}
               </motion.div>

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Copy, Minus, Pin, PinOff, Square, X } from 'lucide-react'
+import { Copy, Minus, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { desktop, type WindowAction } from '@app/native/platform'
 import { useWindowState } from '@app/lib/hooks'
@@ -74,37 +74,4 @@ export function useFramelessClass() {
     document.documentElement.classList.toggle('sv-frameless', on)
     return () => document.documentElement.classList.remove('sv-frameless')
   }, [on])
-}
-
-/**
- * The players' window controls: keep on top, minimize, maximize/restore,
- * close — in the players' glass style, beside their own buttons. Hidden in
- * full screen (there is no window to move; Escape or F11 leaves it).
- */
-export function PlayerWindowControls({ className }: { className?: string }) {
-  const { maximized, fullscreen, pinned } = useWindowState()
-  if (!desktop?.frameless || fullscreen) return null
-  const base = 'flex h-8 w-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white'
-  return (
-    <div className={cn('no-drag glass-button pointer-events-auto flex h-10 shrink-0 items-center gap-0.5 rounded-full px-1', className)}>
-      <button
-        onClick={() => control('pin')}
-        aria-label={pinned ? 'Stop keeping on top' : 'Keep on top'}
-        aria-pressed={!!pinned}
-        title={pinned ? 'Stop keeping on top' : 'Keep on top of other windows'}
-        className={cn(base, pinned && 'bg-white/20 text-white')}
-      >
-        {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-      </button>
-      <button onClick={() => control('minimize')} aria-label="Minimize" title="Minimize" className={base}>
-        <Minus className="h-4 w-4" />
-      </button>
-      <button onClick={() => control('maximize')} aria-label={maximized ? 'Restore' : 'Maximize'} title={maximized ? 'Restore' : 'Maximize'} className={base}>
-        {maximized ? <Copy className="h-3.5 w-3.5 -scale-x-100" /> : <Square className="h-3.5 w-3.5" />}
-      </button>
-      <button onClick={() => control('close')} aria-label="Close" title="Close" className={cn(base, 'hover:bg-red-500/90')}>
-        <X className="h-4 w-4" />
-      </button>
-    </div>
-  )
 }
