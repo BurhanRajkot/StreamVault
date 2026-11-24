@@ -47,7 +47,7 @@ export function TabBar() {
                 isActive ? 'text-white' : 'text-white/45'
               )}
             >
-              <span className="relative">
+              <span className="tab-icon relative">
                 {tab.to === '/me' && isAuthenticated && user?.picture ? (
                   <img
                     src={user.picture}
