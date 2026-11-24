@@ -208,6 +208,8 @@ export interface RankOptions {
   appConvertsAudio?: boolean
   /** The audio language wanted (lib/audioLanguage) — English when not given. */
   audioLang?: AudioLanguage
+  /** The language the title's releases are in when they don't say — Japanese for anime (audioBaseFor). */
+  audioBase?: AudioLanguage
 }
 
 /** Whether a release's file needs more than HEAVY_FILE_KBPS — false when that can't be told. */
@@ -247,7 +249,7 @@ function trustsFileSize(release: DebridRelease): boolean {
 export function rankReleasesForPlayback(
   releases: DebridRelease[],
   support: BrowserVideoSupport,
-  { durationS, appConvertsAudio = false, audioLang = DEFAULT_AUDIO_LANGUAGE }: RankOptions = {}
+  { durationS, appConvertsAudio = false, audioLang = DEFAULT_AUDIO_LANGUAGE, audioBase = DEFAULT_AUDIO_LANGUAGE }: RankOptions = {}
 ): DebridRelease[] {
   const key = (r: DebridRelease): number[] => {
     const size = parseInt(r.size, 10)
@@ -256,7 +258,7 @@ export function rankReleasesForPlayback(
       isBrowserPlayable(r.name, support) ? 0 : 1,
       r.cached ? 0 : 1,
       isTheatricalRip(r.name) ? 1 : 0,
-      releaseLanguageRank(r, audioLang),
+      releaseLanguageRank(r, audioLang, audioBase),
       audio === 2 ? 1 : 0,
       resolutionRank(r.name),
       !appConvertsAudio && isMultiAudio(r.name) ? 1 : 0,

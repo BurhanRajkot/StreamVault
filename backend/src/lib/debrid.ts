@@ -1284,8 +1284,10 @@ export async function searchMediaReleases(params: {
    * when not given): releases in it are kept within the limit, and first.
    */
   audioLang?: string
+  /** The language releases are in when they don't say — Japanese for anime; English when not given. */
+  audioBase?: string
 }): Promise<DebridRelease[]> {
-  const { title, imdbId, mediaType, season, episode, limit = 20, debridTags = true, audioLang = 'en' } = params
+  const { title, imdbId, mediaType, season, episode, limit = 20, debridTags = true, audioLang = 'en', audioBase = 'en' } = params
   const useApibay = mediaType === 'movie'
   const tvTarget = mediaType === 'tv' && season !== undefined && episode !== undefined ? { season, episode } : null
   const startedAt = Date.now()
@@ -1462,7 +1464,7 @@ export async function searchMediaReleases(params: {
     )
   })
 
-  return selectBalancedReleases(candidates, limit, audioLang)
+  return selectBalancedReleases(candidates, limit, audioLang, audioBase)
 }
 
 /** Min share of the returned list reserved for each of the 4K and 1080p tiers (when they have that many releases). */
@@ -1478,9 +1480,9 @@ const RESERVED_TIER_SHARE = 0.4
  * wanted audio language (English unless said — Hindi for a Hindi original),
  * then the IMAX cut, then seeders.
  */
-export function selectBalancedReleases(releases: DebridRelease[], limit: number, audioLang = 'en'): DebridRelease[] {
+export function selectBalancedReleases(releases: DebridRelease[], limit: number, audioLang = 'en', audioBase = 'en'): DebridRelease[] {
   const langRank = new Map(
-    releases.map((r) => [r, releaseLanguageRank(r.name, r.languages, audioLang, isLikelyNonEnglishRelease(r.name))])
+    releases.map((r) => [r, releaseLanguageRank(r.name, r.languages, audioLang, isLikelyNonEnglishRelease(r.name), audioBase)])
   )
   const withinTier = (a: DebridRelease, b: DebridRelease) => {
     if (a.cached !== b.cached) return b.cached ? 1 : -1

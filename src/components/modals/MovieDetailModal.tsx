@@ -490,7 +490,7 @@ export function MovieDetailModal({
   }, [initialMedia])
 
   const display = deriveMediaDisplay(media, mode)
-  const { audioLanguage, onAudioLanguageChange } = useAudioLanguage(media, mode === 'tv' ? 'tv' : 'movie')
+  const { audioLanguage, audioBase, languageChoices, onAudioLanguageChange } = useAudioLanguage(media, mode === 'tv' ? 'tv' : 'movie')
   const { title, heroImage, posterImage } = display
 
   // Episode navigation within and across seasons
@@ -571,6 +571,7 @@ export function MovieDetailModal({
             season: prefetchSeason,
             episode: prefetchEpisode,
             audioLang: audioLanguage,
+            audioBase,
           }
           prefetchPremiumReleases(target, token)
           // Still on the page a moment later: get the release Play would start ready too (lib/premiumWarm)
@@ -585,7 +586,7 @@ export function MovieDetailModal({
       clearTimeout(timer)
       clearTimeout(warmTimer)
     }
-  }, [prefetchSeason, prefetchEpisode, isPlaying, title, display.year, imdbId, debridMediaType, getDebridToken, runtimeMinutes, audioLanguage])
+  }, [prefetchSeason, prefetchEpisode, isPlaying, title, display.year, imdbId, debridMediaType, getDebridToken, runtimeMinutes, audioLanguage, audioBase])
   const isDesktopShow = !isMobile && mode === 'tv'
   // Shares its query with the episode list, so naming the episode is free
   const { data: playingSeasonEpisodes } = useSeasonEpisodes(media.id, season, isPlaying && mode === 'tv')
@@ -821,6 +822,8 @@ export function MovieDetailModal({
                       onReleaseControls={setReleaseControls}
                       runtimeMinutes={mode === 'tv' ? media.episode_run_time?.[0] : media.runtime}
                       audioLanguage={audioLanguage}
+                      audioBase={audioBase}
+                      languageChoices={languageChoices}
                       onAudioLanguageChange={onAudioLanguageChange}
                       episodes={
                         mode === 'tv' ? (

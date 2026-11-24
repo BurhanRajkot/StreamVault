@@ -28,6 +28,8 @@ export interface ReleaseSearchQuery {
   limit: number
   /** The audio language wanted (ISO 639-1) — releases in it are kept and put first. */
   audioLang?: string
+  /** The language releases are in when they don't say — Japanese for anime. */
+  audioBase?: string
 }
 
 function optionalInt(value: unknown): number | undefined {
@@ -50,6 +52,7 @@ export function parseReleaseSearchQuery(query: Request['query']): ReleaseSearchQ
     limit: Math.min(optionalInt(query.limit) || 20, 50),
     // ISO 639-1; anything else is English, as before
     audioLang: typeof query.lang === 'string' && /^[a-z]{2}$/.test(query.lang) ? query.lang : undefined,
+    audioBase: typeof query.base === 'string' && /^[a-z]{2}$/.test(query.base) ? query.base : undefined,
   }
 }
 

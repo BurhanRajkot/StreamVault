@@ -41,6 +41,8 @@ export interface PremiumSearchTarget {
   episode?: number
   /** The audio language wanted (lib/audioLanguage) — English when not given. */
   audioLang?: string
+  /** The language its releases are in when they don't say — Japanese for anime (lib/audioLanguage). */
+  audioBase?: string
 }
 
 /** A search reused for this long; the releases themselves change far more slowly. */
@@ -50,13 +52,14 @@ const SEARCH_LIMIT = 25
 const searches = new Map<string, { at: number; releases: Promise<DebridRelease[]> }>()
 
 function searchKey(target: PremiumSearchTarget): string {
-  const { title, year, imdbId, mediaType, season, episode, audioLang } = target
+  const { title, year, imdbId, mediaType, season, episode, audioLang, audioBase } = target
   return JSON.stringify([
     imdbId || `${title}:${year ?? ''}`,
     mediaType,
     mediaType === 'tv' ? season : null,
     mediaType === 'tv' ? episode : null,
     audioLang && audioLang !== 'en' ? audioLang : null,
+    audioBase && audioBase !== 'en' ? audioBase : null,
   ])
 }
 
@@ -76,7 +79,7 @@ export function findPremiumReleases(
   const hit = searches.get(key)
   if (hit && !fresh && Date.now() - hit.at < SEARCH_TTL_MS) return hit.releases
 
-  const { title, year, imdbId, mediaType, season, episode, audioLang } = target
+  const { title, year, imdbId, mediaType, season, episode, audioLang, audioBase } = target
   const cleanTitle = title.replace(/[^a-zA-Z0-9\s]/g, ' ').trim()
   const queryTitle = year ? `${cleanTitle} ${year}` : cleanTitle
   const releases = searchDebridMedia(queryTitle, imdbId ?? undefined, mediaType, token, {
@@ -84,6 +87,7 @@ export function findPremiumReleases(
     episode: mediaType === 'tv' ? episode : undefined,
     limit: SEARCH_LIMIT,
     lang: audioLang,
+    base: audioBase,
   })
   const entry = { at: Date.now(), releases }
   searches.set(key, entry)

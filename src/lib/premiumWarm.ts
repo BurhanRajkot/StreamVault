@@ -53,6 +53,8 @@ export interface PlanOptions {
   appConvertsAudio: boolean
   /** The audio language wanted (lib/audioLanguage) — English when not given. */
   audioLang?: string
+  /** The language the title's releases are in when they don't say — Japanese for anime. */
+  audioBase?: string
 }
 
 /** Which releases the player starts with, in which order. Pure. */
@@ -61,6 +63,7 @@ export function planPlayback(releases: DebridRelease[], opts: PlanOptions): Play
     durationS: opts.knownDurationS,
     appConvertsAudio: opts.appConvertsAudio,
     audioLang: opts.audioLang,
+    audioBase: opts.audioBase,
   })
   /** Best first, as far as this connection can carry it. */
   const fit = (list: DebridRelease[]) => fitReleasesToConnection(list, opts.kbps, opts.durationS, opts.support)
@@ -150,6 +153,7 @@ export interface WarmTarget {
   knownDurationS?: number
   probeUnseeded?: boolean
   audioLang?: string
+  audioBase?: string
 }
 
 /**
@@ -171,6 +175,7 @@ export async function warmPremiumPlay(target: WarmTarget): Promise<void> {
       probeUnseeded: target.probeUnseeded,
       appConvertsAudio: appConvertsAudio(),
       audioLang: target.audioLang,
+      audioBase: target.audioBase,
     })
     const first = plan.queue[0]
     if (!first) return
@@ -247,5 +252,6 @@ export function warmPremiumTitle(target: PremiumSearchTarget, token: string | un
     durationS: known ?? (tv ? 45 : 120) * 60,
     knownDurationS: known,
     audioLang: target.audioLang,
+    audioBase: target.audioBase,
   })
 }

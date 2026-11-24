@@ -9,6 +9,9 @@ import {
   withAudioTrack,
   trackLanguage,
   channelLabel,
+  audioBaseFor,
+  audioLanguageChoices,
+  releaseHasLanguage,
 } from './audioLanguage'
 import { rankReleasesForPlayback } from './releasePlayback'
 import type { DebridAudioTrack, DebridReadyPlayback, DebridRelease } from './debridApi'
@@ -54,8 +57,15 @@ describe('the language a title plays in', () => {
     expect(audioLanguageFor({ id: 4 }, 'movie')).toBe('en')
   })
 
-  it('leaves anime as it was', () => {
-    expect(audioLanguageFor({ id: 5, original_language: 'ja', genres: [{ id: 16 }] }, 'tv')).toBe('en')
+  it('plays anime in Japanese, with English to switch to', () => {
+    const frieren = { id: 5, original_language: 'ja', genres: [{ id: 16 }] }
+    expect(audioLanguageFor(frieren, 'tv')).toBe('ja')
+    expect(audioBaseFor(frieren)).toBe('ja')
+    expect(audioLanguageChoices(frieren)).toEqual(['ja', 'en'])
+    // A Japanese film that isn't animation is like any other
+    expect(audioLanguageFor({ id: 6, original_language: 'ja', genres: [{ id: 18 }] }, 'movie')).toBe('en')
+    expect(audioLanguageChoices({ id: 7, original_language: 'hi' })).toEqual(['hi', 'en'])
+    expect(audioLanguageChoices({ id: 8, original_language: 'en' })).toEqual(['en', 'hi'])
   })
 
   it("is the viewer's own pick for the title once they made one", () => {
@@ -155,5 +165,39 @@ describe('the audio track that plays', () => {
     expect(channelLabel(5.1)).toBe('5.1')
     expect(channelLabel(2)).toBe('Stereo')
     expect(channelLabel(6)).toBe('5.1')
+  })
+})
+
+describe('anime releases', () => {
+  // Torrentio's answer for Frieren S01E01 and Your Name (2026-11-25), cut down; tags as the backend reads them
+  const subsPlease = release('[SubsPlease] Sousou no Frieren - 01 (1080p) [F02B9CEE].mkv')
+  const eraiRaws = release('[Erai-raws] Sousou no Frieren - 01 ~ 28 [1080p][HEVC][BATCH][Multiple Subtitle] [ENG][POR-BR][SPA-LA]', ['en', 'ru', 'it'])
+  const dual = release("[Judas] Sousou no Frieren (Season 01) [BD 1080p][HEVC x265 10bit][Dual-Audio]", ['dub', 'multi', 'en'])
+  const englishDub = release('[Bl4ckĐevil] Your Name - Kimi No Na Wa [4K-UHD] [English Dub]', ['dub', 'en'])
+  const germanDub = release('Sousou no Frieren - Beyond Journeys End S1 Ger Dub (1080p) HDR', ['dub', 'de'])
+  const russian = release('Магическая битва / Jujutsu Kaisen [S01-02] (2020-2023) BDRip-HEVC 1080p', ['ru'])
+
+  it('take a release that names no language for the Japanese — its flags are subtitles', () => {
+    for (const r of [subsPlease, eraiRaws, dual]) expect(releaseLanguageRank(r, 'ja', 'ja')).toBe(0)
+    for (const r of [englishDub, germanDub, russian]) expect(releaseLanguageRank(r, 'ja', 'ja')).toBe(3)
+  })
+
+  it('find English in a dub, then a dual-audio release, never a fansub', () => {
+    expect(releaseLanguageRank(englishDub, 'en', 'ja')).toBe(0)
+    expect(releaseLanguageRank(dual, 'en', 'ja')).toBe(1)
+    expect(releaseLanguageRank(eraiRaws, 'en', 'ja')).toBe(2)
+    expect(releaseLanguageRank(germanDub, 'en', 'ja')).toBe(3)
+    expect(releaseHasLanguage(dual, 'en', 'ja')).toBe(true)
+    expect(releaseHasLanguage(subsPlease, 'en', 'ja')).toBe(false)
+    expect(releaseHasLanguage(subsPlease, 'ja', 'ja')).toBe(true)
+  })
+
+  it('rank for the language picked', () => {
+    const support = { hevc: true, av1: true }
+    const all = [germanDub, englishDub, subsPlease, dual]
+    expect(rankReleasesForPlayback(all, support, { audioLang: 'ja', audioBase: 'ja', appConvertsAudio: true }).slice(-2)).toEqual(
+      expect.arrayContaining([germanDub, englishDub])
+    )
+    expect(rankReleasesForPlayback(all, support, { audioLang: 'en', audioBase: 'ja', appConvertsAudio: true })[0]).toBe(englishDub)
   })
 })

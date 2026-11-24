@@ -39,12 +39,13 @@ export async function resolvePremiumFile(
   if (releases.length === 0) throw new Error('No releases found for this title.')
 
   const lang = target.audioLang ?? 'en'
-  const ranked = rankReleasesForPlayback(releases, detectBrowserVideoSupport(), { audioLang: lang })
+  const base = target.audioBase ?? 'en'
+  const ranked = rankReleasesForPlayback(releases, detectBrowserVideoSupport(), { audioLang: lang, audioBase: base })
   const order = QUALITY_ORDER[preference]
   // The language first (an offline copy plays its first track), then the quality asked for
   const byPreference = [...ranked].sort(
     (a, b) =>
-      releaseLanguageRank(a, lang) - releaseLanguageRank(b, lang) ||
+      releaseLanguageRank(a, lang, base) - releaseLanguageRank(b, lang, base) ||
       order.indexOf(parseTorrentQuality(a.name)) - order.indexOf(parseTorrentQuality(b.name))
   )
   const candidates: DebridRelease[] = byPreference.filter((r) => r.cached)
