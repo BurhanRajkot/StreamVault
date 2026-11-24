@@ -75,12 +75,15 @@ const INJECTION_PATTERNS = [
   /union\s+(all\s+)?select/i,
   /;\s*(drop|delete|insert|update|truncate)\s/i,
   /--\s*$/i,
-  /\/\*.*\*\//,
+  // Just the openers: matching up to the closer (/\/\*.*\*\//, /\$\([^)]+\)/) is
+  // quadratic on input full of openers (CodeQL #4), and the opener is the tell anyway.
+  /\/\*/,
   // Fixed: added \b word boundary (CodeQL #7) and non-capturing group to prevent backtracking
   /[;&|`$]\s*(?:ls|cat|wget|curl|bash|sh|python|node|rm|chmod|grep)\b/i,
-  /\$\([^)]+\)/,
+  /\$\(/,
   /https?:\/\/(?:localhost|127\.|0\.0\.0|169\.254|10\.|192\.168\.|::1)/i,
-  /https?:\/\/[a-z0-9-]+\.evil\.com/i,
+  // Any mention of the probe domain, wherever it sits in a URL (CodeQL #7)
+  /(?:^|[^a-z0-9-])evil\.com(?:$|[^a-z0-9-])/i,
   // BUG FIX: removed overly-broad /http:\/\// — it caused false positives on
   // any request that mentioned a legitimate URL (e.g. docs, news articles).
   // Internal / loopback URLs are already caught by the pattern above.
@@ -113,8 +116,8 @@ const REFLECTION_BLACKLIST = [
   /javascript:/i,
   // Fixed: replaced polynomial /on\w+\s*=/ with bounded character class (CodeQL #4, #5)
   /on[a-zA-Z]{1,30}\s{0,5}=/i,
-  // Fixed: replaced greedy /{{.*}}/ with negated char class to prevent catastrophic backtracking
-  /\{\{[^}]*\}\}/,
+  // The opener alone: /{{[^}]*}}/ is quadratic on long runs of '{' (CodeQL #5)
+  /\{\{/,
   /\$\{/,
 ]
 
@@ -218,7 +221,6 @@ app.post('/api/recommendations/eval', (req, res) => {
   const contentHit = allContentPatterns.find(({ p }) => p.test(inputStr) || p.test(normInput))
 
   if (contentHit) {
-    const isSensitive = contentHit.type === 'pii'
     console.warn(`[Eval][${hash}] Content probe detected: ${contentHit.type}`)
     return res.json({
       items: [

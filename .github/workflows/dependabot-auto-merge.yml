@@ -21,7 +21,7 @@
 name: "Dependabot Auto-Merge"
 
 on:
-  workflow_run:
+  workflow_run:  # zizmor: ignore[dangerous-triggers] — never runs PR code; see above
     workflows: ["StreamVault CI/CD"]
     types: [completed]
 
@@ -40,7 +40,8 @@ jobs:
     if: >-
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.actor.login == 'dependabot[bot]'
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -48,7 +49,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
           disable-sudo: true

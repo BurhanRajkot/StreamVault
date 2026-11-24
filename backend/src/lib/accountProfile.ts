@@ -42,12 +42,22 @@ export async function fetchAuth0Profile(token: string): Promise<Auth0Profile | n
   const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
   const email = text(body.email, 254)
   const name = text(body.name, 120) ?? text(body.nickname, 120)
-  return { email: email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email.toLowerCase() : null, name }
+  return { email: email && looksLikeEmail(email) ? email.toLowerCase() : null, name }
+}
+
+/** One @, something before it, and a dotted domain after it, with no spaces. */
+function looksLikeEmail(value: string): boolean {
+  const at = value.indexOf('@')
+  if (at < 1 || at !== value.lastIndexOf('@') || /\s/.test(value)) return false
+  const domain = value.slice(at + 1)
+  const dot = domain.lastIndexOf('.')
+  return dot > 0 && dot < domain.length - 1
 }
 
 /** The bearer token of a request, if it has one. */
 export function bearerToken(authorization: string | undefined): string | null {
-  const m = /^Bearer\s+(.+)$/i.exec(authorization ?? '')
+  // \S right after the spaces, so the two parts can't trade characters (no backtracking blow-up)
+  const m = /^Bearer\s+(\S.*)$/i.exec(authorization ?? '')
   return m ? m[1].trim() : null
 }
 

@@ -42,14 +42,19 @@ function validPort(value: string | null): value is string {
   return port >= 1024 && port <= 65535
 }
 
-/** Only this site's Auth0 tenant's authorize endpoint — never an open redirect. */
-function validAuthorizeUrl(value: string | null, auth0Domain: string): value is string {
-  if (!value || !auth0Domain) return false
+/**
+ * Only this site's Auth0 tenant's authorize endpoint — never an open redirect.
+ * The address is rebuilt on the tenant's fixed origin; only the query comes
+ * from the link, and a query can't change where the page goes.
+ */
+function authorizeRedirect(value: string | null, auth0Domain: string): string | null {
+  if (!value || !auth0Domain) return null
   try {
     const url = new URL(value)
-    return url.protocol === 'https:' && url.hostname === auth0Domain && url.pathname === '/authorize'
+    if (url.protocol !== 'https:' || url.hostname !== auth0Domain || url.port || url.pathname !== '/authorize') return null
+    return `https://${auth0Domain}/authorize${url.search}`
   } catch {
-    return false
+    return null
   }
 }
 
@@ -57,10 +62,10 @@ export function appSignInStep(where: Where, store: Store, auth0Domain: string): 
   if (where.pathname === '/app-signin') {
     const params = new URLSearchParams(where.hash.replace(/^#/, ''))
     const port = params.get('port')
-    const url = params.get('url')
-    if (!validPort(port) || !validAuthorizeUrl(url, auth0Domain)) return { redirect: '/' }
+    const redirect = authorizeRedirect(params.get('url'), auth0Domain)
+    if (!validPort(port) || !redirect) return { redirect: '/' }
     store.setItem(PORT_KEY, port)
-    return { redirect: url }
+    return { redirect }
   }
 
   const port = store.getItem(PORT_KEY)
@@ -70,7 +75,7 @@ export function appSignInStep(where: Where, store: Store, auth0Domain: string): 
   if (!fromAuth0) return null
   store.removeItem(PORT_KEY)
   if (!validPort(port)) return null
-  return { redirect: `http://127.0.0.1:${port}/callback${where.search}` }
+  return { redirect: `http://127.0.0.1:${Number(port)}/callback${where.search}` }
 }
 
 /** Runs the step on this page; true when the page is leaving (don't start the app). */

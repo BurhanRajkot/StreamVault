@@ -1116,7 +1116,7 @@ export function PlayerControls({
       {showSpinner && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4">
           <span className="player-spinner" aria-hidden="true" />
-          {status && !starting ? (
+          {status ? (
             <p role="status" className="max-w-[80%] rounded-md bg-black/60 px-3 py-1.5 text-center text-sm text-white/90">
               {status}
             </p>

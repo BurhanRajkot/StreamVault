@@ -56,8 +56,6 @@ const BEHIND = 48 * MB
 const AHEAD_S = 300
 const AHEAD_MIN = 64 * MB
 const AHEAD_MAX = BUDGET - BEHIND - 32 * MB
-/** Ahead of a reader that isn't the film (a seek-bar preview): just enough to answer it. */
-const SIDE_AHEAD = 4 * MB
 /** A connection with no first byte by now, or no byte for this long once going, is dropped and asked again. */
 const FIRST_BYTE_MS = 8000
 const QUIET_MS = 4000

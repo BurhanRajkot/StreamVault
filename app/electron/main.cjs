@@ -508,7 +508,15 @@ function registerIpc() {
     if (!Array.isArray(urls) || urls.length === 0 || !urls.every((u) => typeof u === 'string' && allowed.some((a) => u.startsWith(a)))) {
       return { ok: false, reason: 'Unexpected update address.' }
     }
+    // Nothing is installed without a checksum to hold it to: the mirror's
+    // latest.json carries one, and so does every GitHub release asset (digest).
+    if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(sha256)) {
+      return { ok: false, reason: "This update can't be checked — install it from the releases page." }
+    }
     const current = process.env.APPIMAGE
+    if (SELF_UPDATE === 'appimage' && (!current || !path.isAbsolute(current) || !fs.existsSync(current))) {
+      return { ok: false, reason: "Couldn't find this AppImage to update it — install the new version from the releases page." }
+    }
     const tmp = SELF_UPDATE === 'appimage' ? current + '.update' : path.join(app.getPath('temp'), `StreamVault-Setup-${crypto.randomUUID()}.exe`)
     try {
       const out = fs.createWriteStream(tmp, { mode: 0o755 })
@@ -522,7 +530,7 @@ function registerIpc() {
         }
       }
       await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())))
-      if (sha256 && hash.digest('hex') !== sha256) throw new Error('The download was corrupted — try again.')
+      if (hash.digest('hex') !== sha256.toLowerCase()) throw new Error('The download was corrupted — try again.')
       if (SELF_UPDATE === 'installer') {
         // The installer waits for this app to close, then installs over it
         const installer = spawn(tmp, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore' })
@@ -555,6 +563,11 @@ function registerIpc() {
  * the mount's environment stripped so the new copy sets up its own.
  */
 function relaunchAppImage(appImage) {
+  // Only ever this app's own file, by its full path — it's handed to sh as "$@", never parsed as a command
+  if (typeof appImage !== 'string' || !path.isAbsolute(appImage) || !fs.existsSync(appImage)) {
+    app.quit()
+    return
+  }
   const env = { ...process.env }
   const mount = process.env.APPDIR
   for (const key of Object.keys(env)) {
