@@ -4,7 +4,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
-import { Check, CheckCircle2, ChevronDown, Download, Play, Plus, Share, Star, ThumbsUp } from 'lucide-react'
+import { Check, CheckCircle2, ChevronDown, Clapperboard, Download, Play, Plus, Share, Star, ThumbsUp } from 'lucide-react'
 import { type Media } from '@/lib/config'
 import { logRecommendationInteraction } from '@/lib/api'
 import { deriveMediaDisplay } from '@/lib/mediaDisplay'
@@ -31,6 +31,8 @@ import { Button, CircleButton, ListRow, ListSection, NavBar, SegmentedControl } 
 import { languageName, releaseHasLanguage, type AudioLanguage } from '@/lib/audioLanguage'
 import { useAudioLanguage } from '@/hooks/useAudioLanguage'
 import { findPremiumReleases } from '@/lib/premiumSearch'
+import { TrailerOverlay, useTrailer } from '@app/components/Trailer'
+import { CastRow, CollectionCard } from '@app/components/TitleExtras'
 
 export function TitleScreen() {
   const params = useParams()
@@ -177,6 +179,8 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
     enabled: headStartOn && !!imdbId,
     staleTime: 10 * 60_000,
   })
+  const trailer = useTrailer(kind, media.id)
+  const [trailerOpen, setTrailerOpen] = useState(false)
   const languageMissing = !!releases && releases.length > 0 && !releases.some((r) => releaseHasLanguage(r, audioLanguage, audioBase))
 
   const play = (s?: number, e?: number) => {
@@ -315,6 +319,11 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
               </span>
             )}
           </Button>
+          {trailer && (
+            <Button variant="glass" size="lg" onClick={() => setTrailerOpen(true)} className="hidden lg:inline-flex">
+              <Clapperboard /> Trailer
+            </Button>
+          )}
           <div className="flex justify-center gap-2 lg:gap-1">
             <ActionButton label={inList ? 'In My List' : 'My List'} onClick={() => toggleFavorite(media.id, kind, genreIdsOf(media))}>
               <AnimatePresence mode="wait" initial={false}>
@@ -323,6 +332,11 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
                 </motion.span>
               </AnimatePresence>
             </ActionButton>
+            {trailer && (
+              <ActionButton label="Trailer" onClick={() => setTrailerOpen(true)} className="lg:hidden">
+                <Clapperboard className="h-5 w-5" strokeWidth={2} />
+              </ActionButton>
+            )}
             <ActionButton label={liked ? 'Liked' : 'Like'} onClick={() => void like()}>
               <ThumbsUp className={cn('h-5 w-5', liked && 'fill-current')} strokeWidth={2} />
             </ActionButton>
@@ -400,12 +414,19 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
                   {shownTab === 'details' && <Details media={media} kind={kind} display={display} />}
                 </motion.div>
               </AnimatePresence>
+
+              {/* The series it's part of, then who's in it — each opening a page of its own */}
+              <div className="mt-10 lg:mt-14">
+                {kind === 'movie' && <CollectionCard media={media} />}
+                <CastRow media={media} kind={kind} />
+              </div>
             </>
           )}
 
         </div>
       </div>
 
+      <TrailerOverlay trailer={trailer} title={display.title} open={trailerOpen} onClose={() => setTrailerOpen(false)} />
       <DownloadOptionsSheet target={download} onClose={() => setDownload(null)} />
       <Sheet open={seasonsOpen} onOpenChange={setSeasonsOpen} title="Seasons">
         <div className="glass-card overflow-hidden rounded-[16px]">
@@ -562,32 +583,38 @@ function Details({ media, kind, display }: { media: Media; kind: TitleKind; disp
     ['Genres', display.genres.join(', ') || '—'],
     ...(kind === 'movie' && display.director !== 'Unknown' ? [['Director', display.director] as [string, string]] : []),
     ['TMDB rating', display.rating > 0 ? `${display.rating.toFixed(1)} / 10` : '—'],
+    ...extraFacts(media, kind),
   ]
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
-      {display.cast.length > 0 && (
-        <div className="min-w-0">
-          <h3 className="t-title3 mb-3">Cast</h3>
-          <div className="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0 xl:grid-cols-6">
-            {display.cast.map((c) => (
-              <div key={c.name + c.role} className="w-[84px] shrink-0 text-center lg:w-auto">
-                <div className="skeleton mx-auto aspect-square w-[76px] overflow-hidden rounded-full lg:w-full lg:max-w-[96px]">
-                  {!c.image.endsWith('placeholder.svg') && <FadeImg src={c.image} loading="lazy" className="h-full w-full object-cover" />}
-                </div>
-                <p className="t-footnote mt-2 line-clamp-1 font-semibold">{c.name}</p>
-                <p className="t-caption line-clamp-1 text-label-2">{c.role}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <ListSection header="Information" className="mb-0">
-        {facts.map(([k, v]) => (
-          <ListRow key={k} label={k} value={v} />
-        ))}
-      </ListSection>
-    </div>
+    <ListSection header="Information" className="mb-0 lg:max-w-xl">
+      {facts.map(([k, v]) => (
+        <ListRow key={k} label={k} value={v} />
+      ))}
+    </ListSection>
   )
+}
+
+/** What else the details say: the original language, money for a film, seasons and network for a show. */
+function extraFacts(media: Media, kind: TitleKind): [string, string][] {
+  const more = media as Media & {
+    budget?: number
+    revenue?: number
+    status?: string
+    number_of_episodes?: number
+    networks?: { name: string }[]
+  }
+  const money = (n?: number) => (n && n > 0 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }).format(n) : null)
+  const language = media.original_language ? new Intl.DisplayNames(['en'], { type: 'language' }).of(media.original_language) : null
+  const facts: [string, string | null | undefined][] =
+    kind === 'movie'
+      ? [['Original language', language], ['Budget', money(more.budget)], ['Box office', money(more.revenue)]]
+      : [
+          ['Original language', language],
+          ['Seasons', media.number_of_seasons ? `${media.number_of_seasons}${more.number_of_episodes ? ` · ${more.number_of_episodes} episodes` : ''}` : null],
+          ['Network', more.networks?.map((n) => n.name).slice(0, 2).join(', ')],
+          ['Status', more.status],
+        ]
+  return facts.filter((f): f is [string, string] => !!f[1])
 }
 
 export function ProgressRing({ value, size = 22 }: { value: number; size?: number }) {

@@ -1,6 +1,7 @@
 import type { Media, MediaMode } from '@/lib/config'
 import type { RecoItem } from '@/lib/api'
 import { fetchAnimeRow, fetchPopular, fetchRecentlyAdded, fetchTrending, fetchMediaSummaries } from '@/lib/api'
+import { fetchComingSoon } from './extras'
 import { AUTHORS_CHOICE_ANIME, AUTHORS_CHOICE_DOCUMENTARIES, AUTHORS_CHOICE_MOVIES, AUTHORS_CHOICE_TV } from '@/data/authorsChoice'
 
 const API_BASE = import.meta.env.VITE_API_URL
@@ -35,8 +36,8 @@ export interface RowSpec {
   key: string
   title: string
   kind?: 'movie' | 'tv'
-  /** Big ranked numerals, or landscape cards to break up the posters. */
-  style?: 'top10' | 'wide'
+  /** Big ranked numerals, landscape cards to break up the posters, or release dates on them. */
+  style?: 'top10' | 'wide' | 'soon'
   load: () => Promise<Media[]>
 }
 
@@ -115,6 +116,7 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
         { key: 'india', title: 'Top 10 Movies in India', kind: 'movie', style: 'top10', load: () => top10India('movie') },
         { key: 'popular', title: 'Popular Movies', kind: 'movie', load: async () => (await fetchPopular('movie', 1)).results },
         { key: 'new', title: 'New Releases', kind: 'movie', style: 'wide', load: () => fetchRecentlyAdded('movie') },
+        { key: 'soon', title: 'Coming Soon', kind: 'movie', style: 'soon', load: fetchComingSoon },
         { key: 'picks', title: "Editor's Picks", kind: 'movie', load: picks(AUTHORS_CHOICE_MOVIES) },
         { key: 'hindi', title: 'Hindi Hits', kind: 'movie', load: () => fetchDiscover('movie', { with_original_language: 'hi', 'vote_count.gte': '40', 'primary_release_date.gte': yearsAgo(3), 'primary_release_date.lte': today() }) },
         { key: 'action', title: 'Action', kind: 'movie', load: () => fetchDiscover('movie', { with_genres: '28', 'vote_count.gte': '300', 'vote_average.gte': '6.5' }) },
@@ -170,6 +172,7 @@ export function rowsFor(mode: MediaMode): RowSpec[] {
         { key: 'movies', title: 'Trending Movies', kind: 'movie', load: () => trending('movie') },
         { key: 'shows', title: 'Popular Shows Right Now', kind: 'tv', style: 'wide', load: () => current({ 'vote_count.gte': '200' }) },
         { key: 'new', title: 'New Releases', load: () => fetchRecentlyAdded('home') },
+        { key: 'soon', title: 'Coming Soon', kind: 'movie', style: 'soon', load: fetchComingSoon },
         { key: 'picks', title: "Editor's Picks", kind: 'movie', load: picks(AUTHORS_CHOICE_MOVIES) },
         { key: 'indian', title: 'Best Indian Series', kind: 'tv', load: () => fetchDiscover('tv', { sort_by: 'vote_count.desc', with_origin_country: 'IN', without_genres: NOT_SERIES, 'vote_average.gte': '7' }) },
         { key: 'anime', title: 'Anime', kind: 'tv', load: () => fetchAnimeRow('series') },
