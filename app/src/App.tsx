@@ -8,6 +8,7 @@ import { DislikesProvider } from '@/context/DislikesContext'
 import { AccountSync } from '@/components/layout/AccountSync'
 import { desktop, isAndroid } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
+import { prefersReducedMotion } from '@app/lib/reveal'
 import { TitleBar } from '@app/components/shell/TitleBar'
 import { TabBar } from '@app/components/shell/TabBar'
 import { WindowStrip, useFramelessClass } from '@app/components/shell/WindowControls'
@@ -61,6 +62,7 @@ export function App() {
   useScrollMemory()
   useFramelessClass()
   usePreloadScreens()
+  const main = useScreenFade(location.pathname)
 
   if (!settings.acceptedTerms) {
     return (
@@ -81,7 +83,7 @@ export function App() {
           <HoverPreviewLayer />
           {/* A narrow (snapped, split-screen) desktop window: a slim title bar instead — the players carry their own */}
           {!fullscreen && <WindowStrip />}
-          <main className="relative z-10 min-h-[100dvh] text-foreground">
+          <main ref={main} className="relative z-10 min-h-[100dvh] text-foreground">
             <Suspense fallback={<div className="min-h-[100dvh]" />}>
               <Routes location={location}>
                 <Route path="/" element={<HomeScreen mode="home" />} />
@@ -114,6 +116,28 @@ export function App() {
       </FavoritesProvider>
     </MotionConfig>
   )
+}
+
+/**
+ * A new screen fades in over the bars, the way iOS hands one screen to the
+ * next; going back is quicker. Opacity only: a transform on <main> would
+ * make it the frame for the title screen's fixed backdrop while it ran. The
+ * players open at once, and with "reduce motion" on, so does everything.
+ */
+function useScreenFade(pathname: string) {
+  const ref = useRef<HTMLElement>(null)
+  const navigationType = useNavigationType()
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || FULLSCREEN.test(pathname) || prefersReducedMotion() || typeof el.animate !== 'function') return
+    const back = navigationType === 'POP'
+    const fade = el.animate([{ opacity: back ? 0.35 : 0 }, { opacity: 1 }], {
+      duration: back ? 180 : 320,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    })
+    return () => fade.cancel()
+  }, [pathname, navigationType])
+  return ref
 }
 
 /** Fetch every screen's code once the app has settled, so moving around never waits on a chunk. */
