@@ -1,5 +1,7 @@
 # StreamVault — Selective CDN Cache Invalidation
-# Triggered after frontend deployment completes.
+# Run by hand. Vercel already invalidates its edge on every deploy, so this
+# no longer runs after each GitOps update (it only listed paths, and its
+# workflow_run trigger ran a full npm install + build with secrets in reach).
 # Parses the Vite build manifest to identify changed assets and
 # issues targeted path-based invalidations instead of wildcard purges.
 
@@ -20,10 +22,6 @@ on:
         required: false
         type: boolean
         default: false
-  workflow_run:
-    workflows: ["GitOps — Update Image Tags"]
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: read
@@ -33,9 +31,6 @@ jobs:
     name: "Invalidate CDN Cache"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
         with:
@@ -48,7 +43,7 @@ jobs:
 
       - name: Install dependencies & build
         run: |
-          npm install --legacy-peer-deps
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Parse Vite build manifest

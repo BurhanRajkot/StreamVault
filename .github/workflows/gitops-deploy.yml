@@ -5,34 +5,40 @@
 
 name: "GitOps — Update Image Tags"
 
+# Safe on `workflow_run` (which runs with a write token): it never checks out
+# or runs code from the triggering run — only main as it is now — and it only
+# acts on a green CI run of a *push* to this repository's main. A pull request
+# from a fork whose branch happens to be called "main" also reports
+# head_branch == 'main', so the branch filter alone would let a fork's commit
+# be written into the production image tags; the event and repository checks
+# below are what rule that out.
 on:
-  workflow_run:
+  workflow_run:  # zizmor: ignore[dangerous-triggers] — guarded as described above
     workflows: ["StreamVault CI/CD"]
     types: [completed]
     branches: [main]
 
-# Minimal permissions: only write to contents for the GitOps commit.
-# workflow_run runs in the context of the default branch (not the triggering
-# PR), so secrets are not exposed to fork PRs. (zizmor #443 — documented)
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   update-manifests:
     name: "Update K8s Image Tags"
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: >
+    permissions:
+      contents: write  # the GitOps commit
+    if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
 
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 1
-          # persist-credentials: true required here — we need to push the GitOps commit
-          # (zizmor #442 — intentional, contents:write permission is scoped above)
+          # The token is handed to the one push below, not left in .git/config (zizmor artipacked)
+          persist-credentials: false
 
       - name: Resolve image tag
         id: tag
@@ -40,6 +46,7 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then echo "::error::Unexpected commit id"; exit 1; fi
           SHORT_SHA="${HEAD_SHA:0:7}"
           TAG="sha-${SHORT_SHA}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
@@ -73,6 +80,7 @@ jobs:
         env:
           TAG: ${{ steps.tag.outputs.tag }}
           SHA: ${{ steps.tag.outputs.full_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -91,4 +99,4 @@ jobs:
           Triggered by: StreamVault CI/CD workflow run
           ArgoCD will auto-sync this change to the production cluster."
 
-          git push origin main
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main

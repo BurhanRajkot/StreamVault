@@ -54,20 +54,21 @@ export function Auth0Provider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('e2e_mock_user', JSON.stringify(mockUser))
       setUser(mockUser)
       const searchParams = new URLSearchParams(window.location.search)
-      let returnTo = searchParams.get('returnTo') || '/'
-      // Open Redirect + XSS fix (CodeQL #220, #221): only accept same-origin
-      // relative paths. URL-parsing against our origin catches protocol-relative
-      // (//evil.com) and backslash (/\evil.com) tricks that a regex allowlist misses,
-      // and the startsWith('/') guard rejects javascript: and other schemes.
+      // Open redirect + XSS (CodeQL #220, #221): only a path on this site.
+      // Parsing against our origin catches protocol-relative (//evil.com) and
+      // backslash (/\evil.com) tricks, and the page then goes to that path on
+      // our own fixed origin, so no scheme or host from the link is ever used.
+      let returnPath = '/'
       try {
-        const parsedUrl = new URL(returnTo, window.location.origin)
-        if (parsedUrl.origin !== window.location.origin || !returnTo.startsWith('/')) {
-          returnTo = '/'
+        const raw = searchParams.get('returnTo') || '/'
+        const parsedUrl = new URL(raw, window.location.origin)
+        if (raw.startsWith('/') && parsedUrl.origin === window.location.origin) {
+          returnPath = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
         }
       } catch (_e) {
-        returnTo = '/'
+        returnPath = '/'
       }
-      window.location.href = returnTo
+      window.location.assign(`${window.location.origin}${returnPath}`)
     } else {
       // Redirect to /login page with returnTo path
       const returnTo = window.location.pathname + window.location.search

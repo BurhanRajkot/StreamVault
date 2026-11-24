@@ -30,7 +30,7 @@ jobs:
         image: [frontend, backend]
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
           disable-sudo: true
@@ -52,7 +52,7 @@ jobs:
 
       - name: Scan published image with Trivy
         id: trivy
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         continue-on-error: true # Advisory — a new CVE here shouldn't fail a scheduled run
         with:
           image-ref: ghcr.io/${{ steps.ns.outputs.owner_lc }}/streamvault-${{ matrix.image }}:latest

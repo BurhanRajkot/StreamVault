@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # ── Stage 1: Base Runtime & Environment Setup ─────────────────────
-FROM oven/bun:1.4-slim AS base
+# Pinned by digest (Scorecard); Dependabot's docker updates move tag and digest together
+FROM oven/bun:1.4-slim@sha256:b780593f3e10918cbdaec3d5a08d52224b9198069a65eb47812085c2ec007643 AS base
 
 ENV WORKDIR=/opt/app
 WORKDIR $WORKDIR
@@ -18,8 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy package files for caching
 COPY package.json bun.lock* tsconfig.json ./
 
-# Install all dependencies
-RUN bun install
+# Install all dependencies, exactly as locked
+RUN bun install --frozen-lockfile
 
 EXPOSE 4000
 
@@ -34,7 +35,7 @@ FROM base AS builder
 COPY package.json bun.lock* tsconfig.json ./
 
 # Install all dependencies (including devDependencies) to build the app
-RUN bun install
+RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY . .
@@ -42,8 +43,11 @@ COPY . .
 # Build/Transpile code (TypeScript to JavaScript)
 RUN bun run build
 
-# Prune devDependencies to keep the production image small
-RUN bun install --production
+# Only the runtime dependencies go into the image. `bun install --production`
+# over the existing node_modules doesn't remove what's already there, so the
+# image used to ship eslint, typescript-eslint, nodemon and the rest — and
+# every CVE in them showed up in the image scan. A fresh install does it.
+RUN rm -rf node_modules && bun install --frozen-lockfile --production
 
 # ── Stage 4: Production Runtime ─────────────────────────────────
 FROM base AS production

@@ -110,9 +110,7 @@ for (const file of sourceFiles) {
   }
 
   // Links without href (button acting as link or a11y defect)
-  const aRegex = /<a(\s+[^>]*?)?(?<!\bhref=)[>](?!.*?<button)/gi;
-  // A naive check for <a> tags missing href. 
-  // It's a bit rigid, so we'll do a simpler match:
+  // A naive check for <a> tags missing href:
   if (/<a\s+(?!.*?href=)[^>]*>/i.test(content)) {
     warn(`${relPath}: Found <a> tag possibly missing 'href' attribute.`);
   }
