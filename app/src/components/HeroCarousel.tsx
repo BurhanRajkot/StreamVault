@@ -106,15 +106,17 @@ export function HeroCarousel({ items, fallbackKind }: { items: Media[]; fallback
             exit={{ opacity: 0 }}
             transition={{ duration: 0.7, ease: 'easeInOut' }}
           >
-            {/* A small copy at once; the full-size image covers it as it arrives */}
-            <img src={tmdbImg(current.backdrop_path, 'w300')} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            <img
-              src={tmdbImg(current.backdrop_path, 'original')}
-              alt=""
-              draggable={false}
-              fetchPriority="high"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            {/* A small copy at once; the full-size image covers it as it arrives. Both drift slowly while the title is up. */}
+            <div className="art-drift absolute inset-0">
+              <img src={tmdbImg(current.backdrop_path, 'w300')} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img
+                src={tmdbImg(current.backdrop_path, 'original')}
+                alt=""
+                draggable={false}
+                fetchPriority="high"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            </div>
           </motion.div>
         </AnimatePresence>
         {/* Legibility: the copy sits on the dark side */}
@@ -144,7 +146,7 @@ function HeroCopy({ media, kind, logo }: { media: Media; kind: MediaKind; logo: 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.15 }}
-      className="pointer-events-none absolute bottom-[calc(4vw+64px)] left-0 flex max-w-[min(44rem,50%)] flex-col items-start px-12 text-left"
+      className="rise-in pointer-events-none absolute bottom-[calc(4vw+64px)] left-0 flex max-w-[min(44rem,50%)] flex-col items-start px-12 text-left"
     >
       <TitleLink item={media} kind={kind} className="pointer-events-auto mb-4 block">
         {logo ? (
@@ -226,6 +228,7 @@ function PhoneHero({
       </AnimatePresence>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-black" />
 
+      <div className="card-in">
       <motion.div
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
@@ -243,9 +246,11 @@ function PhoneHero({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.45, ease: 'easeInOut' }}
           >
-            <TitleLink item={media} kind={kind} aria-label={titleOf(media)} draggable={false} className="absolute inset-0 block">
-              <img src={tmdbImg(media.poster_path, 'w185')} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
-              <img src={tmdbImg(media.poster_path, 'w780')} alt="" draggable={false} fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
+            <TitleLink item={media} kind={kind} aria-label={titleOf(media)} draggable={false} className="absolute inset-0 block overflow-hidden">
+              <span className="art-settle absolute inset-0 block">
+                <img src={tmdbImg(media.poster_path, 'w185')} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+                <img src={tmdbImg(media.poster_path, 'w780')} alt="" draggable={false} fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
+              </span>
             </TitleLink>
           </motion.div>
         </AnimatePresence>
@@ -272,6 +277,7 @@ function PhoneHero({
           </div>
         </div>
       </motion.div>
+      </div>
       <div className="relative mt-4">{dots}</div>
     </section>
   )

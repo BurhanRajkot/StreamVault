@@ -527,3 +527,104 @@ textarea {
 .sv-frameless .app-player .player-top[data-shown="true"] .player-overlay-title {
   -webkit-app-region: drag;
 }
+
+/*
+ * Motion. Only transform and opacity move (the compositor's work, smooth on a
+ * phone's WebView), and only when the system allows motion — with "reduce
+ * motion" on, none of this applies and everything is simply there.
+ * Animations fill "backwards" only, so once done they let go of the element:
+ * `.press` and the hover lift keep their own transforms (a forwards fill
+ * would pin them at the last frame).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /*
+   * Rows come in as they scroll into view (useReveal): the heading rises,
+   * then the first cards slide in one after another. Cards that arrive later
+   * (the skeletons giving way to posters) slide in as they land.
+   */
+  .reveal:not([data-in]) > :first-child,
+  .reveal:not([data-in]) .row-scroll > :nth-child(-n + 8) {
+    opacity: 0;
+  }
+  .reveal[data-in] > :first-child {
+    animation: sv-rise 0.5s var(--ease-out-quint) backwards;
+  }
+  .reveal[data-in] .row-scroll > :nth-child(-n + 8) {
+    animation: sv-slide-in 0.65s var(--ease-out-quint) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms + 50ms);
+  }
+  .row-scroll > :nth-child(2) { --i: 1; }
+  .row-scroll > :nth-child(3) { --i: 2; }
+  .row-scroll > :nth-child(4) { --i: 3; }
+  .row-scroll > :nth-child(5) { --i: 4; }
+  .row-scroll > :nth-child(6) { --i: 5; }
+  .row-scroll > :nth-child(7) { --i: 6; }
+  .row-scroll > :nth-child(8) { --i: 7; }
+
+  /* A headline's lines (title, facts, overview, buttons) rise one after another */
+  .rise-in > * {
+    animation: sv-rise 0.6s var(--ease-out-quint) backwards;
+    animation-delay: calc(var(--i, 0) * 60ms + 80ms);
+  }
+  .rise-in > :nth-child(2) { --i: 1; }
+  .rise-in > :nth-child(3) { --i: 2; }
+  .rise-in > :nth-child(4) { --i: 3; }
+  .rise-in > :nth-child(5) { --i: 4; }
+  .rise-in > :nth-child(n + 6) { --i: 5; }
+
+  /* Artwork settles into place as a screen opens */
+  .art-settle {
+    animation: sv-settle 1.6s var(--ease-out-quint) backwards;
+  }
+  /* The home hero's backdrop drifts slowly while its title is up */
+  .art-drift {
+    animation: sv-drift 14s linear forwards;
+  }
+  /* The phone hero's card arrives with the screen */
+  .card-in {
+    animation: sv-card-in 0.7s var(--ease-out-quint) backwards;
+  }
+
+  /* A tab answers when it becomes the current one */
+  [aria-current="page"] > .tab-icon {
+    animation: sv-tab-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+}
+
+@keyframes sv-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes sv-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+@keyframes sv-settle {
+  from {
+    transform: scale(1.08);
+  }
+}
+@keyframes sv-drift {
+  to {
+    transform: scale(1.07);
+  }
+}
+@keyframes sv-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+}
+@keyframes sv-tab-pop {
+  from {
+    transform: scale(0.8);
+  }
+}
