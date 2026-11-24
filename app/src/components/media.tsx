@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Media } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { item, stagger } from '@app/lib/motion'
+import { useReveal } from '@app/lib/reveal'
 import { prefetchTitleDetails } from '@app/lib/useTitle'
 import { previewTrigger } from './HoverPreview'
 
@@ -157,6 +158,7 @@ export function RowHeader({ title, action }: { title: string; action?: ReactNode
 /** A horizontal row. With a mouse, arrows at its ends page through it. */
 export function Row({ title, action, children, className, gap = 'gap-2.5 lg:gap-4' }: { title: string; action?: ReactNode; children: ReactNode; className?: string; gap?: string }) {
   const scroller = useRef<HTMLDivElement>(null)
+  const reveal = useReveal<HTMLElement>()
   const [edges, setEdges] = useState({ start: true, end: false })
 
   const measure = useCallback(() => {
@@ -180,7 +182,7 @@ export function Row({ title, action, children, className, gap = 'gap-2.5 lg:gap-
   }
 
   return (
-    <section className={cn('group/row relative mb-8 lg:mb-10', className)}>
+    <section ref={reveal} className={cn('reveal group/row relative mb-8 lg:mb-10', className)}>
       <RowHeader title={title} action={action} />
       <div className="relative">
         <div ref={scroller} onScroll={measure} className={cn('row-scroll px-4 lg:px-12', gap)}>
