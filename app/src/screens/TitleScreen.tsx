@@ -227,7 +227,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
       />
 
       {/* Artwork: fixed behind a wide window, at the top of a phone's page */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[62vh] overflow-hidden lg:fixed lg:inset-0 lg:left-[var(--sidebar-w)] lg:h-auto">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[62vh] overflow-hidden lg:fixed lg:inset-0 lg:h-auto">
         <motion.div style={{ y: artY, opacity: artOpacity }} className="absolute inset-0">
           {/* A small copy shows at once; the full-size one fades in over it */}
           <img src={tmdbImg(media.backdrop_path || media.poster_path, 'w300')} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
