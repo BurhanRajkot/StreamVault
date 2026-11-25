@@ -69,7 +69,7 @@ export function App() {
 
   if (!settings.acceptedTerms) {
     return (
-      <MotionConfig reducedMotion="user">
+      <MotionConfig reducedMotion={isTv ? 'always' : 'user'}>
         <Welcome />
       </MotionConfig>
     )
@@ -77,7 +77,7 @@ export function App() {
 
   const fullscreen = FULLSCREEN.test(location.pathname)
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion={isTv ? 'always' : 'user'}>
       <FavoritesProvider>
         <DislikesProvider>
           <AccountSync />
@@ -150,9 +150,21 @@ function useScrollMemory() {
   const lastPath = useRef(location.pathname)
 
   useEffect(() => {
-    const onScroll = () => positions.current.set(currentKey.current, window.scrollY)
+    // Once a frame, not on every scroll event: reading scrollY while the page
+    // glides forced a layout each time (a TV box fell behind on it)
+    let frame = 0
+    const record = () => {
+      frame = 0
+      positions.current.set(currentKey.current, window.scrollY)
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(record)
+    }
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(frame)
+    }
   }, [])
 
   useLayoutEffect(() => {
@@ -271,7 +283,7 @@ function tvBack(path: string): boolean {
     return true
   }
   if (!player && TV_ROOTS.includes(path) && window.scrollY > 40) {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'auto' })
     const play = document.querySelector<HTMLElement>('main [data-tv-autofocus]')
     const first = play && isNavigable(play) ? play : Array.from(document.querySelectorAll<HTMLElement>('main a[href], main button')).find(isNavigable)
     if (first) focusOn(first)

@@ -66,14 +66,23 @@ export function normalizeCode(value: unknown): string | null {
   return code
 }
 
-function auth0Host(): string | null {
-  const domain = process.env.AUTH0_DOMAIN?.trim()
-  if (!domain) return null
+function hostOf(value: string | undefined): string | null {
+  const v = value?.trim()
+  if (!v) return null
   try {
-    return new URL(domain.startsWith('http') ? domain : `https://${domain}`).hostname
+    return new URL(v.startsWith('http') ? v : `https://${v}`).hostname
   } catch {
     return null
   }
+}
+
+/**
+ * The tenant's host. Production sets AUTH0_ISSUER_BASE_URL (the token check
+ * needs it, middleware/auth.ts) and not necessarily AUTH0_DOMAIN, so either
+ * one names it.
+ */
+export function auth0Hosts(env: NodeJS.ProcessEnv = process.env): string[] {
+  return [hostOf(env.AUTH0_ISSUER_BASE_URL), hostOf(env.AUTH0_DOMAIN)].filter((h, i, all): h is string => !!h && all.indexOf(h) === i)
 }
 
 /**
@@ -81,14 +90,14 @@ function auth0Host(): string | null {
  * origin — the phone is sent wherever this says, so it must never be an open
  * redirect.
  */
-export function parseAuthorizeUrl(value: unknown, host: string | null = auth0Host()): string | null {
-  if (typeof value !== 'string' || !host || value.length > 4096) return null
+export function parseAuthorizeUrl(value: unknown, hosts: string[] = auth0Hosts()): string | null {
+  if (typeof value !== 'string' || hosts.length === 0 || value.length > 4096) return null
   try {
     const url = new URL(value)
-    if (url.protocol !== 'https:' || url.hostname !== host || url.port || url.pathname !== '/authorize') return null
+    if (url.protocol !== 'https:' || !hosts.includes(url.hostname) || url.port || url.pathname !== '/authorize') return null
     const params = url.searchParams
     if (!params.get('client_id') || !params.get('state') || !params.get('code_challenge')) return null
-    return `https://${host}/authorize${url.search}`
+    return `https://${url.hostname}/authorize${url.search}`
   } catch {
     return null
   }

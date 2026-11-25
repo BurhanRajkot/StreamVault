@@ -44,16 +44,42 @@ function boxOf(el: Element): Box {
 /** Can the remote land on it: focusable, enabled, on screen (or scrolled away in a row), not hidden. */
 export function isNavigable(el: HTMLElement): boolean {
   if (el.tabIndex < 0 || (el as HTMLButtonElement).disabled) return false
-  if (el.closest('[inert],[aria-hidden="true"]')) return false
   const r = el.getBoundingClientRect()
   if (r.width < 4 || r.height < 4) return false
-  if (typeof el.checkVisibility === 'function' && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false
-  return true
+  return visible(el)
 }
 
-function candidates(scope: ParentNode): HTMLElement[] {
-  return Array.from(scope.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(isNavigable)
+function visible(el: HTMLElement): boolean {
+  if (el.closest('[inert],[aria-hidden="true"]')) return false
+  return typeof el.checkVisibility !== 'function' || el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
 }
+
+interface Candidate {
+  el: HTMLElement
+  box: Box
+}
+
+/**
+ * The controls the remote can land on, with their boxes. A page (Home's
+ * endless rows) holds hundreds: only those within a couple of screens of the
+ * view are looked at closely — the next row is never further than that.
+ */
+function candidates(scope: ParentNode, nearView = false): Candidate[] {
+  const above = -window.innerHeight * 1.5
+  const below = window.innerHeight * 2.5
+  const out: Candidate[] = []
+  for (const el of scope.querySelectorAll<HTMLElement>(FOCUSABLE)) {
+    if (el.tabIndex < 0 || (el as HTMLButtonElement).disabled) continue
+    const r = el.getBoundingClientRect()
+    if (r.width < 4 || r.height < 4) continue
+    if (nearView && (r.bottom < above || r.top > below)) continue
+    if (!visible(el)) continue
+    out.push({ el, box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } })
+  }
+  return out
+}
+
+const elements = (list: Candidate[]) => list.map((c) => c.el)
 
 /** The open dialog or sheet on top, if any — the focus stays inside it. */
 function openDialog(): HTMLElement | null {
@@ -67,24 +93,27 @@ function currentScope(): HTMLElement {
   return openDialog() ?? document.querySelector<HTMLElement>('.app-player') ?? document.body
 }
 
+/** The top bar, the players, sheets: layers that don't scroll with the page (Tailwind's `fixed`). */
 function inFixedLayer(el: HTMLElement): boolean {
-  for (let node: HTMLElement | null = el; node && node !== document.body; node = node.parentElement) {
-    if (getComputedStyle(node).position === 'fixed') return true
-  }
-  return false
+  return !!el.closest('.fixed, [role="dialog"]')
 }
 
-/** Bring a newly focused control into view: its row scrolls to it, the page follows; near the top, the page goes all the way up. */
-function reveal(el: HTMLElement): void {
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+/**
+ * Bring a newly focused control into view: its row scrolls to it, the page
+ * follows; near the top, the page goes all the way up. It jumps rather than
+ * glides: every frame of a glide costs a TV box a layout, and glides queued
+ * behind each other are what lag looks like.
+ */
+function reveal(el: HTMLElement, behavior: ScrollBehavior = 'auto'): void {
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior })
   if (inFixedLayer(el)) return
   const pageTop = el.getBoundingClientRect().top + window.scrollY
-  if (pageTop < window.innerHeight * 0.55) window.scrollTo({ top: 0, behavior: 'smooth' })
+  if (pageTop < window.innerHeight * 0.55 && window.scrollY > 0) window.scrollTo({ top: 0, behavior })
 }
 
-export function focusOn(el: HTMLElement): void {
+export function focusOn(el: HTMLElement, behavior: ScrollBehavior = 'auto'): void {
   el.focus({ preventScroll: true })
-  reveal(el)
+  reveal(el, behavior)
 }
 
 function inViewport(list: HTMLElement[]): HTMLElement[] {
@@ -132,20 +161,20 @@ function firstInReadingOrder(list: HTMLElement[]): HTMLElement | null {
 }
 
 /** Move the focus one step; false when there's nothing that way. */
-export function moveFocus(direction: Direction, scope: HTMLElement = currentScope()): boolean {
-  const list = candidates(scope)
+export function moveFocus(direction: Direction, scope: HTMLElement = currentScope(), behavior: ScrollBehavior = 'auto'): boolean {
+  const list = candidates(scope, scope === document.body)
   const active = document.activeElement as HTMLElement | null
   const current = active && active !== document.body && scope.contains(active) && isNavigable(active) ? active : null
   if (!current) {
-    const start = startingPoint(list)
+    const start = startingPoint(elements(list))
     if (!start) return false
-    focusOn(start)
+    focusOn(start, behavior)
     return true
   }
-  const others = list.filter((el) => el !== current && !el.contains(current) && !current.contains(el))
-  const index = pickNext(boxOf(current), others.map(boxOf), direction)
+  const others = list.filter((c) => c.el !== current && !c.el.contains(current) && !current.contains(c.el))
+  const index = pickNext(boxOf(current), others.map((c) => c.box), direction)
   if (index < 0) return false
-  focusOn(others[index])
+  focusOn(others[index].el, behavior)
   return true
 }
 
@@ -283,6 +312,10 @@ function caretAtEdge(el: HTMLInputElement | HTMLTextAreaElement, direction: Dire
   }
 }
 
+/** When the last arrow was acted on: a held-down button repeats faster than a TV box can lay out. */
+let lastMoveAt = 0
+const REPEAT_MS = 110
+
 function onKeyDown(e: KeyboardEvent): void {
   if (ownEvents.has(e) || e.altKey || e.ctrlKey || e.metaKey) return
   if (handleMediaKey(e)) return
@@ -311,11 +344,14 @@ function onKeyDown(e: KeyboardEvent): void {
   if (isTextField(active) && (direction === 'left' || direction === 'right') && !(active instanceof HTMLElement && active.isContentEditable) && !caretAtEdge(active as HTMLInputElement, direction)) return
 
   e.preventDefault()
+  const now = performance.now()
+  if (e.repeat && now - lastMoveAt < REPEAT_MS) return
+  lastMoveAt = now
   const scope = currentScope()
   const moved = moveFocus(direction, scope)
   // Nothing that way on a page of text: scroll it instead
   if (!moved && scope === document.body && (direction === 'up' || direction === 'down')) {
-    window.scrollBy({ top: (direction === 'down' ? 1 : -1) * window.innerHeight * 0.4, behavior: 'smooth' })
+    window.scrollBy({ top: (direction === 'down' ? 1 : -1) * window.innerHeight * 0.4, behavior: 'auto' })
   }
 }
 
@@ -363,7 +399,7 @@ export function focusScreen(): () => void {
     }
     if (!chosen || !chosen.isConnected) {
       // Our own player opens with nothing chosen: OK plays/pauses and ← → seek until ↑ ↓ bring its controls
-      const list = candidates(scope).filter((el) => !el.closest('.player-controls'))
+      const list = elements(candidates(scope, scope === document.body)).filter((el) => !el.closest('.player-controls'))
       const inMain = scope === document.body ? list.filter((el) => el.closest('main')) : list
       const target = firstInView(inMain.length || elapsed < 2500 ? inMain : list)
       if (target) {
@@ -398,7 +434,7 @@ export function restoreFocus(mark: FocusMark): () => void {
   let frame = 0
   const startedAt = performance.now()
   const tick = () => {
-    const list = candidates(document.body).filter((el) => el.closest('main'))
+    const list = elements(candidates(document.body)).filter((el) => el.closest('main'))
     const match =
       list.find((el) => el.getAttribute('href') === mark.href && labelOf(el) === mark.label) ??
       (mark.href !== null ? list.find((el) => el.getAttribute('href') === mark.href) : undefined)

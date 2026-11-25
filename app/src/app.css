@@ -434,6 +434,15 @@ textarea {
     background-size: 480px 100%;
     animation: sv-shimmer 1.8s infinite linear;
   }
+  /*
+   * Artwork frames keep .skeleton under their picture: once it has arrived,
+   * stop shimmering. Hundreds of them animating unseen restyled and repainted
+   * the whole page every frame (a TV box couldn't keep up).
+   */
+  .skeleton:has(img[data-loaded="true"]) {
+    animation: none;
+    background: #161618;
+  }
 
   /* Images fade in as they arrive */
   .img-fade {
@@ -552,6 +561,15 @@ textarea {
   transform: scale(1.06);
   outline: 3px solid #fff;
   outline-offset: 3px;
+}
+/* A TV box can't afford a page of shimmering placeholders: they sit still */
+.sv-tv .skeleton {
+  animation: none;
+  background: #161618;
+}
+/* …nor a fade for every poster that arrives: they just appear */
+.sv-tv .img-fade {
+  transition: none;
 }
 /* Room around a focused control when the page or a row scrolls to it: the top bar, the next row's title, a peek of the card before */
 .sv-tv main :where(a[href], button, [tabindex]) {
