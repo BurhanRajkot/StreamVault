@@ -29,6 +29,22 @@ describe('codes', () => {
   })
 })
 
+describe('auth0Hosts', () => {
+  it('reads the tenant from the issuer URL production sets, or the domain', () => {
+    expect(auth0HostsOf({ AUTH0_ISSUER_BASE_URL: 'https://stream-vault.jp.auth0.com/' })).toEqual(['stream-vault.jp.auth0.com'])
+    expect(auth0HostsOf({ AUTH0_DOMAIN: 'stream-vault.jp.auth0.com' })).toEqual(['stream-vault.jp.auth0.com'])
+    expect(auth0HostsOf({ AUTH0_ISSUER_BASE_URL: 'https://a.auth0.com/', AUTH0_DOMAIN: 'a.auth0.com' })).toEqual(['a.auth0.com'])
+    expect(auth0HostsOf({})).toEqual([])
+  })
+
+  it('takes a sign-in address on a tenant named only by the issuer URL', () => {
+    expect(mod.parseAuthorizeUrl(AUTHORIZE, auth0HostsOf({ AUTH0_ISSUER_BASE_URL: 'https://tenant.example.auth0.com/' }))).toBe(AUTHORIZE)
+    expect(mod.parseAuthorizeUrl(AUTHORIZE, [])).toBeNull()
+  })
+})
+
+const auth0HostsOf = (env: Record<string, string>) => mod.auth0Hosts(env as NodeJS.ProcessEnv)
+
 describe('parseAuthorizeUrl', () => {
   it('keeps the tenant’s authorize address', () => {
     expect(mod.parseAuthorizeUrl(AUTHORIZE)).toBe(AUTHORIZE)

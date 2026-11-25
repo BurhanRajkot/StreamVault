@@ -39,6 +39,8 @@ export function yearOf(media: Media): string {
 
 /** How long a pointer rests on a card before its details start loading — skims across a row load nothing. */
 const HOVER_INTENT_MS = 250
+/** The same for the focus: a remote held down passes a card every ~100 ms. */
+const FOCUS_INTENT_MS = 400
 
 /**
  * A link to a title's page. The page opens at once on what this card already
@@ -71,9 +73,15 @@ export function TitleLink({ item: media, kind, ...props }: Omit<LinkProps, 'to' 
         props.onPointerDown?.(e)
         prefetch()
       }}
+      // Focus from a keyboard or a TV remote skims across rows: load only once it rests on a card
       onFocus={(e) => {
         props.onFocus?.(e)
-        prefetch()
+        clearTimeout(timer.current)
+        timer.current = setTimeout(prefetch, FOCUS_INTENT_MS)
+      }}
+      onBlur={(e) => {
+        props.onBlur?.(e)
+        clearTimeout(timer.current)
       }}
     />
   )
@@ -162,7 +170,10 @@ export function Row({ title, action, children, className, gap = 'gap-2.5 lg:gap-
   const measure = useCallback(() => {
     const el = scroller.current
     if (!el) return
-    setEdges({ start: el.scrollLeft < 8, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 8 })
+    const start = el.scrollLeft < 8
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8
+    // Called every frame while the row scrolls: re-render only when an end is reached or left
+    setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }))
   }, [])
 
   useEffect(() => {
