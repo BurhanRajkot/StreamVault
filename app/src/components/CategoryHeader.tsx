@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { useScrolled } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { Logo } from './Logo'
+import { FileSearchLink } from './FileSearchLink'
 import { MatureLink } from './MatureLink'
 
 /** The phone's browse categories — the home page's modes. (F1 has its own tab.) */
@@ -44,7 +45,10 @@ export function CategoryHeader({ active, overHero = true }: { active: Category; 
     >
       <div className="flex h-12 items-center justify-between px-4">
         <Logo compact />
-        <MatureLink />
+        <div className="flex items-center gap-2">
+          <FileSearchLink />
+          <MatureLink />
+        </div>
       </div>
       <nav ref={nav} className="no-scrollbar relative flex gap-2 overflow-x-auto px-4 pb-3 pt-0.5" aria-label="Categories">
         {CATEGORIES.map((c) => {

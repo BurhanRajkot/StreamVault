@@ -15,6 +15,7 @@
  *
  * Route summary:
  *   GET    /debrid/status                 — the account: connected, premium, expiry (admin)
+ *   GET    /debrid/library-search         — keyword search over the files in the account (admin)
  *   GET    /debrid/media-search           — releases for a title, tagged with what Real-Debrid has cached
  *   POST   /debrid/play                   — add/reuse a release and resolve its streams
  *   GET    /debrid/play/:torrentId        — poll a release that is still downloading
@@ -30,6 +31,7 @@ import { downloadRateLimiter, warmRateLimiter } from '../cybersecurity/rateLimit
 import { logger } from '../lib/logger'
 import * as debrid from '../lib/debrid'
 import * as subtitles from '../lib/subtitles'
+import { searchAccountFiles } from '../lib/debridLibrary'
 import { parseReleaseSearchQuery } from './releases'
 import { debridDownloadsAllowed } from '../lib/userAccess'
 import { isF1Session } from '../lib/f1Names'
@@ -51,6 +53,22 @@ router.get('/status', requireAdminAuth, async (_req, res) => {
       note: debrid.accountErrorMessage(err) ?? errorMessage(err),
     }
     return res.json(status)
+  }
+})
+
+// Keyword search over the files already in the account — "sex ten" finds every
+// file whose torrent or path has both words. Admin only: it reads the account's
+// own library, which never leaves the admin's session.
+router.get('/library-search', requireAdminAuth, async (req: Request, res: Response) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : ''
+  if (q.length < 2) return res.status(400).json({ error: 'Type at least 2 characters' })
+  const limit = optionalInt(req.query.limit) ?? 60
+  try {
+    res.set('Cache-Control', 'no-store')
+    return res.json(await searchAccountFiles(q, limit))
+  } catch (err: unknown) {
+    logger.warn('Debrid library search failed', { error: errorMessage(err) })
+    return sendDebridFailure(res, err, 'Search failed')
   }
 })
 

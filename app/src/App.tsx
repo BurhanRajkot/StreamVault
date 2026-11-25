@@ -29,6 +29,8 @@ const screens = {
   myList: () => import('@app/screens/MyListScreen').then((m) => ({ default: m.MyListScreen })),
   premium: () => import('@app/screens/PremiumScreen').then((m) => ({ default: m.PremiumScreen })),
   admin: () => import('@app/screens/AdminScreen').then((m) => ({ default: m.AdminScreen })),
+  files: () => import('@app/screens/LibrarySearchScreen').then((m) => ({ default: m.LibrarySearchScreen })),
+  filePlayer: () => import('@app/screens/LibraryPlayerScreen').then((m) => ({ default: m.LibraryPlayerScreen })),
   mature: () => import('@app/screens/MatureScreen').then((m) => ({ default: m.MatureScreen })),
   f1: () => import('@app/screens/F1Screen').then((m) => ({ default: m.F1Screen })),
   f1Race: () => import('@app/screens/F1RaceScreen').then((m) => ({ default: m.F1RaceScreen })),
@@ -48,6 +50,8 @@ const MyListScreen = lazy(screens.myList)
 const PremiumScreen = lazy(screens.premium)
 const AdminScreen = lazy(screens.admin)
 const MatureScreen = lazy(screens.mature)
+const LibrarySearchScreen = lazy(screens.files)
+const LibraryPlayerScreen = lazy(screens.filePlayer)
 const F1Screen = lazy(screens.f1)
 const F1RaceScreen = lazy(screens.f1Race)
 const F1PlayerScreen = lazy(screens.f1Player)
@@ -104,6 +108,7 @@ export function App() {
                 <Route path="/premium" element={<PremiumScreen />} />
                 <Route path="/admin" element={<AdminScreen />} />
                 <Route path="/18plus" element={<MatureScreen />} />
+                <Route path="/files" element={<LibrarySearchScreen />} />
                 <Route path="/title/:type/:id" element={<TitleScreen />} />
                 <Route path="/person/:id" element={<PersonScreen />} />
                 <Route path="/collection/:id" element={<CollectionScreen />} />
@@ -112,6 +117,7 @@ export function App() {
                 <Route path="/f1" element={<F1Screen />} />
                 <Route path="/f1/:year/:round" element={<F1RaceScreen />} />
                 <Route path="/watch/f1/:year/:round/:session" element={<F1PlayerScreen />} />
+                <Route path="/watch/file/:hash" element={<LibraryPlayerScreen />} />
                 <Route path="/offline/:id" element={<OfflinePlayerScreen />} />
                 <Route path="/tv-signin" element={<TvSignInScreen />} />
                 {/* The site's player links here to sign in */}

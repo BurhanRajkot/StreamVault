@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Bookmark, ChevronRight, Gauge, Info, Loader2, LogOut, Maximize, RefreshCw, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
+import { Bookmark, ChevronRight, FileSearch, Gauge, Info, Loader2, LogOut, Maximize, RefreshCw, Search, Server, ShieldCheck, UserRound, Wifi, Zap } from 'lucide-react'
 import { CONFIG, DEBRID_SERVER_ID } from '@/lib/config'
 import { startServer } from '@app/lib/startServer'
 import { usePremiumAccess } from '@/hooks/usePremiumAccess'
@@ -187,6 +187,27 @@ export function ProfileScreen() {
                   }
                   label="18+ shelf"
                 />
+                <ListRow
+                  icon={
+                    <IconTile color="teal">
+                      <FileSearch />
+                    </IconTile>
+                  }
+                  label="File search"
+                  detail="Search the files in your Real-Debrid account by keyword"
+                  trailing={<Switch label="File search" checked={settings.fileSearch} onChange={(v) => updateSettings({ fileSearch: v })} />}
+                />
+                {settings.fileSearch && (
+                  <ListRow
+                    to="/files"
+                    icon={
+                      <IconTile color="teal">
+                        <Search />
+                      </IconTile>
+                    }
+                    label="Search my files"
+                  />
+                )}
                 <ListRow
                   to="/admin"
                   icon={
