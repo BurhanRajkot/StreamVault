@@ -29,6 +29,7 @@ const screens = {
   myList: () => import('@app/screens/MyListScreen').then((m) => ({ default: m.MyListScreen })),
   premium: () => import('@app/screens/PremiumScreen').then((m) => ({ default: m.PremiumScreen })),
   admin: () => import('@app/screens/AdminScreen').then((m) => ({ default: m.AdminScreen })),
+  mature: () => import('@app/screens/MatureScreen').then((m) => ({ default: m.MatureScreen })),
   f1: () => import('@app/screens/F1Screen').then((m) => ({ default: m.F1Screen })),
   f1Race: () => import('@app/screens/F1RaceScreen').then((m) => ({ default: m.F1RaceScreen })),
   f1Player: () => import('@app/screens/F1PlayerScreen').then((m) => ({ default: m.F1PlayerScreen })),
@@ -46,6 +47,7 @@ const ProfileScreen = lazy(screens.profile)
 const MyListScreen = lazy(screens.myList)
 const PremiumScreen = lazy(screens.premium)
 const AdminScreen = lazy(screens.admin)
+const MatureScreen = lazy(screens.mature)
 const F1Screen = lazy(screens.f1)
 const F1RaceScreen = lazy(screens.f1Race)
 const F1PlayerScreen = lazy(screens.f1Player)
@@ -101,6 +103,7 @@ export function App() {
                 <Route path="/my-list" element={<MyListScreen />} />
                 <Route path="/premium" element={<PremiumScreen />} />
                 <Route path="/admin" element={<AdminScreen />} />
+                <Route path="/18plus" element={<MatureScreen />} />
                 <Route path="/title/:type/:id" element={<TitleScreen />} />
                 <Route path="/person/:id" element={<PersonScreen />} />
                 <Route path="/collection/:id" element={<CollectionScreen />} />
