@@ -13,9 +13,9 @@ resources:
 # Org: dragon-manner (the GitHub account)
 images:
   - name: ghcr.io/dragon-manner/streamvault-frontend
-    newTag: sha-3ed1d52  # Replaced by GitOps workflow with sha-<commit>
+    newTag: sha-d96af7a  # Replaced by GitOps workflow with sha-<commit>
   - name: ghcr.io/dragon-manner/streamvault-backend
-    newTag: sha-3ed1d52  # Replaced by GitOps workflow with sha-<commit>
+    newTag: sha-d96af7a  # Replaced by GitOps workflow with sha-<commit>
 
 # ── Patches ─────────────────────────────────────────────────────
 patches:
