@@ -27,6 +27,8 @@ interface SvNativePlugin {
   device?(): Promise<{ tv: boolean }>
   /** Raise the on-screen keyboard for the focused field (a TV's remote doesn't always). */
   showKeyboard?(): Promise<void>
+  /** TV: play a Premium file in Android's own player; answers where it got to (src/lib/nativePlayer.ts). */
+  playNative?(request: import('@/lib/nativePlayer').NativePlayRequest): Promise<import('@/lib/nativePlayer').NativePlayResult>
   /** Premium through the app (RdStreamServer.java): whether it can convert audio (it has ffmpeg). */
   rdCaps(): Promise<{ canConvert: boolean }>
   /** Start relaying a Real-Debrid file; its addresses on the phone's own server. */

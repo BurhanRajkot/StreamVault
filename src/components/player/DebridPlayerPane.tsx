@@ -55,6 +55,8 @@ import {
   type StruggleCause,
 } from '@/lib/releasePlayback'
 import { appConvertsAudio } from '@/lib/localStream'
+import { nativePlayer } from '@/lib/nativePlayer'
+import { NativePlayback } from './NativePlayback'
 import {
   DEFAULT_AUDIO_LANGUAGE,
   channelLabel,
@@ -353,6 +355,8 @@ export function DebridPlayerPane({
   const [resumeToast, setResumeToast] = useState(false)
   /** The current file has shown its first frame. */
   const [videoStarted, setVideoStarted] = useState(false)
+  /** The TV app's own player couldn't play this file: the page's player does (lib/nativePlayer). */
+  const [nativeFailed, setNativeFailed] = useState(false)
   /** Real-Debrid's download server nearest this viewer — measured while the release is found (lib/debridHost). */
   const [edge, setEdge] = useState<EdgeChoice | undefined>(() => knownEdge())
   /** Latest position reported by the video, in seconds. */
@@ -1235,6 +1239,30 @@ export function DebridPlayerPane({
 
   // --- Ready ---
   const videoKey = `${activeRelease?.info_hash ?? ''}:${playback.directUrl}:${playNonce}`
+  const episodeOrSubtitle = mediaType === 'tv' && season !== undefined && episode !== undefined ? `S${season} · E${episode}` : subtitle
+
+  // The TV app: the film plays in Android's own player, which a TV's chip keeps up with
+  const native = nativePlayer()
+  if (native && !nativeFailed) {
+    return (
+      <NativePlayback
+        key={videoKey}
+        player={native}
+        playback={playback}
+        edge={edge}
+        title={title}
+        subtitle={episodeOrSubtitle}
+        startAt={startAt}
+        audioLanguage={audioLangRef.current}
+        subtitles={subtitles}
+        backdropUrl={backdropUrl}
+        onProgress={handleProgress}
+        onNext={onNext}
+        onDone={onBack}
+        onFailed={() => setNativeFailed(true)}
+      />
+    )
+  }
   const toast = 'flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-black/80 px-3.5 py-2.5 text-sm text-white/90 shadow-lg'
   const toastAction = 'font-semibold text-white underline-offset-4 hover:underline'
   const toastDismiss = '-m-1 p-1 text-white/60 hover:text-white'
@@ -1253,7 +1281,7 @@ export function DebridPlayerPane({
         nextLabel={nextLabel}
         onBack={onBack}
         title={title}
-        subtitle={mediaType === 'tv' && season !== undefined && episode !== undefined ? `S${season} · E${episode}` : subtitle}
+        subtitle={episodeOrSubtitle}
         sources={sources}
         activeSourceId={activeRelease?.info_hash ?? null}
         onSourceChange={selectRelease}

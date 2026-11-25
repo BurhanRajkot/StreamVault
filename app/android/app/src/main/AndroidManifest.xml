@@ -44,6 +44,14 @@
 
         </activity>
 
+        <!-- TV: Premium in Android's own player (the web view can't keep up on a TV's chip) -->
+        <activity
+            android:name=".TvPlayerActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="sensorLandscape"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

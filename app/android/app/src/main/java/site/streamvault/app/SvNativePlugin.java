@@ -17,6 +17,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.MimeTypeMap;
 
+import androidx.activity.result.ActivityResult;
 import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -27,6 +28,7 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import org.json.JSONException;
@@ -377,6 +379,57 @@ public class SvNativePlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("tv", MainActivity.isTv(getContext()));
         call.resolve(result);
+    }
+
+    /**
+     * TV: play a Premium file in Android's own player (TvPlayerActivity) and
+     * answer, once the viewer is back, where it got to. Subtitles come as
+     * WebVTT text (the app has the cues already) and are kept in a file for it.
+     */
+    @PluginMethod
+    public void playNative(PluginCall call) {
+        JSArray given = call.getArray("urls");
+        java.util.ArrayList<String> urls = new java.util.ArrayList<>();
+        try {
+            if (given != null) for (Object url : given.toList()) if (url instanceof String && !((String) url).isEmpty()) urls.add((String) url);
+        } catch (JSONException e) {
+            call.reject("Bad urls");
+            return;
+        }
+        Intent intent = new Intent(getContext(), TvPlayerActivity.class);
+        intent.putExtra(TvPlayerActivity.EXTRA_URLS, urls.toArray(new String[0]));
+        intent.putExtra(TvPlayerActivity.EXTRA_CONVERTED_URL, call.getString("convertedUrl"));
+        intent.putExtra(TvPlayerActivity.EXTRA_TITLE, call.getString("title", ""));
+        intent.putExtra(TvPlayerActivity.EXTRA_SUBTITLE, call.getString("subtitle"));
+        Double startS = call.getDouble("startS");
+        intent.putExtra(TvPlayerActivity.EXTRA_START_MS, startS == null ? 0L : Math.round(startS * 1000));
+        intent.putExtra(TvPlayerActivity.EXTRA_AUDIO_LANG, call.getString("audioLang"));
+        String vtt = call.getString("subtitlesVtt");
+        File subs = new File(getContext().getCacheDir(), "tv-player-subtitles.vtt");
+        if (subs.exists()) subs.delete();
+        if (vtt != null && !vtt.isEmpty()) {
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(subs)) {
+                out.write(vtt.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                intent.putExtra(TvPlayerActivity.EXTRA_SUBS_PATH, subs.getAbsolutePath());
+                intent.putExtra(TvPlayerActivity.EXTRA_SUBS_LANG, call.getString("subtitlesLang"));
+            } catch (IOException e) {
+                // Plays without them
+            }
+        }
+        startActivityForResult(call, intent, "nativePlayerDone");
+    }
+
+    @ActivityCallback
+    private void nativePlayerDone(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject answer = new JSObject();
+        Intent data = result.getData();
+        answer.put("positionS", data == null ? 0 : data.getLongExtra(TvPlayerActivity.RESULT_POSITION_MS, 0) / 1000.0);
+        answer.put("durationS", data == null ? 0 : data.getLongExtra(TvPlayerActivity.RESULT_DURATION_MS, 0) / 1000.0);
+        answer.put("ended", data != null && data.getBooleanExtra(TvPlayerActivity.RESULT_ENDED, false));
+        String error = data == null ? null : data.getStringExtra(TvPlayerActivity.RESULT_ERROR);
+        if (error != null) answer.put("error", error);
+        call.resolve(answer);
     }
 
     /** A TV's web view doesn't always raise the keyboard when a field is chosen with the remote. */

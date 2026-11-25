@@ -10,6 +10,7 @@ import { registerPremiumStreams } from '@app/native/premiumStreams'
 import { markAppRequests } from '@app/native/clientHeader'
 import { detectTv, isAndroid, isDesktop } from '@app/native/platform'
 import { startTvMode } from '@app/tv/tvRemote'
+import { registerNativePlayer } from '@app/native/nativePlayer'
 import './app.css'
 
 markAppRequests()
@@ -17,7 +18,10 @@ markAppRequests()
 document.documentElement.classList.add(isAndroid ? 'sv-android' : isDesktop ? 'sv-desktop' : 'sv-web')
 registerPremiumStreams()
 // A TV (Android TV / Google TV) gets the remote-driven, big-screen app: settled before the first render
-if (await detectTv()) startTvMode()
+if (await detectTv()) {
+  startTvMode()
+  registerNativePlayer()
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
