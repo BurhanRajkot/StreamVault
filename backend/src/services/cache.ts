@@ -167,6 +167,12 @@ export const f1 = createNamespace('f1', 60 * 60)
 export const subtitles = createNamespace('subtitles', 12 * 60 * 60)
 
 /**
+ * TV sign-in links (routes/tvLink.ts): a code, the Auth0 address behind it,
+ * and the phone's answer. 10 minutes; each write sets its own remaining time.
+ */
+export const tvLink = createNamespace('tvlink', 10 * 60)
+
+/**
  * Clear all caches completely
  */
 export async function clearAllCaches(): Promise<void> {

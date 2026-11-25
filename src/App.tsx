@@ -42,6 +42,7 @@ const AdminDashboard = lazyImport(() => import('./pages/admin/Dashboard'))
 const F1 = lazyImport(() => import('./pages/F1'))
 const F1Race = lazyImport(() => import('./pages/F1Race'))
 const F1Watch = lazyImport(() => import('./pages/F1Watch'))
+const Activate = lazyImport(() => import('./pages/Activate'))
 
 // Minimal loading fallback — matches dark background so there's no flash
 const PageFallback = () => (
@@ -73,6 +74,8 @@ const AppContent = () => {
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        {/* The TV app signs in through a phone here */}
+        <Route path="/activate" element={<Activate />} />
         {/* Pages that no longer exist (plans, downloads) — old links land on the home page */}
         {RETIRED_PATHS.map((path) => (
           <Route key={path} path={path} element={<Navigate to="/" replace />} />

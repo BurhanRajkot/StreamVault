@@ -34,6 +34,21 @@ app/
   the app as a verified App Link — that needs
   [`public/.well-known/assetlinks.json`](../public/.well-known/assetlinks.json)
   live on the site, with the release key's SHA-256 fingerprint.
+- **Android TV / Google TV** (`src/tv/`). The same APK: the manifest adds a
+  `LEANBACK_LAUNCHER` entry and a banner, and `MainActivity.isTv` tells the web
+  side (`SvNative.device()`), which then lays the page out 1280 CSS px wide
+  (the TV's web view is ~960 — the phone layout) and fits it to the screen,
+  moves the focus with the remote's arrows to the nearest control that way
+  (`spatialNav.ts`, tested), and rings whatever is focused (`app.css`
+  `.sv-tv`). Screens open on `[data-tv-autofocus]` (Play) and Back returns to
+  the card you left. The Premium player starts with nothing focused — OK
+  plays/pauses, ← → seek, ↑ ↓ bring its controls; an embed's frame gets the
+  remote, and Back brings our bar over it. A TV has no browser, so it signs in
+  through the viewer's phone: `TvSignInScreen` starts an Auth0 sign-in, puts
+  its address behind a short code (`backend/src/routes/tvLink.ts`) and the
+  phone signs in at `stream-vault.site/activate`; links that would open a
+  browser show a QR code instead. Try it on a desktop with
+  `localStorage['sv-tv'] = '1'`.
 - **Offline downloads** are Premium: the app finds a release the way the
   Premium player does, asks Real-Debrid for the direct file, and hands it to
   Android's DownloadManager (or the desktop shell's resumable downloader). Files

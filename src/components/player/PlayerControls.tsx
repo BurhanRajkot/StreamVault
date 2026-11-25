@@ -384,6 +384,7 @@ export function PlayerControls({
   const lastSeekRef = useRef<{ at: number; side: SeekRipple['side']; amount: number } | null>(null)
   const seekBarRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const lastTapRef = useRef<{ at: number; side: 'left' | 'right' | 'center' } | null>(null)
@@ -539,6 +540,15 @@ export function PlayerControls({
       reveal()
     }
   }, [pinned, reveal])
+
+  // The TV app's remote is activity too (app/src/tv/tvRemote.ts): moving
+  // between the controls keeps them up, and brings them up when they're away
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    root.addEventListener('sv-player-wake', reveal)
+    return () => root.removeEventListener('sv-player-wake', reveal)
+  }, [reveal])
 
   useEffect(
     () => () => {
@@ -1015,6 +1025,7 @@ export function PlayerControls({
 
   return (
     <div
+      ref={rootRef}
       className={cn(
         'player-controls absolute inset-0 select-none',
         // Above the phone layout's pickers (z-110) while the settings sheet is up
@@ -1295,6 +1306,8 @@ export function PlayerControls({
             onClick={togglePlay}
             aria-label={snap.paused ? 'Play (k)' : 'Pause (k)'}
             title={snap.paused ? 'Play (k)' : 'Pause (k)'}
+            // Where a TV remote's ↑/↓ lands when it brings the controls up
+            data-tv-initial
             className={cn(iconButton, 'pointer-coarse:hidden')}
           >
             {snap.paused ? <Play className="h-6 w-6 fill-current" /> : <Pause className="h-6 w-6 fill-current" />}

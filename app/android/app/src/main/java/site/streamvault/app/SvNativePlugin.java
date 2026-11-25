@@ -371,6 +371,26 @@ public class SvNativePlugin extends Plugin {
         });
     }
 
+    /** What this device is: a TV gets the remote-driven layout (app/src/tv/). */
+    @PluginMethod
+    public void device(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("tv", MainActivity.isTv(getContext()));
+        call.resolve(result);
+    }
+
+    /** A TV's web view doesn't always raise the keyboard when a field is chosen with the remote. */
+    @PluginMethod
+    public void showKeyboard(PluginCall call) {
+        Activity activity = getActivity();
+        activity.runOnUiThread(() -> {
+            android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(getBridge().getWebView(), android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+            call.resolve();
+        });
+    }
+
     @PluginMethod
     public void freeSpace(PluginCall call) {
         StatFs stat = new StatFs(folder("media").getAbsolutePath());

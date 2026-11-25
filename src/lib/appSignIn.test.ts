@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { appSignInStep } from './appSignIn'
+import { appSignInStep, tvSignInRecord } from './appSignIn'
 
 const DOMAIN = 'tenant.us.auth0.com'
 const AUTHORIZE = `https://${DOMAIN}/authorize?client_id=abc&redirect_uri=https%3A%2F%2Fstream-vault.site&state=s1&code_challenge=x`
@@ -57,5 +57,40 @@ describe('appSignInStep', () => {
   it('leaves the website’s own sign-in alone', () => {
     expect(appSignInStep(at('/', '?code=c1&state=s1'), memoryStore(), DOMAIN)).toBeNull()
     expect(appSignInStep(at('/movies'), memoryStore({ 'sv-app-signin-port': '51234' }), DOMAIN)).toBeNull()
+  })
+
+  const tvRecord = (code = 'ABC234', state = 's1') => JSON.stringify({ code, state })
+
+  it('hands a TV its sign-in, once', () => {
+    const store = memoryStore({ 'sv-tv-link-code': tvRecord() })
+    expect(appSignInStep(at('/', '?code=c1&state=s1'), store, DOMAIN)).toEqual({ tvLink: { code: 'ABC234', search: '?code=c1&state=s1' } })
+    expect(appSignInStep(at('/', '?code=c1&state=s1'), store, DOMAIN)).toBeNull()
+  })
+
+  it('remembers the TV sign-in’s state from its address', () => {
+    expect(JSON.parse(tvSignInRecord('ABC234', AUTHORIZE))).toEqual({ code: 'ABC234', state: 's1' })
+  })
+
+  it('waits for Auth0 before handing a TV anything', () => {
+    const store = memoryStore({ 'sv-tv-link-code': tvRecord() })
+    expect(appSignInStep(at('/activate'), store, DOMAIN)).toBeNull()
+    expect(store.data.get('sv-tv-link-code')).toBe(tvRecord())
+  })
+
+  it('never hands a TV the website’s own sign-in (a TV sign-in abandoned earlier in the tab)', () => {
+    const store = memoryStore({ 'sv-tv-link-code': tvRecord('ABC234', 'tv-state') })
+    expect(appSignInStep(at('/', '?code=c1&state=website-state'), store, DOMAIN)).toBeNull()
+    expect(store.data.has('sv-tv-link-code')).toBe(false)
+  })
+
+  it('drops a TV record that was tampered with', () => {
+    expect(appSignInStep(at('/', '?code=c1&state=s1'), memoryStore({ 'sv-tv-link-code': '{"code":"../x","state":"s1"}' }), DOMAIN)).toBeNull()
+    expect(appSignInStep(at('/', '?code=c1&state=s1'), memoryStore({ 'sv-tv-link-code': 'ABC234' }), DOMAIN)).toBeNull()
+  })
+
+  it('starting a desktop sign-in forgets a TV one', () => {
+    const store = memoryStore({ 'sv-tv-link-code': tvRecord() })
+    appSignInStep(at('/app-signin', '', `#port=51234&url=${encodeURIComponent(AUTHORIZE)}`), store, DOMAIN)
+    expect(store.data.has('sv-tv-link-code')).toBe(false)
   })
 })

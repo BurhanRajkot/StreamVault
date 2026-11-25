@@ -11,6 +11,7 @@ import { useTitleDetails } from '@app/lib/useTitle'
 import { useIsWide } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { usePremiumIntent } from '@app/lib/premiumHeadStart'
+import { isTv } from '@app/native/platform'
 import { Button } from './kit'
 import { TitleLink, kindOf, titleOf, tmdbImg, yearOf, type MediaKind } from './media'
 
@@ -146,7 +147,8 @@ function HeroCopy({ media, kind, logo }: { media: Media; kind: MediaKind; logo: 
       transition={{ duration: 0.5, delay: 0.15 }}
       className="pointer-events-none absolute bottom-[calc(4vw+64px)] left-0 flex max-w-[min(44rem,50%)] flex-col items-start px-12 text-left"
     >
-      <TitleLink item={media} kind={kind} className="pointer-events-auto mb-4 block">
+      {/* A TV's remote skips the title: More Info goes to the same page, and it's one press less between Play and the top bar */}
+      <TitleLink item={media} kind={kind} tabIndex={isTv ? -1 : undefined} className="pointer-events-auto mb-4 block">
         {logo ? (
           <img src={logo} alt={titleOf(media)} className="max-h-36 max-w-[min(28rem,100%)] object-contain object-left drop-shadow-[0_2px_16px_rgb(0_0_0/0.5)]" />
         ) : (
@@ -156,7 +158,7 @@ function HeroCopy({ media, kind, logo }: { media: Media; kind: MediaKind; logo: 
       <p className="mb-4 text-[15px] font-medium text-white/70">{meta}</p>
       <p className="mb-6 line-clamp-3 max-w-[36rem] text-[15px] leading-relaxed text-white/75">{media.overview}</p>
       <div className="pointer-events-auto flex items-center gap-3">
-        <Button size="lg" onClick={() => navigate(`/watch/${kind}/${media.id}`)} {...intent} className="px-8">
+        <Button size="lg" onClick={() => navigate(`/watch/${kind}/${media.id}`)} {...intent} data-tv-autofocus className="px-8">
           <Play className="fill-current" /> Play
         </Button>
         <motion.button

@@ -14,7 +14,7 @@ import { useDebridToken } from '@/hooks/useDebridToken'
 import { useSeasonEpisodes } from '@/hooks/useSeasonEpisodes'
 import { useAudioLanguage } from '@/hooks/useAudioLanguage'
 import { PremiumPane } from '@/components/player/PremiumPane'
-import { desktop, setPlaybackMode } from '@app/native/platform'
+import { desktop, isTv, setPlaybackMode } from '@app/native/platform'
 import { getSettings } from '@app/lib/settings'
 import { headStartPremium } from '@app/lib/premiumHeadStart'
 import { startServer } from '@app/lib/startServer'
@@ -339,6 +339,8 @@ function Player({ media, kind }: { media: Media; kind: TitleKind }) {
                 className="absolute inset-0 h-full w-full border-0"
                 referrerPolicy={CONFIG.PLAYER_IFRAME_REFERRER_POLICY}
                 allow={IFRAME_ALLOW}
+                // TV: the remote goes to the embed's own player (OK, and the arrows across its buttons); Back brings our bar
+                data-tv-autofocus={isTv || undefined}
                 onLoad={() => setIframeLoaded(true)}
               />
               <AnimatePresence>

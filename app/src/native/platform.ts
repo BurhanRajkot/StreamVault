@@ -23,6 +23,10 @@ interface SvNativePlugin {
   installApk(options: { path: string }): Promise<{ needsPermission?: boolean }>
   setImmersive(options: { enabled: boolean }): Promise<void>
   freeSpace(): Promise<{ bytes: number }>
+  /** What the device is (MainActivity.isTv). Missing on builds older than the TV app. */
+  device?(): Promise<{ tv: boolean }>
+  /** Raise the on-screen keyboard for the focused field (a TV's remote doesn't always). */
+  showKeyboard?(): Promise<void>
   /** Premium through the app (RdStreamServer.java): whether it can convert audio (it has ffmpeg). */
   rdCaps(): Promise<{ canConvert: boolean }>
   /** Start relaying a Real-Debrid file; its addresses on the phone's own server. */
@@ -100,8 +104,43 @@ export const isDesktop = !!desktop
 export const isWindows = desktop?.platform === 'win32'
 export const isNativeApp = isAndroid || isDesktop
 export const platformLabel = isAndroid ? 'Android' : isWindows ? 'Windows' : isDesktop ? 'Linux' : 'Web'
+/** Like platformLabel, telling a TV from a phone — read after detectTv(). */
+export function deviceLabel(): string {
+  return isTv ? 'Android TV' : platformLabel
+}
 
 export const SvNative = registerPlugin<SvNativePlugin>('SvNative')
+
+/**
+ * A TV (Android TV / Google TV): driven with a remote, seen from across the
+ * room — see app/src/tv/. Settled by detectTv() before the app first renders,
+ * so read it inside components and functions, never at a module's top level.
+ */
+export let isTv = false
+
+/** Ask Android once at start. `localStorage['sv-tv'] = '1'` turns TV mode on anywhere (testing on a desktop). */
+export async function detectTv(): Promise<boolean> {
+  try {
+    const forced = localStorage.getItem('sv-tv')
+    if (forced === '1' || forced === '0') {
+      isTv = forced === '1'
+      return isTv
+    }
+  } catch {
+    // No storage: ask the device
+  }
+  if (!isAndroid) return false
+  try {
+    const answer = await Promise.race([
+      SvNative.device?.() ?? Promise.resolve({ tv: false }),
+      new Promise<{ tv: boolean }>((resolve) => setTimeout(() => resolve({ tv: false }), 1500)),
+    ])
+    isTv = !!answer?.tv
+  } catch {
+    isTv = false
+  }
+  return isTv
+}
 
 export const APP_VERSION = __APP_VERSION__
 
@@ -112,6 +151,12 @@ export const SITE_URL = 'https://stream-vault.site'
 export async function openExternal(url: string): Promise<void> {
   if (desktop) return desktop.openExternal(url)
   if (isAndroid) {
+    // A TV has no browser: the link goes to the viewer's phone as a QR code
+    if (isTv && /^https?:/i.test(url)) {
+      const { openOnPhone } = await import('@app/tv/TvOpenOnPhone')
+      openOnPhone(url)
+      return
+    }
     // http(s) in a Custom Tab; anything else (magnet:) is an intent the WebView hands to Android
     if (/^https?:/i.test(url)) {
       const { Browser } = await import('@capacitor/browser')

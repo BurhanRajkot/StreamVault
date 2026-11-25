@@ -60,6 +60,10 @@ export function OfflinePlayerScreen() {
           autoPlay
           playsInline
           controlsList="nodownload"
+          // TV: the remote plays/pauses and seeks it (app/src/tv/tvRemote.ts)
+          tabIndex={0}
+          data-tv-video
+          data-tv-autofocus
           onLoadedMetadata={(e) => {
             const at = readResumePosition(key)
             if (at) e.currentTarget.currentTime = at

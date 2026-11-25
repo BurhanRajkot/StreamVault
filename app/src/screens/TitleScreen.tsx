@@ -311,7 +311,7 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
 
         {/* Play, then the smaller actions */}
         <div className="flex w-full flex-col items-center gap-4 lg:w-auto lg:flex-row lg:items-center lg:gap-6">
-          <Button size="lg" onClick={() => play()} className="relative w-full max-w-[26rem] overflow-hidden lg:w-auto lg:px-10">
+          <Button size="lg" onClick={() => play()} data-tv-autofocus className="relative w-full max-w-[26rem] overflow-hidden lg:w-auto lg:px-10">
             <Play className="fill-current" /> {resumeLabel}
             {progress && (
               <span className="absolute inset-x-8 bottom-[7px] h-[3px] overflow-hidden rounded-full bg-black/15">
