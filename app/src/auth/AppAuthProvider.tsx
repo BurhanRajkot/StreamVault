@@ -2,6 +2,7 @@ import { useEffect, useCallback, type ReactNode } from 'react'
 import { Auth0Provider, useAuth0 } from '@auth0/auth0-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { answerTvLink } from '@/lib/api'
 import { desktop, isAndroid, isTv, SITE_URL } from '@app/native/platform'
 
 /**
@@ -76,6 +77,13 @@ function AndroidRedirectHandler() {
             navigate(returnTo || '/me', { replace: true })
             toast.success('Signed in')
           } catch (err) {
+            // Not a sign-in this app started: most likely a TV's, signed in on
+            // this phone's browser — Auth0's return address opens this app
+            const kind = (err as { error?: string }).error
+            if ((kind === 'missing_transaction' || kind === 'state_mismatch') && (await answerTvLink(parsed.search).catch(() => false))) {
+              toast.success('Your TV is signing in — you can put your phone down')
+              return
+            }
             toast.error(err instanceof Error ? err.message : 'Sign-in failed')
           }
           return
