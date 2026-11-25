@@ -9,7 +9,30 @@ import type { Page, TestInfo } from '@playwright/test'
 import { test, expect } from '../fixtures/test'
 import { MOVIE } from '../fixtures/data'
 
+/**
+ * Playwright's Firefox (159) segfaults the page when a script reads an
+ * element's ARIA reflection — `section.ariaLabelledByElements` — after
+ * Playwright's own role locator has resolved that aria-labelledby from its
+ * isolated world, and `getByRole('region', { name })` (home.goto's wait) does
+ * exactly that to every `<section aria-labelledby>` row. axe-core 4.14 reads
+ * those properties and falls back to the aria-* attributes when they're null,
+ * and the attributes are all the app sets, so hiding the properties leaves
+ * the audit unchanged. Repro: setContent a `<section aria-labelledby="x">`,
+ * `getByRole('region', { name })`, then evaluate the property.
+ */
+async function hideAriaReflectionOnFirefox(page: Page) {
+  if (page.context().browser()?.browserType().name() !== 'firefox') return
+  await page.evaluate(() => {
+    for (const name of Object.getOwnPropertyNames(Element.prototype)) {
+      if (/^aria[A-Z]\w*Elements?$/.test(name)) {
+        Object.defineProperty(Element.prototype, name, { get: () => null, configurable: true })
+      }
+    }
+  })
+}
+
 async function audit(page: Page, testInfo: TestInfo) {
+  await hideAriaReflectionOnFirefox(page)
   const { violations } = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     // Third-party embed content isn't ours to fix.
