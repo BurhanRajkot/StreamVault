@@ -14,6 +14,10 @@
  *      GET /tv-link/:code → { authorizeUrl } — and goes on to Auth0.
  *   3. Auth0 returns the phone to https://stream-vault.site/?code=…&state=…;
  *      the site passes that query here: POST /tv-link/:code/complete { search }.
+ *      A phone with the StreamVault app installed opens that address in the
+ *      app instead (it's the app's own sign-in link), and the app has no code,
+ *      only Auth0's answer: it sends POST /tv-link/answer { search }, and the
+ *      answer's state finds the TV it belongs to.
  *   4. The TV, waiting on POST /tv-link/:code/wait { secret }, gets the query
  *      and exchanges the code itself. The code is useless without the PKCE
  *      verifier, which never left the TV — this route only ever holds an
@@ -154,7 +158,48 @@ router.post('/', strictRateLimiter, async (req: Request, res: Response) => {
   for (let tries = 0; (await store.get(code)) && tries < 5; tries++) code = newCode()
   const secret = randomBytes(32).toString('hex')
   await write(code, { authorizeUrl, secretHash: hashSecret(secret), expiresAt: Date.now() + LINK_TTL_S * 1000, opened: false, search: null })
+  // The sign-in's state finds this code again when the answer comes back without it (the phone app)
+  await store.set(stateKey(new URL(authorizeUrl).searchParams.get('state') ?? ''), code, LINK_TTL_S)
   res.status(201).json({ code, secret, expiresIn: LINK_TTL_S })
+})
+
+function stateKey(state: string): string {
+  return `state:${createHash('sha256').update(state).digest('hex')}`
+}
+
+/** Hand Auth0's answer to the TV waiting on `code`. */
+async function complete(code: string, search: string, res: Response): Promise<void> {
+  const entry = await read(code)
+  if (!entry) {
+    res.status(404).json({ error: 'This sign-in expired. Get a new code on your TV.' })
+    return
+  }
+  if (entry.search) {
+    res.status(409).json({ error: 'This code was already used.' })
+    return
+  }
+  await write(code, { ...entry, opened: true, search })
+  res.status(204).end()
+}
+
+/**
+ * The phone app, given Auth0's answer for a sign-in it didn't start: if it's
+ * a TV's (its state is one a TV started with), hand it over. 404 when it isn't.
+ */
+router.post('/answer', strictRateLimiter, async (req: Request, res: Response) => {
+  const search = parseReturnSearch(req.body?.search)
+  if (!search) {
+    res.status(400).json({ error: 'Invalid sign-in answer' })
+    return
+  }
+  const state = new URLSearchParams(search).get('state') ?? ''
+  const code = await store.get<string>(stateKey(state))
+  if (!code) {
+    res.status(404).json({ error: 'No TV is waiting for this sign-in.' })
+    return
+  }
+  await store.del(stateKey(state))
+  await complete(code, search, res)
 })
 
 /** The phone: where to sign in for this code. */
@@ -177,17 +222,7 @@ router.post('/:code/complete', strictRateLimiter, async (req: Request, res: Resp
     res.status(400).json({ error: 'Invalid sign-in answer' })
     return
   }
-  const entry = await read(code)
-  if (!entry) {
-    res.status(404).json({ error: 'This sign-in expired. Get a new code on your TV.' })
-    return
-  }
-  if (entry.search) {
-    res.status(409).json({ error: 'This code was already used.' })
-    return
-  }
-  await write(code, { ...entry, opened: true, search })
-  res.status(204).end()
+  await complete(code, search, res)
 })
 
 /**

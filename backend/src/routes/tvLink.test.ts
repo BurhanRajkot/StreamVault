@@ -126,6 +126,17 @@ describe('tv-link routes', () => {
     expect((await fetch(`${base}/${code}`)).status).toBe(404)
   })
 
+  it('takes the answer from a phone app, which has only the sign-in’s state', async () => {
+    const authorizeUrl = AUTHORIZE.replace('state=s1', 'state=app-state')
+    const { code, secret } = (await (await post('', { authorizeUrl })).json()) as { code: string; secret: string }
+    expect((await post('/answer', { search: '?code=c9&state=someone-else' })).status).toBe(404)
+    expect((await post('/answer', { search: '?code=c9&state=app-state' })).status).toBe(204)
+    // Once: the state is spent
+    expect((await post('/answer', { search: '?code=c9&state=app-state' })).status).toBe(404)
+    const answer = await post(`/${code}/wait`, { secret, seen: 'opened' })
+    expect(await answer.json()).toEqual({ status: 'done', search: '?code=c9&state=app-state' })
+  })
+
   it('answers only the TV that holds the secret', async () => {
     const { code } = (await (await post('', { authorizeUrl: AUTHORIZE })).json()) as { code: string }
     expect((await post(`/${code}/wait`, { secret: 'guess' })).status).toBe(403)

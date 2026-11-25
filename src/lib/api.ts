@@ -1155,3 +1155,17 @@ export function waitForTvLink(
 export function openTvLink(code: string): Promise<{ authorizeUrl: string }> {
   return tvLinkRequest(`/${encodeURIComponent(code)}`)
 }
+
+/**
+ * The phone app, holding Auth0's answer to a sign-in it didn't start (a TV's
+ * — the phone app opens the site's address Auth0 returns to): hand it to the
+ * TV waiting for it. False when no TV is.
+ */
+export async function answerTvLink(search: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/tv-link/answer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ search }),
+  })
+  return res.status === 204
+}
