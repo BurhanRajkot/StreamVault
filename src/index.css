@@ -706,6 +706,16 @@
     contain-intrinsic-size: auto 380px;
   }
 
+  /* An empty wrapper (rows not mounted yet, or none to show) has nothing to
+     defer. Off screen it would keep the remembered or guessed height: a
+     380–500px blank gap that Safari only collapses once the gap nears the
+     viewport, so everything below it jumps up as you scroll. Chromium's
+     scroll anchoring hides the jump; Safari doesn't have it. */
+  .below-fold-section:empty {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
+  }
+
   /** Horizontal row skeleton placeholder — avoids CLS while items load */
   .row-skeleton-container {
     min-height: 240px;
