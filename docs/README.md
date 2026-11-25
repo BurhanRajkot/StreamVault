@@ -17,6 +17,7 @@ The same library, account, servers and My List as [stream-vault.site](https://st
 |---|---|---|
 | 🐧 **Linux** | [`StreamVault.AppImage`](https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault.AppImage) · [`.deb`](https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault.deb) · [`.pacman`](https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault.pacman) | AppImage updates itself |
 | 🤖 **Android** | [`StreamVault.apk`](https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/StreamVault.apk) | Updates itself |
+| 📺 **Android TV / Google TV** | the same APK: in Downloader, enter `stream-vault.site/apk` | Updates itself |
 | 🪟 **Windows** | [`StreamVault-Setup.exe`](https://github.com/dragon-manner/StreamVault/releases/latest/download/StreamVault-Setup.exe) | Updates itself |
 
 Every version is on the [releases page](https://github.com/dragon-manner/StreamVault/releases). If GitHub downloads crawl for you, the Linux commands below fetch from the fast mirror instead.
@@ -49,6 +50,16 @@ The AppImage installs its own updates. With the `.deb` or `.pacman`, the app tel
 2. If Android asks, allow your browser to **install unknown apps**, then tap **Install**.
 
 Needs Android 7.0 or newer. New versions show up in the app: tap **Update now**.
+
+### 📺 Android TV / Google TV
+
+The Android app is a TV app too: it puts its banner on the TV's home screen, lays out for the big screen and works with the remote.
+
+1. Install **Downloader** (by AFTVnews) from the TV's Play Store.
+2. Allow it to install apps: **Settings → Apps → Security & restrictions → Unknown sources → Downloader** (on some TVs it's under **Device Preferences**).
+3. In Downloader, enter `stream-vault.site/apk`, then **Install**.
+
+To sign in, open **My Space → Sign In** on the TV. It shows a code: on your phone, go to `stream-vault.site/activate` (or scan the QR code), enter it and sign in there. The TV signs itself in. New versions show up in the app like on a phone.
 
 ### 🪟 Windows
 

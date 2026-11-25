@@ -527,3 +527,42 @@ textarea {
 .sv-frameless .app-player .player-top[data-shown="true"] .player-overlay-title {
   -webkit-app-region: drag;
 }
+
+/*
+ * TV (app/src/tv/, html.sv-tv): driven by a remote from across the room.
+ * Whatever the remote is on carries one bright ring; cards lift instead.
+ * There's no mouse, so :focus is the whole story (focus by script counts).
+ * Unlayered, so it wins over the utilities.
+ */
+.sv-tv {
+  cursor: none;
+}
+.sv-tv :focus {
+  outline: none;
+}
+.sv-tv :where(a[href], button, input, select, textarea, iframe, [tabindex]):focus {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+/* Cards: the artwork grows and takes the ring */
+.sv-tv .group\/card:focus {
+  outline: none;
+}
+.sv-tv .group\/card:focus > :first-child {
+  transform: scale(1.06);
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+/* Room around a focused control when the page or a row scrolls to it: the top bar, the next row's title, a peek of the card before */
+.sv-tv main :where(a[href], button, [tabindex]) {
+  scroll-margin-block: calc(var(--topbar-h) + 56px) 72px;
+  scroll-margin-inline: 24px;
+}
+/* Clear of the screen's edges (TVs that still overscan) */
+.sv-tv header.drag {
+  padding-inline: 48px 40px;
+}
+/* No keyboard shortcuts on a remote */
+.sv-tv kbd {
+  display: none;
+}

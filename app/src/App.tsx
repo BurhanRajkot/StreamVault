@@ -6,7 +6,7 @@ import { MotionConfig } from 'framer-motion'
 import { FavoritesProvider } from '@/context/FavoritesContext'
 import { DislikesProvider } from '@/context/DislikesContext'
 import { AccountSync } from '@/components/layout/AccountSync'
-import { desktop, isAndroid } from '@app/native/platform'
+import { desktop, isAndroid, isTv } from '@app/native/platform'
 import { useSettings } from '@app/lib/settings'
 import { TitleBar } from '@app/components/shell/TitleBar'
 import { TabBar } from '@app/components/shell/TabBar'
@@ -15,6 +15,8 @@ import { UpdateBanner } from '@app/components/UpdateBanner'
 import { Welcome } from '@app/screens/Welcome'
 import { HomeScreen } from '@app/screens/HomeScreen'
 import { HoverPreviewLayer } from '@app/components/HoverPreview'
+import { TvOpenOnPhoneLayer } from '@app/tv/TvOpenOnPhone'
+import { focusOn, focusScreen, isNavigable, markFocus, restoreFocus, type FocusMark } from '@app/tv/tvRemote'
 
 /** The screens past Home, loaded on first use — and fetched in the background right after start, so none opens blank. */
 const screens = {
@@ -33,6 +35,7 @@ const screens = {
   person: () => import('@app/screens/PersonScreen').then((m) => ({ default: m.PersonScreen })),
   collection: () => import('@app/screens/CollectionScreen').then((m) => ({ default: m.CollectionScreen })),
   browse: () => import('@app/screens/BrowseScreen').then((m) => ({ default: m.BrowseScreen })),
+  tvSignIn: () => import('@app/tv/TvSignInScreen').then((m) => ({ default: m.TvSignInScreen })),
 }
 const TitleScreen = lazy(screens.title)
 const PlayerScreen = lazy(screens.player)
@@ -49,6 +52,7 @@ const F1PlayerScreen = lazy(screens.f1Player)
 const PersonScreen = lazy(screens.person)
 const CollectionScreen = lazy(screens.collection)
 const BrowseScreen = lazy(screens.browse)
+const TvSignInScreen = lazy(screens.tvSignIn)
 
 /** Screens that own the whole display — no bars. */
 const FULLSCREEN = /^\/(watch|offline)\//
@@ -57,6 +61,7 @@ export function App() {
   const settings = useSettings()
   const location = useLocation()
   useAndroidBackButton()
+  useTvFocus(settings.acceptedTerms)
   useEscapeBridge()
   useScrollMemory()
   useFramelessClass()
@@ -78,7 +83,8 @@ export function App() {
           <AccountSync />
           <UserSwitchGuard />
           {!fullscreen && <TitleBar />}
-          <HoverPreviewLayer />
+          {!isTv && <HoverPreviewLayer />}
+          {isTv && <TvOpenOnPhoneLayer />}
           {/* A narrow (snapped, split-screen) desktop window: a slim title bar instead — the players carry their own */}
           {!fullscreen && <WindowStrip />}
           <main className="relative z-10 min-h-[100dvh] text-foreground">
@@ -104,6 +110,9 @@ export function App() {
                 <Route path="/f1/:year/:round" element={<F1RaceScreen />} />
                 <Route path="/watch/f1/:year/:round/:session" element={<F1PlayerScreen />} />
                 <Route path="/offline/:id" element={<OfflinePlayerScreen />} />
+                <Route path="/tv-signin" element={<TvSignInScreen />} />
+                {/* The site's player links here to sign in */}
+                <Route path="/login" element={<Navigate to={isTv ? '/tv-signin' : '/me'} replace />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
@@ -226,6 +235,7 @@ function useAndroidBackButton() {
           return
         }
         const path = pathRef.current
+        if (isTv && tvBack(path)) return
         if (path === '/') {
           void App.minimizeApp()
           return
@@ -238,4 +248,65 @@ function useAndroidBackButton() {
     })
     return () => remove?.()
   }, [navigate])
+}
+
+/** The tabs of the top bar: Back from one of them goes Home. */
+const TV_ROOTS = ['/', '/movies', '/tv', '/anime', '/documentaries', '/f1', '/my-list']
+
+/**
+ * The remote's Back, before the usual: out of an embed's frame back to our
+ * bar over it; from deep down a tab, back to its top first — then on out.
+ * True when it handled the press.
+ */
+function tvBack(path: string): boolean {
+  const player = document.querySelector<HTMLElement>('.app-player')
+  if (player && document.activeElement?.tagName === 'IFRAME') {
+    // The embed has the remote: bring our bar back (the player shows it on Escape) and take the focus
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    ;(document.activeElement as HTMLElement).blur()
+    requestAnimationFrame(() => {
+      const first = Array.from(player.querySelectorAll<HTMLElement>('button')).find(isNavigable)
+      if (first) first.focus()
+    })
+    return true
+  }
+  if (!player && TV_ROOTS.includes(path) && window.scrollY > 40) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const play = document.querySelector<HTMLElement>('main [data-tv-autofocus]')
+    const first = play && isNavigable(play) ? play : Array.from(document.querySelectorAll<HTMLElement>('main a[href], main button')).find(isNavigable)
+    if (first) focusOn(first)
+    return true
+  }
+  return false
+}
+
+/**
+ * TV: every screen opens with something focused (the remote needs a place to
+ * start), and going back lands on the card or button it left from.
+ */
+function useTvFocus(started: boolean) {
+  const location = useLocation()
+  const type = useNavigationType()
+  const marks = useRef(new Map<string, FocusMark>())
+  const keyRef = useRef(location.key)
+  keyRef.current = location.key
+
+  useEffect(() => {
+    if (!isTv) return
+    const remember = () => {
+      const mark = markFocus()
+      if (mark) marks.current.set(keyRef.current, mark)
+    }
+    document.addEventListener('focusin', remember)
+    return () => document.removeEventListener('focusin', remember)
+  }, [])
+
+  useEffect(() => {
+    if (!isTv) return
+    // The previous screen's control is gone; start this one fresh
+    if (document.activeElement && document.activeElement !== document.body && !document.activeElement.isConnected) (document.activeElement as HTMLElement).blur()
+    const mark = type === 'POP' ? marks.current.get(location.key) : undefined
+    return mark ? restoreFocus(mark) : focusScreen()
+    // `started`: past the welcome screen, Home needs its focus too
+  }, [location.key, type, started])
 }

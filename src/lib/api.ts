@@ -1113,3 +1113,45 @@ export function approveAccessRequest(userId: string): Promise<{ request: AccessR
 export function deleteAccessRequest(userId: string): Promise<{ ok: true }> {
   return adminRequest(`/admin/access-requests/${encodeURIComponent(userId)}`, { method: 'DELETE' })
 }
+
+// ── TV sign-in with a phone (backend/src/routes/tvLink.ts) ─────────────────
+
+export type TvLinkStatus = 'waiting' | 'opened' | 'done' | 'expired'
+
+export interface TvLinkStart {
+  code: string
+  secret: string
+  expiresIn: number
+}
+
+async function tvLinkRequest<T>(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${API_BASE}/tv-link${path}`, {
+    ...init,
+    signal,
+    headers: init.body ? { 'Content-Type': 'application/json' } : undefined,
+  })
+  const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null
+  if (res.status === 410) return { status: 'expired' } as T
+  if (!res.ok) throw new Error(body?.error ?? `Request failed (${res.status})`)
+  return body as T
+}
+
+/** The TV: put its Auth0 sign-in address behind a short code. */
+export function startTvLink(authorizeUrl: string): Promise<TvLinkStart> {
+  return tvLinkRequest('', { method: 'POST', body: JSON.stringify({ authorizeUrl }) })
+}
+
+/** The TV: wait (up to ~20 s) for the status to move on from `seen`. */
+export function waitForTvLink(
+  code: string,
+  secret: string,
+  seen: TvLinkStatus | undefined,
+  signal?: AbortSignal
+): Promise<{ status: TvLinkStatus; search?: string }> {
+  return tvLinkRequest(`/${encodeURIComponent(code)}/wait`, { method: 'POST', body: JSON.stringify({ secret, seen }) }, signal)
+}
+
+/** The phone: where to sign in for the code the TV shows. */
+export function openTvLink(code: string): Promise<{ authorizeUrl: string }> {
+  return tvLinkRequest(`/${encodeURIComponent(code)}`)
+}

@@ -2,7 +2,7 @@ import { useEffect, useCallback, type ReactNode } from 'react'
 import { Auth0Provider, useAuth0 } from '@auth0/auth0-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { desktop, isAndroid, SITE_URL } from '@app/native/platform'
+import { desktop, isAndroid, isTv, SITE_URL } from '@app/native/platform'
 
 /**
  * Auth0 for the app.
@@ -23,6 +23,8 @@ import { desktop, isAndroid, SITE_URL } from '@app/native/platform'
  *   https://stream-vault.site/?code=…, which Android hands back to the app
  *   (a verified App Link — public/.well-known/assetlinks.json on the site),
  *   and the code is exchanged here.
+ * - Android TV: there's no browser at all, so the viewer signs in on their
+ *   phone with a code the TV shows (app/src/tv/TvSignInScreen.tsx).
  */
 export function AppAuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
@@ -104,6 +106,10 @@ export function useAppAuth() {
   const signIn = useCallback(
     async (opts: { signup?: boolean; returnTo?: string } = {}) => {
       const authorizationParams: { screen_hint?: 'signup'; prompt?: 'login' } = opts.signup ? { screen_hint: 'signup' } : {}
+      if (isTv) {
+        navigate('/tv-signin', { state: { returnTo: opts.returnTo } })
+        return
+      }
       if (isAndroid) {
         const { Browser } = await import('@capacitor/browser')
         await loginWithRedirect({
@@ -153,6 +159,11 @@ export function useAppAuth() {
   )
 
   const signOut = useCallback(async () => {
+    // A TV signed in through the phone and has no Auth0 session of its own to end: forgetting its tokens is all
+    if (isTv) {
+      await logout({ openUrl: false })
+      return
+    }
     if (isAndroid) {
       const { Browser } = await import('@capacitor/browser')
       await logout({

@@ -10,7 +10,7 @@ import { cn, initialsOf } from '@/lib/utils'
 import { useFavorites } from '@/context/FavoritesContext'
 import { useAppAuth } from '@app/auth/AppAuthProvider'
 import { updateSettings, useSettings } from '@app/lib/settings'
-import { APP_VERSION, isAndroid, isDesktop, isNativeApp, platformLabel } from '@app/native/platform'
+import { APP_VERSION, deviceLabel, isAndroid, isDesktop, isNativeApp } from '@app/native/platform'
 import { useAvailableUpdate } from '@app/native/updates'
 import { useInstallUpdate } from '@app/native/installUpdate'
 import { ServerSheet } from '@app/components/ServerSheet'
@@ -200,7 +200,7 @@ export function ProfileScreen() {
                   </IconTile>
                 }
                 label="About"
-                value={`${platformLabel} ${APP_VERSION}`}
+                value={`${deviceLabel()} ${APP_VERSION}`}
               />
             </ListSection>
           </div>
@@ -221,7 +221,7 @@ export function ProfileScreen() {
             <LogoMark className="h-16 w-16" />
             <p className="t-headline text-white">StreamVault</p>
             <p className="t-footnote">
-              Version {APP_VERSION} for {platformLabel}
+              Version {APP_VERSION} for {deviceLabel()}
             </p>
           </div>
           <p>

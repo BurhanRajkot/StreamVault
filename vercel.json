@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/apk",
+      "destination": "https://xpickztkltapgelrsdts.supabase.co/storage/v1/object/public/app-releases/StreamVault.apk",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/sitemap-titles.xml",

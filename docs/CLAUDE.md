@@ -307,6 +307,18 @@ links, open to everyone. Winners stay hidden until the viewer turns results
 on (`useF1ShowResults`). E2E mock data: `F1_RACES` / `f1Releases` in
 `e2e/fixtures/data.ts`.
 
+### Android TV
+The Android APK is also the TV app (`app/src/tv/`, see `app/README.md`):
+leanback launcher + banner, `MainActivity.isTv` → `isTv` in
+`app/src/native/platform.ts` (settled by `detectTv()` before the first render,
+so read it inside functions), a 1280-px layout fitted to the screen, remote
+navigation (`tvRemote.ts`; `[data-tv-autofocus]` marks a screen's first
+control, `data-tv-initial` the Premium player's). Sign-in goes through a phone:
+`/tv-link` on the backend (codes live 10 min in the cache), `/activate` on the
+site, the relay in `src/lib/appSignIn.ts`. `stream-vault.site/apk` (vercel.json)
+redirects to the newest APK for Downloader. Force TV mode in a desktop browser
+with `localStorage['sv-tv'] = '1'`.
+
 ### Protected Routes
 Admin pages guard themselves rather than being wrapped in a route element —
 the page needs to render the login modal in place when the token is missing or

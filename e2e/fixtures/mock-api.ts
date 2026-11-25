@@ -145,6 +145,11 @@ export class MockApi {
     /** Premium access requests sent from the app (none by default). */
     accessRequests: [] as MockAccessRequest[],
     /**
+     * TV sign-in codes (backend/src/routes/tvLink.ts): what each opens, and
+     * the answer the site handed back for the TV (null until then).
+     */
+    tvLinks: {} as Record<string, { authorizeUrl: string; search: string | null }>,
+    /**
      * Treat every call as the app's (as if it carried `X-StreamVault-Client:
      * app/…`). An approved account's Premium plays in the app only; the app
      * runs the website's player, so tests of that player as an approved
@@ -374,6 +379,20 @@ export class MockApi {
       })
     }
     this.on('GET', '/releases', ({ query }) => releasesFor(query))
+
+    // — Signing in a TV from a phone (backend/src/routes/tvLink.ts): the site's half —
+    this.on('GET', '/tv-link/:code', ({ params }) => {
+      const link = this.state.tvLinks[params.code.toUpperCase().replace(/-/g, '')]
+      return link && !link.search
+        ? ok({ authorizeUrl: link.authorizeUrl })
+        : { status: 404, json: { error: 'That code isn’t valid. Check the code on your TV, or get a new one there.' } }
+    })
+    this.on('POST', '/tv-link/:code/complete', ({ params, body }) => {
+      const link = this.state.tvLinks[params.code]
+      if (!link) return { status: 404, json: { error: 'This sign-in expired. Get a new code on your TV.' } }
+      link.search = String((body as { search?: unknown } | null)?.search ?? '')
+      return { status: 204 }
+    })
 
     // — The F1 archive: public calendars and release lists (backend/src/routes/f1.ts) —
     this.on('GET', '/f1/seasons/:year(\\d{4})', ({ params }) =>
