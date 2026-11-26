@@ -18,7 +18,7 @@ const TABS: Tab[] = [
   { to: '/search', label: 'Search', icon: Search, match: (p) => p === '/search' },
   { to: '/f1', label: 'F1', icon: Flag, match: (p) => p === '/f1' || p.startsWith('/f1/') },
   { to: '/downloads', label: 'Downloads', icon: Download, match: (p) => p === '/downloads' },
-  { to: '/me', label: 'My Space', icon: CircleUserRound, match: (p) => ['/me', '/my-list', '/premium', '/admin', '/18plus'].includes(p) },
+  { to: '/me', label: 'My Space', icon: CircleUserRound, match: (p) => ['/me', '/my-list', '/premium', '/admin'].includes(p) },
 ]
 
 /**

@@ -9,7 +9,6 @@ import { useDownloads } from '@app/downloads/store'
 import { useScrolled } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { Logo } from '@app/components/Logo'
-import { MatureLink } from '@app/components/MatureLink'
 import { WindowButtons } from '@app/components/shell/WindowControls'
 
 const LINKS = [
@@ -115,7 +114,6 @@ export function TitleBar() {
         <kbd className="hidden font-sans text-[12px] text-label-3 xl:inline">Ctrl K</kbd>
       </button>
 
-      <MatureLink className="ml-1 h-9" />
       <IconLink to="/downloads" label="Downloads" active={pathname === '/downloads'}>
         <Download className="h-[18px] w-[18px]" />
         {active > 0 && (

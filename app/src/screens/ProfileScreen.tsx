@@ -160,33 +160,9 @@ export function ProfileScreen() {
               )}
             </ListSection>
 
-            {/* Signed out of admin mode: the way in, right on this page */}
-            {!access.admin && (
-              <ListSection header="Admin">
-                <ListRow
-                  to="/admin"
-                  icon={
-                    <IconTile color="gray">
-                      <ShieldCheck />
-                    </IconTile>
-                  }
-                  label="Admin sign-in"
-                />
-              </ListSection>
-            )}
-
-            {/* Only the admin sees these */}
+            {/* Only the admin sees these; signing in as admin lives under About */}
             {access.admin && (
               <ListSection header="Admin">
-                <ListRow
-                  to="/18plus"
-                  icon={
-                    <IconTile color="red">
-                      <span className="text-[11px] font-bold leading-none">18+</span>
-                    </IconTile>
-                  }
-                  label="18+ shelf"
-                />
                 <ListRow
                   to="/admin"
                   icon={
