@@ -16,12 +16,10 @@ export interface AppSettings {
   playerFullscreen: boolean
   /** Shown once, on first launch. */
   acceptedTerms: boolean
-  /** Admin only: the keyword search over the files in the Real-Debrid account is switched on (/files). */
-  fileSearch: boolean
 }
 
 const KEY = 'sv-app:settings'
-const DEFAULTS: AppSettings = { defaultServer: '', premiumDefault: true, downloadQuality: '1080p', wifiOnly: false, playerFullscreen: false, acceptedTerms: false, fileSearch: false }
+const DEFAULTS: AppSettings = { defaultServer: '', premiumDefault: true, downloadQuality: '1080p', wifiOnly: false, playerFullscreen: false, acceptedTerms: false }
 
 function read(): AppSettings {
   try {
