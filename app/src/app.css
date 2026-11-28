@@ -362,7 +362,8 @@ textarea {
     overflow-x: auto;
     overflow-y: visible;
     overscroll-behavior-x: contain;
-    scroll-snap-type: x mandatory;
+    /* Proximity, not mandatory: a fling glides as far as it was thrown and settles on a card only when it ends near one — mandatory yanked every swipe back to a card edge */
+    scroll-snap-type: x proximity;
     scroll-padding-inline: 1rem;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
@@ -428,29 +429,41 @@ textarea {
     background: rgb(84 84 88 / 0.55);
   }
 
-  /* Image placeholders: a slow, quiet shimmer while TMDB art loads */
+  /*
+   * Placeholders. Artwork frames keep .skeleton under their picture, and a
+   * lazy poster far down the page may not load for a long while — so the
+   * frame itself is a still, flat colour. The old shimmer animated
+   * background-position, which the compositor can't run: every frame
+   * restyled every frame still waiting on its picture (hundreds, most of
+   * them off screen), and that was most of the stutter while scrolling.
+   */
   .skeleton {
-    background: linear-gradient(90deg, #161618 0, #222225 90px, #161618 180px);
-    background-size: 480px 100%;
-    animation: sv-shimmer 1.8s infinite linear;
+    background-color: #161618;
   }
   /*
-   * Artwork frames keep .skeleton under their picture: once it has arrived,
-   * stop shimmering. Hundreds of them animating unseen restyled and repainted
-   * the whole page every frame (a TV box couldn't keep up).
+   * A placeholder standing in for content that is still coming (an empty
+   * box, not a frame round a picture) breathes, the way Netflix's grey
+   * tiles do. Opacity only: the compositor runs it and the page never
+   * restyles for it.
    */
-  .skeleton:has(img[data-loaded="true"]) {
-    animation: none;
-    background: #161618;
+  .skeleton:empty {
+    animation: sv-breathe 1.6s ease-in-out infinite;
   }
 
-  /* Images fade in as they arrive */
+  /*
+   * Images fade in as they arrive. One already in the cache (a screen you
+   * came back to) is shown at once — no blink of every poster on the way back.
+   */
   .img-fade {
     opacity: 0;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.3s ease-out;
   }
   .img-fade[data-loaded="true"] {
     opacity: 1;
+  }
+  .img-fade[data-loaded="cached"] {
+    opacity: 1;
+    transition: none;
   }
 
   /* Touch feedback: a slight give, the way iOS buttons dim and shrink */
@@ -476,12 +489,13 @@ textarea {
   }
 }
 
-@keyframes sv-shimmer {
-  0% {
-    background-position: -480px 0;
-  }
+@keyframes sv-breathe {
+  0%,
   100% {
-    background-position: calc(480px + 100%) 0;
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
   }
 }
 
@@ -562,10 +576,9 @@ textarea {
   outline: 3px solid #fff;
   outline-offset: 3px;
 }
-/* A TV box can't afford a page of shimmering placeholders: they sit still */
+/* A TV box can't afford a page of breathing placeholders: they sit still */
 .sv-tv .skeleton {
   animation: none;
-  background: #161618;
 }
 /* …nor a fade for every poster that arrives: they just appear */
 .sv-tv .img-fade {

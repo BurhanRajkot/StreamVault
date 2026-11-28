@@ -20,12 +20,19 @@ export function useScrolled(threshold = 24): boolean {
   return scrolled
 }
 
+/** One subscriber per query, kept: a new function each render made useSyncExternalStore unsubscribe and subscribe again on every render. */
+const mediaSubscribers = new Map<string, (fn: () => void) => () => void>()
 function subscribeMedia(query: string) {
-  return (fn: () => void) => {
-    const mql = window.matchMedia(query)
-    mql.addEventListener('change', fn)
-    return () => mql.removeEventListener('change', fn)
+  let subscribe = mediaSubscribers.get(query)
+  if (!subscribe) {
+    subscribe = (fn: () => void) => {
+      const mql = window.matchMedia(query)
+      mql.addEventListener('change', fn)
+      return () => mql.removeEventListener('change', fn)
+    }
+    mediaSubscribers.set(query, subscribe)
   }
+  return subscribe
 }
 
 export function useMediaQuery(query: string): boolean {
