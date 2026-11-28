@@ -23,7 +23,7 @@ import { EASE_OUT, item, spring, stagger } from '@app/lib/motion'
 import { parseKind, useSeasons, useTitleDetails, type TitleKind } from '@app/lib/useTitle'
 import { useDownloadAction, type DownloadTarget } from '@app/downloads/useDownloadAction'
 import { useContinueWatching } from '@app/components/ContinueWatchingRow'
-import { FadeImg, PosterGrid, PosterGridSkeleton, tmdbImg } from '@app/components/media'
+import { FadeImg, PosterGrid, PosterGridSkeleton, backdropSrcSet, tmdbImg } from '@app/components/media'
 import { ServerChips } from '@app/components/ServerSheet'
 import { DownloadOptionsSheet } from '@app/components/DownloadOptionsSheet'
 import { Sheet } from '@app/components/Sheet'
@@ -244,6 +244,8 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
     { id: 'details', label: 'Details' },
   ]
   const shownTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id
+  const [loadedLogo, setLoadedLogo] = useState<string | null>(null)
+  const logoReady = !!display.logoImage && loadedLogo === display.logoImage
   const meta = [display.year, display.contentRating !== 'NR' ? display.contentRating : '', display.durationStr, display.genres.slice(0, 2).join(', ')].filter(Boolean)
 
   return (
@@ -264,7 +266,14 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
         <motion.div style={{ y: artY, opacity: artOpacity }} className="absolute inset-0">
           {/* A small copy shows at once; the full-size one fades in over it */}
           <img src={tmdbImg(media.backdrop_path || media.poster_path, 'w300')} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
-          <FadeImg src={tmdbImg(media.backdrop_path || media.poster_path, wide ? 'original' : 'w1280')} fetchPriority="high" className="relative h-full w-full object-cover object-top" />
+          <FadeImg
+            src={tmdbImg(media.backdrop_path || media.poster_path, 'w1280')}
+            // The size the window needs: "original" (often 3840 wide) took long to arrive and longer to decode
+            srcSet={wide ? backdropSrcSet(media.backdrop_path || media.poster_path) : undefined}
+            sizes="100vw"
+            fetchPriority="high"
+            className="relative h-full w-full object-cover object-top"
+          />
         </motion.div>
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/20 lg:via-black/15" />
         <div className="absolute inset-0 hidden bg-gradient-to-r from-black/90 via-black/55 to-transparent lg:block" />
@@ -277,12 +286,29 @@ function TitleBody({ media, kind, partial }: { media: Media; kind: TitleKind; pa
         transition={{ duration: 0.4, ease: EASE_OUT }}
         className="relative z-10 flex flex-col items-center px-4 pb-2 pt-[36vh] text-center lg:min-h-[80vh] lg:max-w-[min(50rem,60%)] lg:items-start lg:justify-end lg:px-12 lg:pb-14 lg:pt-[calc(var(--topbar-h)+2rem)] lg:text-left"
       >
-        <div className="mb-3 lg:mb-5">
-          {display.logoImage ? (
-            <img src={display.logoImage} alt={display.title} className="max-h-24 max-w-[78vw] object-contain drop-shadow-[0_2px_16px_rgb(0_0_0/0.6)] lg:max-h-40 lg:max-w-[30rem] lg:object-left" />
-          ) : (
-            <h1 className="t-large lg:text-[clamp(2.75rem,4.4vw,4.5rem)] lg:leading-[1.05]">{display.title}</h1>
+        {/*
+         * One height for the name and the logo, the logo crossfading over the
+         * name once it has loaded — it arrives with the full details, and
+         * swapping one for the other pushed everything under it down.
+         */}
+        <div className="mb-3 grid h-24 w-full items-end justify-items-center lg:mb-5 lg:h-40 lg:justify-items-start">
+          {display.logoImage && (
+            <img
+              src={display.logoImage}
+              alt={display.title}
+              onLoad={() => setLoadedLogo(display.logoImage)}
+              className={cn(
+                'col-start-1 row-start-1 max-h-24 max-w-[78vw] object-contain drop-shadow-[0_2px_16px_rgb(0_0_0/0.6)] transition-opacity duration-300 ease-out lg:max-h-40 lg:max-w-[30rem] lg:object-left',
+                !logoReady && 'opacity-0'
+              )}
+            />
           )}
+          <h1
+            aria-hidden={logoReady || undefined}
+            className={cn('col-start-1 row-start-1 t-large line-clamp-2 transition-opacity duration-300 ease-out lg:text-[clamp(2.75rem,4.4vw,4.5rem)] lg:leading-[1.05]', logoReady && 'opacity-0')}
+          >
+            {display.title}
+          </h1>
         </div>
 
         <p className="t-footnote mb-3 flex flex-wrap items-center justify-center gap-x-1.5 font-medium text-white/70 lg:justify-start lg:text-[15px]">

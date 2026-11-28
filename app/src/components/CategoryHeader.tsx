@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { useScrolled } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { Logo } from './Logo'
+import { BarBackdrop } from './shell/BarBackdrop'
 
 /** The phone's browse categories — the home page's modes. (F1 has its own tab.) */
 export type Category = 'home' | 'movie' | 'tv' | 'anime' | 'documentary'
@@ -35,12 +36,8 @@ export function CategoryHeader({ active, overHero = true }: { active: Category; 
   }, [active])
 
   return (
-    <header
-      className={cn(
-        'fixed inset-x-0 top-0 z-30 pt-safe transition-[background-color,backdrop-filter,box-shadow] duration-300 lg:hidden',
-        scrolled || !overHero ? 'material-bar' : 'bg-gradient-to-b from-black/50 to-transparent'
-      )}
-    >
+    <header className="fixed inset-x-0 top-0 z-30 pt-safe lg:hidden">
+      <BarBackdrop solid={scrolled || !overHero} clear="bg-gradient-to-b from-black/50 to-transparent" />
       <div className="flex h-12 items-center px-4">
         <Logo compact />
       </div>

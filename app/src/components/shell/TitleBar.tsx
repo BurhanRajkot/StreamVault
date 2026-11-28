@@ -10,6 +10,7 @@ import { useScrolled } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
 import { Logo } from '@app/components/Logo'
 import { WindowButtons } from '@app/components/shell/WindowControls'
+import { BarBackdrop } from '@app/components/shell/BarBackdrop'
 
 const LINKS = [
   { to: '/', label: 'Home' },
@@ -55,14 +56,12 @@ export function TitleBar() {
 
   return (
     <header
-      className={cn(
-        'drag fixed inset-x-0 top-0 z-50 hidden h-[var(--topbar-h)] items-center gap-1.5 pl-4 pr-2 xl:gap-2 xl:pl-5 transition-[background-color,box-shadow,backdrop-filter] duration-500 lg:flex',
-        solid ? 'material-bar' : 'bg-gradient-to-b from-black/60 via-black/20 to-transparent'
-      )}
+      className="drag fixed inset-x-0 top-0 z-50 hidden h-[var(--topbar-h)] items-center gap-1.5 pl-4 pr-2 xl:gap-2 xl:pl-5 lg:flex"
       onDoubleClick={(e) => {
         if (e.target === e.currentTarget) void desktop?.windowControl?.('maximize')
       }}
     >
+      <BarBackdrop solid={solid} />
       <motion.button
         initial={false}
         animate={{ width: canGoBack ? 36 : 0, opacity: canGoBack ? 1 : 0, marginRight: canGoBack ? 4 : 0 }}

@@ -18,6 +18,15 @@ export function tmdbImg(path: string | null | undefined, size: TmdbSize): string
   return path ? `https://image.tmdb.org/t/p/${size}${path}` : '/placeholder.svg'
 }
 
+/**
+ * A full-width backdrop's sources, for `srcSet` with `sizes="100vw"`: the
+ * window picks the size it needs. TMDB's "original" is usually 1920 wide
+ * (sometimes 3840) — loading it everywhere took long to arrive and longer to decode.
+ */
+export function backdropSrcSet(path: string | null | undefined): string | undefined {
+  return path ? `${tmdbImg(path, 'w780')} 780w, ${tmdbImg(path, 'w1280')} 1280w, ${tmdbImg(path, 'original')} 1920w` : undefined
+}
+
 /** Movie or show — list endpoints only say so in blended feeds. */
 export function kindOf(media: Media, fallback: MediaKind = 'movie'): MediaKind {
   if (media.media_type === 'tv' || media.media_type === 'movie') return media.media_type
@@ -87,18 +96,34 @@ export function TitleLink({ item: media, kind, ...props }: Omit<LinkProps, 'to' 
   )
 }
 
-/** An image that fades in once it has arrived, over a shimmer. */
-export function FadeImg({ className, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
-  const [loaded, setLoaded] = useState(false)
+/** Arriving this soon after the image was put on the page, it came from the cache. */
+const CACHED_MS = 80
+
+/**
+ * An image that fades in once it has arrived, over its frame's placeholder
+ * colour — or simply shows, when it was already in the cache (coming back to
+ * a screen shouldn't blink every poster on it). The state lives on the
+ * element, not in React: a row of posters arriving re-renders nothing.
+ */
+export function FadeImg({ className, onLoad, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const placedAt = useRef(0)
+  const place = useCallback((el: HTMLImageElement | null) => {
+    if (!el) return
+    placedAt.current = performance.now()
+    if (el.complete && el.naturalWidth > 0) el.dataset.loaded = 'cached'
+  }, [])
   return (
     <img
+      // A new picture is a new element: it fades in afresh rather than swapping under the old one
+      key={props.src}
+      ref={place}
       alt=""
       decoding="async"
       {...props}
-      data-loaded={loaded}
       onLoad={(e) => {
-        setLoaded(true)
-        props.onLoad?.(e)
+        const el = e.currentTarget
+        if (!el.dataset.loaded) el.dataset.loaded = performance.now() - placedAt.current < CACHED_MS ? 'cached' : 'true'
+        onLoad?.(e)
       }}
       className={cn('img-fade', className)}
     />
@@ -176,13 +201,20 @@ export function Row({ title, action, children, className, gap = 'gap-2.5 lg:gap-
     setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }))
   }, [])
 
+  // The row's own size: watched once (it reports straight away, too)
   useEffect(() => {
-    measure()
     const el = scroller.current
     if (!el) return
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
+  }, [measure])
+  // Cards arrived or changed: does the row still reach past its end? Asked on
+  // the next frame, after the page's own layout, rather than forcing one now
+  // (once per row on every render of the page added up)
+  useEffect(() => {
+    const frame = requestAnimationFrame(measure)
+    return () => cancelAnimationFrame(frame)
   }, [measure, children])
 
   const page = (direction: 1 | -1) => {
@@ -237,6 +269,42 @@ function uniqueTitles(items: Media[], kind?: MediaKind): Media[] {
 const POSTER_W = 'w-[124px] sm:w-[136px] lg:w-[168px] 2xl:w-[188px]'
 const WIDE_W = 'w-[268px] sm:w-[290px] lg:w-[330px] 2xl:w-[370px]'
 
+/*
+ * A row's placeholders stand exactly as tall as the cards that replace them —
+ * captions included — so nothing under a row moves when its titles arrive.
+ */
+
+/** Posters: just the artwork. */
+function PosterSkeletons({ count = 8 }: { count?: number }) {
+  return Array.from({ length: count }, (_, i) => <div key={i} className={cn('skeleton aspect-[2/3] shrink-0 rounded-[10px]', POSTER_W)} />)
+}
+
+/** Landscape cards: the artwork, then the title (20px) and a line (18px) under it. */
+function WideSkeletons({ count = 5 }: { count?: number }) {
+  return Array.from({ length: count }, (_, i) => (
+    <div key={i} className={cn('shrink-0', WIDE_W)} aria-hidden="true">
+      <div className="skeleton aspect-video rounded-[10px]" />
+      <div className="mt-2 flex h-[38px] flex-col justify-center gap-2">
+        <div className="skeleton h-3 w-3/4 rounded-full" />
+        <div className="skeleton h-2.5 w-2/5 rounded-full" />
+      </div>
+    </div>
+  ))
+}
+
+/** Top 10: the poster, then the place and two lines (35px). */
+function TopTenSkeletons({ count = 8 }: { count?: number }) {
+  return Array.from({ length: count }, (_, i) => (
+    <div key={i} className={cn('shrink-0', POSTER_W)} aria-hidden="true">
+      <div className="skeleton aspect-[2/3] rounded-[10px]" />
+      <div className="mt-2 flex h-[35px] flex-col justify-center gap-2 pl-6">
+        <div className="skeleton h-2.5 w-4/5 rounded-full" />
+        <div className="skeleton h-2 w-1/2 rounded-full" />
+      </div>
+    </div>
+  ))
+}
+
 /** A horizontal row of posters — a fixed handful, never an endless feed. */
 export function PosterRow({
   title,
@@ -256,7 +324,7 @@ export function PosterRow({
   return (
     <Row title={title}>
       {loading && shown.length === 0
-        ? Array.from({ length: 8 }, (_, i) => <div key={i} className={cn('skeleton aspect-[2/3] shrink-0 rounded-[10px]', POSTER_W)} />)
+        ? <PosterSkeletons />
         : shown.map((m) => <PosterCard key={`${kindOf(m, kind)}-${m.id}`} media={m} kind={kind} className={POSTER_W} />)}
     </Row>
   )
@@ -269,7 +337,7 @@ export function WideRow({ title, items, loading, kind, limit = 14 }: { title: st
   return (
     <Row title={title}>
       {loading && shown.length === 0
-        ? Array.from({ length: 5 }, (_, i) => <div key={i} className={cn('skeleton aspect-video shrink-0 rounded-[10px]', WIDE_W)} />)
+        ? <WideSkeletons />
         : shown.map((m) => <WideCard key={`${kindOf(m, kind)}-${m.id}`} media={m} kind={kind} className={WIDE_W} />)}
     </Row>
   )
@@ -289,7 +357,7 @@ export function ComingSoonRow({ title, items, loading }: { title: string; items:
   return (
     <Row title={title}>
       {loading && shown.length === 0
-        ? Array.from({ length: 5 }, (_, i) => <div key={i} className={cn('skeleton aspect-video shrink-0 rounded-[10px]', WIDE_W)} />)
+        ? <WideSkeletons />
         : shown.map((m) => {
             const leaf = dateLeaf(m.release_date ?? '')
             return (
@@ -314,8 +382,15 @@ export function ComingSoonRow({ title, items, loading }: { title: string; items:
 }
 
 /** Top 10: each poster with its place and title under it. */
-export function TopTenRow({ title, items, kind }: { title: string; items: Media[] | undefined; kind?: MediaKind }) {
+export function TopTenRow({ title, items, loading, kind }: { title: string; items: Media[] | undefined; loading?: boolean; kind?: MediaKind }) {
   const shown = uniqueTitles((items ?? []).filter((m) => m.poster_path), kind).slice(0, 10)
+  // Held open while it loads: a row appearing above the rest pushed them all down
+  if (loading && shown.length === 0)
+    return (
+      <Row title={title}>
+        <TopTenSkeletons />
+      </Row>
+    )
   if (shown.length < 3) return null
   return (
     <Row title={title}>

@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useScrolled } from '@app/lib/hooks'
 import { spring } from '@app/lib/motion'
+import { BarBackdrop } from './shell/BarBackdrop'
 
 /*
  * The app's building blocks, after iOS: a navigation bar that turns to frosted
@@ -73,12 +74,8 @@ export function NavBar({
   const scrolled = useScrolled(threshold)
   const goBack = useBack(backTo)
   return (
-    <div
-      className={cn(
-        'fixed inset-x-0 top-0 z-30 pt-[var(--sat)] transition-[background-color,box-shadow,backdrop-filter] duration-300 lg:hidden',
-        scrolled ? 'material-bar' : 'bg-transparent'
-      )}
-    >
+    <div className="fixed inset-x-0 top-0 z-30 pt-[var(--sat)] lg:hidden">
+      <BarBackdrop solid={scrolled} clear="" />
       <div className="relative flex h-[var(--navbar-h)] items-center gap-2 px-3">
         {back && (
           <CircleButton label="Back" onClick={goBack}>

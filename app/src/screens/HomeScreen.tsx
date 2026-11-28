@@ -57,7 +57,7 @@ function CatalogRow({ mode, spec }: { mode: MediaMode; spec: RowSpec }) {
     queryFn: spec.load,
     staleTime: ROW_STALE_MS,
   })
-  if (spec.style === 'top10') return <TopTenRow title={spec.title} items={data} kind={spec.kind} />
+  if (spec.style === 'top10') return <TopTenRow title={spec.title} items={data} loading={isLoading} kind={spec.kind} />
   if (spec.style === 'wide') return <WideRow title={spec.title} items={data} loading={isLoading} kind={spec.kind} />
   if (spec.style === 'soon') return <ComingSoonRow title={spec.title} items={data} loading={isLoading} />
   return <PosterRow title={spec.title} items={data} loading={isLoading} kind={spec.kind} />
